@@ -16,5 +16,5 @@ and suggest an unified extensible architecture that provides all functional requ
 needed on README.md
 
 KIRO PLAN VALIDATE architecture on @README.md as how it could be integrated on @portal-bridge
-LIST all missing functions and incompatible APIs, update README.md as result
+LIST all missing functions and incompatible APIs, as portal_refactor_analysis.md
 
