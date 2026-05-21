@@ -32,7 +32,8 @@ export interface UseWalletResult {
   // ─── AES Key (unified) ────────────────────────────────────────────────────────
   /**
    * Retrieves the AES key for the given address.
-   * Currently routes to the Snap path; in the future may route to the onboard contract.
+   * Routes to the Snap path for MetaMask or to the onboard contract otherwise
+   * (via `useAesKeyProvider` when using WagmiRainbowKitProvider).
    */
   getAesKey: (address: string) => Promise<string | null>;
   /** The current session AES key (React state only, never persisted to storage). */

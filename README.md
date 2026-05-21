@@ -25,6 +25,54 @@ npm install @coti-io/coti-wallet-plugin
 npm install react ethers viem @coti-io/coti-sdk-typescript @metamask/providers @rainbow-me/rainbowkit wagmi @tanstack/react-query
 ```
 
+## Plugin Hooks Architecture
+
+Below is a high-level representation of the core React hooks exposed by this plugin, outlining their key state variables and methods.
+
+```mermaid
+classDiagram
+    direction LR
+
+    class useWallet {
+        +boolean isConnected
+        +string walletAddress
+        +string networkName
+        +string chainId
+        +string sessionAesKey
+        +boolean isPrivateUnlocked
+        +connect() Promise~void~
+        +disconnect() Promise~void~
+        +getAesKey(address) Promise~string~
+        +switchNetwork(chainId) Promise~boolean~
+        +unlockPrivateBalances() Promise~boolean~
+        +lockPrivateBalances() void
+        +handleOnboard() Promise~string~
+    }
+
+    class usePrivateTokenBalance {
+        +fetchPrivateBalance(user, aesKey, address, version, decimals) Promise~string~
+    }
+
+    class useBalanceUpdater {
+        +updateAccountState(account, checkSnap, fetchPrivate) Promise~void~
+    }
+
+    class usePrivacyBridge {
+        +portalIn(tokenAddress, amount) Promise~void~
+        +portalOut(tokenAddress, amount) Promise~void~
+        +swapProgress
+    }
+
+    class useAesKeyProvider {
+        +boolean isOnboarding
+        +string onboardingError
+        +getAesKey(address) Promise~string~
+    }
+
+    useWallet --> useAesKeyProvider : Delegates AES Retrieval
+    useBalanceUpdater --> usePrivateTokenBalance : Orchestrates Batch Fetches
+```
+
 ## Quick Start
 
 ### Basic Setup (MetaMask only)
@@ -74,6 +122,8 @@ function App() {
 | `cotiMainnet` / `cotiTestnet` | Chain definitions for wagmi/viem |
 | `COTI_MAINNET_CHAIN_ID` / `COTI_TESTNET_CHAIN_ID` | Chain ID constants |
 
+> **Note on Constants:** `COTI_MAINNET_CHAIN_ID` and `COTI_TESTNET_CHAIN_ID` are static, unchanging constants (2632500 and 7082400 respectively) exported to help developers avoid "magic numbers" in code, improving readability and reducing typos in network-specific routing or `if` statements.
+
 ### React Hooks
 
 #### Wallet (Unified)
@@ -111,7 +161,7 @@ const wallet = useWallet();
 |---|---|---|
 | `sessionAesKey` | `string \| null` | Current AES key (React state only, never persisted) |
 | `isPrivateUnlocked` | `boolean` | `true` when session key is set |
-| `getAesKey(address)` | `(addr: string) => Promise<string \| null>` | Retrieve AES key (routes to Snap; future: onboard contract) |
+| `getAesKey(address)` | `(addr: string) => Promise<string \| null>` | Retrieve AES key (routes to Snap for MetaMask, or Onboarding Contract for others) |
 | `unlockPrivateBalances()` | `() => Promise<boolean>` | Calls `getAesKey` for current address, sets session key |
 | `lockPrivateBalances()` | `() => void` | Clears session key and snap cache |
 | `clearKeyCache()` | `() => void` | Forces fresh retrieval on next unlock (without locking) |
@@ -167,9 +217,26 @@ function WalletButton() {
 
 | Hook | Description |
 |------|-------------|
-| `usePrivateERC20()` | Fetch and decrypt 64-bit private ERC20 balances |
-| `useFetchPrivateBalance()` | Decrypt 256-bit ciphertext balances (COTI V2 tokens) |
+| `usePrivateTokenBalance()` | Unified hook to fetch and decrypt 64-bit or 256-bit confidential token balances |
 | `useBalanceUpdater()` | Orchestrates public + private balance refresh cycles |
+
+**`usePrivateTokenBalance()`**
+Provides a unified interface to retrieve and decrypt confidential balances safely.
+
+| Method | Type | Description |
+|--------|------|-------------|
+| `fetchPrivateBalance(...)` | `(userAddress: string, aesKey: string, contractAddress: string, version: 64 \| 256, decimals?: number) => Promise<string>` | Fetches and decrypts the balance. Pass `64` for legacy native p.COTI, or `256` for wrapped/bridged confidential tokens. Natively throws on AES key mismatch. |
+
+**`useBalanceUpdater(props)`**
+Advanced orchestrator typically used at the Provider level to manage global token states and batch-fetch the entire wallet portfolio in parallel.
+
+*Configuration Props:*
+Accepts an object comprising React state setters (`setWalletAddress`, `setIsConnected`, `setHasSnap`, `setPublicTokens`, `setPrivateTokens`, `setSessionAesKey`) and dependency injection for core functions (`checkNetwork`, `getAESKeyFromSnap`, `fetchPrivateBalance`).
+
+*Returns:*
+| Method | Type | Description |
+|--------|------|-------------|
+| `updateAccountState(...)` | `(account: string, checkSnap?: boolean, fetchPrivate?: boolean) => Promise<void>` | Triggers a parallelized refresh of all configured COTI/ERC20 and p.ERC20 token balances. |
 
 #### Bridge Operations
 
@@ -311,7 +378,30 @@ import type {
 
 ## Usage Examples
 
-### Decrypt a Private Balance
+### Fetch and Decrypt a Private Balance (React Hook)
+
+```tsx
+import { usePrivateTokenBalance } from '@coti-io/coti-wallet-plugin';
+
+function PrivateBalanceViewer({ userAddress, aesKey, tokenAddress }) {
+  const { fetchPrivateBalance } = usePrivateTokenBalance();
+
+  const handleFetch = async () => {
+    try {
+      // Pass 64 for legacy native p.COTI, or 256 for bridged/confidential ERC20s (p.WETH, p.USDT, etc.)
+      const balance = await fetchPrivateBalance(userAddress, aesKey, tokenAddress, 256, 18);
+      console.log(`Decrypted Balance: ${balance}`);
+    } catch (error) {
+      // Automatically throws if the AES key mismatches the on-chain ciphertext
+      console.error("Failed to decrypt:", error.message);
+    }
+  };
+
+  return <button onClick={handleFetch}>Fetch Balance</button>;
+}
+```
+
+### Decrypt a Raw Balance Ciphertext (Core Utility)
 
 ```typescript
 import { decryptBalance, formatDecryptedBalance } from '@coti-io/coti-wallet-plugin';

@@ -15,7 +15,7 @@ interface UseBalanceUpdaterProps {
     setPrivateTokens: React.Dispatch<React.SetStateAction<Token[]>>;
     checkNetwork: (provider: ethers.BrowserProvider) => Promise<void>;
     getAESKeyFromSnap: (accountAddress: string) => Promise<string | null>;
-    fetchPrivateBalance: (userAddress: string, aesKey: string, currentChainIdOrAddress: number | string, isDirectAddress?: boolean, decimals?: number) => Promise<string>;
+    fetchPrivateBalance: (userAddress: string, aesKey: string, contractAddress: string, version: 64 | 256, decimals?: number) => Promise<string>;
     sessionAesKey?: string | null;
     setSessionAesKey: (key: string | null) => void;
 }
@@ -172,12 +172,12 @@ export const useBalanceUpdater = ({
 
                             console.log('🔄 Fetching private balances with Snap/Key...');
 
-                            const fetchPrivateSafely = async (address: string | undefined, decimals: number) => {
+                            const fetchPrivateSafely = async (address: string | undefined, version: 64 | 256, decimals: number) => {
                                 if (!address) {
                                     return { value: '0', isMismatch: false };
                                 }
                                 try {
-                                    const value = await fetchPrivateBalance(account, aesKey, address, true, decimals);
+                                    const value = await fetchPrivateBalance(account, aesKey, address, version, decimals);
                                     return { value, isMismatch: false };
                                 } catch (e: any) {
                                     const msg = e?.message || '';
@@ -191,13 +191,13 @@ export const useBalanceUpdater = ({
                             };
 
                             const privateFetches = await Promise.all([
-                                fetchPrivateSafely(addresses.PrivateCoti, 18),
-                                fetchPrivateSafely(addresses["p.WETH"], 18),
-                                fetchPrivateSafely(addresses["p.WBTC"], 8),
-                                fetchPrivateSafely(addresses["p.USDT"], 6),
-                                fetchPrivateSafely(addresses["p.USDC_E"], 6),
-                                fetchPrivateSafely(addresses["p.WADA"], 6),
-                                fetchPrivateSafely(addresses["p.gCOTI"], 18),
+                                fetchPrivateSafely(addresses.PrivateCoti, 64, 18),
+                                fetchPrivateSafely(addresses["p.WETH"], 256, 18),
+                                fetchPrivateSafely(addresses["p.WBTC"], 256, 8),
+                                fetchPrivateSafely(addresses["p.USDT"], 256, 6),
+                                fetchPrivateSafely(addresses["p.USDC_E"], 256, 6),
+                                fetchPrivateSafely(addresses["p.WADA"], 256, 6),
+                                fetchPrivateSafely(addresses["p.gCOTI"], 256, 18),
                             ]);
 
                             const configuredPrivateTokenCount = [

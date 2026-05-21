@@ -4,7 +4,7 @@ import { useMetamask } from '../hooks/useMetamask';
 import { useSnap } from '../hooks/useSnap';
 import { useBalanceUpdater } from '../hooks/useBalanceUpdater';
 import { usePrivacyBridge, Token, getInitialPublicTokens, getInitialPrivateTokens, type SwapProgressStage } from '../hooks/usePrivacyBridge';
-import { useFetchPrivateBalance } from '../hooks/useFetchPrivateBalance';
+import { usePrivateTokenBalance } from '../hooks/usePrivateTokenBalance';
 import { CONTRACT_ADDRESSES } from '../contracts/config';
 import { useNetworkEnforcer } from '../hooks/useNetworkEnforcer';
 import { isMultipleWalletsError } from '../utils/walletErrors';
@@ -174,7 +174,7 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
     // Checking useBalanceUpdater signature: fetchPrivateBalance is passed as a prop!
     // We need to implement fetchPrivateBalance here to pass it down.
 
-    const { fetchPrivateBalance } = useFetchPrivateBalance();
+    const { fetchPrivateBalance } = usePrivateTokenBalance();
 
     const { connectWallet, checkNetwork, switchNetwork, networkName, COTI_MAINNET_ID, COTI_TESTNET_ID, chainId, registerEthereumInitializedListener } = useMetamask({
         onAccountChanged: async (account) => {
