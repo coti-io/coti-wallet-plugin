@@ -65,3 +65,7 @@ export { useConnectModal } from '@rainbow-me/rainbowkit';
 // Utilities
 export { isMultipleWalletsError, MULTIPLE_WALLETS_ERROR_SUBSTRING } from './utils/walletErrors';
 export { formatTokenBalanceDisplay, truncateDecimalValue, formatBalanceWithNotation, addThousandsSeparators } from './lib/utils';
+
+// Hooks — Protocol Price
+export { useTokenPrices } from './hooks/useTokenPrices';
+export type { UseTokenPricesReturn, TokenPriceMap } from './hooks/useTokenPrices';

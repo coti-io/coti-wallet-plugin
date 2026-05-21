@@ -12,6 +12,7 @@ This library sits between your React/wagmi application and the low-level COTI SD
 - **Token Detection** — Classifies contracts as standard ERC20, confidential ERC20 (64/256-bit), ERC721, or ERC1155
 - **Privacy Bridge** — Orchestrates Portal In (deposit) and Portal Out (withdraw) operations with fee estimation
 - **Network Configuration** — COTI Mainnet, Testnet, and Sepolia chain definitions ready for wagmi/viem
+- **Price Feeds** — Fetches token prices efficiently via Band Protocol integration
 
 ## Installation
 
@@ -207,8 +208,9 @@ Routes AES key retrieval to Snap (MetaMask) or onboard contract (others).
 - **6.1 `useBridgeData()`**: On-chain bridge state (fees, limits, paused status).
 - **6.2 `useBridgeStatus()`**: Real-time bridge transaction status tracking.
 - **6.3 `useNetworkEnforcer()`**: Enforces COTI-only networks, prompts chain switch (MetaMask via `wallet_switchEthereumChain`, non-MetaMask via wagmi `useSwitchChain`).
-- **6.4 `useSnap()`**: MetaMask Snap lifecycle — install check, connect, get AES key.
-- **6.5 `useMetamask()`**: MetaMask connection, network switching, account detection.
+- **6.4 `useTokenPrices()`**: Integrates with Band Protocol to retrieve live USD prices and amounts equivalent to $1 for supported tokens.
+- **6.5 `useSnap()`**: MetaMask Snap lifecycle — install check, connect, get AES key.
+- **6.6 `useMetamask()`**: MetaMask connection, network switching, account detection.
 
 ### Multi-Wallet Support
 

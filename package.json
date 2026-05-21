@@ -36,29 +36,30 @@
   "author": "COTI",
   "license": "Apache-2.0",
   "dependencies": {
+    "@bandprotocol/bandchain.js": "^3.0.4",
     "@coti-io/coti-ethers": "^1.0.0"
   },
   "peerDependencies": {
-    "react": "^18.0.0",
-    "ethers": "^6.0.0",
-    "viem": "^2.0.0",
     "@coti-io/coti-sdk-typescript": "^1.0.6",
     "@metamask/providers": "^22.0.0",
     "@rainbow-me/rainbowkit": "^2.0.0",
-    "wagmi": "^2.0.0",
-    "@tanstack/react-query": "^5.0.0"
+    "@tanstack/react-query": "^5.0.0",
+    "ethers": "^6.0.0",
+    "react": "^18.0.0",
+    "viem": "^2.0.0",
+    "wagmi": "^2.0.0"
   },
   "devDependencies": {
-    "tsup": "^8.0.0",
-    "typescript": "~5.9.3",
-    "react": "^18.3.1",
-    "ethers": "^6.16.0",
-    "viem": "^2.47.10",
     "@coti-io/coti-sdk-typescript": "^1.0.6",
     "@metamask/providers": "^22.1.1",
-    "@types/react": "^18.3.18",
     "@rainbow-me/rainbowkit": "^2.2.0",
-    "wagmi": "^2.14.0",
-    "@tanstack/react-query": "^5.62.0"
+    "@tanstack/react-query": "^5.62.0",
+    "@types/react": "^18.3.18",
+    "ethers": "^6.16.0",
+    "react": "^18.3.1",
+    "tsup": "^8.0.0",
+    "typescript": "~5.9.3",
+    "viem": "^2.47.10",
+    "wagmi": "^2.14.0"
   }
 }
