@@ -1,0 +1,20 @@
+KIRO PLAN and ANALYZE @portal-bridge project and extract functional requirements 
+for a generic and reuseable npm  library for retrieving p.tokens balances, 
+onboarding users on metamask and wagmi Rainbows ephemeral keys, and do portal in portal out. 
+Create an MD document with all requrements on doc folder.
+
+KIRO PLAN and ANALYZE @coti-snap oject and extract functional requirements 
+for a generic and reuseable npm  library. Create an MD document with all requrements on
+doc folder.
+
+KIRO PLAN based on @metamask_wallet_requirements.md and portal_wallet_requirements.md,
+create two separate documents describing the architcture usage of selected functions 
+on both projects 
+
+KIRO PLAN and REVIEW portal_wallet_architecture.md and metamask_wallet_architecture.md 
+and suggest an unified extensible architecture that provides all functional requirements
+needed on README.md
+
+KIRO PLAN VALIDATE architecture on @README.md as how it could be integrated on @portal-bridge
+LIST all missing functions and incompatible APIs, update README.md as result
+
