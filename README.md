@@ -126,62 +126,40 @@ function App() {
 
 ### React Hooks
 
-#### Wallet (Unified)
+The API is structured around several core React hooks that interact seamlessly.
 
-`useWallet()` is the recommended entry point for all wallet operations. It composes the lower-level hooks internally and manages the full wallet + AES key lifecycle:
+#### 1. `useWallet()`
+`useWallet()` is the recommended entry point for all wallet operations. It composes the lower-level hooks internally and manages the full wallet and AES key lifecycle.
 
-```tsx
-import { useWallet } from '@coti-io/coti-wallet-plugin';
+**1.1. Connection**
+- **1.1.1 `isConnected`** (`boolean`): Whether a wallet is currently connected.
+- **1.1.2 `walletAddress`** (`string`): The connected wallet address.
+- **1.1.3 `connect()`** (`() => Promise<void>`): Opens the wallet connection flow (permissions + account).
+- **1.1.4 `disconnect()`** (`() => Promise<void>`): Revokes permissions and clears all state/caches.
 
-const wallet = useWallet();
-```
+**1.2. Network**
+- **1.2.1 `networkName`** (`string`): Human-readable network name (e.g. "COTI Mainnet").
+- **1.2.2 `chainId`** (`string | null`): Current chain ID as a decimal string.
+- **1.2.3 `switchNetwork(chainId)`** (`(hex: string) => Promise<boolean>`): Requests the wallet to switch chains (adds chain if missing).
+- **1.2.4 `COTI_MAINNET_ID`** (`string`): `"0x282b34"`
+- **1.2.5 `COTI_TESTNET_ID`** (`string`): `"0x6c11a0"`
 
-**Connection**
+**1.3. AES Key Lifecycle**
+- **1.3.1 `sessionAesKey`** (`string | null`): Current AES key (React state only, never persisted).
+- **1.3.2 `isPrivateUnlocked`** (`boolean`): `true` when the session key is set.
+- **1.3.3 `getAesKey(address)`** (`(addr: string) => Promise<string | null>`): Retrieves the AES key (routes to Snap for MetaMask, or Onboarding Contract for others).
+- **1.3.4 `unlockPrivateBalances()`** (`() => Promise<boolean>`): Calls `getAesKey` for the current address and sets the session key.
+- **1.3.5 `lockPrivateBalances()`** (`() => void`): Clears the session key and snap cache.
+- **1.3.6 `clearKeyCache()`** (`() => void`): Forces a fresh retrieval on the next unlock (without locking).
 
-| Property / Method | Type | Description |
-|---|---|---|
-| `isConnected` | `boolean` | Whether a wallet is currently connected |
-| `walletAddress` | `string` | The connected wallet address |
-| `connect()` | `() => Promise<void>` | Opens MetaMask connection flow (permissions + account) |
-| `disconnect()` | `() => Promise<void>` | Revokes permissions, clears all state and caches |
-
-**Network**
-
-| Property / Method | Type | Description |
-|---|---|---|
-| `networkName` | `string` | Human-readable network name (e.g. "COTI Mainnet") |
-| `chainId` | `string \| null` | Current chain ID as decimal string |
-| `switchNetwork(chainId)` | `(hex: string) => Promise<boolean>` | Request wallet to switch chains (adds chain if missing) |
-| `COTI_MAINNET_ID` | `string` | `"0x282b34"` |
-| `COTI_TESTNET_ID` | `string` | `"0x6c11a0"` |
-
-**AES Key Lifecycle**
-
-| Property / Method | Type | Description |
-|---|---|---|
-| `sessionAesKey` | `string \| null` | Current AES key (React state only, never persisted) |
-| `isPrivateUnlocked` | `boolean` | `true` when session key is set |
-| `getAesKey(address)` | `(addr: string) => Promise<string \| null>` | Retrieve AES key (routes to Snap for MetaMask, or Onboarding Contract for others) |
-| `unlockPrivateBalances()` | `() => Promise<boolean>` | Calls `getAesKey` for current address, sets session key |
-| `lockPrivateBalances()` | `() => void` | Clears session key and snap cache |
-| `clearKeyCache()` | `() => void` | Forces fresh retrieval on next unlock (without locking) |
-
-**Snap (backward compat)**
-
-| Property / Method | Type | Description |
-|---|---|---|
-| `isSnapInstalled()` | `() => Promise<boolean>` | Check if COTI Snap is installed (no dialogs) |
-| `connectToSnap()` | `() => Promise<boolean>` | Request Snap permissions |
-| `snapError` | `string \| null` | Current Snap error message |
-
-**Onboarding & Detection**
-
-| Property / Method | Type | Description |
-|---|---|---|
-| `handleOnboard()` | `() => Promise<string \| null>` | Manual onboarding flow (generate/recover AES key via SDK) |
-| `metamaskDetected` | `boolean` | Whether `window.ethereum` was found |
-| `showInstallModal` | `boolean` | Whether to show "Install MetaMask" modal |
-| `setShowInstallModal(show)` | `(show: boolean) => void` | Control install modal visibility |
+**1.4. Snap & Onboarding (Internal/Advanced)**
+- **1.4.1 `isSnapInstalled()`** (`() => Promise<boolean>`): Checks if COTI Snap is installed (no dialogs).
+- **1.4.2 `connectToSnap()`** (`() => Promise<boolean>`): Requests Snap permissions.
+- **1.4.3 `snapError`** (`string | null`): Current Snap error message.
+- **1.4.4 `handleOnboard()`** (`() => Promise<string | null>`): Manual onboarding flow (generate/recover AES key via SDK).
+- **1.4.5 `metamaskDetected`** (`boolean`): Whether `window.ethereum` was found.
+- **1.4.6 `showInstallModal`** (`boolean`): Whether to show the "Install MetaMask" modal.
+- **1.4.7 `setShowInstallModal(show)`** (`(show: boolean) => void`): Controls install modal visibility.
 
 **Usage example:**
 
@@ -204,54 +182,32 @@ function WalletButton() {
 }
 ```
 
-#### Key & Onboarding (Low-Level)
-
-| Hook | Description |
-|------|-------------|
-| `useSnap()` | MetaMask Snap lifecycle — install check, connect, get AES key |
-| `useMetamask()` | MetaMask connection, network switching, account detection |
-
-> These are internal implementations composed by `useWallet`. Use them directly only if you need fine-grained control over the Snap or MetaMask connection flow.
-
-#### Balance Management
-
-| Hook | Description |
-|------|-------------|
-| `usePrivateTokenBalance()` | Unified hook to fetch and decrypt 64-bit or 256-bit confidential token balances |
-| `useBalanceUpdater()` | Orchestrates public + private balance refresh cycles |
-
-**`usePrivateTokenBalance()`**
+#### 2. `usePrivateTokenBalance()`
 Provides a unified interface to retrieve and decrypt confidential balances safely.
+- **2.1 `fetchPrivateBalance(userAddress, aesKey, contractAddress, version, decimals?)`** (`Promise<string>`): Fetches and decrypts the balance. Pass `64` for legacy native p.COTI, or `256` for wrapped/bridged confidential tokens. Natively throws on AES key mismatch.
 
-| Method | Type | Description |
-|--------|------|-------------|
-| `fetchPrivateBalance(...)` | `(userAddress: string, aesKey: string, contractAddress: string, version: 64 \| 256, decimals?: number) => Promise<string>` | Fetches and decrypts the balance. Pass `64` for legacy native p.COTI, or `256` for wrapped/bridged confidential tokens. Natively throws on AES key mismatch. |
-
-**`useBalanceUpdater(props)`**
+#### 3. `useBalanceUpdater(props)`
 Advanced orchestrator typically used at the Provider level to manage global token states and batch-fetch the entire wallet portfolio in parallel.
+- **3.1 `updateAccountState(account, checkSnap?, fetchPrivate?)`** (`Promise<void>`): Triggers a parallelized refresh of all configured COTI/ERC20 and p.ERC20 token balances.
 
-*Configuration Props:*
-Accepts an object comprising React state setters (`setWalletAddress`, `setIsConnected`, `setHasSnap`, `setPublicTokens`, `setPrivateTokens`, `setSessionAesKey`) and dependency injection for core functions (`checkNetwork`, `getAESKeyFromSnap`, `fetchPrivateBalance`).
+#### 4. `usePrivacyBridge()`
+Full bridge orchestration — deposit, withdraw, allowance.
+- **4.1 `portalIn(tokenAddress, amount)`** (`Promise<void>`): Deposit to the privacy bridge.
+- **4.2 `portalOut(tokenAddress, amount)`** (`Promise<void>`): Withdraw from the privacy bridge.
+- **4.3 `swapProgress`**: State object tracking ongoing transaction progress.
 
-*Returns:*
-| Method | Type | Description |
-|--------|------|-------------|
-| `updateAccountState(...)` | `(account: string, checkSnap?: boolean, fetchPrivate?: boolean) => Promise<void>` | Triggers a parallelized refresh of all configured COTI/ERC20 and p.ERC20 token balances. |
+#### 5. `useAesKeyProvider(walletTypeInfo)`
+Routes AES key retrieval to Snap (MetaMask) or onboard contract (others).
+- **5.1 `getAesKey(address)`** (`Promise<string>`): Resolves the AES key for the connected network/wallet type.
+- **5.2 `isOnboarding`** (`boolean`): Indicates whether the onboarding process is actively running.
+- **5.3 `onboardingError`** (`string | null`): Catches and exposes onboarding flow errors.
 
-#### Bridge Operations
-
-| Hook | Description |
-|------|-------------|
-| `usePrivacyBridge()` | Full bridge orchestration — deposit, withdraw, allowance |
-| `useBridgeData()` | On-chain bridge state (fees, limits, paused status) |
-| `useBridgeStatus()` | Real-time bridge transaction status tracking |
-| `estimateBridgeFee()` | On-chain fee estimation for bridge operations |
-
-#### Network
-
-| Hook | Description |
-|------|-------------|
-| `useNetworkEnforcer()` | Enforces COTI-only networks, prompts chain switch (MetaMask via `wallet_switchEthereumChain`, non-MetaMask via wagmi `useSwitchChain`) |
+#### 6. Auxiliary Hooks
+- **6.1 `useBridgeData()`**: On-chain bridge state (fees, limits, paused status).
+- **6.2 `useBridgeStatus()`**: Real-time bridge transaction status tracking.
+- **6.3 `useNetworkEnforcer()`**: Enforces COTI-only networks, prompts chain switch (MetaMask via `wallet_switchEthereumChain`, non-MetaMask via wagmi `useSwitchChain`).
+- **6.4 `useSnap()`**: MetaMask Snap lifecycle — install check, connect, get AES key.
+- **6.5 `useMetamask()`**: MetaMask connection, network switching, account detection.
 
 ### Multi-Wallet Support
 
