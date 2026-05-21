@@ -15,6 +15,10 @@ export { LIMITS } from './contracts/limits';
 export { useSnap, signIT256ViaSnap, onboardUser } from './hooks/useSnap';
 export { useMetamask } from './hooks/useMetamask';
 
+// Hooks — Unified Wallet Abstraction
+export { useWallet } from './hooks/useWallet';
+export type { UseWalletResult } from './hooks/useWallet';
+
 // Hooks — Balance Manager
 export { usePrivateERC20 } from './hooks/usePrivateERC20';
 export { useFetchPrivateBalance } from './hooks/useFetchPrivateBalance';
@@ -34,9 +38,28 @@ export type { BridgeFees, SimulationResult } from './hooks/useBridgeFees';
 
 // Hooks — Network
 export { useNetworkEnforcer } from './hooks/useNetworkEnforcer';
+export type { NetworkEnforcerResult } from './hooks/useNetworkEnforcer';
 
 // Context
 export { PrivacyBridgeProvider, usePrivacyBridgeContext } from './context/PrivacyBridgeContext';
+
+// Providers — Multi-Wallet Support
+export { WagmiRainbowKitProvider, wagmiConfig } from './providers/WagmiRainbowKitProvider';
+
+// Hooks — Wallet Type Detection
+export { useWalletType } from './hooks/useWalletType';
+export type { WalletTypeInfo, WalletType } from './hooks/useWalletType';
+
+// Hooks — AES Key Provider Abstraction
+export { useAesKeyProvider } from './hooks/useAesKeyProvider';
+export type { AesKeyProviderResult } from './hooks/useAesKeyProvider';
+
+// Components — Onboarding
+export { OnboardModal } from './components/OnboardModal';
+export type { OnboardModalProps } from './components/OnboardModal';
+
+// Re-export from RainbowKit for consuming apps
+export { useConnectModal } from '@rainbow-me/rainbowkit';
 
 // Utilities
 export { isMultipleWalletsError, MULTIPLE_WALLETS_ERROR_SUBSTRING } from './utils/walletErrors';

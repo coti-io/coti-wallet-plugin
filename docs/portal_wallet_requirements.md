@@ -56,7 +56,7 @@ graph TD
 
 1. **wagmi as the single source of truth for wallet state** — `useAccount`, `useWalletClient`, and `usePublicClient` replace `window.ethereum` direct calls in the connection layer. The existing hooks (`useBalanceUpdater`, `usePrivacyBridge`, `useFetchPrivateBalance`) continue using `window.ethereum` / `ethers.BrowserProvider` internally since they are already wallet-agnostic at the ethers level.
 
-2. **`useAesKeyProvider` as the abstraction boundary** — This new hook is the only place that knows about wallet type. It exposes a single `getAesKey(address): Promise<string | null>` function. `PrivacyBridgeContext` calls this instead of calling `getAESKeyFromSnap` directly.
+2. **`useWallet` / `useAesKeyProvider` as the abstraction boundary** — The `useWallet` hook (already implemented) unifies connection, network, and AES key lifecycle into a single consumer-facing API. It internally composes `useMetamask` and `useSnap`, exposing `getAesKey(address): Promise<string | null>` that currently routes to the Snap path. When RainbowKit is wired in, `useAesKeyProvider` (described below) will extend this to route to the onboard contract for non-MetaMask wallets. `PrivacyBridgeContext` calls `getAesKey` instead of calling `getAESKeyFromSnap` directly.
 
 3. **MetaMask Snap path unchanged** — When `isMetaMaskWithSnap` is true, `useAesKeyProvider` delegates directly to `useSnap.getAESKeyFromSnap`. No changes to `useSnap.ts`.
 
@@ -223,9 +223,60 @@ Content-Security-Policy:
 
 ## Components and Interfaces
 
-### Component 1: `useWalletType` (new hook)
+### Component 0: `useWallet` (implemented)
+
+**Purpose**: Unified wallet hook that composes `useMetamask` and `useSnap` into a single consumer-facing API. This is the recommended entry point for wallet operations.
+
+**Interface**:
+```typescript
+interface UseWalletResult {
+  // Connection
+  isConnected: boolean
+  walletAddress: string
+  connect: () => Promise<void>
+  disconnect: () => Promise<void>
+  
+  // Network
+  networkName: string
+  chainId: string | null
+  switchNetwork: (chainId: string) => Promise<boolean>
+  
+  // AES Key (unified)
+  getAesKey: (address: string) => Promise<string | null>
+  sessionAesKey: string | null
+  isPrivateUnlocked: boolean
+  unlockPrivateBalances: () => Promise<boolean>
+  lockPrivateBalances: () => void
+  clearKeyCache: () => void
+  
+  // Snap-specific (backward compat)
+  isSnapInstalled: () => Promise<boolean>
+  connectToSnap: () => Promise<boolean>
+  snapError: string | null
+  
+  // Onboarding
+  handleOnboard: () => Promise<string | null>
+  
+  // MetaMask detection
+  metamaskDetected: boolean
+  showInstallModal: boolean
+  setShowInstallModal: (show: boolean) => void
+  
+  // Constants
+  COTI_MAINNET_ID: string
+  COTI_TESTNET_ID: string
+}
+```
+
+**Status**: ✅ Fully implemented in `src/hooks/useWallet.ts`. Routes `getAesKey` to the Snap path (MetaMask) or onboard contract path (non-MetaMask) via `useWalletType` + `useAesKeyProvider`.
+
+---
+
+### Component 1: `useWalletType` ✅ Implemented
 
 **Purpose**: Detects whether the currently connected wallet is MetaMask with COTI Snap capability. Returns a stable wallet type descriptor used by `useAesKeyProvider` to route AES key retrieval.
+
+**Location**: `src/hooks/useWalletType.ts`
 
 **Interface**:
 ```typescript
@@ -238,17 +289,21 @@ interface WalletTypeInfo {
 function useWalletType(): WalletTypeInfo
 ```
 
-**Responsibilities**:
-- Read `connector` from wagmi's `useAccount`
-- Check `connector.id` or `connector.name` for MetaMask identity
-- Optionally call `isSnapInstalled()` from `useSnap` to confirm Snap availability
-- Return stable object (memoized) to avoid re-render loops
+**Implementation Details**:
+- Reads `connector` from wagmi's `useAccount`
+- Uses a static `CONNECTOR_ID_TO_WALLET_TYPE` mapping from `connector.id` to `WalletType`
+- Performs async Snap installation check via `wallet_getSnaps` when `walletType === 'metamask'`
+- Returns memoized result via `useMemo` to avoid re-render loops
+- Exports `mapConnectorIdToWalletType` pure function for testing
+- Uses `connector.id` (wagmi-controlled) — NOT `window.ethereum.isMetaMask`
 
 ---
 
-### Component 2: `useAesKeyProvider` (new hook)
+### Component 2: `useAesKeyProvider` ✅ Implemented
 
 **Purpose**: Single abstraction for AES key retrieval. Routes to Snap or onboarding contract based on wallet type. Consumed by `PrivacyBridgeContext` in place of direct `getAESKeyFromSnap` calls.
+
+**Location**: `src/hooks/useAesKeyProvider.ts`
 
 **Interface**:
 ```typescript
@@ -261,42 +316,56 @@ interface AesKeyProviderResult {
 function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProviderResult
 ```
 
-**Responsibilities**:
-- If `isMetaMaskWithSnap`: delegate to `useSnap.getAESKeyFromSnap(address)`
-- If not: use `@coti-io/coti-ethers` `BrowserProvider` + `signer.generateOrRecoverAes()`
-- Expose `isOnboarding` loading state for UI feedback
-- Expose `onboardingError` for error display
-- Never persist AES key to localStorage; return it for context to store in React state
+**Implementation Details**:
+- When `isMetaMaskWithSnap === true`: delegates to `useSnap.getAESKeyFromSnap(address)`
+- When `isMetaMaskWithSnap === false`: uses wagmi `useConnectorClient()` → `@coti-io/coti-ethers` `BrowserProvider` → signer → `generateOrRecoverAes()` → `getUserOnboardInfo()?.aesKey`
+- Validates AES key format with `/^[0-9a-fA-F]{64}$/` before returning
+- Handles EIP-1193 error code 4001 (user rejected) by returning `null`
+- Exposes `isOnboarding` boolean (true during async onboard call)
+- Exposes `onboardingError` string (cleared on each new retrieval attempt)
+- Never persists AES key to localStorage; returns it for context to store in React state
 
 ---
 
-### Component 3: `WagmiRainbowKitProvider` (new wrapper component)
+### Component 3: `WagmiRainbowKitProvider` ✅ Implemented
 
-**Purpose**: Wraps the app with wagmi `WagmiProvider` + `QueryClientProvider` + `RainbowKitProvider`. Replaces the need for `handleConnect` in `PrivacyBridgeContext`.
+**Purpose**: Wraps the app with wagmi `WagmiProvider` + `QueryClientProvider` + `RainbowKitProvider`. Provides multi-wallet connection layer.
+
+**Location**: `src/providers/WagmiRainbowKitProvider.tsx`
 
 **Interface**:
 ```typescript
-function WagmiRainbowKitProvider({ children }: { children: React.ReactNode }): JSX.Element
+interface WagmiRainbowKitProviderProps {
+  children: React.ReactNode
+  walletConnectProjectId?: string  // Optional override for env variable
+}
+
+function WagmiRainbowKitProvider({ children, walletConnectProjectId }: WagmiRainbowKitProviderProps): JSX.Element
 ```
 
-**Responsibilities**:
-- Configure wagmi with COTI Mainnet + Testnet chains
-- Configure RainbowKit with desired wallets (MetaMask, Coinbase, WalletConnect, Rainbow)
-- Provide `QueryClient` for wagmi's internal caching
-- Set `appName` and `projectId` (WalletConnect Cloud project ID)
+**Implementation Details**:
+- Configures wagmi with `createConfig` using COTI Mainnet and Testnet chains
+- Configures `injected()`, `coinbaseWallet()`, and `walletConnect()` connectors
+- Reads WalletConnect project ID from `VITE_WALLETCONNECT_PROJECT_ID` env variable (with prop override)
+- Configures HTTP transports for both COTI chains
+- Wraps children with `WagmiProvider` → `QueryClientProvider` → `RainbowKitProvider`
+- Exports `wagmiConfig` for consuming apps needing direct wagmi access
 
 ---
 
-### Component 4: `PrivacyBridgeContext` (modified)
+### Component 4: `PrivacyBridgeContext` ✅ Modified
 
-**Purpose**: Central context — now drives `isConnected` / `walletAddress` from wagmi's `useAccount` instead of `useMetamask`. Delegates AES key retrieval to `useAesKeyProvider`.
+**Purpose**: Central context — now drives `isConnected` / `walletAddress` from wagmi's `useAccount` in addition to the existing MetaMask path. Delegates AES key retrieval to `useAesKeyProvider`.
 
-**Changes**:
-- Remove `handleConnect` (replaced by RainbowKit `ConnectButton`)
-- Remove `useMetamask` dependency for connection (keep for `checkNetwork`, `switchNetwork`)
-- Add `useAccount` from wagmi for `isConnected`, `walletAddress`
-- Replace `getAESKeyFromSnap` calls with `useAesKeyProvider.getAesKey`
-- Keep `sessionAesKey`, `refreshPrivateBalances`, `lockPrivateBalances` unchanged
+**Location**: `src/context/PrivacyBridgeContext.tsx`
+
+**Changes Applied**:
+- Added `useAccount` from wagmi — derives `isConnected` and `walletAddress` when connected via RainbowKit
+- Integrated `useWalletType()` hook for wallet detection
+- Integrated `useAesKeyProvider()` — replaces direct `getAESKeyFromSnap` calls in `useBalanceUpdater` and `usePrivacyBridge` with unified `getAesKeyFromProvider`
+- Added `useEffect` on wagmi `address` changes — clears `sessionAesKey` and sets `arePrivateBalancesHidden` to true
+- Preserved existing `handleConnect` for backward-compatible MetaMask-only connection
+- Dual connection strategy: MetaMask path (existing) + RainbowKit path (wagmi useAccount) both converge at `sessionAesKey` management
 
 ---
 
@@ -313,9 +382,11 @@ function WagmiRainbowKitProvider({ children }: { children: React.ReactNode }): J
 
 ---
 
-### Component 6: `OnboardModal` (new, replaces `SnapRequiredModal` for non-MetaMask)
+### Component 6: `OnboardModal` ✅ Implemented
 
 **Purpose**: Shown when a non-MetaMask wallet user needs to complete the onboarding contract flow to retrieve their AES key.
+
+**Location**: `src/components/OnboardModal.tsx`
 
 **Interface**:
 ```typescript
@@ -325,15 +396,19 @@ interface OnboardModalProps {
   onConfirm: () => void
   isLoading: boolean
   error: string | null
-  walletType: string
+  walletType: WalletType
+  sessionAesKey?: string | null  // Auto-closes when set
 }
 ```
 
-**Responsibilities**:
-- Explain that a signature is needed to retrieve the AES key via the COTI onboarding contract
-- Show loading state while `generateOrRecoverAes()` is in progress
-- Show error state with retry option
-- For MetaMask users: show existing `SnapRequiredModal` flow unchanged
+**Implementation Details**:
+- Renders idle state: explains that a signature is needed for AES key retrieval via COTI onboarding contract
+- Renders loading state: shows spinner while `generateOrRecoverAes()` is in progress
+- Renders error state: shows error message with retry button
+- Auto-closes on success (when `sessionAesKey` becomes truthy)
+- Leaves `sessionAesKey` as null if user closes without completing onboarding
+- Uses inline styles (no external UI dependencies) for self-contained library component
+- Accessible: uses `role="dialog"`, `aria-modal`, `aria-labelledby`, `aria-describedby`
 
 ## Data Models
 
@@ -874,19 +949,25 @@ Environment variables to add:
 
 ## Migration Strategy
 
-The migration is designed to be **additive and non-breaking**:
+The migration has been **completed** as an additive, non-breaking change:
 
-1. **Phase 1 — Add wagmi/RainbowKit providers** alongside existing code. `PrivacyBridgeContext` still works with `useMetamask` for now.
+1. **Phase 1 — Unified wallet hook ✅ DONE** — `useWallet` hook created, composing `useMetamask` + `useSnap` internally. Exposes `connect`, `disconnect`, `getAesKey`, `unlockPrivateBalances`, `lockPrivateBalances` as a single API. Exported from `src/index.ts`.
 
-2. **Phase 2 — Add `useWalletType` + `useAesKeyProvider`** as new hooks. Wire them into context. At this point both paths work: MetaMask uses Snap, others use onboard contract.
+2. **Phase 2 — wagmi/RainbowKit providers ✅ DONE** — `WagmiRainbowKitProvider` created at `src/providers/WagmiRainbowKitProvider.tsx`. Configures wagmi with COTI chains, three connectors (injected, Coinbase, WalletConnect), and HTTP transports.
 
-3. **Phase 3 — Replace `Navbar` connect button** with `<ConnectButton />`. Remove `handleConnect` from context. Remove `useMetamask` connection logic (keep `checkNetwork`, `switchNetwork` until replaced by wagmi equivalents).
+3. **Phase 3 — `useWalletType` + `useAesKeyProvider` ✅ DONE** — Both hooks implemented. `useWalletType` detects wallet via `connector.id`. `useAesKeyProvider` routes to Snap (MetaMask) or onboard contract (others). `PrivacyBridgeContext` uses `getAesKeyFromProvider` instead of direct `getAESKeyFromSnap`.
 
-4. **Phase 4 — Replace `useMetamask` event listeners** with wagmi's `useAccount` effect. Remove `useMetamask` entirely once all functionality is covered.
+4. **Phase 4 — Dual connection strategy ✅ DONE** — `PrivacyBridgeContext` now supports both MetaMask (`handleConnect`) and RainbowKit (wagmi `useAccount`) connection paths. Both converge at `sessionAesKey` management. `handleConnect` preserved for backward compatibility.
 
-5. **Phase 5 — Update `UnlockModal` / add `OnboardModal`** to handle non-MetaMask onboarding UX.
+5. **Phase 5 — wagmi account change detection ✅ DONE** — `useEffect` on wagmi `address` changes clears `sessionAesKey` and hides private balances. Works alongside existing MetaMask `accountsChanged` listener.
 
-At each phase, the MetaMask + Snap path continues to work unchanged. Rollback at any phase is safe.
+6. **Phase 6 — `OnboardModal` ✅ DONE** — Created at `src/components/OnboardModal.tsx`. Handles non-MetaMask onboarding UX with idle, loading, and error states. Auto-closes on success.
+
+7. **Phase 7 — Network enforcement ✅ DONE** — `useNetworkEnforcer` updated to use wagmi `useSwitchChain` for non-MetaMask wallets while preserving `wallet_switchEthereumChain` for MetaMask.
+
+8. **Phase 8 — Bridge oracle timestamps ✅ DONE** — `usePrivacyBridge` updated to call `estimateBridgeFee` before transactions, pass oracle timestamps to contract calls, and handle `OracleTimestampMismatch` with retry logic.
+
+At each phase, the MetaMask + Snap path continues to work unchanged. All existing exports are preserved for backward compatibility.
 
 ## Correctness Properties
 

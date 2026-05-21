@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
+import { useAccount } from 'wagmi';
 import { useMetamask } from '../hooks/useMetamask';
 import { useSnap } from '../hooks/useSnap';
 import { useBalanceUpdater } from '../hooks/useBalanceUpdater';
@@ -7,6 +8,8 @@ import { useFetchPrivateBalance } from '../hooks/useFetchPrivateBalance';
 import { CONTRACT_ADDRESSES } from '../contracts/config';
 import { useNetworkEnforcer } from '../hooks/useNetworkEnforcer';
 import { isMultipleWalletsError } from '../utils/walletErrors';
+import { useWalletType } from '../hooks/useWalletType';
+import { useAesKeyProvider } from '../hooks/useAesKeyProvider';
 
 interface PrivacyBridgeContextType {
     isConnected: boolean;
@@ -81,12 +84,43 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
     const [metamaskDetected, setMetamaskDetected] = useState(false);
     const ethereumListenerRegistered = useRef(false);
 
+    // --- Wagmi / RainbowKit integration ---
+    // Derive connection state from wagmi useAccount when connected via RainbowKit
+    const { address: wagmiAddress, isConnected: wagmiIsConnected } = useAccount();
+    const walletTypeInfo = useWalletType();
+    const { getAesKey: getAesKeyFromProvider, isOnboarding, onboardingError } = useAesKeyProvider(walletTypeInfo);
+
     // Auto-open Snap Required modal the first time a snap error appears
     useEffect(() => {
         if (snapError) {
             setShowSnapMissingModal(true);
         }
     }, [snapError]);
+
+    // --- RainbowKit path: Sync wagmi connection state to context ---
+    // When a wallet connects via RainbowKit, update isConnected and walletAddress
+    useEffect(() => {
+        if (wagmiIsConnected && wagmiAddress) {
+            setIsConnected(true);
+            setWalletAddress(wagmiAddress);
+        } else if (!wagmiIsConnected && walletTypeInfo.connectorId !== undefined) {
+            // Wallet disconnected via RainbowKit — only clear if we were using RainbowKit path
+            // (connectorId being defined means wagmi was tracking a connector)
+        }
+    }, [wagmiIsConnected, wagmiAddress]);
+
+    // --- Clear sessionAesKey on wagmi address changes ---
+    // Requirement 4.3: When the connected account changes, clear sessionAesKey and hide private balances
+    const prevWagmiAddressRef = useRef<string | undefined>(undefined);
+    useEffect(() => {
+        // Skip the initial mount (when prevWagmiAddressRef is undefined and wagmiAddress is first set)
+        if (prevWagmiAddressRef.current !== undefined && wagmiAddress !== prevWagmiAddressRef.current) {
+            console.log("👤 Wagmi address changed, clearing sessionAesKey and locking");
+            setSessionAesKey(null);
+            setArePrivateBalancesHidden(true);
+        }
+        prevWagmiAddressRef.current = wagmiAddress;
+    }, [wagmiAddress]);
 
     // Global unhandled rejection listener for multiple wallets error
     useEffect(() => {
@@ -176,7 +210,7 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
         setPublicTokens,
         setPrivateTokens,
         checkNetwork,
-        getAESKeyFromSnap,
+        getAESKeyFromSnap: getAesKeyFromProvider,
         fetchPrivateBalance,
         sessionAesKey,
         setSessionAesKey
@@ -333,7 +367,7 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
         error,
         hasSnap,
         setHasSnap,
-        getAESKeyFromSnap,
+        getAESKeyFromSnap: getAesKeyFromProvider,
         handleOnboard,
         refreshPrivateBalances
     });

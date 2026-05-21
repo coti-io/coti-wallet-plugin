@@ -1,12 +1,12 @@
 # @coti-io/coti-wallet-plugin
 
-High-level TypeScript library for **Private Token (pToken) operations** on the COTI network. Provides React hooks, cryptographic utilities, and token detection for any EIP-1193 wallet.
+High-level TypeScript library for **Private Token (pToken) operations** on the COTI network. Provides React hooks, cryptographic utilities, multi-wallet support (RainbowKit + wagmi v2), and token detection for any EIP-1193 wallet.
 
 ## What It Does
 
 This library sits between your React/wagmi application and the low-level COTI SDKs, handling:
 
-- **AES Key Management** — Retrieves encryption keys via MetaMask Snap or the COTI Onboarding Contract
+- **AES Key Management** — Retrieves encryption keys via MetaMask Snap or the COTI Onboarding Contract (multi-wallet support via RainbowKit + wagmi v2)
 - **Balance Decryption** — Fetches encrypted on-chain balances and decrypts them client-side
 - **Encrypted Transfers** — Constructs IT (Input Text) payloads for confidential ERC20 transfers
 - **Token Detection** — Classifies contracts as standard ERC20, confidential ERC20 (64/256-bit), ERC721, or ERC1155
@@ -22,10 +22,12 @@ npm install @coti-io/coti-wallet-plugin
 ### Peer Dependencies
 
 ```bash
-npm install react ethers viem @coti-io/coti-sdk-typescript @metamask/providers
+npm install react ethers viem @coti-io/coti-sdk-typescript @metamask/providers @rainbow-me/rainbowkit wagmi @tanstack/react-query
 ```
 
 ## Quick Start
+
+### Basic Setup (MetaMask only)
 
 ```tsx
 import { configureCotiPlugin, PrivacyBridgeProvider } from '@coti-io/coti-wallet-plugin';
@@ -45,6 +47,22 @@ function App() {
 }
 ```
 
+### Multi-Wallet Setup (RainbowKit + wagmi)
+
+```tsx
+import { WagmiRainbowKitProvider, PrivacyBridgeProvider } from '@coti-io/coti-wallet-plugin';
+
+function App() {
+  return (
+    <WagmiRainbowKitProvider walletConnectProjectId="your-project-id">
+      <PrivacyBridgeProvider>
+        <YourApp />
+      </PrivacyBridgeProvider>
+    </WagmiRainbowKitProvider>
+  );
+}
+```
+
 ## API Reference
 
 ### Configuration
@@ -58,12 +76,92 @@ function App() {
 
 ### React Hooks
 
-#### Key & Onboarding
+#### Wallet (Unified)
+
+`useWallet()` is the recommended entry point for all wallet operations. It composes the lower-level hooks internally and manages the full wallet + AES key lifecycle:
+
+```tsx
+import { useWallet } from '@coti-io/coti-wallet-plugin';
+
+const wallet = useWallet();
+```
+
+**Connection**
+
+| Property / Method | Type | Description |
+|---|---|---|
+| `isConnected` | `boolean` | Whether a wallet is currently connected |
+| `walletAddress` | `string` | The connected wallet address |
+| `connect()` | `() => Promise<void>` | Opens MetaMask connection flow (permissions + account) |
+| `disconnect()` | `() => Promise<void>` | Revokes permissions, clears all state and caches |
+
+**Network**
+
+| Property / Method | Type | Description |
+|---|---|---|
+| `networkName` | `string` | Human-readable network name (e.g. "COTI Mainnet") |
+| `chainId` | `string \| null` | Current chain ID as decimal string |
+| `switchNetwork(chainId)` | `(hex: string) => Promise<boolean>` | Request wallet to switch chains (adds chain if missing) |
+| `COTI_MAINNET_ID` | `string` | `"0x282b34"` |
+| `COTI_TESTNET_ID` | `string` | `"0x6c11a0"` |
+
+**AES Key Lifecycle**
+
+| Property / Method | Type | Description |
+|---|---|---|
+| `sessionAesKey` | `string \| null` | Current AES key (React state only, never persisted) |
+| `isPrivateUnlocked` | `boolean` | `true` when session key is set |
+| `getAesKey(address)` | `(addr: string) => Promise<string \| null>` | Retrieve AES key (routes to Snap; future: onboard contract) |
+| `unlockPrivateBalances()` | `() => Promise<boolean>` | Calls `getAesKey` for current address, sets session key |
+| `lockPrivateBalances()` | `() => void` | Clears session key and snap cache |
+| `clearKeyCache()` | `() => void` | Forces fresh retrieval on next unlock (without locking) |
+
+**Snap (backward compat)**
+
+| Property / Method | Type | Description |
+|---|---|---|
+| `isSnapInstalled()` | `() => Promise<boolean>` | Check if COTI Snap is installed (no dialogs) |
+| `connectToSnap()` | `() => Promise<boolean>` | Request Snap permissions |
+| `snapError` | `string \| null` | Current Snap error message |
+
+**Onboarding & Detection**
+
+| Property / Method | Type | Description |
+|---|---|---|
+| `handleOnboard()` | `() => Promise<string \| null>` | Manual onboarding flow (generate/recover AES key via SDK) |
+| `metamaskDetected` | `boolean` | Whether `window.ethereum` was found |
+| `showInstallModal` | `boolean` | Whether to show "Install MetaMask" modal |
+| `setShowInstallModal(show)` | `(show: boolean) => void` | Control install modal visibility |
+
+**Usage example:**
+
+```tsx
+function WalletButton() {
+  const { isConnected, connect, disconnect, isPrivateUnlocked, unlockPrivateBalances } = useWallet();
+
+  if (!isConnected) {
+    return <button onClick={connect}>Connect Wallet</button>;
+  }
+
+  return (
+    <div>
+      {!isPrivateUnlocked && (
+        <button onClick={unlockPrivateBalances}>Unlock Private Balances</button>
+      )}
+      <button onClick={disconnect}>Disconnect</button>
+    </div>
+  );
+}
+```
+
+#### Key & Onboarding (Low-Level)
 
 | Hook | Description |
 |------|-------------|
 | `useSnap()` | MetaMask Snap lifecycle — install check, connect, get AES key |
 | `useMetamask()` | MetaMask connection, network switching, account detection |
+
+> These are internal implementations composed by `useWallet`. Use them directly only if you need fine-grained control over the Snap or MetaMask connection flow.
 
 #### Balance Management
 
@@ -86,7 +184,24 @@ function App() {
 
 | Hook | Description |
 |------|-------------|
-| `useNetworkEnforcer()` | Enforces COTI-only networks, prompts chain switch |
+| `useNetworkEnforcer()` | Enforces COTI-only networks, prompts chain switch (MetaMask via `wallet_switchEthereumChain`, non-MetaMask via wagmi `useSwitchChain`) |
+
+### Multi-Wallet Support
+
+| Export | Description |
+|--------|-------------|
+| `WagmiRainbowKitProvider` | Provider wrapping wagmi + RainbowKit + React Query for multi-wallet connection |
+| `wagmiConfig` | Pre-configured wagmi config with COTI chains for consuming apps |
+| `useWalletType()` | Detects connected wallet type from wagmi's `connector.id` |
+| `useAesKeyProvider(walletTypeInfo)` | Routes AES key retrieval to Snap (MetaMask) or onboard contract (others) |
+| `OnboardModal` | Modal component for non-MetaMask wallet onboarding flow |
+| `useConnectModal` | Re-export from `@rainbow-me/rainbowkit` for opening the wallet picker |
+
+**Types:**
+- `WalletTypeInfo` — `{ isMetaMaskWithSnap, walletType, connectorId }`
+- `WalletType` — `'metamask' | 'coinbase' | 'walletconnect' | 'rainbow' | 'unknown'`
+- `AesKeyProviderResult` — `{ getAesKey, isOnboarding, onboardingError }`
+- `OnboardModalProps` — Props for the OnboardModal component
 
 ### Cryptographic Utilities
 
@@ -258,6 +373,8 @@ function BridgeComponent() {
 - **Sanity Guards** — Decryption includes threshold checks to detect AES key mismatches before displaying garbage values.
 - **No Network Transmission** — AES keys are never sent over the network. All decryption is client-side.
 - **Connector Identity** — Wallet type detection uses wagmi's stable `connector.id`, not spoofable `window.ethereum.isMetaMask`.
+- **AES Key Validation** — All retrieved keys are validated against `/^[0-9a-fA-F]{64}$/` before use.
+- **Session Isolation** — `sessionAesKey` is automatically cleared on account change, disconnect, or manual lock.
 
 ## Supported Networks
 
@@ -277,8 +394,8 @@ npm run clean    # Remove dist/
 ## Documentation
 
 - [Snap-to-Plugin Architecture](./docs/metamask_wallet_architecture.md) — Module design, data flow, correctness properties
-- [Portal Wallet Requirements](./docs/portal_wallet_requirements.md) — Multi-wallet support design (RainbowKit/wagmi)
-- [Portal Wallet Architecture](./docs/portal_wallet_architecture.md) — Library architecture and security model
+- [Portal Wallet Requirements](./docs/portal_wallet_requirements.md) — Multi-wallet support design (RainbowKit/wagmi) — ✅ Implemented
+- [Portal Wallet Architecture](./docs/portal_wallet_architecture.md) — Library architecture and security model — ✅ Implemented
 
 ## License
 

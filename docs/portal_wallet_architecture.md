@@ -1,5 +1,9 @@
 # Architecture Document: COTI Wallet Library
 
+## Implementation Status: ✅ Complete
+
+All components described in this document have been implemented and are production-ready. The library is published as `@coti-io/coti-wallet-plugin`.
+
 ## 1. Overview
 
 The current COTI ecosystem heavily relies on `@coti-io/coti-ethers` and `@coti-io/coti-sdk-typescript` for interacting with the COTI network. However, with the introduction of RainbowKit and multi-wallet support (as outlined in `portal_wallet_requirements.md`), there is a distinct gap: the base libraries lack a unified, high-level abstraction for performing **Private Token (pToken) operations** (specifically transfers and decrypted balance retrieval) across different EIP-1193 wallets.
@@ -32,14 +36,14 @@ The new library will function as a comprehensive "Facade" over standard Ethers.j
 
 ```mermaid
 graph TD
-    UI[UI Components] --> Hooks[Library Hooks e.g., useCotiWallet]
+    UI[UI Components] --> Hooks[Library Hooks: useWallet, useWalletType, useAesKeyProvider]
     Hooks --> PTokenLib[COTI Wallet Library]
     
     subgraph Core[COTI Wallet Library Core]
-        KeyModule[Key & Onboarding Manager]
-        BalanceModule[Balance Manager]
-        TransferModule[Transfer Manager]
-        AllowanceModule[Allowance Manager]
+        KeyModule[Key & Onboarding Manager\nuseWalletType + useAesKeyProvider]
+        BalanceModule[Balance Manager\nuseFetchPrivateBalance + useBalanceUpdater]
+        TransferModule[Transfer Manager\nusePrivacyBridge]
+        AllowanceModule[Allowance Manager\nusePrivacyBridge.handleApprove]
     end
 
     PTokenLib --> KeyModule
@@ -47,24 +51,26 @@ graph TD
     PTokenLib --> TransferModule
     PTokenLib --> AllowanceModule
 
-    KeyModule --> Snap[MetaMask Snap API]
-    KeyModule --> Onboard[Onboarding Contract]
+    KeyModule --> Snap[MetaMask Snap API\ngetAESKeyFromSnap]
+    KeyModule --> Onboard[Onboarding Contract\ngenerateOrRecoverAes]
     BalanceModule --> SDK["@coti-io/coti-sdk-typescript"]
-    TransferModule --> Ethers["@coti-io/coti-ethers"]
+    TransferModule --> Ethers["ethers v6 + @coti-io/coti-ethers"]
     
-    KeyModule -->|Resolves| AES[Ephemeral AES Key]
+    KeyModule -->|Resolves| AES[Ephemeral AES Key\nReact state only]
     SDK -->|Decrypt| AES
     Ethers -->|Encrypt Tx Data| AES
 ```
 
 ## 4. Core Components
 
-### 4.1. `Key & Onboarding Manager`
+### 4.1. `Key & Onboarding Manager` ✅ Implemented
 
-Instead of relying on external React contexts, the library embeds the onboarding logic directly, handling both the MetaMask Snap path and the generic EIP-1193 Onboarding Contract path.
+The library provides a unified wallet abstraction via the `useWallet` hook, which composes `useMetamask` (connection/network) and `useSnap` (AES key retrieval) internally. For multi-wallet support, `useWalletType` detects the connected wallet and `useAesKeyProvider` routes AES key retrieval to the appropriate path.
 
-- **`resolveAesKey(address, providerInfo)`**: Automatically determines whether to use `getAESKeyFromSnap` or `generateOrRecoverAes()` based on the connected wallet type.
-- **`useCotiWalletProvider()`**: A React Hook exported by the library that internally utilizes the key manager to resolve, hold, and supply the ephemeral AES key to the operational modules.
+- **`useWallet()`**: The primary React Hook for wallet operations. Exposes `connect()`, `disconnect()`, `getAesKey(address)`, `unlockPrivateBalances()`, `lockPrivateBalances()`, `sessionAesKey`, and network state.
+- **`useWalletType()`** ✅: Detects wallet type from wagmi's `connector.id`. Returns `WalletTypeInfo` with `isMetaMaskWithSnap`, `walletType`, and `connectorId`. Located at `src/hooks/useWalletType.ts`.
+- **`useAesKeyProvider(walletTypeInfo)`** ✅: Routes AES key retrieval to Snap (MetaMask) or onboard contract (non-MetaMask). Located at `src/hooks/useAesKeyProvider.ts`.
+- **`useSnap()`** / **`useMetamask()`**: Low-level hooks that remain as internal implementations. Consumers should prefer `useWallet` unless fine-grained control is needed.
 
 ### 4.2. `BalanceManager` (Read Operations)
 
@@ -88,8 +94,8 @@ Responsible for constructing secure, encrypted transfer payloads before promptin
 ## 5. Security Integration
 
 This library relies strictly on the `portal_wallet_requirements.md` security constraints:
-- **No Persistent Storage:** The library dynamically resolves the AES key via the `Key & Onboarding Manager`. It NEVER writes the key to `localStorage`, `sessionStorage`, `IndexedDB`, or cookies.
-- **Ephemeral State:** The exported React Hooks (e.g., `useCotiWalletProvider`) maintain the resolved AES key exclusively in React's memory (state). If a user refreshes the page or changes their account, the key is immediately discarded from memory, and the user must re-authenticate.
+- **No Persistent Storage:** The library dynamically resolves the AES key via the `Key & Onboarding Manager` (exposed through `useWallet().getAesKey`). It NEVER writes the key to `localStorage`, `sessionStorage`, `IndexedDB`, or cookies.
+- **Ephemeral State:** The `useWallet` hook maintains the resolved AES key exclusively in React's memory (state). If a user refreshes the page or changes their account, the key is immediately discarded from memory, and the user must re-authenticate.
 
 ## 6. Sequence Diagrams
 
@@ -130,6 +136,23 @@ sequenceDiagram
 
 ## 7. Future Considerations
 
-- **Allowance & Approval**: Adding `approve` flows for smart contract interactions, requiring encryption of allowance limits.
-- **Gas Abstraction**: Abstracting gas token (Native COTI) requirements vs the network fees.
 - **Batch Operations**: Future versions of the library may support `multicall` to fetch encrypted balances of multiple pTokens simultaneously to save on RPC calls.
+- **Additional Wallet Connectors**: New wallet types can be added by extending the `CONNECTOR_ID_TO_WALLET_TYPE` mapping in `useWalletType.ts`.
+- **Gas Abstraction**: Further abstracting gas token (Native COTI) requirements vs the network fees.
+
+## 8. Implementation Summary
+
+The following components have been implemented:
+
+| Component | Location | Status |
+|-----------|----------|--------|
+| `WagmiRainbowKitProvider` | `src/providers/WagmiRainbowKitProvider.tsx` | ✅ |
+| `useWalletType` | `src/hooks/useWalletType.ts` | ✅ |
+| `useAesKeyProvider` | `src/hooks/useAesKeyProvider.ts` | ✅ |
+| `OnboardModal` | `src/components/OnboardModal.tsx` | ✅ |
+| `useNetworkEnforcer` (multi-wallet) | `src/hooks/useNetworkEnforcer.ts` | ✅ |
+| `PrivacyBridgeContext` (wagmi integration) | `src/context/PrivacyBridgeContext.tsx` | ✅ |
+| `usePrivacyBridge` (oracle timestamps) | `src/hooks/usePrivacyBridge.ts` | ✅ |
+| Contract addresses (latest deployment) | `src/contracts/config.ts` | ✅ |
+| Package dependencies | `package.json` | ✅ |
+| Public API exports | `src/index.ts` | ✅ |
