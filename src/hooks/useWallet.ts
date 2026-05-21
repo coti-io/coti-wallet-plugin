@@ -78,6 +78,8 @@ export interface UseWalletResult {
   COTI_MAINNET_ID: string;
   /** Hex chain ID for COTI Testnet. */
   COTI_TESTNET_ID: string;
+  /** Hex chain ID for Sepolia. */
+  SEPOLIA_ID: string;
 }
 
 /**
@@ -132,6 +134,7 @@ export const useWallet = (): UseWalletResult => {
     registerEthereumInitializedListener,
     COTI_MAINNET_ID,
     COTI_TESTNET_ID,
+    SEPOLIA_ID,
   } = useMetamask({
     onAccountChanged: async (account: string) => {
       // If account didn't actually change, skip
@@ -315,5 +318,6 @@ export const useWallet = (): UseWalletResult => {
     // Constants
     COTI_MAINNET_ID,
     COTI_TESTNET_ID,
+    SEPOLIA_ID,
   };
 };

@@ -5,6 +5,7 @@ import { getPluginConfig } from '../config/plugin';
 // Constants for COTI Networks
 const COTI_MAINNET_ID = '0x282b34'; // 2632500
 const COTI_TESTNET_ID = '0x6c11a0'; // 7082400
+const SEPOLIA_ID = '0xaa36a7'; // 11155111
 
 // Network Configurations
 const networks = {
@@ -21,6 +22,13 @@ const networks = {
         rpcUrls: ['https://testnet.coti.io/rpc'],
         nativeCurrency: { name: 'COTI', symbol: 'COTI', decimals: 18 },
         blockExplorerUrls: ['https://testnet.cotiscan.io'],
+    },
+    [SEPOLIA_ID]: {
+        chainId: SEPOLIA_ID,
+        chainName: 'Sepolia',
+        rpcUrls: ['https://ethereum-sepolia-rpc.publicnode.com'],
+        nativeCurrency: { name: 'Sepolia Ether', symbol: 'ETH', decimals: 18 },
+        blockExplorerUrls: ['https://sepolia.etherscan.io'],
     }
 };
 
@@ -68,6 +76,8 @@ export const useMetamask = ({
             setNetworkName('COTI Mainnet');
         } else if (id === 7082400) {
             setNetworkName('COTI Testnet');
+        } else if (id === 11155111) {
+            setNetworkName('Sepolia');
         } else {
             setNetworkName('Wrong Network');
         }
@@ -180,7 +190,7 @@ export const useMetamask = ({
                         } else { */
             /*
                             // PERMISSIVE MODE (Local Dev): Allow either, default to Mainnet if neither
-                            if (network.chainId !== BigInt(COTI_MAINNET_ID) && network.chainId !== BigInt(COTI_TESTNET_ID)) {
+                            if (network.chainId !== BigInt(COTI_MAINNET_ID) && network.chainId !== BigInt(COTI_TESTNET_ID) && network.chainId !== BigInt(SEPOLIA_ID)) {
                                 const success = await switchNetwork(COTI_MAINNET_ID);
                                 if (!success) {
                                     console.error("Failed to switch to mainnet default");
@@ -293,6 +303,7 @@ export const useMetamask = ({
         refreshNetworkState,
         registerEthereumInitializedListener,
         COTI_MAINNET_ID,
-        COTI_TESTNET_ID
+        COTI_TESTNET_ID,
+        SEPOLIA_ID
     };
 };

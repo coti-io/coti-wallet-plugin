@@ -11,7 +11,7 @@ This library sits between your React/wagmi application and the low-level COTI SD
 - **Encrypted Transfers** — Constructs IT (Input Text) payloads for confidential ERC20 transfers
 - **Token Detection** — Classifies contracts as standard ERC20, confidential ERC20 (64/256-bit), ERC721, or ERC1155
 - **Privacy Bridge** — Orchestrates Portal In (deposit) and Portal Out (withdraw) operations with fee estimation
-- **Network Configuration** — COTI Mainnet and Testnet chain definitions ready for wagmi/viem
+- **Network Configuration** — COTI Mainnet, Testnet, and Sepolia chain definitions ready for wagmi/viem
 
 ## Installation
 
@@ -54,7 +54,7 @@ classDiagram
     }
 
     class useBalanceUpdater {
-        +updateAccountState(account, checkSnap, fetchPrivate) Promise~void~
+      +updateAccountState(account, checkSnap, fetchPrivate, aesKeyOverride, chainOverride) Promise~void~
     }
 
     class usePrivacyBridge {
@@ -119,8 +119,8 @@ function App() {
 |--------|-------------|
 | `configureCotiPlugin(config)` | Set Snap ID and default network before rendering |
 | `getPluginConfig()` | Read current plugin configuration |
-| `cotiMainnet` / `cotiTestnet` | Chain definitions for wagmi/viem |
-| `COTI_MAINNET_CHAIN_ID` / `COTI_TESTNET_CHAIN_ID` | Chain ID constants |
+| `cotiMainnet` / `cotiTestnet` / `sepolia` | Chain definitions for wagmi/viem |
+| `COTI_MAINNET_CHAIN_ID` / `COTI_TESTNET_CHAIN_ID` / `SEPOLIA_CHAIN_ID` | Chain ID constants |
 
 > **Note on Constants:** `COTI_MAINNET_CHAIN_ID` and `COTI_TESTNET_CHAIN_ID` are static, unchanging constants (2632500 and 7082400 respectively) exported to help developers avoid "magic numbers" in code, improving readability and reducing typos in network-specific routing or `if` statements.
 
@@ -143,6 +143,7 @@ The API is structured around several core React hooks that interact seamlessly.
 - **1.2.3 `switchNetwork(chainId)`** (`(hex: string) => Promise<boolean>`): Requests the wallet to switch chains (adds chain if missing).
 - **1.2.4 `COTI_MAINNET_ID`** (`string`): `"0x282b34"`
 - **1.2.5 `COTI_TESTNET_ID`** (`string`): `"0x6c11a0"`
+- **1.2.6 `SEPOLIA_ID`** (`string`): `"0xaa36a7"`
 
 **1.3. AES Key Lifecycle**
 - **1.3.1 `sessionAesKey`** (`string | null`): Current AES key (React state only, never persisted).
@@ -188,7 +189,7 @@ Provides a unified interface to retrieve and decrypt confidential balances safel
 
 #### 3. `useBalanceUpdater(props)`
 Advanced orchestrator typically used at the Provider level to manage global token states and batch-fetch the entire wallet portfolio in parallel.
-- **3.1 `updateAccountState(account, checkSnap?, fetchPrivate?)`** (`Promise<void>`): Triggers a parallelized refresh of all configured COTI/ERC20 and p.ERC20 token balances.
+- **3.1 `updateAccountState(account, checkSnap?, fetchPrivate?, aesKeyOverride?, chainOverride?)`** (`Promise<void>`): Triggers a parallelized refresh of all configured COTI/ERC20 and p.ERC20 token balances. The optional override parameters let RainbowKit/wagmi flows reuse a cached AES key and read balances against a specific chain.
 
 #### 4. `usePrivacyBridge()`
 Full bridge orchestration — deposit, withdraw, allowance.
@@ -428,6 +429,7 @@ function BridgeComponent() {
 |---------|----------|-----|
 | COTI Mainnet | 2632500 | https://mainnet.coti.io/rpc |
 | COTI Testnet | 7082400 | https://testnet.coti.io/rpc |
+| Sepolia | 11155111 | https://ethereum-sepolia-rpc.publicnode.com |
 
 ## Build
 

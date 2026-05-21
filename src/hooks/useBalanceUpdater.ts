@@ -3,6 +3,7 @@ import { ethers } from 'ethers';
 import * as CotiSDK from '@coti-io/coti-sdk-typescript';
 const { generateRandomAesKeySizeNumber, recoverUserKey } = CotiSDK;
 import { CONTRACT_ADDRESSES, ERC20_ABI } from '../contracts/config';
+import { getRpcUrlForChainId } from '../config/chains';
 import { getPluginConfig } from '../config/plugin';
 import type { Token } from './usePrivacyBridge';
 import { formatTokenBalanceDisplay } from '../lib/utils';
@@ -17,7 +18,7 @@ interface UseBalanceUpdaterProps {
     getAESKeyFromSnap: (accountAddress: string) => Promise<string | null>;
     fetchPrivateBalance: (userAddress: string, aesKey: string, contractAddress: string, version: 64 | 256, decimals?: number) => Promise<string>;
     sessionAesKey?: string | null;
-    setSessionAesKey: (key: string | null) => void;
+    setSessionAesKey: (key: string | null, keyWallet?: string) => void;
 }
 
 /**
@@ -39,19 +40,32 @@ export const useBalanceUpdater = ({
     setSessionAesKey
 }: UseBalanceUpdaterProps) => {
 
-    const updateAccountState = useCallback(async (account: string, checkSnap = false, fetchPrivate = false) => {
+    const updateAccountState = useCallback(async (
+        account: string,
+        checkSnap = false,
+        fetchPrivate = false,
+        aesKeyOverride?: string | null,
+        chainOverride?: number
+    ) => {
         try {
             setWalletAddress(account);
             setIsConnected(true);
 
-            if (window.ethereum) {
-                const provider = new ethers.BrowserProvider(window.ethereum);
+            const hasChainOverride = typeof chainOverride === 'number';
+            if (window.ethereum || hasChainOverride) {
+                const browserProvider = window.ethereum ? new ethers.BrowserProvider(window.ethereum) : null;
 
-                // Ensure network name is updated immediately
-                await checkNetwork(provider);
+                // Ensure network name is updated immediately when MetaMask is available.
+                if (browserProvider) {
+                    await checkNetwork(browserProvider);
+                }
 
-                const network = await provider.getNetwork();
-                const currentChainId = Number(network.chainId);
+                const currentChainId = hasChainOverride
+                    ? chainOverride
+                    : Number((await browserProvider!.getNetwork()).chainId);
+                const readProvider = hasChainOverride
+                    ? new ethers.JsonRpcProvider(getRpcUrlForChainId(currentChainId), currentChainId)
+                    : browserProvider!;
 
                 // GUARD: Check against Strict Network Enforcement
                 // We rely on NetworkGuard for UI blocking and CONTRACT_ADDRESSES for validity
@@ -70,7 +84,7 @@ export const useBalanceUpdater = ({
                 const addresses = CONTRACT_ADDRESSES[currentChainId];
 
                 // Fetch public COTI balance
-                const balanceWei = await provider.getBalance(account);
+                const balanceWei = await readProvider.getBalance(account);
                 const balanceEth = ethers.formatEther(balanceWei);
 
                 // Fetch all public ERC20 balances in parallel
@@ -79,7 +93,7 @@ export const useBalanceUpdater = ({
                     addresses?.WETH
                         ? (async () => {
                             try {
-                                const contract = new ethers.Contract(addresses.WETH!, ERC20_ABI, provider);
+                                const contract = new ethers.Contract(addresses.WETH!, ERC20_ABI, readProvider);
                                 const bal = await contract.balanceOf(account);
                                 return ethers.formatUnits(bal, 18);
                             } catch { return '0'; }
@@ -89,7 +103,7 @@ export const useBalanceUpdater = ({
                     addresses?.WBTC
                         ? (async () => {
                             try {
-                                const contract = new ethers.Contract(addresses.WBTC!, ERC20_ABI, provider);
+                                const contract = new ethers.Contract(addresses.WBTC!, ERC20_ABI, readProvider);
                                 const bal = await contract.balanceOf(account);
                                 return ethers.formatUnits(bal, 8);
                             } catch { return '0'; }
@@ -99,7 +113,7 @@ export const useBalanceUpdater = ({
                     addresses?.USDT
                         ? (async () => {
                             try {
-                                const contract = new ethers.Contract(addresses.USDT!, ERC20_ABI, provider);
+                                const contract = new ethers.Contract(addresses.USDT!, ERC20_ABI, readProvider);
                                 const bal = await contract.balanceOf(account);
                                 return ethers.formatUnits(bal, 6);
                             } catch { return '0'; }
@@ -109,7 +123,7 @@ export const useBalanceUpdater = ({
                     addresses?.USDC_E
                         ? (async () => {
                             try {
-                                const contract = new ethers.Contract(addresses.USDC_E!, ERC20_ABI, provider);
+                                const contract = new ethers.Contract(addresses.USDC_E!, ERC20_ABI, readProvider);
                                 const bal = await contract.balanceOf(account);
                                 return ethers.formatUnits(bal, 6);
                             } catch { return '0'; }
@@ -119,7 +133,7 @@ export const useBalanceUpdater = ({
                     addresses?.WADA
                         ? (async () => {
                             try {
-                                const contract = new ethers.Contract(addresses.WADA!, ERC20_ABI, provider);
+                                const contract = new ethers.Contract(addresses.WADA!, ERC20_ABI, readProvider);
                                 const bal = await contract.balanceOf(account);
                                 return ethers.formatUnits(bal, 6);
                             } catch { return '0'; }
@@ -129,7 +143,7 @@ export const useBalanceUpdater = ({
                     addresses?.gCOTI
                         ? (async () => {
                             try {
-                                const contract = new ethers.Contract(addresses.gCOTI!, ERC20_ABI, provider);
+                                const contract = new ethers.Contract(addresses.gCOTI!, ERC20_ABI, readProvider);
                                 const bal = await contract.balanceOf(account);
                                 return ethers.formatUnits(bal, 18);
                             } catch { return '0'; }
@@ -154,13 +168,13 @@ export const useBalanceUpdater = ({
                 // Fetch all private balances in parallel
                 if (addresses && checkSnap && fetchPrivate) {
                     try {
-                        let aesKey = sessionAesKey;
+                        let aesKey = aesKeyOverride ?? sessionAesKey;
                         // Only fetch from Snap if no session key is provided
                         if (!aesKey) {
                             aesKey = await getAESKeyFromSnap(account);
                             if (aesKey) {
                                 // Cache the key for this session
-                                setSessionAesKey(aesKey);
+                                setSessionAesKey(aesKey, account);
                             }
                         } else {
                             // Mark snap as active since we have a key

@@ -265,6 +265,7 @@ interface UseWalletResult {
   // Constants
   COTI_MAINNET_ID: string
   COTI_TESTNET_ID: string
+  SEPOLIA_ID: string
 }
 ```
 
