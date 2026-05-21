@@ -1,15 +1,17 @@
 # @coti-io/coti-wallet-plugin
 
-High-level abstraction for **Private Token (pToken) operations** across EIP-1193 wallets on the COTI network.
+High-level TypeScript library for **Private Token (pToken) operations** on the COTI network. Provides React hooks, cryptographic utilities, and token detection for any EIP-1193 wallet.
 
-## Overview
+## What It Does
 
-This library sits as middleware between your React/wagmi application and the low-level COTI SDKs (`@coti-io/coti-ethers`, `@coti-io/coti-sdk-typescript`), providing:
+This library sits between your React/wagmi application and the low-level COTI SDKs, handling:
 
-- **Key & Onboarding Manager** — Automatic AES key resolution via MetaMask Snap or Onboarding Contract
-- **Balance Manager** — Encrypted balance fetching and client-side decryption
-- **Transfer Manager** — Encrypted transfer payload construction
-- **Bridge Operations** — Privacy Bridge deposit/withdraw with fee estimation
+- **AES Key Management** — Retrieves encryption keys via MetaMask Snap or the COTI Onboarding Contract
+- **Balance Decryption** — Fetches encrypted on-chain balances and decrypts them client-side
+- **Encrypted Transfers** — Constructs IT (Input Text) payloads for confidential ERC20 transfers
+- **Token Detection** — Classifies contracts as standard ERC20, confidential ERC20 (64/256-bit), ERC721, or ERC1155
+- **Privacy Bridge** — Orchestrates Portal In (deposit) and Portal Out (withdraw) operations with fee estimation
+- **Network Configuration** — COTI Mainnet and Testnet chain definitions ready for wagmi/viem
 
 ## Installation
 
@@ -28,10 +30,10 @@ npm install react ethers viem @coti-io/coti-sdk-typescript @metamask/providers
 ```tsx
 import { configureCotiPlugin, PrivacyBridgeProvider } from '@coti-io/coti-wallet-plugin';
 
-// Configure before rendering (optional — defaults work for mainnet)
+// Optional — configure before rendering (defaults work for mainnet)
 configureCotiPlugin({
   snapId: 'npm:@coti-io/coti-snap',
-  defaultNetworkId: '0x282b34', // COTI Mainnet
+  defaultNetworkId: '0x282b34', // COTI Mainnet (2632500)
 });
 
 function App() {
@@ -43,35 +45,240 @@ function App() {
 }
 ```
 
-## Core Hooks
+## API Reference
 
-### `useSnap`
-Manages MetaMask Snap lifecycle — installation check, connection, AES key retrieval.
+### Configuration
 
-### `usePrivateERC20`
-Fetches and decrypts private ERC20 token balances.
+| Export | Description |
+|--------|-------------|
+| `configureCotiPlugin(config)` | Set Snap ID and default network before rendering |
+| `getPluginConfig()` | Read current plugin configuration |
+| `cotiMainnet` / `cotiTestnet` | Chain definitions for wagmi/viem |
+| `COTI_MAINNET_CHAIN_ID` / `COTI_TESTNET_CHAIN_ID` | Chain ID constants |
 
-### `useFetchPrivateBalance`
-256-bit ciphertext balance decryption for COTI V2 private tokens.
+### React Hooks
 
-### `usePrivacyBridge`
-Full bridge orchestration — deposit (Portal In), withdraw (Portal Out), allowance management.
+#### Key & Onboarding
 
-### `useBridgeData`
-Fetches on-chain bridge state (fees, limits, paused status, balances).
+| Hook | Description |
+|------|-------------|
+| `useSnap()` | MetaMask Snap lifecycle — install check, connect, get AES key |
+| `useMetamask()` | MetaMask connection, network switching, account detection |
 
-### `useEstimateBridgeFees`
-On-chain fee estimation for deposit/withdraw operations.
+#### Balance Management
+
+| Hook | Description |
+|------|-------------|
+| `usePrivateERC20()` | Fetch and decrypt 64-bit private ERC20 balances |
+| `useFetchPrivateBalance()` | Decrypt 256-bit ciphertext balances (COTI V2 tokens) |
+| `useBalanceUpdater()` | Orchestrates public + private balance refresh cycles |
+
+#### Bridge Operations
+
+| Hook | Description |
+|------|-------------|
+| `usePrivacyBridge()` | Full bridge orchestration — deposit, withdraw, allowance |
+| `useBridgeData()` | On-chain bridge state (fees, limits, paused status) |
+| `useBridgeStatus()` | Real-time bridge transaction status tracking |
+| `estimateBridgeFee()` | On-chain fee estimation for bridge operations |
+
+#### Network
+
+| Hook | Description |
+|------|-------------|
+| `useNetworkEnforcer()` | Enforces COTI-only networks, prompts chain switch |
+
+### Cryptographic Utilities
+
+Pure functions with no I/O — suitable for use outside React.
+
+```typescript
+import {
+  normalizeAesKey,
+  validateAesKey,
+  decryptBalance,
+  decryptCtUint64,
+  decryptCtUint256,
+  formatDecryptedBalance,
+  isInsaneDecryptedValue,
+  buildItUint64,
+  buildItUint256,
+  deriveWallet,
+  signDigest,
+  buildItSignature,
+  normalizeSignature,
+} from '@coti-io/coti-wallet-plugin';
+```
+
+| Function | Description |
+|----------|-------------|
+| `normalizeAesKey(key)` | Strip `0x`, lowercase — returns canonical 32-char hex |
+| `validateAesKey(key)` | Validate + normalize, throws on invalid input |
+| `decryptBalance(ct, key, variant?)` | Unified decryption (auto-detects 64 vs 256-bit) |
+| `decryptCtUint64(ct, key, opts?)` | Decrypt a single 64-bit ciphertext |
+| `decryptCtUint256(ct, key, opts?)` | Decrypt a 256-bit ciphertext (4 segments) |
+| `formatDecryptedBalance(value, decimals)` | Format bigint to human-readable decimal string |
+| `isInsaneDecryptedValue(value, decimals?, threshold?)` | Sanity check for AES key mismatch |
+| `buildItUint64(plaintext, key, wallet, contract, selector)` | Encrypt + sign for 64-bit contract calls |
+| `buildItUint256(plaintext, key, wallet, contract, selector)` | Encrypt + sign for 256-bit contract calls |
+| `deriveWallet(key, account, chainId)` | Deterministic wallet from AES key |
+| `signDigest(privateKey, digest)` | Raw ECDSA signature (r, s, v) |
+| `buildItSignature(signer, contract, selector, ct, key)` | COTI IT signature (65-byte hex) |
+| `normalizeSignature(sig)` | Normalize v (27/28 → 0x00/0x01) |
+
+### Token Detection
+
+```typescript
+import {
+  detectTokenType,
+  probeConfidentialVersion256,
+  getERC20Metadata,
+  getERC721Metadata,
+  verifyERC721Ownership,
+  getConfidentialTokenURI,
+  getPublicTokenURI,
+  resolveIpfsUri,
+} from '@coti-io/coti-wallet-plugin';
+```
+
+| Function | Description |
+|----------|-------------|
+| `detectTokenType(address, provider)` | Classify a contract (ERC20, confidential, ERC721, etc.) |
+| `probeConfidentialVersion256(address, provider)` | Check if token uses 256-bit encryption |
+| `getERC20Metadata(address, provider)` | Fetch name, symbol, decimals (cached) |
+| `getERC721Metadata(address, provider)` | Fetch NFT collection metadata |
+| `verifyERC721Ownership(address, tokenId, owner, provider)` | Check NFT ownership |
+| `getConfidentialTokenURI(address, tokenId, key, provider)` | Decrypt confidential NFT URI |
+| `getPublicTokenURI(address, tokenId, provider)` | Fetch public NFT URI (IPFS resolved) |
+| `resolveIpfsUri(uri, gateway?)` | Convert `ipfs://` to HTTP gateway URL |
+
+### Network & Utilities
+
+```typescript
+import {
+  getNetworkConfig,
+  NETWORK_CONFIGS,
+  truncateAddress,
+  generateTokenAvatar,
+  formatTokenBalanceDisplay,
+} from '@coti-io/coti-wallet-plugin';
+```
+
+| Function | Description |
+|----------|-------------|
+| `getNetworkConfig(chainId)` | Get RPC URL, explorer, name for a COTI chain |
+| `NETWORK_CONFIGS` | Record of all supported COTI networks |
+| `truncateAddress(address, length?)` | `"0x1234...abcd"` style truncation |
+| `generateTokenAvatar(symbol)` | Deterministic SVG avatar from token symbol |
+| `formatTokenBalanceDisplay(balance)` | Format with thousand separators and notation |
+
+### Type Definitions
+
+```typescript
+import type {
+  CtUint64,
+  CtUint256,
+  ItUint64,
+  ItUint256,
+  TokenClassification,
+  DetectionResult,
+  ERC20Metadata,
+  ERC721Metadata,
+  NetworkConfig,
+  DecryptionOptions,
+  CotiPluginConfig,
+  Token,
+  BridgeData,
+  BridgeStatus,
+  FeeEstimate,
+} from '@coti-io/coti-wallet-plugin';
+```
+
+## Usage Examples
+
+### Decrypt a Private Balance
+
+```typescript
+import { decryptBalance, formatDecryptedBalance } from '@coti-io/coti-wallet-plugin';
+
+const plaintext = decryptBalance(onChainCiphertext, aesKey, 64);
+if (plaintext !== null) {
+  const display = formatDecryptedBalance(plaintext, 18);
+  console.log(`Balance: ${display} COTI`);
+}
+```
+
+### Build an Encrypted Transfer
+
+```typescript
+import { buildItUint64, deriveWallet, normalizeAesKey } from '@coti-io/coti-wallet-plugin';
+
+const wallet = deriveWallet(aesKey, userAddress, '2632500');
+const it = buildItUint64(
+  1000000000000000000n, // 1 token (18 decimals)
+  aesKey,
+  wallet,
+  tokenContractAddress,
+  '0xa9059cbb', // transfer(address,uint256) selector
+);
+// it.ciphertext and it.signature are ready for the contract call
+```
+
+### Detect Token Type
+
+```typescript
+import { detectTokenType, TokenClassification } from '@coti-io/coti-wallet-plugin';
+
+const result = await detectTokenType(tokenAddress, provider);
+if (result.classification === TokenClassification.ConfidentialERC20_256) {
+  console.log('This is a 256-bit confidential token');
+}
+```
+
+### Use the Privacy Bridge Hook
+
+```tsx
+import { usePrivacyBridge } from '@coti-io/coti-wallet-plugin';
+
+function BridgeComponent() {
+  const { portalIn, portalOut, swapProgress } = usePrivacyBridge();
+
+  const handleDeposit = async () => {
+    await portalIn(tokenAddress, amount);
+  };
+
+  return <button onClick={handleDeposit}>Deposit to Private</button>;
+}
+```
 
 ## Security
 
-- **No Persistent Storage** — AES keys are never written to localStorage, sessionStorage, IndexedDB, or cookies
-- **Ephemeral State** — Keys exist only in React memory and are discarded on page refresh or account change
-- **Multi-Wallet Compatible** — Works with MetaMask Snap path and generic EIP-1193 onboarding
+- **Memory-Only Keys** — AES keys live exclusively in React state. Never written to localStorage, sessionStorage, IndexedDB, or cookies.
+- **Ephemeral by Design** — Keys are lost on page refresh. Users must re-authenticate, eliminating persistent attack surface.
+- **Sanity Guards** — Decryption includes threshold checks to detect AES key mismatches before displaying garbage values.
+- **No Network Transmission** — AES keys are never sent over the network. All decryption is client-side.
+- **Connector Identity** — Wallet type detection uses wagmi's stable `connector.id`, not spoofable `window.ethereum.isMetaMask`.
 
-## Architecture
+## Supported Networks
 
-See [docs/architecture.md](./docs/architecture.md) for the full design document.
+| Network | Chain ID | RPC |
+|---------|----------|-----|
+| COTI Mainnet | 2632500 | https://mainnet.coti.io/rpc |
+| COTI Testnet | 7082400 | https://testnet.coti.io/rpc |
+
+## Build
+
+```bash
+npm run build    # Produces dist/index.js (CJS) + dist/index.mjs (ESM) + dist/index.d.ts
+npm run lint     # TypeScript type check (tsc --noEmit)
+npm run clean    # Remove dist/
+```
+
+## Documentation
+
+- [Snap-to-Plugin Architecture](./docs/metamask_wallet_architecture.md) — Module design, data flow, correctness properties
+- [Portal Wallet Requirements](./docs/portal_wallet_requirements.md) — Multi-wallet support design (RainbowKit/wagmi)
+- [Portal Wallet Architecture](./docs/portal_wallet_architecture.md) — Library architecture and security model
 
 ## License
 
