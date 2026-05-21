@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-The current COTI ecosystem heavily relies on `@coti-io/coti-ethers` and `@coti-io/coti-sdk-typescript` for interacting with the COTI network. However, with the introduction of RainbowKit and multi-wallet support (as outlined in `walletdesign.md`), there is a distinct gap: the base libraries lack a unified, high-level abstraction for performing **Private Token (pToken) operations** (specifically transfers and decrypted balance retrieval) across different EIP-1193 wallets.
+The current COTI ecosystem heavily relies on `@coti-io/coti-ethers` and `@coti-io/coti-sdk-typescript` for interacting with the COTI network. However, with the introduction of RainbowKit and multi-wallet support (as outlined in `portal_wallet_requirements.md`), there is a distinct gap: the base libraries lack a unified, high-level abstraction for performing **Private Token (pToken) operations** (specifically transfers and decrypted balance retrieval) across different EIP-1193 wallets.
 
 This document proposes the architecture for a new **COTI Wallet Library** (to be published as `@coti-io/coti-wallet-plugin`) to sit as a middleware between the application layer (React/wagmi context) and the low-level COTI SDKs.
 
@@ -87,7 +87,7 @@ Responsible for constructing secure, encrypted transfer payloads before promptin
 
 ## 5. Security Integration
 
-This library relies strictly on the `walletdesign.md` security constraints:
+This library relies strictly on the `portal_wallet_requirements.md` security constraints:
 - **No Persistent Storage:** The library dynamically resolves the AES key via the `Key & Onboarding Manager`. It NEVER writes the key to `localStorage`, `sessionStorage`, `IndexedDB`, or cookies.
 - **Ephemeral State:** The exported React Hooks (e.g., `useCotiWalletProvider`) maintain the resolved AES key exclusively in React's memory (state). If a user refreshes the page or changes their account, the key is immediately discarded from memory, and the user must re-authenticate.
 
