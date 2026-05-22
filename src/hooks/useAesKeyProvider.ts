@@ -5,10 +5,12 @@ import { useSnap } from './useSnap';
 import type { WalletTypeInfo } from './useWalletType';
 
 /**
- * Regex pattern for validating AES key format: exactly 64 hexadecimal characters.
- * Represents a 32-byte (256-bit) AES key.
+ * Regex pattern for validating AES key format: 32 or 64 hexadecimal characters.
+ * Supports both 128-bit (32 chars) and 256-bit (64 chars) AES keys.
+ * - Onboard contract returns 32-char keys (128-bit)
+ * - Snap returns 64-char keys (256-bit)
  */
-const AES_KEY_PATTERN = /^[0-9a-fA-F]{64}$/;
+const AES_KEY_PATTERN = /^[0-9a-fA-F]{32}$|^[0-9a-fA-F]{64}$/;
 
 /**
  * EIP-1193 error code for user rejection of a wallet request.
@@ -42,7 +44,8 @@ function isUserRejection(error: unknown): boolean {
 }
 
 /**
- * Validates that a string is a valid 64-character hex AES key.
+ * Validates that a string is a valid 32 or 64-character hex AES key.
+ * Accepts both 128-bit (32 chars) and 256-bit (64 chars) keys.
  */
 export function isValidAesKey(key: string): boolean {
   return AES_KEY_PATTERN.test(key);
@@ -114,11 +117,22 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         const onboardInfo = signer.getUserOnboardInfo();
         const aesKey = onboardInfo?.aesKey ?? null;
 
+        console.log('🔍 DEBUG: Retrieved AES key from onboard contract:', {
+          aesKey,
+          length: aesKey?.length,
+          hasPrefix: aesKey?.startsWith('0x'),
+          lengthWithoutPrefix: aesKey?.startsWith('0x') ? aesKey.length - 2 : aesKey?.length
+        });
+
         if (aesKey && !isValidAesKey(aesKey)) {
           console.warn('⚠️ AES key from onboard contract failed format validation');
+          console.warn('Expected: 32 or 64 hex characters (without 0x prefix)');
+          console.warn('Received:', aesKey);
           setOnboardingError('Retrieved AES key has invalid format');
           return null;
         }
+
+        console.log('✅ AES key validation passed:', aesKey?.length, 'characters');
 
         return aesKey;
       } catch (error: unknown) {
