@@ -2,6 +2,8 @@ export const CONTRACT_ADDRESSES: Record<number, Record<string, string>> = {
     // Sepolia
     11155111: {
       MTT: "0xd3f5c63f4D87D2235b295FbA83351d31d0eD1BeE",
+      "p.MTT": "0xb681D264a250715977450212d370b05d98761422",
+      PrivacyPortalMTT: "0xF5Da19E1c8FB39Fdd11bB029882fc69E86650beB",
     },
     // COTI Testnet
     7082400: {
@@ -86,7 +88,8 @@ export interface TokenConfig {
 
 export const SUPPORTED_TOKENS: TokenConfig[] = [
   // Sepolia Tokens
-  { symbol: "MTT", name: "MTT", icon: "/icons/mtt.svg", decimals: 18, isPrivate: false, addressKey: "MTT" },
+  { symbol: "MTT", name: "MTT", icon: "/icons/coti.svg", decimals: 18, isPrivate: false, addressKey: "MTT", bridgeAddressKey: "PrivacyPortalMTT" },
+  { symbol: "p.MTT", name: "p.MTT", icon: "/icons/coti.svg", decimals: 18, isPrivate: true, addressKey: "p.MTT", bridgeAddressKey: "PrivacyPortalMTT" },
 
   // Public Tokens
   { symbol: "COTI", name: "COTI", icon: "/icons/coti.svg", decimals: 18, isPrivate: false, bridgeAddressKey: "PrivacyBridgeCotiNative", timeout: 1800 },

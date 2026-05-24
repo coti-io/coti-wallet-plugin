@@ -1,9 +1,8 @@
 import { useState, useCallback } from 'react';
-import { useConnectorClient, useChainId } from 'wagmi';
+import { useConnectorClient } from 'wagmi';
 import { BrowserProvider } from '@coti-io/coti-ethers';
 import { useSnap } from './useSnap';
 import type { WalletTypeInfo } from './useWalletType';
-import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID } from '../config/chains';
 
 /**
  * Regex pattern for validating AES key format: 32 or 64 hexadecimal characters.
@@ -70,7 +69,6 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
 
   const { getAESKeyFromSnap } = useSnap();
   const { data: connectorClient } = useConnectorClient();
-  const chainId = useChainId();
 
   const getAesKey = useCallback(
     async (address: string): Promise<string | null> => {
@@ -95,14 +93,6 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
       }
 
       // Route 2: Non-MetaMask wallet — use onboarding contract flow
-      // The onboarding contract only exists on COTI chains
-      const isCotiChain = chainId === COTI_MAINNET_CHAIN_ID || chainId === COTI_TESTNET_CHAIN_ID;
-      if (!isCotiChain) {
-        console.warn(`⚠️ Onboarding contract not available on chain ${chainId}. Switch to a COTI network.`);
-        setOnboardingError('Onboarding contract is only available on COTI networks. Please switch to COTI Mainnet or Testnet.');
-        return null;
-      }
-
       if (!connectorClient) {
         setOnboardingError('No wallet provider available. Please connect your wallet.');
         return null;
@@ -161,7 +151,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         setIsOnboarding(false);
       }
     },
-    [walletTypeInfo.isMetaMaskWithSnap, getAESKeyFromSnap, connectorClient, chainId]
+    [walletTypeInfo.isMetaMaskWithSnap, getAESKeyFromSnap, connectorClient]
   );
 
   return {

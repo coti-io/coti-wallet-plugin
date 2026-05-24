@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { ethers } from 'ethers';
 import * as CotiSDK from '@coti-io/coti-sdk-typescript';
 import { getPluginConfig } from '../config/plugin';
+import { getRpcUrlForChainId } from '../config/chains';
 
 export const useFetchPrivateBalance = () => {
     const fetchPrivateBalance = useCallback(async (
@@ -9,7 +10,8 @@ export const useFetchPrivateBalance = () => {
         aesKey: string,
         currentChainIdOrAddress: number | string,
         isDirectAddress: boolean = false,
-        decimals: number = 18
+        decimals: number = 18,
+        readChainId?: number | string
     ): Promise<string> => {
         console.log(`🔍 fetchPrivateBalance CALLED for ${currentChainIdOrAddress} (Direct: ${isDirectAddress})`);
 
@@ -31,13 +33,11 @@ export const useFetchPrivateBalance = () => {
             }
 
             // GUARD: Check against Strict Network Enforcement
+            // Skip guard when readChainId is explicitly provided (caller knows the target chain)
             const envDefaultNetwork = getPluginConfig().defaultNetworkId;
-            if (envDefaultNetwork) {
-                // We need to check the current chain ID from the provider
-                // Note: The hook takes currentChainIdOrAddress but that might be passed from stale state.
-                // Best to check strict equality with provider or env.
-                const network = await provider.getNetwork();
-                if (Number(network.chainId) !== Number(envDefaultNetwork)) {
+            if (envDefaultNetwork && !readChainId) {
+                const networkChainId = Number((await provider.getNetwork()).chainId);
+                if (networkChainId !== Number(envDefaultNetwork)) {
                     console.warn(`[FetchPrivate] Skipping: Wrong Network`);
                     return '0.00';
                 }
@@ -46,40 +46,88 @@ export const useFetchPrivateBalance = () => {
             if (!contractAddress) return '0.00';
 
             if (isDirectAddress) {
-                // It's a token contract (p.WETH, p.USDT, etc.)
-                // Use signer to ensure msg.sender is set correctly for getMyBalance
-                const signer = await provider.getSigner();
-                const userAddr = await signer.getAddress();
+                // Use a dedicated read provider when readChainId is specified,
+                // otherwise fall back to the connected wallet's provider.
+                const readProvider = readChainId
+                    ? new ethers.JsonRpcProvider(getRpcUrlForChainId(Number(readChainId)), Number(readChainId))
+                    : provider;
+                const userAddr = userAddress;
 
                 // PrivateERC20 (256-bit version) balanceOf(address) returns ctUint256:
                 // struct ctUint256 { ctUint128 ciphertextHigh; ctUint128 ciphertextLow; }
                 // where ctUint128 is `type ctUint128 is uint256` — so ABI is just two flat uint256s.
-                const contract = new ethers.Contract(contractAddress, [
+                // Also supports nested format: tuple(tuple(uint256,uint256),tuple(uint256,uint256))
+                const nestedBalanceAbi = [
+                    "function balanceOf(address) view returns (tuple(tuple(uint256 high,uint256 low) high,tuple(uint256 high,uint256 low) low))"
+                ];
+                const flatBalanceAbi = [
                     "function balanceOf(address) view returns (tuple(uint256 ciphertextHigh, uint256 ciphertextLow))"
-                ], signer);
+                ];
 
                 try {
-                    const encryptedBalance = await contract.balanceOf(userAddr);
+                    let encryptedBalance: any;
+                    try {
+                        encryptedBalance = await new ethers.Contract(contractAddress, nestedBalanceAbi, readProvider).balanceOf(userAddr);
+                    } catch {
+                        encryptedBalance = await new ethers.Contract(contractAddress, flatBalanceAbi, readProvider).balanceOf(userAddr);
+                    }
 
                     // SAFEGUARD: If ciphertext is empty/zero
                     if (!encryptedBalance) {
                         return '0.00';
                     }
 
-                    const ciphertextHigh: bigint = encryptedBalance.ciphertextHigh;
-                    const ciphertextLow: bigint = encryptedBalance.ciphertextLow;
+                    // Collect all bigint values from the response (handles both nested and flat formats)
+                    const collectBigints = (value: unknown): bigint[] => {
+                        if (typeof value === 'bigint') return [value];
+                        if (!value || typeof value !== 'object') return [];
+                        const result: bigint[] = [];
+                        const arrayValue = Array.from(value as ArrayLike<unknown>);
+                        if (arrayValue.length > 0) {
+                            for (const item of arrayValue) {
+                                result.push(...collectBigints(item));
+                            }
+                            return result;
+                        }
+                        const record = value as Record<string, unknown>;
+                        for (const key of ['high', 'low', 'ciphertextHigh', 'ciphertextLow']) {
+                            if (key in record) result.push(...collectBigints(record[key]));
+                        }
+                        return result;
+                    };
 
-                    // Zero ciphertext means the user simply has no balance on this token.
-                    // This is normal for newly deployed contracts or tokens the user hasn't used yet.
-                    if (ciphertextHigh === 0n && ciphertextLow === 0n) {
+                    const words = collectBigints(encryptedBalance);
+
+                    // All zeros means no balance
+                    if (words.length > 0 && words.every(w => w === 0n)) {
                         console.log('ℹ️ Encrypted Balance is 0/Uninitialized. Returning 0.00');
                         return '0.00';
                     }
 
-                    console.log('🔐 Ciphertext found:', { ciphertextHigh, ciphertextLow });
+                    let decryptedVal: bigint;
 
-                    // Use SDK's decryptUint256 which handles the two-half 256-bit AES ciphertext
-                    const decryptedVal = CotiSDK.decryptUint256({ ciphertextHigh, ciphertextLow }, aesKey);
+                    if (words.length >= 4) {
+                        // Nested format: 4 uint64 segments (ctUint256 with nested ctUint128)
+                        const [encHighHigh, encHighLow, encLowHigh, encLowLow] = words;
+                        const highHigh = CotiSDK.decryptUint(encHighHigh, aesKey);
+                        const highLow = CotiSDK.decryptUint(encHighLow, aesKey);
+                        const lowHigh = CotiSDK.decryptUint(encLowHigh, aesKey);
+                        const lowLow = CotiSDK.decryptUint(encLowLow, aesKey);
+                        const high = (highHigh << 64n) + highLow;
+                        const low = (lowHigh << 64n) + lowLow;
+                        decryptedVal = (high << 128n) + low;
+                    } else if (words.length >= 2) {
+                        // Flat format: 2 uint128 segments (ciphertextHigh, ciphertextLow)
+                        const [ciphertextHigh, ciphertextLow] = words;
+                        if (ciphertextHigh === 0n && ciphertextLow === 0n) {
+                            return '0.00';
+                        }
+                        decryptedVal = CotiSDK.decryptUint256({ ciphertextHigh, ciphertextLow }, aesKey);
+                    } else {
+                        console.warn('⚠️ Unexpected ciphertext format');
+                        return '0.00';
+                    }
+
                     console.log('💰 Total Decrypted Value:', decryptedVal);
 
                     // SAFEGUARD: allow very large real balances (rendered as M/B/T in UI),

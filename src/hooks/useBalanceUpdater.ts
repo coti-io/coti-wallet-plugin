@@ -16,7 +16,7 @@ interface UseBalanceUpdaterProps {
     setPrivateTokens: React.Dispatch<React.SetStateAction<Token[]>>;
     checkNetwork: (provider: ethers.BrowserProvider) => Promise<void>;
     getAESKeyFromSnap: (accountAddress: string) => Promise<string | null>;
-    fetchPrivateBalance: (userAddress: string, aesKey: string, contractAddress: string, version: 64 | 256, decimals?: number) => Promise<string>;
+    fetchPrivateBalance: (userAddress: string, aesKey: string, contractAddress: string, version: 64 | 256, decimals?: number, readChainId?: number) => Promise<string>;
     sessionAesKey?: string | null;
     setSessionAesKey: (key: string | null, keyWallet?: string) => void;
 }
@@ -202,11 +202,11 @@ export const useBalanceUpdater = ({
                                     return { value: '0', isMismatch: false };
                                 }
                                 try {
-                                    const value = await fetchPrivateBalance(account, aesKey, address, version, decimals);
+                                    const value = await fetchPrivateBalance(account, aesKey, address, version, decimals, currentChainId);
                                     return { value, isMismatch: false };
                                 } catch (e: any) {
                                     const msg = e?.message || '';
-                                    const isMismatch = msg.includes('AES key mismatch') || msg.includes('onboarding') || msg.includes('ACCOUNT_NOT_ONBOARDED');
+                                    const isMismatch = msg.includes('AES key mismatch') || msg.includes('onboarding') || msg.includes('ACCOUNT_NOT_ONBOARDED') || msg.includes('implausible decrypted balance');
                                     if (isMismatch) {
                                         console.warn(`⚠️ Private token decrypt mismatch for ${address}. Falling back to 0 for this token.`);
                                         return { value: '0', isMismatch: true };
@@ -223,6 +223,7 @@ export const useBalanceUpdater = ({
                                 fetchPrivateSafely(addresses["p.USDC_E"], 256, 6),
                                 fetchPrivateSafely(addresses["p.WADA"], 256, 6),
                                 fetchPrivateSafely(addresses["p.gCOTI"], 256, 18),
+                                fetchPrivateSafely(addresses["p.MTT"], 256, 18),
                             ]);
 
                             const configuredPrivateTokenCount = [
@@ -233,6 +234,7 @@ export const useBalanceUpdater = ({
                                 addresses["p.USDC_E"],
                                 addresses["p.WADA"],
                                 addresses["p.gCOTI"],
+                                addresses["p.MTT"],
                             ].filter(Boolean).length;
 
                             const mismatchCount = privateFetches.filter(r => r.isMismatch).length;
@@ -245,7 +247,7 @@ export const useBalanceUpdater = ({
                                 throw new Error('AES key mismatch: Error decrypting. Re-onboarding required.');
                             }
 
-                            const [privateBalance, pWethBalance, pWbtcBalance, pUsdtBalance, pUsdcEBalance, pWadaBalance, pGCotiBalance] =
+                            const [privateBalance, pWethBalance, pWbtcBalance, pUsdtBalance, pUsdcEBalance, pWadaBalance, pGCotiBalance, pMttBalance] =
                                 privateFetches.map(r => r.value);
 
                             setPrivateTokens(prevTokens => {
@@ -258,6 +260,7 @@ export const useBalanceUpdater = ({
                                     if (t.symbol === 'p.USDC.e') return { ...t, balance: formatTokenBalanceDisplay(t.symbol, pUsdcEBalance) };
                                     if (t.symbol === 'p.WADA') return { ...t, balance: formatTokenBalanceDisplay(t.symbol, pWadaBalance) };
                                     if (t.symbol === 'p.gCOTI') return { ...t, balance: formatTokenBalanceDisplay(t.symbol, pGCotiBalance) };
+                                    if (t.symbol === 'p.MTT') return { ...t, balance: formatTokenBalanceDisplay(t.symbol, pMttBalance) };
                                     return t;
                                 });
                             });
