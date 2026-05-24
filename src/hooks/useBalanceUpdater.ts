@@ -205,7 +205,7 @@ export const useBalanceUpdater = ({
                             };
 
                             const privateFetches = await Promise.all([
-                                fetchPrivateSafely(addresses.PrivateCoti, 64, 18),
+                                fetchPrivateSafely(addresses.PrivateCoti, 256, 18),
                                 fetchPrivateSafely(addresses["p.WETH"], 256, 18),
                                 fetchPrivateSafely(addresses["p.WBTC"], 256, 8),
                                 fetchPrivateSafely(addresses["p.USDT"], 256, 6),
