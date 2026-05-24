@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { useConnectorClient } from 'wagmi';
+import { useConnectorClient, useAccount } from 'wagmi';
 import { BrowserProvider } from '@coti-io/coti-ethers';
 import { useSnap } from './useSnap';
 import type { WalletTypeInfo } from './useWalletType';
@@ -68,6 +68,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
   const [onboardingError, setOnboardingError] = useState<string | null>(null);
 
   const { getAESKeyFromSnap } = useSnap();
+  const { connector } = useAccount();
   const { data: connectorClient } = useConnectorClient();
 
   const getAesKey = useCallback(
@@ -93,7 +94,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
       }
 
       // Route 2: Non-MetaMask wallet — use onboarding contract flow
-      if (!connectorClient) {
+      if (!connector) {
         setOnboardingError('No wallet provider available. Please connect your wallet.');
         return null;
       }
@@ -101,11 +102,15 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
       try {
         setIsOnboarding(true);
 
-        // Get the EIP-1193 provider from the wagmi connector client
-        const walletProvider = connectorClient.transport;
+        // Get the EIP-1193 provider from the wagmi connector (not the transport)
+        const walletProvider = await connector.getProvider();
+        if (!walletProvider) {
+          setOnboardingError('Could not get provider from wallet connector.');
+          return null;
+        }
 
         // Create a @coti-io/coti-ethers BrowserProvider from the EIP-1193 provider
-        const provider = new BrowserProvider(walletProvider);
+        const provider = new BrowserProvider(walletProvider as any);
 
         // Get the signer for the connected address
         const signer = await provider.getSigner(address);
@@ -151,7 +156,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         setIsOnboarding(false);
       }
     },
-    [walletTypeInfo.isMetaMaskWithSnap, getAESKeyFromSnap, connectorClient]
+    [walletTypeInfo.isMetaMaskWithSnap, getAESKeyFromSnap, connector]
   );
 
   return {
