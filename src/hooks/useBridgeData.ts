@@ -40,16 +40,19 @@ export const useBridgeData = (chainId: number) => {
         setIsLoading(true);
         setError(null);
 
+        const addresses = CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES];
+
+        if (!addresses) {
+          // Chain has no bridge contracts (e.g. Sepolia) — return empty data
+          setBridgesData([]);
+          return;
+        }
+
         const rpcUrl = chainId === 7082400
           ? 'https://testnet.coti.io/rpc'
           : 'https://mainnet.coti.io/rpc';
 
         const provider = new ethers.JsonRpcProvider(rpcUrl);
-        const addresses = CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES];
-
-        if (!addresses) {
-          throw new Error(`Unsupported chain ID: ${chainId}`);
-        }
 
         const bridges: BridgeData[] = [];
 
