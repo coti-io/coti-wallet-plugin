@@ -88,7 +88,7 @@ export const useBalanceUpdater = ({
                 const balanceEth = ethers.formatEther(balanceWei);
 
                 // Fetch all public ERC20 balances in parallel
-                const [wethBalance, wbtcBalance, usdtBalance, usdcEBalance, wadaBalance, gCotiBalance] = await Promise.all([
+                const [wethBalance, wbtcBalance, usdtBalance, usdcEBalance, wadaBalance, gCotiBalance, mttBalance] = await Promise.all([
                     // WETH
                     addresses?.WETH
                         ? (async () => {
@@ -149,6 +149,16 @@ export const useBalanceUpdater = ({
                             } catch { return '0'; }
                         })()
                         : Promise.resolve('0'),
+                    // MTT (Sepolia)
+                    addresses?.MTT
+                        ? (async () => {
+                            try {
+                                const contract = new ethers.Contract(addresses.MTT!, ERC20_ABI, readProvider);
+                                const bal = await contract.balanceOf(account);
+                                return ethers.formatUnits(bal, 18);
+                            } catch { return '0'; }
+                        })()
+                        : Promise.resolve('0'),
                 ]);
 
                 setPublicTokens(prevTokens => {
@@ -161,6 +171,7 @@ export const useBalanceUpdater = ({
                         if (t.symbol === 'USDC.e') return { ...t, balance: formatTokenBalanceDisplay(t.symbol, usdcEBalance) };
                         if (t.symbol === 'WADA') return { ...t, balance: formatTokenBalanceDisplay(t.symbol, wadaBalance) };
                         if (t.symbol === 'gCOTI') return { ...t, balance: formatTokenBalanceDisplay(t.symbol, gCotiBalance) };
+                        if (t.symbol === 'MTT') return { ...t, balance: formatTokenBalanceDisplay(t.symbol, mttBalance) };
                         return t;
                     });
                 });
