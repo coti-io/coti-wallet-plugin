@@ -202,6 +202,16 @@ Routes AES key retrieval to Snap (MetaMask) or onboard contract (others).
 | `OnboardModal` | Modal component for non-MetaMask wallet onboarding flow |
 | `useConnectModal` | Re-export from `@rainbow-me/rainbowkit` to open the wallet picker |
 
+### Extending Wallet Support
+
+Wallet types are strictly typed and defined within [`src/hooks/useWalletType.ts`](src/hooks/useWalletType.ts). They determine how the AES key is dynamically retrieved (e.g. via Snap for MetaMask or the Onboarding Contract for others).
+
+To add support for a newly recognized `connector.id` or new wallet definition:
+
+1. **Add to Type:** Add the new wallet identifier to the `WalletType` union in `src/hooks/useWalletType.ts` (e.g., `'trustwallet'`).
+2. **Map Connector ID:** Map wagmi's unique `connector.id` for that wallet (e.g., `trustWallet`) to your newly defined `WalletType` string inside the `CONNECTOR_ID_TO_WALLET_TYPE` constant.
+3. **Verify Fallback:** If a connector ID isn't mapped, it automatically falls back to `'unknown'`. The `'unknown'` type uses the standard EIP-1193 Onboarding Contract fallback method by default, meaning most wallets will "just work" even if not explicitly mapped here.
+
 ## Usage Examples
 
 ### Fetch and Decrypt a Private Balance (React Hook)
