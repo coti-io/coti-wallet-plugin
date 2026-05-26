@@ -48,7 +48,7 @@ This feature extracts general-purpose cryptographic, token detection, and utilit
 
 ### Requirement 3: Encrypted Input Construction (IT)
 
-**User Story:** As a plugin consumer, I want to construct encrypted input structures for smart contract calls, so that I can submit private values to COTI confidential contracts.
+**User Story:** As a plugin consumer, I want to construct encrypted input structures for smart contract calls, so that I can submit private values to COTI private contracts.
 
 #### Acceptance Criteria
 
@@ -73,13 +73,13 @@ This feature extracts general-purpose cryptographic, token detection, and utilit
 
 ### Requirement 5: Token Type Detection
 
-**User Story:** As a plugin consumer, I want to detect whether a token contract is a standard ERC20, ERC721, ERC1155, or a COTI confidential variant, so that I can apply the correct interaction logic.
+**User Story:** As a plugin consumer, I want to detect whether a token contract is a standard ERC20, ERC721, ERC1155, or a COTI private ERC20 variant, so that I can apply the correct interaction logic.
 
 #### Acceptance Criteria
 
-1. WHEN a token contract address and provider are supplied, THE Token_Detector SHALL call `supportsInterface(bytes4)` on the contract for each known interface ID in the following precedence order: Confidential ERC20 256-bit (0xdfeb393e), Confidential ERC20 64-bit (0x8409a9cf), ERC721 (0x80ac58cd), ERC1155 (0xd9b67a26), and SHALL return the classification corresponding to the first interface that returns true
-2. WHEN the contract supports interface ID 0x8409a9cf, THE Token_Detector SHALL classify it as a Confidential ERC20 (64-bit)
-3. WHEN the contract supports interface ID 0xdfeb393e, THE Token_Detector SHALL classify it as a Confidential ERC20 (256-bit)
+1. WHEN a token contract address and provider are supplied, THE Token_Detector SHALL call `supportsInterface(bytes4)` on the contract for each known interface ID in the following precedence order: private ERC20 256-bit (0xdfeb393e), private ERC20 64-bit (0x8409a9cf), ERC721 (0x80ac58cd), ERC1155 (0xd9b67a26), and SHALL return the classification corresponding to the first interface that returns true
+2. WHEN the contract supports interface ID 0x8409a9cf, THE Token_Detector SHALL classify it as a private ERC20 (64-bit)
+3. WHEN the contract supports interface ID 0xdfeb393e, THE Token_Detector SHALL classify it as a private ERC20 (256-bit)
 4. WHEN the contract supports interface ID 0x80ac58cd, THE Token_Detector SHALL classify it as ERC721
 5. WHEN the contract supports interface ID 0xd9b67a26, THE Token_Detector SHALL classify it as ERC1155
 6. IF the ERC165 probe reverts or returns false for all known interfaces, THEN THE Token_Detector SHALL fall back to checking the contract bytecode for the presence of ERC20 function selectors (balanceOf: 0x70a08231, transfer: 0xa9059cbb, approve: 0x095ea7b3) and SHALL classify the contract as a standard ERC20 if all three selectors are present in the deployed bytecode
@@ -89,7 +89,7 @@ This feature extracts general-purpose cryptographic, token detection, and utilit
 
 ### Requirement 6: Confidential Version Probing
 
-**User Story:** As a plugin consumer, I want to determine whether a confidential token supports 256-bit operations, so that I can use the appropriate encryption variant.
+**User Story:** As a plugin consumer, I want to determine whether a private ERC20 supports 256-bit operations, so that I can use the appropriate encryption variant.
 
 #### Acceptance Criteria
 

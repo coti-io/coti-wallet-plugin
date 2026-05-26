@@ -257,8 +257,8 @@ import { ethers } from 'ethers';
 
 export enum TokenClassification {
   ERC20 = 'erc20',
-  ConfidentialERC20_64 = 'confidential-erc20-64',
-  ConfidentialERC20_256 = 'confidential-erc20-256',
+  PrivateERC20_64 = 'private-erc20-64',
+  PrivateERC20_256 = 'private-erc20-256',
   ERC721 = 'erc721',
   ERC1155 = 'erc1155',
   Unknown = 'unknown',
@@ -317,7 +317,7 @@ export async function getERC20Metadata(
 
 ### Module: `src/tokens/nft.ts`
 
-ERC721 operations including confidential token URI decryption.
+ERC721 operations including private ERC20 URI decryption.
 
 ```typescript
 import { ethers } from 'ethers';
@@ -506,9 +506,9 @@ classDiagram
 | Value | Interface ID | Description |
 |-------|-------------|-------------|
 | `erc20` | — | Standard ERC20 (bytecode fallback) |
-| `confidential-erc20-64` | 0x8409a9cf | COTI Confidential ERC20, 64-bit |
-| `confidential-erc20-256` | 0xdfeb393e | COTI Confidential ERC20, 256-bit |
-| `erc721` | 0x80ac58cd | Standard/Confidential ERC721 |
+| `private-erc20-64` | 0x8409a9cf | COTI private ERC20, 64-bit |
+| `private-erc20-256` | 0xdfeb393e | COTI private ERC20, 256-bit |
+| `erc721` | 0x80ac58cd | Standard/Private ERC721 |
 | `erc1155` | 0xd9b67a26 | ERC1155 Multi-Token |
 | `unknown` | — | Unrecognized contract |
 

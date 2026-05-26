@@ -230,6 +230,18 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
 
             while (retries > 0) {
                 try {
+                    // Resolve to the correct COTI chainId regardless of which chain
+                    // the wallet is currently connected to.
+                    // Sepolia (and other non-COTI chains) → COTI testnet (7082400)
+                    // COTI mainnet (2632500) → COTI mainnet
+                    const COTI_MAINNET_ID = 2632500;
+                    const COTI_TESTNET_ID = 7082400;
+                    const rawChainIdHex = await provider.request({ method: 'eth_chainId' }) as string;
+                    const rawChainId = parseInt(rawChainIdHex, 16);
+                    const cotiChainId = rawChainId === COTI_MAINNET_ID ? COTI_MAINNET_ID : COTI_TESTNET_ID;
+
+                    console.log(`🔑 Requesting AES key for COTI chainId: ${cotiChainId} (wallet chainId: ${rawChainId})`);
+
                     // Directly request the key (User preference to force fetch)
                     // Explicitly passing chainId to bypass sync state issues
                     const key = await provider.request({
@@ -238,7 +250,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
                             snapId,
                             request: {
                                 method: 'get-aes-key',
-                                params: { chainId }
+                                params: { chainId: cotiChainId }
                             }
                         }
                     });
@@ -340,9 +352,16 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
         try {
             const chainIdHex = await provider.request({ method: 'eth_chainId' }) as string;
             const chainId = parseInt(chainIdHex, 16);
-            const environment = chainId === 7082400 ? 'testnet' : 'mainnet';
 
-            console.log(`🌍 Syncing Snap Environment to: ${environment} (ChainID: ${chainId})`);
+            // Map the current chain to the correct COTI environment.
+            // Non-COTI chains (e.g. Sepolia) default to testnet since that is
+            // where the user's AES key is stored during testnet workflows.
+            const COTI_MAINNET_ID = 2632500;
+            const COTI_TESTNET_ID = 7082400;
+            const environment = chainId === COTI_MAINNET_ID ? 'mainnet' : 'testnet';
+            const cotiChainId = chainId === COTI_MAINNET_ID ? COTI_MAINNET_ID : COTI_TESTNET_ID;
+
+            console.log(`🌍 Syncing Snap Environment to: ${environment} (requested ChainID: ${chainId} → COTI ChainID: ${cotiChainId})`);
 
             await provider.request({
                 method: 'wallet_invokeSnap',
