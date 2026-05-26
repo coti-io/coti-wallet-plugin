@@ -1,8 +1,14 @@
 # @coti-io/coti-wallet-plugin
 
-High-level TypeScript library for **Private Token (pToken) operations** on the COTI network. Provides React hooks, multi-wallet support (RainbowKit + wagmi v2), and token detection for any EIP-1193 wallet.
+**Important:** This library is a **plugin for existing dApps and wallets**, not a standalone wallet application. It is designed to be injected into your existing React/wagmi stack to seamlessly enhance standard wallets with COTI network privacy capabilities.
+
+High-level TypeScript library for **Private Token (pToken) operations** on the COTI network. Provides React hooks, multi-wallet support (via wagmi v2 and RainbowKit), and token detection for any EIP-1193 wallet.
 
 ## What It Does
+
+### 🔌 A PLUGIN, NOT A WALLET
+
+This package does not provide a wallet application. Instead, it acts as an **enhancement layer** over existing wallet providers (MetaMask, Coinbase, TrustWallet, Rainbow, WalletConnect, etc.). By hooking into standard EIP-1193 connections using **wagmi v2 and RainbowKit** as the underlying connection infrastructure, the plugin transparently adds COTI privacy features (AES key derivation, balance decryption, confidential transfers) to whatever wallet the user prefers to use.
 
 ### 🔑 ANY WALLET SUPPORT
 
