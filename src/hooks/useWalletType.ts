@@ -6,7 +6,7 @@ import { getPluginConfig } from '../config/plugin';
  * Normalized wallet type derived from wagmi's stable `connector.id`.
  * Uses connector.id (wagmi-controlled) — NOT window.ethereum.isMetaMask.
  */
-export type WalletType = 'metamask' | 'coinbase' | 'walletconnect' | 'rainbow' | 'unknown';
+export type WalletType = 'metamask' | 'coinbase' | 'walletconnect' | 'rainbow' | 'phantom' | 'trust' | 'rabby' | 'ledger' | 'unknown';
 
 /**
  * Information about the connected wallet type and its capabilities.
@@ -23,21 +23,47 @@ export interface WalletTypeInfo {
 /**
  * Static mapping from wagmi connector.id to normalized WalletType.
  * This mapping is deterministic and does not rely on self-reported provider properties.
+ * Includes both standard wagmi connector IDs and EIP-6963 rdns-based IDs.
  */
 const CONNECTOR_ID_TO_WALLET_TYPE: Record<string, WalletType> = {
+  // Standard wagmi connector IDs
   metaMask: 'metamask',
   coinbaseWalletSDK: 'coinbase',
   walletConnect: 'walletconnect',
   rainbow: 'rainbow',
+  // EIP-6963 rdns-based connector IDs
+  'io.metamask': 'metamask',
+  'io.metamask.flask': 'metamask',
+  metamask: 'metamask',
+  phantom: 'phantom',
+  'trust-extension': 'trust',
+  trustWallet: 'trust',
+  rabby: 'rabby',
+  ledger: 'ledger',
 };
 
 /**
  * Maps a wagmi connector.id to a normalized WalletType.
+ * Performs exact match first, then case-insensitive partial match for MetaMask variants.
  * Falls back to 'unknown' for unrecognized connector IDs.
  */
 export function mapConnectorIdToWalletType(connectorId: string | undefined): WalletType {
   if (!connectorId) return 'unknown';
-  return CONNECTOR_ID_TO_WALLET_TYPE[connectorId] ?? 'unknown';
+  // Exact match
+  if (CONNECTOR_ID_TO_WALLET_TYPE[connectorId]) {
+    return CONNECTOR_ID_TO_WALLET_TYPE[connectorId];
+  }
+  // Case-insensitive partial match for MetaMask variants (e.g. "io.metamask.flask")
+  const lower = connectorId.toLowerCase();
+  if (lower.includes('metamask')) return 'metamask';
+  if (lower.includes('coinbase')) return 'coinbase';
+  if (lower.includes('walletconnect')) return 'walletconnect';
+  if (lower.includes('phantom')) return 'phantom';
+  if (lower.includes('trust')) return 'trust';
+  if (lower.includes('rabby')) return 'rabby';
+  if (lower.includes('rainbow')) return 'rainbow';
+  if (lower.includes('ledger')) return 'ledger';
+  return 'unknown';
 }
 
 /** Default state when no connector is available */
