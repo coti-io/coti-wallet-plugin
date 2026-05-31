@@ -42,7 +42,6 @@ This library sits between your React/wagmi application and the low-level COTI SD
 - **Balance Decryption** — Fetches encrypted on-chain balances and decrypts them client-side
 - **Privacy Bridge** — Orchestrates Portal In (deposit) and Portal Out (withdraw) operations with fee estimation
 - **Network Configuration** — COTI Mainnet and Testnet chain definitions ready for wagmi/viem
-- **Price Feeds** — Fetches token prices efficiently via Band Protocol integration
 
 ## Installation
 
@@ -188,9 +187,8 @@ Routes AES key retrieval to Snap (MetaMask) or onboard contract (others).
 - **6.1 `useBridgeData()`**: On-chain bridge state (fees, limits, paused status).
 - **6.2 `useBridgeStatus()`**: Real-time bridge transaction status tracking.
 - **6.3 `useNetworkEnforcer()`**: Enforces COTI-only networks, prompts chain switch.
-- **6.4 `useTokenPrices()`**: Integrates with Band Protocol to retrieve live USD prices.
-- **6.5 `useSnap()` / `useMetamask()`**: Standalone hooks for legacy, pure-MetaMask implementations.
-- **6.6 `formatTokenBalanceDisplay(balance)`**: Standardizes token display with thousand separators.
+- **6.4 `useSnap()` / `useMetamask()`**: Standalone hooks for legacy, pure-MetaMask implementations.
+- **6.5 `formatTokenBalanceDisplay(balance)`**: Standardizes token display with thousand separators.
 
 ### Multi-Wallet Support
 
