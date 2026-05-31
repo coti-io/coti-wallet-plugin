@@ -106,19 +106,6 @@ classDiagram
 
 ## API Reference
 
-### Configuration
-
-
-| Export                                            | Description                                      |
-| ------------------------------------------------- | ------------------------------------------------ |
-| `configureCotiPlugin(config)`                     | Set Snap ID and default network before rendering |
-| `getPluginConfig()`                               | Read current plugin configuration                |
-| `cotiMainnet` / `cotiTestnet`                     | Chain definitions for wagmi/viem                 |
-| `COTI_MAINNET_CHAIN_ID` / `COTI_TESTNET_CHAIN_ID` | Decimal Chain ID constants                       |
-| `COTI_MAINNET_RPC` / `COTI_TESTNET_RPC`           | Default RPC URLs                                 |
-
-> **Note on Constants:** constants for mainnet and testnet are exported to help developers avoid "magic numbers" in code, improving readability and reducing typos in network-specific routing.
-
 ### React Hooks
 
 The API is structured around several core React hooks that interact seamlessly.
