@@ -56,91 +56,53 @@ npm install @coti-io/coti-wallet-plugin
 npm install react ethers viem @coti-io/coti-sdk-typescript @metamask/providers @rainbow-me/rainbowkit wagmi @tanstack/react-query
 ```
 
-## Plugin Hooks Architecture
+## Plugin Architecture
 
-Below is a high-level representation of the core React hooks exposed by this plugin, outlining their key state variables and methods.
+Below is a high-level representation of the core React hooks exposed by this plugin, outlining their key state variables and methods. Numbers reference the [API Reference](#api-reference) sections below.
 
 ```mermaid
 classDiagram
     direction LR
 
     class useWallet {
-        +boolean isConnected
-        +string walletAddress
-        +string networkName
-        +string chainId
-        +string sessionAesKey
-        +boolean isPrivateUnlocked
-        +connect() Promise~void~
-        +disconnect() Promise~void~
-        +getAesKey(address) Promise~string~
-        +switchNetwork(chainId) Promise~boolean~
-        +unlockPrivateBalances() Promise~boolean~
-        +lockPrivateBalances() void
+        +boolean isConnected [1.1.1]
+        +string walletAddress [1.1.2]
+        +string networkName [1.2.1]
+        +string chainId [1.2.2]
+        +string sessionAesKey [1.3.1]
+        +boolean isPrivateUnlocked [1.3.2]
+        +connect() Promise~void~ [1.1.3]
+        +disconnect() Promise~void~ [1.1.4]
+        +getAesKey(address) Promise~string~ [1.3.3]
+        +switchNetwork(chainId) Promise~boolean~ [1.2.3]
+        +unlockPrivateBalances() Promise~boolean~ [1.3.4]
+        +lockPrivateBalances() void [1.3.5]
         +handleOnboard() Promise~string~
     }
 
     class usePrivateTokenBalance {
-        +fetchPrivateBalance(user, aesKey, address, version, decimals) Promise~string~
+        +fetchPrivateBalance(user, aesKey, address, version, decimals) Promise~string~ [2.1]
     }
 
     class useBalanceUpdater {
-      +updateAccountState(account, checkSnap, fetchPrivate, aesKeyOverride, chainOverride) Promise~void~
+      +updateAccountState(account, checkSnap, fetchPrivate, aesKeyOverride, chainOverride) Promise~void~ [3.1]
     }
 
     class usePrivacyBridge {
-        +handleSwap() Promise~void~
-        +boolean isBridgingLoading
-        +handleApprove() Promise~void~
-        +boolean isApprovalNeeded
+        +handleSwap() Promise~void~ [4.1]
+        +boolean isBridgingLoading [4.2]
+        +handleApprove() Promise~void~ [4.4]
+        +boolean isApprovalNeeded [4.3]
     }
 
     class useAesKeyProvider {
-        +boolean isOnboarding
-        +string onboardingError
-        +getAesKey(address) Promise~string~
+        +boolean isOnboarding [5.2]
+        +string onboardingError [5.3]
+        +getAesKey(address) Promise~string~ [5.1]
     }
 
     useWallet --> useAesKeyProvider : Delegates AES Retrieval
     useBalanceUpdater --> usePrivateTokenBalance : Orchestrates Batch Fetches
-```
-
-## Quick Start
-
-### Basic Setup (MetaMask only)
-
-```tsx
-import { configureCotiPlugin, PrivacyBridgeProvider } from '@coti-io/coti-wallet-plugin';
-
-// Optional — configure before rendering (defaults work for mainnet)
-configureCotiPlugin({
-  snapId: 'npm:@coti-io/coti-snap',
-  defaultNetworkId: '0x282b34', // COTI Mainnet (2632500)
-});
-
-function App() {
-  return (
-    <PrivacyBridgeProvider>
-      <YourApp />
-    </PrivacyBridgeProvider>
-  );
-}
-```
-
-### Multi-Wallet Setup (RainbowKit + wagmi)
-
-```tsx
-import { WagmiRainbowKitProvider, PrivacyBridgeProvider } from '@coti-io/coti-wallet-plugin';
-
-function App() {
-  return (
-    <WagmiRainbowKitProvider walletConnectProjectId="your-project-id">
-      <PrivacyBridgeProvider>
-        <YourApp />
-      </PrivacyBridgeProvider>
-    </WagmiRainbowKitProvider>
-  );
-}
 ```
 
 ## API Reference
@@ -252,6 +214,44 @@ To add support for a newly recognized `connector.id` or new wallet definition:
 3. **Verify Fallback:** If a connector ID isn't mapped, it automatically falls back to `'unknown'`. The `'unknown'` type uses the standard EIP-1193 Onboarding Contract fallback method by default, meaning most wallets will "just work" even if not explicitly mapped here.
 
 ## Usage Examples
+
+
+### Basic Setup (MetaMask only)
+
+```tsx
+import { configureCotiPlugin, PrivacyBridgeProvider } from '@coti-io/coti-wallet-plugin';
+
+// Optional — configure before rendering (defaults work for mainnet)
+configureCotiPlugin({
+  snapId: 'npm:@coti-io/coti-snap',
+  defaultNetworkId: '0x282b34', // COTI Mainnet (2632500)
+});
+
+function App() {
+  return (
+    <PrivacyBridgeProvider>
+      <YourApp />
+    </PrivacyBridgeProvider>
+  );
+}
+```
+
+### Multi-Wallet Setup (RainbowKit + wagmi)
+
+```tsx
+import { WagmiRainbowKitProvider, PrivacyBridgeProvider } from '@coti-io/coti-wallet-plugin';
+
+function App() {
+  return (
+    <WagmiRainbowKitProvider walletConnectProjectId="your-project-id">
+      <PrivacyBridgeProvider>
+        <YourApp />
+      </PrivacyBridgeProvider>
+    </WagmiRainbowKitProvider>
+  );
+}
+```
+
 
 ### Fetch and Decrypt a Private Balance (React Hook)
 
