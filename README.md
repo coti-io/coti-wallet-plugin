@@ -274,7 +274,7 @@ function App() {
 }
 ```
 
-### Multi-Wallet Setup (RainbowKit + wagmi)
+### Any Wallet Setup (RainbowKit + wagmi)
 
 ```tsx
 import { WagmiRainbowKitProvider, PrivacyBridgeProvider } from '@coti-io/coti-wallet-plugin';
