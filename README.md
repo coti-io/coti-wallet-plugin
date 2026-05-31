@@ -2,13 +2,31 @@
 
 **Important:** This library is a **plugin for existing dApps and wallets**, not a standalone wallet application. It is designed to be injected into your existing React/wagmi stack to seamlessly enhance standard wallets with COTI network privacy capabilities.
 
-High-level TypeScript library for **Private Token (pToken) operations** on the COTI network. Provides React hooks, multi-wallet support (via wagmi v2 and RainbowKit), and token detection for any EIP-1193 wallet.
+High-level TypeScript library for **Private Token (pToken) operations** on the COTI network. Provides React hooks, multi-wallet support (via wagmi v2 and RainbowKit), and token detection for any EIP-1193 wallet. Although opiniated to  RainbowKit , wagmi classes can be adapted for use with other frameworks such as `ConnectKit` or `Privy`
 
 ## What It Does
 
 ### 🔌 A PLUGIN, NOT A WALLET
 
-This package does not provide a wallet application. Instead, it acts as an **enhancement layer** over existing wallet providers (MetaMask, Coinbase, TrustWallet, Rainbow, WalletConnect, etc.). By hooking into standard EIP-1193 connections using **wagmi v2 and RainbowKit** as the underlying connection infrastructure, the plugin transparently adds COTI privacy features (AES key derivation, balance decryption, confidential transfers) to whatever wallet the user prefers to use.
+This package does not provide a wallet application. Instead, it acts as an **enhancement layer** over existing wallet providers that are compatible with EVM and COTI networks via RainbowKit, including:
+- MetaMask
+- Coinbase Wallet
+- Trust Wallet
+- Rainbow
+- WalletConnect
+- Safe
+- Argent
+- Ledger Live
+- Brave Wallet
+- Kraken Wallet
+- Phantom (EVM)
+- OKX Wallet
+- Zerion
+- TokenPocket
+- Bitget Wallet
+- Any injected EIP-1193 browser wallet
+
+By hooking into standard EIP-1193 connections using **wagmi v2 and RainbowKit** as the underlying connection infrastructure, the plugin transparently adds COTI privacy features (AES key derivation, balance decryption, confidential transfers) to whatever wallet the user prefers to use.
 
 ### 🔑 ANY WALLET SUPPORT
 
@@ -129,13 +147,14 @@ function App() {
 
 ### Configuration
 
-| Export | Description |
-|--------|-------------|
-| `configureCotiPlugin(config)` | Set Snap ID and default network before rendering |
-| `getPluginConfig()` | Read current plugin configuration |
-| `cotiMainnet` / `cotiTestnet` | Chain definitions for wagmi/viem |
-| `COTI_MAINNET_CHAIN_ID` / `COTI_TESTNET_CHAIN_ID` | Decimal Chain ID constants |
-| `COTI_MAINNET_RPC` / `COTI_TESTNET_RPC` | Default RPC URLs |
+
+| Export                                            | Description                                      |
+| ------------------------------------------------- | ------------------------------------------------ |
+| `configureCotiPlugin(config)`                     | Set Snap ID and default network before rendering |
+| `getPluginConfig()`                               | Read current plugin configuration                |
+| `cotiMainnet` / `cotiTestnet`                     | Chain definitions for wagmi/viem                 |
+| `COTI_MAINNET_CHAIN_ID` / `COTI_TESTNET_CHAIN_ID` | Decimal Chain ID constants                       |
+| `COTI_MAINNET_RPC` / `COTI_TESTNET_RPC`           | Default RPC URLs                                 |
 
 > **Note on Constants:** constants for mainnet and testnet are exported to help developers avoid "magic numbers" in code, improving readability and reducing typos in network-specific routing.
 
@@ -144,15 +163,18 @@ function App() {
 The API is structured around several core React hooks that interact seamlessly.
 
 #### 1. `useWallet()`
+
 `useWallet()` is the recommended entry point for all wallet operations. It composes the lower-level hooks internally and manages the full wallet and AES key lifecycle.
 
 **1.1. Connection**
+
 - **1.1.1 `isConnected`** (`boolean`): Whether a wallet is currently connected.
 - **1.1.2 `walletAddress`** (`string`): The connected wallet address.
 - **1.1.3 `connect()`** (`() => Promise<void>`): Opens the wallet connection flow.
 - **1.1.4 `disconnect()`** (`() => Promise<void>`): Revokes permissions and clears all state/caches.
 
 **1.2. Network**
+
 - **1.2.1 `networkName`** (`string`): Human-readable network name (e.g. "COTI Mainnet").
 - **1.2.2 `chainId`** (`string | null`): Current chain ID as a decimal string.
 - **1.2.3 `switchNetwork(chainId)`** (`(hex: string) => Promise<boolean>`): Requests the wallet to switch chains.
@@ -161,6 +183,7 @@ The API is structured around several core React hooks that interact seamlessly.
 - **1.2.6 `SEPOLIA_ID`** (`string`): `"0xaa36a7"`
 
 **1.3. AES Key Lifecycle**
+
 - **1.3.1 `sessionAesKey`** (`string | null`): Current AES key (React state only, never persisted).
 - **1.3.2 `isPrivateUnlocked`** (`boolean`): `true` when the session key is set.
 - **1.3.3 `getAesKey(address)`** (`(addr: string) => Promise<string | null>`): Retrieves the AES key (routes to Snap for MetaMask, or Onboarding Contract for others).
@@ -169,15 +192,21 @@ The API is structured around several core React hooks that interact seamlessly.
 - **1.3.6 `clearKeyCache()`** (`() => void`): Forces a fresh retrieval on the next unlock.
 
 #### 2. `usePrivateTokenBalance()`
+
 Provides a unified interface to retrieve and decrypt private balances safely.
+
 - **2.1 `fetchPrivateBalance(userAddress, aesKey, contractAddress, version, decimals?)`** (`Promise<string>`): Fetches and decrypts the balance. Pass `64` for legacy native p.COTI, or `256` for wrapped/bridged private ERC20s.
 
 #### 3. `useBalanceUpdater(props)`
+
 Advanced orchestrator typically used at the Provider level to manage global token states and batch-fetch the entire wallet portfolio in parallel.
+
 - **3.1 `updateAccountState(account, checkSnap?, fetchPrivate?, aesKeyOverride?, chainOverride?)`** (`Promise<void>`): Triggers a parallelized refresh of all configured COTI/ERC20 and p.ERC20 token balances.
 
 #### 4. `usePrivacyBridge()`
+
 Full bridge orchestration — deposit, withdraw, allowance, and fee estimation.
+
 - **4.1 `handleSwap(amount?, direction?, tokenIndex?, onProgress?)`** (`Promise<void>`): Unified method to execute a deposit ('to-private') or withdraw ('to-public').
 - **4.2 `isBridgingLoading`** (`boolean`): Indicates a swap/bridge transaction is in progress.
 - **4.3 `isApprovalNeeded`** (`boolean`): Indicates whether the selected swap requires an ERC20 allowance approval.
@@ -185,12 +214,15 @@ Full bridge orchestration — deposit, withdraw, allowance, and fee estimation.
 - **4.5 `estimatedGasFee` / `portalFeeCoti`** (`string`): Active fee estimations for the selected bridge route.
 
 #### 5. `useAesKeyProvider(walletTypeInfo)`
+
 Routes AES key retrieval to Snap (MetaMask) or onboard contract (others).
+
 - **5.1 `getAesKey(address)`** (`Promise<string>`): Resolves the AES key for the connected network/wallet type.
 - **5.2 `isOnboarding`** (`boolean`): Indicates whether the onboarding process is actively running.
 - **5.3 `onboardingError`** (`string | null`): Catches and exposes onboarding flow errors.
 
 #### 6. Auxiliary Hooks & Utilities
+
 - **6.1 `useBridgeData()`**: On-chain bridge state (fees, limits, paused status).
 - **6.2 `useBridgeStatus()`**: Real-time bridge transaction status tracking.
 - **6.3 `useNetworkEnforcer()`**: Enforces COTI-only networks, prompts chain switch.
@@ -200,13 +232,14 @@ Routes AES key retrieval to Snap (MetaMask) or onboard contract (others).
 
 ### Multi-Wallet Support
 
-| Export | Description |
-|--------|-------------|
+
+| Export                    | Description                                                      |
+| ------------------------- | ---------------------------------------------------------------- |
 | `WagmiRainbowKitProvider` | Provider wrapping wagmi + RainbowKit for multi-wallet connection |
-| `wagmiConfig` | Pre-configured wagmi config with COTI chains for consuming apps |
-| `useWalletType()` | Detects connected wallet type from wagmi's `connector.id` |
-| `OnboardModal` | Modal component for non-MetaMask wallet onboarding flow |
-| `useConnectModal` | Re-export from `@rainbow-me/rainbowkit` to open the wallet picker |
+| `wagmiConfig`             | Pre-configured wagmi config with COTI chains for consuming apps  |
+| `useWalletType()`         | Detects connected wallet type from wagmi's`connector.id`         |
+| `OnboardModal`            | Modal component for non-MetaMask wallet onboarding flow          |
+| `useConnectModal`         | Re-export from`@rainbow-me/rainbowkit` to open the wallet picker |
 
 ### Extending Wallet Support
 
@@ -275,10 +308,11 @@ function BridgeComponent() {
 
 ## Supported Networks
 
-| Network | Chain ID | RPC |
-|---------|----------|-----|
-| COTI Mainnet | 2632500 | https://mainnet.coti.io/rpc |
-| COTI Testnet | 7082400 | https://testnet.coti.io/rpc |
+
+| Network      | Chain ID | RPC                         |
+| ------------ | -------- | --------------------------- |
+| COTI Mainnet | 2632500  | https://mainnet.coti.io/rpc |
+| COTI Testnet | 7082400  | https://testnet.coti.io/rpc |
 
 ## Build
 
