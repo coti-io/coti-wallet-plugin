@@ -27,6 +27,21 @@ import { getEthereumProvider } from '../lib/ethereum';
  * - `resetError`: Function to clear the error state (if setSnapError is provided).
  */
 const snapId = getPluginConfig().snapId;
+
+/**
+ * Module-level AES key cache — singleton shared across all `useSnap` hook instances.
+ *
+ * IMPORTANT: This is intentionally a module-scoped mutable variable, NOT React state.
+ * It acts as a process-wide singleton cache so that multiple components mounting
+ * `useSnap` share the same cached key without triggering re-renders.
+ *
+ * Constraints:
+ * - Only safe in browser SPA environments (single JS context per tab).
+ * - NOT compatible with SSR or React Server Components — the cache would leak
+ *   across requests on the server.
+ * - Cleared explicitly via `clearSnapCache()` on disconnect or account change.
+ * - Never persisted to storage — lost on page refresh by design.
+ */
 let globalAESKeyCache: Record<string, string> = {};
 
 export const useSnap = (setSnapError?: (error: string | null) => void) => {

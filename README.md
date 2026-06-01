@@ -323,13 +323,14 @@ function BridgeComponent() {
 
 ## Security
 
-- **Memory-Only Keys** — AES keys live exclusively in React state. Never written to localStorage, sessionStorage, IndexedDB, or cookies.
+- **Memory-Only Keys** — AES keys live exclusively in React state and a module-level singleton cache. Never written to localStorage, sessionStorage, IndexedDB, or cookies.
 - **Ephemeral by Design** — Keys are lost on page refresh. Users must re-authenticate, eliminating persistent attack surface.
+- **Singleton Cache** — The internal AES key cache (`globalAESKeyCache`) is a module-scoped variable shared across all hook instances within a single browser tab. This is intentional for performance (avoids re-prompting the user on every component mount) but means the plugin is designed exclusively for **browser SPA environments**. It is not compatible with SSR or React Server Components.
 - **Sanity Guards** — Decryption includes threshold checks to detect AES key mismatches before displaying garbage values.
 - **No Network Transmission** — AES keys are never sent over the network. All decryption is client-side.
 - **Connector Identity** — Wallet type detection uses wagmi's stable `connector.id`, not spoofable `window.ethereum.isMetaMask`.
-- **AES Key Validation** — All retrieved keys are validated against `/^[0-9a-fA-F]{64}$/` before use.
-- **Session Isolation** — `sessionAesKey` is automatically cleared on account change, disconnect, or manual lock.
+- **AES Key Validation** — All retrieved keys are validated against `/^[0-9a-fA-F]{32}$|^[0-9a-fA-F]{64}$/` before use.
+- **Session Isolation** — `sessionAesKey` is automatically cleared on account change, disconnect, or manual lock. The singleton cache is also cleared on these events via `clearSnapCache()`.
 
 ## Supported Networks
 
