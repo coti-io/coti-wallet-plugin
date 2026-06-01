@@ -84,31 +84,59 @@ export interface TokenConfig {
   bridgeAddressKey?: string;
   /** Oracle price staleness timeout in seconds. Default: 1800 (30 min) */
   timeout?: number;
+  /** Chain IDs where this token is available. If omitted, available on all COTI chains (mainnet + testnet). */
+  supportedChainIds?: number[];
 }
 
 export const SUPPORTED_TOKENS: TokenConfig[] = [
   // Sepolia Tokens
-  { symbol: "MTT", name: "MTT", icon: "/icons/coti.svg", decimals: 18, isPrivate: false, addressKey: "MTT", bridgeAddressKey: "PrivacyPortalMTT" },
-  { symbol: "p.MTT", name: "p.MTT", icon: "/icons/coti.svg", decimals: 18, isPrivate: true, addressKey: "p.MTT", bridgeAddressKey: "PrivacyPortalMTT" },
+  { symbol: "MTT", name: "MTT", icon: "/icons/coti.svg", decimals: 18, isPrivate: false, addressKey: "MTT", bridgeAddressKey: "PrivacyPortalMTT", supportedChainIds: [11155111] },
+  { symbol: "p.MTT", name: "p.MTT", icon: "/icons/coti.svg", decimals: 18, isPrivate: true, addressKey: "p.MTT", bridgeAddressKey: "PrivacyPortalMTT", supportedChainIds: [11155111] },
 
-  // Public Tokens
-  { symbol: "COTI", name: "COTI", icon: "/icons/coti.svg", decimals: 18, isPrivate: false, bridgeAddressKey: "PrivacyBridgeCotiNative", timeout: 1800 },
-  { symbol: "WETH", name: "Wrapped Ether", icon: "/icons/wETH.svg", decimals: 18, isPrivate: false, addressKey: "WETH", bridgeAddressKey: "PrivacyBridgeWETH", timeout: 1800 },
-  { symbol: "WBTC", name: "Wrapped BTC", icon: "/icons/wBTC.svg", decimals: 8, isPrivate: false, addressKey: "WBTC", bridgeAddressKey: "PrivacyBridgeWBTC", timeout: 1800 },
-  { symbol: "USDT", name: "Tether USD", icon: "/icons/usdt.svg", decimals: 6, isPrivate: false, addressKey: "USDT", bridgeAddressKey: "PrivacyBridgeUSDT", timeout: 1800 },
-  { symbol: "USDC.e", name: "Bridged USDC", icon: "/icons/USDC.svg", decimals: 6, isPrivate: false, addressKey: "USDC_E", bridgeAddressKey: "PrivacyBridgeUSDCe", timeout: 1800 },
-  { symbol: "WADA", name: "Wrapped ADA", icon: "/icons/wADA.svg", decimals: 6, isPrivate: false, addressKey: "WADA", bridgeAddressKey: "PrivacyBridgeWADA", timeout: 1800 },
-  { symbol: "gCOTI", name: "gCOTI", icon: "/icons/gcoti.svg", decimals: 18, isPrivate: false, addressKey: "gCOTI", bridgeAddressKey: "PrivacyBridgegCOTI", timeout: 1800 },
+  // Public Tokens (COTI Mainnet + Testnet)
+  { symbol: "COTI", name: "COTI", icon: "/icons/coti.svg", decimals: 18, isPrivate: false, bridgeAddressKey: "PrivacyBridgeCotiNative", timeout: 1800, supportedChainIds: [2632500, 7082400] },
+  { symbol: "WETH", name: "Wrapped Ether", icon: "/icons/wETH.svg", decimals: 18, isPrivate: false, addressKey: "WETH", bridgeAddressKey: "PrivacyBridgeWETH", timeout: 1800, supportedChainIds: [2632500, 7082400] },
+  { symbol: "WBTC", name: "Wrapped BTC", icon: "/icons/wBTC.svg", decimals: 8, isPrivate: false, addressKey: "WBTC", bridgeAddressKey: "PrivacyBridgeWBTC", timeout: 1800, supportedChainIds: [2632500, 7082400] },
+  { symbol: "USDT", name: "Tether USD", icon: "/icons/usdt.svg", decimals: 6, isPrivate: false, addressKey: "USDT", bridgeAddressKey: "PrivacyBridgeUSDT", timeout: 1800, supportedChainIds: [2632500, 7082400] },
+  { symbol: "USDC.e", name: "Bridged USDC", icon: "/icons/USDC.svg", decimals: 6, isPrivate: false, addressKey: "USDC_E", bridgeAddressKey: "PrivacyBridgeUSDCe", timeout: 1800, supportedChainIds: [2632500, 7082400] },
+  { symbol: "WADA", name: "Wrapped ADA", icon: "/icons/wADA.svg", decimals: 6, isPrivate: false, addressKey: "WADA", bridgeAddressKey: "PrivacyBridgeWADA", timeout: 1800, supportedChainIds: [2632500, 7082400] },
+  { symbol: "gCOTI", name: "gCOTI", icon: "/icons/gcoti.svg", decimals: 18, isPrivate: false, addressKey: "gCOTI", bridgeAddressKey: "PrivacyBridgegCOTI", timeout: 1800, supportedChainIds: [2632500, 7082400] },
 
-  // Private Tokens
-  { symbol: "p.COTI", name: "p.COTI", icon: "/icons/coti.svg", decimals: 18, isPrivate: true, addressKey: "PrivateCoti", bridgeAddressKey: "PrivacyBridgeCotiNative", timeout: 1800 },
-  { symbol: "p.WETH", name: "p.WETH", icon: "/icons/wETH.svg", decimals: 18, isPrivate: true, addressKey: "p.WETH", bridgeAddressKey: "PrivacyBridgeWETH", timeout: 1800 },
-  { symbol: "p.WBTC", name: "p.WBTC", icon: "/icons/wBTC.svg", decimals: 8, isPrivate: true, addressKey: "p.WBTC", bridgeAddressKey: "PrivacyBridgeWBTC", timeout: 1800 },
-  { symbol: "p.USDT", name: "p.USDT", icon: "/icons/usdt.svg", decimals: 6, isPrivate: true, addressKey: "p.USDT", bridgeAddressKey: "PrivacyBridgeUSDT", timeout: 1800 },
-  { symbol: "p.USDC.e", name: "p.USDC.e", icon: "/icons/USDC.svg", decimals: 6, isPrivate: true, addressKey: "p.USDC_E", bridgeAddressKey: "PrivacyBridgeUSDCe", timeout: 1800 },
-  { symbol: "p.WADA", name: "p.WADA", icon: "/icons/wADA.svg", decimals: 6, isPrivate: true, addressKey: "p.WADA", bridgeAddressKey: "PrivacyBridgeWADA", timeout: 1800 },
-  { symbol: "p.gCOTI", name: "p.gCOTI", icon: "/icons/gcoti.svg", decimals: 18, isPrivate: true, addressKey: "p.gCOTI", bridgeAddressKey: "PrivacyBridgegCOTI", timeout: 1800 },
+  // Private Tokens (COTI Mainnet + Testnet)
+  { symbol: "p.COTI", name: "p.COTI", icon: "/icons/coti.svg", decimals: 18, isPrivate: true, addressKey: "PrivateCoti", bridgeAddressKey: "PrivacyBridgeCotiNative", timeout: 1800, supportedChainIds: [2632500, 7082400] },
+  { symbol: "p.WETH", name: "p.WETH", icon: "/icons/wETH.svg", decimals: 18, isPrivate: true, addressKey: "p.WETH", bridgeAddressKey: "PrivacyBridgeWETH", timeout: 1800, supportedChainIds: [2632500, 7082400] },
+  { symbol: "p.WBTC", name: "p.WBTC", icon: "/icons/wBTC.svg", decimals: 8, isPrivate: true, addressKey: "p.WBTC", bridgeAddressKey: "PrivacyBridgeWBTC", timeout: 1800, supportedChainIds: [2632500, 7082400] },
+  { symbol: "p.USDT", name: "p.USDT", icon: "/icons/usdt.svg", decimals: 6, isPrivate: true, addressKey: "p.USDT", bridgeAddressKey: "PrivacyBridgeUSDT", timeout: 1800, supportedChainIds: [2632500, 7082400] },
+  { symbol: "p.USDC.e", name: "p.USDC.e", icon: "/icons/USDC.svg", decimals: 6, isPrivate: true, addressKey: "p.USDC_E", bridgeAddressKey: "PrivacyBridgeUSDCe", timeout: 1800, supportedChainIds: [2632500, 7082400] },
+  { symbol: "p.WADA", name: "p.WADA", icon: "/icons/wADA.svg", decimals: 6, isPrivate: true, addressKey: "p.WADA", bridgeAddressKey: "PrivacyBridgeWADA", timeout: 1800, supportedChainIds: [2632500, 7082400] },
+  { symbol: "p.gCOTI", name: "p.gCOTI", icon: "/icons/gcoti.svg", decimals: 18, isPrivate: true, addressKey: "p.gCOTI", bridgeAddressKey: "PrivacyBridgegCOTI", timeout: 1800, supportedChainIds: [2632500, 7082400] },
 ];
+
+/**
+ * Returns public tokens available on the given chain ID.
+ * Filters by `supportedChainIds` and verifies the token's address exists in CONTRACT_ADDRESSES.
+ */
+export function getPublicTokensForChain(chainId: number): TokenConfig[] {
+  const addresses = CONTRACT_ADDRESSES[chainId];
+  return SUPPORTED_TOKENS.filter(t =>
+    !t.isPrivate &&
+    (!t.supportedChainIds || t.supportedChainIds.includes(chainId)) &&
+    (t.addressKey ? !!addresses?.[t.addressKey] : true) // Native tokens (no addressKey) always included
+  );
+}
+
+/**
+ * Returns private tokens available on the given chain ID.
+ * Filters by `supportedChainIds` and verifies the token's address exists in CONTRACT_ADDRESSES.
+ */
+export function getPrivateTokensForChain(chainId: number): TokenConfig[] {
+  const addresses = CONTRACT_ADDRESSES[chainId];
+  return SUPPORTED_TOKENS.filter(t =>
+    t.isPrivate &&
+    (!t.supportedChainIds || t.supportedChainIds.includes(chainId)) &&
+    t.addressKey && !!addresses?.[t.addressKey]
+  );
+}
 
 export const MINIMUM_PORTAL_IN_AMOUNTS: Record<string, string> = {
   'WBTC': '0.0000145',

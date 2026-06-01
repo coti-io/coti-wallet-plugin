@@ -6,7 +6,7 @@ export type { CotiPluginConfig } from './config/plugin';
 export { cotiMainnet, cotiTestnet, COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID, COTI_MAINNET_RPC, COTI_TESTNET_RPC, getRpcUrlForChainId } from './config/chains';
 
 // Contracts
-export { CONTRACT_ADDRESSES, SUPPORTED_TOKENS, MINIMUM_PORTAL_IN_AMOUNTS, ERC20_ABI } from './contracts/config';
+export { CONTRACT_ADDRESSES, SUPPORTED_TOKENS, MINIMUM_PORTAL_IN_AMOUNTS, ERC20_ABI, getPublicTokensForChain, getPrivateTokensForChain } from './contracts/config';
 export type { TokenConfig } from './contracts/config';
 export { TOKEN_ABI, BRIDGE_ABI, BRIDGE_ERC20_ABI, COTI_PRICE_CONSUMER_ABI } from './contracts/abis';
 export { LIMITS } from './contracts/limits';

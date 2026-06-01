@@ -1,10 +1,7 @@
 import { useCallback } from 'react';
 import { ethers } from 'ethers';
-import * as CotiSDK from '@coti-io/coti-sdk-typescript';
-const { generateRandomAesKeySizeNumber, recoverUserKey } = CotiSDK;
-import { CONTRACT_ADDRESSES, ERC20_ABI } from '../contracts/config';
+import { CONTRACT_ADDRESSES, ERC20_ABI, getPublicTokensForChain, getPrivateTokensForChain } from '../contracts/config';
 import { getRpcUrlForChainId } from '../config/chains';
-import { getPluginConfig } from '../config/plugin';
 import type { Token } from './usePrivacyBridge';
 import { formatTokenBalanceDisplay } from '../lib/utils';
 
@@ -23,7 +20,8 @@ interface UseBalanceUpdaterProps {
 
 /**
  * Custom hook to handle account state updates and balance fetching.
- * 
+ * Dynamically iterates over SUPPORTED_TOKENS filtered by chain — no hardcoded token lists.
+ *
  * @param props - State setters and helper functions required for updating the account.
  * @returns An object containing the `updateAccountState` function.
  */
@@ -67,116 +65,44 @@ export const useBalanceUpdater = ({
                     ? new ethers.JsonRpcProvider(getRpcUrlForChainId(currentChainId), currentChainId)
                     : browserProvider!;
 
-                // GUARD: Check against Strict Network Enforcement
-                // We rely on NetworkGuard for UI blocking and CONTRACT_ADDRESSES for validity
-                // If addresses are found for the currentChainId, we fetch.
-                /* 
-                const envDefaultNetwork = getPluginConfig().defaultNetworkId;
-                if (envDefaultNetwork) {
-                    const allowedChainId = Number(envDefaultNetwork);
-                    if (currentChainId !== allowedChainId) {
-                         console.warn(`[BalanceUpdater] Skipping update: Wrong Network ...`);
-                         // return false; 
-                    }
-                }
-                */
-
                 const addresses = CONTRACT_ADDRESSES[currentChainId];
 
-                // Fetch public COTI balance
-                const balanceWei = await readProvider.getBalance(account);
-                const balanceEth = ethers.formatEther(balanceWei);
+                // ─── Public Balances (dynamic) ──────────────────────────────────
+                const publicTokenConfigs = getPublicTokensForChain(currentChainId);
 
-                // Fetch all public ERC20 balances in parallel
-                const [wethBalance, wbtcBalance, usdtBalance, usdcEBalance, wadaBalance, gCotiBalance, mttBalance] = await Promise.all([
-                    // WETH
-                    addresses?.WETH
-                        ? (async () => {
-                            try {
-                                const contract = new ethers.Contract(addresses.WETH!, ERC20_ABI, readProvider);
-                                const bal = await contract.balanceOf(account);
-                                return ethers.formatUnits(bal, 18);
-                            } catch { return '0'; }
-                        })()
-                        : Promise.resolve('0'),
-                    // WBTC
-                    addresses?.WBTC
-                        ? (async () => {
-                            try {
-                                const contract = new ethers.Contract(addresses.WBTC!, ERC20_ABI, readProvider);
-                                const bal = await contract.balanceOf(account);
-                                return ethers.formatUnits(bal, 8);
-                            } catch { return '0'; }
-                        })()
-                        : Promise.resolve('0'),
-                    // USDT
-                    addresses?.USDT
-                        ? (async () => {
-                            try {
-                                const contract = new ethers.Contract(addresses.USDT!, ERC20_ABI, readProvider);
-                                const bal = await contract.balanceOf(account);
-                                return ethers.formatUnits(bal, 6);
-                            } catch { return '0'; }
-                        })()
-                        : Promise.resolve('0'),
-                    // USDC.e
-                    addresses?.USDC_E
-                        ? (async () => {
-                            try {
-                                const contract = new ethers.Contract(addresses.USDC_E!, ERC20_ABI, readProvider);
-                                const bal = await contract.balanceOf(account);
-                                return ethers.formatUnits(bal, 6);
-                            } catch { return '0'; }
-                        })()
-                        : Promise.resolve('0'),
-                    // WADA
-                    addresses?.WADA
-                        ? (async () => {
-                            try {
-                                const contract = new ethers.Contract(addresses.WADA!, ERC20_ABI, readProvider);
-                                const bal = await contract.balanceOf(account);
-                                return ethers.formatUnits(bal, 6);
-                            } catch { return '0'; }
-                        })()
-                        : Promise.resolve('0'),
-                    // gCOTI
-                    addresses?.gCOTI
-                        ? (async () => {
-                            try {
-                                const contract = new ethers.Contract(addresses.gCOTI!, ERC20_ABI, readProvider);
-                                const bal = await contract.balanceOf(account);
-                                return ethers.formatUnits(bal, 18);
-                            } catch { return '0'; }
-                        })()
-                        : Promise.resolve('0'),
-                    // MTT (Sepolia)
-                    addresses?.MTT
-                        ? (async () => {
-                            try {
-                                const contract = new ethers.Contract(addresses.MTT!, ERC20_ABI, readProvider);
-                                const bal = await contract.balanceOf(account);
-                                return ethers.formatUnits(bal, 18);
-                            } catch { return '0'; }
-                        })()
-                        : Promise.resolve('0'),
-                ]);
+                // Fetch native balance (used for tokens without addressKey, e.g. COTI)
+                const nativeBalanceWei = await readProvider.getBalance(account);
+                const nativeBalance = ethers.formatEther(nativeBalanceWei);
 
-                setPublicTokens(prevTokens => {
-                    console.log('✅ Updating public tokens list');
-                    return prevTokens.map(t => {
-                        if (t.symbol === 'COTI') return { ...t, balance: formatTokenBalanceDisplay(t.symbol, balanceEth) };
-                        if (t.symbol === 'WETH') return { ...t, balance: formatTokenBalanceDisplay(t.symbol, wethBalance) };
-                        if (t.symbol === 'WBTC') return { ...t, balance: formatTokenBalanceDisplay(t.symbol, wbtcBalance) };
-                        if (t.symbol === 'USDT') return { ...t, balance: formatTokenBalanceDisplay(t.symbol, usdtBalance) };
-                        if (t.symbol === 'USDC.e') return { ...t, balance: formatTokenBalanceDisplay(t.symbol, usdcEBalance) };
-                        if (t.symbol === 'WADA') return { ...t, balance: formatTokenBalanceDisplay(t.symbol, wadaBalance) };
-                        if (t.symbol === 'gCOTI') return { ...t, balance: formatTokenBalanceDisplay(t.symbol, gCotiBalance) };
-                        if (t.symbol === 'MTT') return { ...t, balance: formatTokenBalanceDisplay(t.symbol, mttBalance) };
-                        return t;
-                    });
-                });
+                // Fetch all ERC20 public balances in parallel
+                const publicBalances = await Promise.all(publicTokenConfigs.map(async token => {
+                    // Native token (no addressKey) — use native balance
+                    if (!token.addressKey) {
+                        return nativeBalance;
+                    }
+                    const tokenAddress = addresses?.[token.addressKey];
+                    if (!tokenAddress) return '0';
+                    try {
+                        const contract = new ethers.Contract(tokenAddress, ERC20_ABI, readProvider);
+                        const bal = await contract.balanceOf(account);
+                        return ethers.formatUnits(bal, token.decimals);
+                    } catch {
+                        return '0';
+                    }
+                }));
 
-                // Fetch all private balances in parallel
+                console.log('✅ Updating public tokens list');
+                setPublicTokens(publicTokenConfigs.map((token, index) => ({
+                    symbol: token.symbol,
+                    name: token.name,
+                    balance: formatTokenBalanceDisplay(token.symbol, publicBalances[index]),
+                    isPrivate: false,
+                    icon: token.icon,
+                    addressKey: token.addressKey,
+                    bridgeAddressKey: token.bridgeAddressKey,
+                })));
+
+                // ─── Private Balances (dynamic) ─────────────────────────────────
                 if (addresses && checkSnap && fetchPrivate) {
                     try {
                         let aesKey = aesKeyOverride ?? sessionAesKey;
@@ -184,94 +110,69 @@ export const useBalanceUpdater = ({
                         if (!aesKey) {
                             aesKey = await getAESKeyFromSnap(account);
                             if (aesKey) {
-                                // Cache the key for this session
                                 setSessionAesKey(aesKey, account);
                             }
                         } else {
-                            // Mark snap as active since we have a key
                             setHasSnap(true);
                         }
 
                         if (aesKey) {
-                            if (!sessionAesKey) setHasSnap(true); // If came from Snap, confirm
+                            if (!sessionAesKey) setHasSnap(true);
 
-                            console.log('🔄 Fetching private balances with Snap/Key...');
+                            console.log('🔄 Fetching private balances...');
 
-                            const fetchPrivateSafely = async (address: string | undefined, version: 64 | 256, decimals: number) => {
-                                if (!address) {
-                                    return { value: '0', isMismatch: false };
+                            const privateTokenConfigs = getPrivateTokensForChain(currentChainId);
+
+                            const privateFetches = await Promise.all(privateTokenConfigs.map(async token => {
+                                const tokenAddress = token.addressKey ? addresses[token.addressKey] : undefined;
+                                if (!tokenAddress) {
+                                    return { symbol: token.symbol, value: '0', isMismatch: false };
                                 }
                                 try {
-                                    const value = await fetchPrivateBalance(account, aesKey, address, version, decimals, currentChainId);
-                                    return { value, isMismatch: false };
+                                    const value = await fetchPrivateBalance(account, aesKey, tokenAddress, 256, token.decimals, currentChainId);
+                                    return { symbol: token.symbol, value, isMismatch: false };
                                 } catch (e: any) {
                                     const msg = e?.message || '';
-                                    const isMismatch = msg.includes('AES key mismatch') || msg.includes('onboarding') || msg.includes('ACCOUNT_NOT_ONBOARDED') || msg.includes('implausible decrypted balance');
+                                    const isMismatch =
+                                        msg.includes('AES key mismatch') ||
+                                        msg.includes('onboarding') ||
+                                        msg.includes('ACCOUNT_NOT_ONBOARDED') ||
+                                        msg.includes('implausible decrypted balance');
                                     if (isMismatch) {
-                                        console.warn(`⚠️ Private token decrypt mismatch for ${address}. Falling back to 0 for this token.`);
-                                        return { value: '0', isMismatch: true };
+                                        console.warn(`⚠️ Private token decrypt mismatch for ${tokenAddress}. Falling back to 0.`);
+                                        return { symbol: token.symbol, value: '0', isMismatch: true };
                                     }
                                     throw e;
                                 }
-                            };
-
-                            const privateFetches = await Promise.all([
-                                fetchPrivateSafely(addresses.PrivateCoti, 256, 18),
-                                fetchPrivateSafely(addresses["p.WETH"], 256, 18),
-                                fetchPrivateSafely(addresses["p.WBTC"], 256, 8),
-                                fetchPrivateSafely(addresses["p.USDT"], 256, 6),
-                                fetchPrivateSafely(addresses["p.USDC_E"], 256, 6),
-                                fetchPrivateSafely(addresses["p.WADA"], 256, 6),
-                                fetchPrivateSafely(addresses["p.gCOTI"], 256, 18),
-                                fetchPrivateSafely(addresses["p.MTT"], 256, 18),
-                            ]);
-
-                            const configuredPrivateTokenCount = [
-                                addresses.PrivateCoti,
-                                addresses["p.WETH"],
-                                addresses["p.WBTC"],
-                                addresses["p.USDT"],
-                                addresses["p.USDC_E"],
-                                addresses["p.WADA"],
-                                addresses["p.gCOTI"],
-                                addresses["p.MTT"],
-                            ].filter(Boolean).length;
+                            }));
 
                             const mismatchCount = privateFetches.filter(r => r.isMismatch).length;
 
                             // Any AES key mismatch means the key is wrong for this account.
-                            // Even a single garbage decryption proves the key doesn't match —
-                            // uninitialized (0,0) tokens return '0.00' without throwing, so
-                            // mismatchCount can be 1 even when the key is completely wrong.
                             if (mismatchCount > 0) {
                                 throw new Error('AES key mismatch: Error decrypting. Re-onboarding required.');
                             }
 
-                            const [privateBalance, pWethBalance, pWbtcBalance, pUsdtBalance, pUsdcEBalance, pWadaBalance, pGCotiBalance, pMttBalance] =
-                                privateFetches.map(r => r.value);
-
-                            setPrivateTokens(prevTokens => {
-                                console.log('🔐 Updating private tokens list');
-                                return prevTokens.map(t => {
-                                    if (t.symbol === 'p.COTI') return { ...t, balance: formatTokenBalanceDisplay(t.symbol, privateBalance) };
-                                    if (t.symbol === 'p.WETH') return { ...t, balance: formatTokenBalanceDisplay(t.symbol, pWethBalance) };
-                                    if (t.symbol === 'p.WBTC') return { ...t, balance: formatTokenBalanceDisplay(t.symbol, pWbtcBalance) };
-                                    if (t.symbol === 'p.USDT') return { ...t, balance: formatTokenBalanceDisplay(t.symbol, pUsdtBalance) };
-                                    if (t.symbol === 'p.USDC.e') return { ...t, balance: formatTokenBalanceDisplay(t.symbol, pUsdcEBalance) };
-                                    if (t.symbol === 'p.WADA') return { ...t, balance: formatTokenBalanceDisplay(t.symbol, pWadaBalance) };
-                                    if (t.symbol === 'p.gCOTI') return { ...t, balance: formatTokenBalanceDisplay(t.symbol, pGCotiBalance) };
-                                    if (t.symbol === 'p.MTT') return { ...t, balance: formatTokenBalanceDisplay(t.symbol, pMttBalance) };
-                                    return t;
-                                });
-                            });
-                            return true; // Snap connected and balances fetched
+                            console.log('🔐 Updating private tokens list');
+                            setPrivateTokens(privateTokenConfigs.map(token => {
+                                const result = privateFetches.find(r => r.symbol === token.symbol);
+                                return {
+                                    symbol: token.symbol,
+                                    name: token.name,
+                                    balance: formatTokenBalanceDisplay(token.symbol, result?.value ?? '0'),
+                                    isPrivate: true,
+                                    icon: token.icon,
+                                    addressKey: token.addressKey,
+                                    bridgeAddressKey: token.bridgeAddressKey,
+                                };
+                            }));
+                            return true;
                         } else {
                             console.log('ℹ️ Snap available but keys missing/rejected.');
-                            return false; // AES key missing (cancelled/rejected)
+                            return false;
                         }
                     } catch (privateError: any) {
                         console.warn('⚠️ Could not fetch/decrypt private balance on load:', privateError);
-                        // Rethrow so context can handle onboarding if needed
                         if (privateError.message && (privateError.message.includes('AES key') || privateError.message.includes('onboarding') || privateError.message.includes('SNAP_DIALOG_REJECTED') || privateError.message.includes('SNAP_CONNECT_FAILED'))) {
                             throw privateError;
                         }
@@ -279,10 +180,9 @@ export const useBalanceUpdater = ({
                     }
                 }
             }
-            return true; // Success (default fall-through)
+            return true;
         } catch (error: any) {
             console.error('Error updating account state:', error);
-            // Rethrow so upstream works (e.g. RefreshPrivateBalances) can catch it
             if (error.message && (error.message.includes('AES key') || error.message.includes('onboarding') || error.message.includes('SNAP_DIALOG_REJECTED') || error.message.includes('SNAP_CONNECT_FAILED'))) {
                 throw error;
             }
