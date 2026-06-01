@@ -329,7 +329,6 @@ function BridgeComponent() {
 - **Sanity Guards** — Decryption includes threshold checks to detect AES key mismatches before displaying garbage values.
 - **No Network Transmission** — AES keys are never sent over the network. All decryption is client-side.
 - **Connector Identity** — Wallet type detection uses wagmi's stable `connector.id`, not spoofable `window.ethereum.isMetaMask`.
-- **AES Key Validation** — All retrieved keys are validated against `/^[0-9a-fA-F]{32}$|^[0-9a-fA-F]{64}$/` before use.
 - **Session Isolation** — `sessionAesKey` is automatically cleared on account change, disconnect, or manual lock. The singleton cache is also cleared on these events via `clearSnapCache()`.
 
 ## Supported Networks
