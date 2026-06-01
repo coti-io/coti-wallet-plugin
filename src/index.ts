@@ -20,8 +20,6 @@ export { useWallet } from './hooks/useWallet';
 export type { UseWalletResult } from './hooks/useWallet';
 
 // Hooks — Balance Manager
-export { usePrivateERC20 } from './hooks/usePrivateERC20'; // Deprecated
-export { useFetchPrivateBalance } from './hooks/useFetchPrivateBalance'; // Deprecated
 export { usePrivateTokenBalance } from './hooks/usePrivateTokenBalance';
 export { useBalanceUpdater } from './hooks/useBalanceUpdater';
 
