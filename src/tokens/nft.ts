@@ -28,7 +28,7 @@ const ERC721_TOKEN_URI_ABI = [
   'function tokenURI(uint256 tokenId) view returns (string)',
 ];
 
-const ERC721_CONFIDENTIAL_TOKEN_URI_ABI = [
+const ERC721_PRIVATE_TOKEN_URI_ABI = [
   'function tokenURI(uint256 tokenId) view returns ((uint256[]))',
 ];
 
@@ -142,7 +142,7 @@ async function verifyOwnershipInternal(
 }
 
 /**
- * Decrypts a confidential NFT's token URI using the user's AES key.
+ * Decrypts a private NFT's token URI using the user's AES key.
  * The on-chain tokenURI returns an encrypted ctString which is decrypted client-side.
  *
  * @param address - The NFT contract address.
@@ -151,7 +151,7 @@ async function verifyOwnershipInternal(
  * @param provider - An ethers Provider instance.
  * @returns The decrypted token URI string, or null on failure.
  */
-export async function getConfidentialTokenURI(
+export async function getPrivateTokenURI(
   address: string,
   tokenId: string,
   aesKey: string,
@@ -159,7 +159,7 @@ export async function getConfidentialTokenURI(
 ): Promise<string | null> {
   try {
     return await withTimeout(
-      fetchConfidentialTokenURI(address, tokenId, aesKey, provider),
+      fetchPrivateTokenURI(address, tokenId, aesKey, provider),
       NFT_TIMEOUT_MS,
     );
   } catch {
@@ -167,7 +167,7 @@ export async function getConfidentialTokenURI(
   }
 }
 
-async function fetchConfidentialTokenURI(
+async function fetchPrivateTokenURI(
   address: string,
   tokenId: string,
   aesKey: string,
@@ -176,7 +176,7 @@ async function fetchConfidentialTokenURI(
   const normalizedKey = normalizeAesKey(aesKey);
   const contract = new ethers.Contract(
     address,
-    ERC721_CONFIDENTIAL_TOKEN_URI_ABI,
+    ERC721_PRIVATE_TOKEN_URI_ABI,
     provider,
   );
 

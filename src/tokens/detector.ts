@@ -1,7 +1,7 @@
 /**
  * Token type detection via ERC165 interface probing and bytecode analysis.
  *
- * Ported from coti-snap/packages/snap/src/utils/token.ts (getTokenType, probeConfidentialVersion256)
+ * Ported from coti-snap/packages/snap/src/utils/token.ts (getTokenType, probePrivateVersion256)
  */
 
 import { ethers } from 'ethers';
@@ -9,8 +9,8 @@ import { ethers } from 'ethers';
 /** Classification of a token contract. */
 export enum TokenClassification {
   ERC20 = 'erc20',
-  ConfidentialERC20_64 = 'confidential-erc20-64',
-  ConfidentialERC20_256 = 'confidential-erc20-256',
+  PrivateERC20_64 = 'private-erc20-64',
+  PrivateERC20_256 = 'private-erc20-256',
   ERC721 = 'erc721',
   ERC1155 = 'erc1155',
   Unknown = 'unknown',
@@ -159,8 +159,8 @@ async function detectTokenTypeInternal(
   if (confidentialVersion !== undefined) {
     const classification =
       confidentialVersion === 256
-        ? TokenClassification.ConfidentialERC20_256
-        : TokenClassification.ConfidentialERC20_64;
+        ? TokenClassification.PrivateERC20_256
+        : TokenClassification.PrivateERC20_64;
     return {
       classification,
       confidential: true,
@@ -179,16 +179,16 @@ async function detectTokenTypeInternal(
     try {
       await confContract.accountEncryptionAddress(address);
       // It has accountEncryptionAddress — it's confidential
-      const probed = await probeConfidentialVersion256(address, provider);
+      const probed = await probePrivateVersion256(address, provider);
       if (probed) {
         return {
-          classification: TokenClassification.ConfidentialERC20_256,
+          classification: TokenClassification.PrivateERC20_256,
           confidential: true,
           confidentialVersion: 256,
         };
       }
       return {
-        classification: TokenClassification.ConfidentialERC20_64,
+        classification: TokenClassification.PrivateERC20_64,
         confidential: true,
         confidentialVersion: 64,
       };
@@ -247,23 +247,23 @@ async function getPrivateErc20Version(
 }
 
 /**
- * Probes whether a token supports 256-bit confidential operations.
+ * Probes whether a token supports 256-bit private operations.
  * Calls `balanceOf` with the 256-bit ABI and checks if the result
  * conforms to the CtUint256 shape.
  *
  * @param address - The token contract address.
  * @param provider - An ethers Provider instance.
  * @param accountAddress - Optional account address for the balanceOf check.
- * @returns True if the token supports 256-bit confidential operations.
+ * @returns True if the token supports 256-bit private operations.
  */
-export async function probeConfidentialVersion256(
+export async function probePrivateVersion256(
   address: string,
   provider: ethers.Provider,
   accountAddress?: string,
 ): Promise<boolean> {
   try {
     return await withTimeout(
-      probeConfidentialVersion256Internal(address, provider, accountAddress),
+      probePrivateVersion256Internal(address, provider, accountAddress),
       DETECTION_TIMEOUT_MS,
     );
   } catch {
@@ -271,7 +271,7 @@ export async function probeConfidentialVersion256(
   }
 }
 
-async function probeConfidentialVersion256Internal(
+async function probePrivateVersion256Internal(
   address: string,
   provider: ethers.Provider,
   accountAddress?: string,
