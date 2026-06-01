@@ -123,16 +123,14 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         const aesKey = onboardInfo?.aesKey ?? null;
 
         console.log('🔍 DEBUG: Retrieved AES key from onboard contract:', {
-          aesKey,
           length: aesKey?.length,
           hasPrefix: aesKey?.startsWith('0x'),
-          lengthWithoutPrefix: aesKey?.startsWith('0x') ? aesKey.length - 2 : aesKey?.length
         });
 
         if (aesKey && !isValidAesKey(aesKey)) {
           console.warn('⚠️ AES key from onboard contract failed format validation');
           console.warn('Expected: 32 or 64 hex characters (without 0x prefix)');
-          console.warn('Received:', aesKey);
+          console.warn('Received key length:', aesKey?.length);
           setOnboardingError('Retrieved AES key has invalid format');
           return null;
         }

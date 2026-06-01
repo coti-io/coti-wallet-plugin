@@ -255,7 +255,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
                         }
                     });
 
-                    console.log('🔍 DEBUG: wallet_invokeSnap result:', JSON.stringify(key));
+                    console.log('🔍 wallet_invokeSnap: key received, length:', (key as string)?.length);
 
                     if (!key) {
                         console.warn('⚠️ Snap returned null (User likely rejected).');
@@ -263,7 +263,6 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
                         throw new Error('SNAP_DIALOG_REJECTED');
                     }
 
-                    console.log('TOP DEBUG MESSAGE: wallet_invokeSnap result received');
                     console.log('✅ AES key received from snap');
                     
                     globalAESKeyCache[accountAddress.toLowerCase()] = key as string; // Update Cache
@@ -427,13 +426,13 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
             console.log("🔍 STARTING KEY VERIFICATION...");
             console.log("1️⃣  Fetching AES Key from Snap Storage...");
             const snapKey = await getAESKeyFromSnap('');
-            console.log("   -> Snap Key:", snapKey);
+            console.log("   -> Snap Key length:", snapKey?.length);
 
             console.log("2️⃣  Computing AES Key from Network (generateOrRecoverAes)...");
             console.log("   (Please sign the message in MetaMask)");
 
             const netKey = await onboardUser();
-            console.log("   -> Network Key:", netKey);
+            console.log("   -> Network Key length:", (netKey as string)?.length);
 
             console.log("3️⃣  COMPARISON RESULT:");
             const match = snapKey === netKey;
@@ -441,13 +440,11 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
 
             if (!match) {
                 console.error("CRITICAL MISMATCH DETECTED!");
-                console.error(`Snap thinks key is: ${snapKey}`);
-                console.error(`Network says key is: ${netKey}`);
-                console.error("This proves the Snap state is stale. You MUST Force Onboard to fix this.");
-                alert(`MISMATCH DETECTED!\n\nSnap: ${snapKey}\nNetwork: ${netKey}\n\nThey do NOT match. You must Force Onboard.`);
+                console.error("Snap key and Network key do NOT match. You MUST Force Onboard to fix this.");
+                alert(`MISMATCH DETECTED!\n\nKeys do NOT match. You must Force Onboard.`);
             } else {
                 console.log("✅ Keys match. Issues are likely elsewhere.");
-                alert(`✅ MATCH!\n\nKey: ${snapKey}\n\nBoth Snap and Network agree.`);
+                alert(`✅ MATCH!\n\nBoth Snap and Network agree.`);
             }
 
         } catch (e: any) {
