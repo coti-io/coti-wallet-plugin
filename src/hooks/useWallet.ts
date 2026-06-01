@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { useMetamask } from './useMetamask';
 import { useSnap } from './useSnap';
+import { getEthereumProvider } from '../lib/ethereum';
 
 /**
  * Result interface for the unified wallet hook.
@@ -198,7 +199,7 @@ export const useWallet = (): UseWalletResult => {
   const disconnect = useCallback(async (): Promise<void> => {
     if (window.ethereum) {
       try {
-        await (window.ethereum as any).request({
+        await getEthereumProvider()!.request({
           method: 'wallet_revokePermissions',
           params: [{ eth_accounts: {} }],
         });

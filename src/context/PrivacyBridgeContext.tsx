@@ -10,6 +10,7 @@ import { useNetworkEnforcer } from '../hooks/useNetworkEnforcer';
 import { isMultipleWalletsError } from '../utils/walletErrors';
 import { useWalletType } from '../hooks/useWalletType';
 import { useAesKeyProvider } from '../hooks/useAesKeyProvider';
+import { getEthereumProvider } from '../lib/ethereum';
 
 interface PrivacyBridgeContextType {
     isConnected: boolean;
@@ -380,7 +381,7 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
         // Revoke MetaMask permissions so the wallet doesn't auto-reconnect on reload
         if (window.ethereum) {
             try {
-                await (window.ethereum as any).request({
+                await getEthereumProvider()!.request({
                     method: 'wallet_revokePermissions',
                     params: [{ eth_accounts: {} }]
                 });

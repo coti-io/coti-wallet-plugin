@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { ethers } from 'ethers';
 import { getPluginConfig } from '../config/plugin';
+import { getEthereumProvider } from '../lib/ethereum';
 
 // Constants for COTI Networks
 const COTI_MAINNET_ID = '0x282b34'; // 2632500
@@ -93,7 +94,7 @@ export const useMetamask = ({
      */
     const switchNetwork = async (targetChainId: string): Promise<boolean> => {
         if (typeof window.ethereum === 'undefined') return false;
-        const eth = window.ethereum as any;
+        const eth = getEthereumProvider()!;
 
         try {
             // Try to switch to the network
@@ -157,7 +158,7 @@ export const useMetamask = ({
             throw new Error("METAMASK_NOT_INSTALLED");
         }
 
-        const eth = window.ethereum as any;
+        const eth = getEthereumProvider()!;
 
         try {
             // 1. Request Account Access
@@ -167,7 +168,7 @@ export const useMetamask = ({
             });
 
             // 2. Get Selected Accounts
-            const accounts = await eth.request({ method: 'eth_requestAccounts' });
+            const accounts = await eth.request({ method: 'eth_requestAccounts' }) as string[];
 
             if (!accounts || accounts.length === 0) return;
 
@@ -229,7 +230,7 @@ export const useMetamask = ({
     useEffect(() => {
         const setup = () => {
             if (typeof window.ethereum === 'undefined') return;
-            const eth = window.ethereum as any;
+            const eth = getEthereumProvider()!;
 
             const handleAccountsChanged = (accounts: string[]) => {
                 if (accounts.length > 0) {
@@ -243,13 +244,13 @@ export const useMetamask = ({
                 window.location.reload();
             };
 
-            eth.on('accountsChanged', handleAccountsChanged);
-            eth.on('chainChanged', handleChainChanged);
+            eth.on?.('accountsChanged', handleAccountsChanged);
+            eth.on?.('chainChanged', handleChainChanged);
 
             // Check if already connected - ONLY ONCE
             if (!isInitialCheckDone.current) {
                 console.log('🔄 useMetamask: Performing initial eth_accounts check');
-                eth.request({ method: 'eth_accounts' }).then((accounts: string[]) => {
+                (eth.request({ method: 'eth_accounts' }) as Promise<string[]>).then((accounts) => {
                     console.log('🔄 useMetamask: eth_accounts result:', accounts);
                     if (accounts.length > 0) {
                         if (onAccountChanged) onAccountChanged(accounts[0]);
@@ -263,8 +264,8 @@ export const useMetamask = ({
             }
 
             return () => {
-                eth.removeListener('accountsChanged', handleAccountsChanged);
-                eth.removeListener('chainChanged', handleChainChanged);
+                eth.removeListener?.('accountsChanged', handleAccountsChanged);
+                eth.removeListener?.('chainChanged', handleChainChanged);
             };
         };
 

@@ -63,5 +63,7 @@ export { useConnectModal } from '@rainbow-me/rainbowkit';
 // Utilities
 export { isMultipleWalletsError, MULTIPLE_WALLETS_ERROR_SUBSTRING } from './utils/walletErrors';
 export { formatTokenBalanceDisplay, truncateDecimalValue, formatBalanceWithNotation, addThousandsSeparators } from './lib/utils';
+export { getEthereumProvider } from './lib/ethereum';
+export type { EIP1193Provider } from './lib/ethereum';
 
 

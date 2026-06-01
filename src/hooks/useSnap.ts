@@ -4,6 +4,7 @@ import * as CotiSDK from '@coti-io/coti-sdk-typescript';
 const { generateRSAKeyPair, decryptRSA } = CotiSDK;
 import { MetaMaskInpageProvider } from '@metamask/providers';
 import { getPluginConfig } from '../config/plugin';
+import { getEthereumProvider } from '../lib/ethereum';
 
 /**
  * Custom hook that manages the entire lifecycle of the Coti Snap integration.
@@ -477,7 +478,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
  */
 export const signIT256ViaSnap = async (msgHash: string): Promise<Uint8Array | null> => {
     const currentSnapId = getPluginConfig().snapId;
-    const provider = window.ethereum as any;
+    const provider = getEthereumProvider();
     if (!provider) throw new Error('No wallet found');
 
     const result = await provider.request({

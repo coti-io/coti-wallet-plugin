@@ -3,6 +3,7 @@ import { ethers } from 'ethers';
 import { CONTRACT_ADDRESSES, BRIDGE_ABI, BRIDGE_ERC20_ABI, ERC20_ABI, TOKEN_ABI } from '../contracts/config';
 import { formatTokenBalanceDisplay, truncateDecimalValue } from '../lib/utils';
 import { estimateBridgeFee } from './useEstimateBridgeFees';
+import { getEthereumProvider } from '../lib/ethereum';
 
 
 export interface Token {
@@ -508,7 +509,7 @@ export const usePrivacyBridge = ({
                 ]);
 
                 // Bypassing Coti provider
-                const rawTxHash = await (window.ethereum as any).request({
+                const rawTxHash = await getEthereumProvider()!.request({
                     method: 'eth_sendTransaction',
                     params: [{
                         from: walletAddress,
@@ -755,7 +756,7 @@ export const usePrivacyBridge = ({
 
                             let depositGasLimit = 12000000n;
                             try {
-                                const depositGasHex = await (window.ethereum as any).request({
+                                const depositGasHex = await getEthereumProvider()!.request({
                                     method: 'eth_estimateGas',
                                     params: [{
                                         from: walletAddress,
@@ -774,7 +775,7 @@ export const usePrivacyBridge = ({
                                 }
                             }
 
-                            const rawDepositTxHash = await (window.ethereum as any).request({
+                            const rawDepositTxHash = await getEthereumProvider()!.request({
                                 method: 'eth_sendTransaction',
                                 params: [{
                                     from: walletAddress,
@@ -967,7 +968,7 @@ export const usePrivacyBridge = ({
                         let gasLimit = safeGasLimit;
                         try {
                             console.log("🔍 Attempting eth_estimateGas for withdraw...");
-                            const gasEstimateHex = await (window.ethereum as any).request({
+                            const gasEstimateHex = await getEthereumProvider()!.request({
                                 method: 'eth_estimateGas',
                                 params: [{
                                     from: walletAddress,
@@ -989,7 +990,7 @@ export const usePrivacyBridge = ({
                             }
                         }
 
-                        const rawTxHash = await (window.ethereum as any).request({
+                        const rawTxHash = await getEthereumProvider()!.request({
                             method: 'eth_sendTransaction',
                             params: [{
                                 from: walletAddress,
@@ -1422,7 +1423,7 @@ export const usePrivacyBridge = ({
             let gasLimit: bigint;
             try {
                 const walletAddr = await (provider.getSigner()).then(s => s.getAddress());
-                const gasEstimateHex = await (window.ethereum as any).request({
+                const gasEstimateHex = await getEthereumProvider()!.request({
                     method: 'eth_estimateGas',
                     params: [{
                         from: walletAddr,

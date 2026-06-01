@@ -1,8 +1,7 @@
-interface Window {
-  ethereum?: {
-    request: (args: { method: string; params?: any[] }) => Promise<any>;
-    isMetaMask?: boolean;
-    on?: (event: string, handler: (...args: any[]) => void) => void;
-    removeListener?: (event: string, handler: (...args: any[]) => void) => void;
-  };
+import type { EIP1193Provider } from '../lib/ethereum';
+
+declare global {
+  interface Window {
+    ethereum?: EIP1193Provider;
+  }
 }
