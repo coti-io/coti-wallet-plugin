@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 
-// Mock all external dependencies before importing the component
+// Mock wagmi (not covered by vitest alias)
 vi.mock('wagmi', () => ({
   createConfig: vi.fn(() => ({})),
   http: vi.fn((url: string) => url),
@@ -15,20 +15,16 @@ vi.mock('wagmi/connectors', () => ({
   walletConnect: vi.fn(() => ({})),
 }));
 
-vi.mock('@tanstack/react-query', () => {
-  return {
-    QueryClient: class MockQueryClient {},
-    QueryClientProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  };
-});
-
-vi.mock('@rainbow-me/rainbowkit', () => ({
-  RainbowKitProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+vi.mock('@tanstack/react-query', () => ({
+  QueryClient: class MockQueryClient {},
+  QueryClientProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 vi.mock('viem', () => ({
   defineChain: (chain: any) => chain,
 }));
+
+// rainbowkit and rainbowkit/wallets are mocked via vitest.config.ts aliases
 
 import { WagmiRainbowKitProvider } from '../../src/providers/WagmiRainbowKitProvider';
 
@@ -54,7 +50,7 @@ describe('WagmiRainbowKitProvider', () => {
     expect(screen.getByTestId('child-custom')).toBeDefined();
   });
 
-  it('accepts and renders multiple children', () => {
+  it('renders multiple children', () => {
     render(
       <WagmiRainbowKitProvider>
         <span>First</span>
