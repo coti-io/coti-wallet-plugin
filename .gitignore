@@ -3,3 +3,6 @@ dist/
 *.tsbuildinfo
 .DS_Store
 portal-bridge
+
+# Kiro specs
+.kiro/specs/bridge-functions-integration
