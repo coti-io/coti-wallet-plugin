@@ -3,8 +3,8 @@ import {
   computeCotiFee,
   computeErc20Fee,
   getTokenSimulationMeta,
-  getRpcUrlForChainId,
 } from '../../src/hooks/useBridgeFees';
+import { getRpcUrlForChainId } from '../../src/config/chains';
 
 describe('Bridge Fee Computation (README: Privacy Bridge)', () => {
   describe('computeCotiFee', () => {

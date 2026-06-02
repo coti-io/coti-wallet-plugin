@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import { BRIDGE_ABI, BRIDGE_ERC20_ABI, COTI_PRICE_CONSUMER_ABI, CONTRACT_ADDRESSES } from '../contracts/config';
+import { getRpcUrlForChainId } from '../config/chains';
 
 /**
  * Maps bridge token symbols to the `_base` argument of the COTI price consumer's
@@ -16,15 +17,6 @@ const SYMBOL_TO_ORACLE_BASE: Record<string, string> = {
   WADA: 'ADA',
   // gCOTI is not in the on-chain price consumer
 };
-
-/** Default RPC for COTI testnet — used when no explicit provider is supplied. */
-const DEFAULT_TESTNET_RPC_URL = 'https://testnet.coti.io/rpc';
-const DEFAULT_MAINNET_RPC_URL = 'https://mainnet.coti.io/rpc';
-
-/** Returns the COTI RPC URL for the given chain id. */
-export function getRpcUrlForChainId(chainId: number = 7082400): string {
-  return chainId === 2632500 ? DEFAULT_MAINNET_RPC_URL : DEFAULT_TESTNET_RPC_URL;
-}
 
 /**
  * Resolves the COTI price-consumer address for the given chain id.

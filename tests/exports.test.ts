@@ -112,7 +112,9 @@ describe('Package Exports (README: Installation & API)', () => {
     expect(mod.computeCotiFee).toBeDefined();
     expect(mod.computeErc20Fee).toBeDefined();
     expect(mod.getTokenSimulationMeta).toBeDefined();
-    expect(mod.getRpcUrlForChainId).toBeDefined();
+    // getRpcUrlForChainId is now exported from config/chains (single source of truth)
+    const chains = await import('../src/config/chains');
+    expect(chains.getRpcUrlForChainId).toBeDefined();
   });
 
   it('exports estimateBridgeFee', async () => {

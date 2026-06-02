@@ -35,7 +35,7 @@ export { useBridgeStatus } from './hooks/useBridgeStatus';
 export type { BridgeStatus } from './hooks/useBridgeStatus';
 export { estimateBridgeFee } from './hooks/useEstimateBridgeFees';
 export type { FeeEstimate } from './hooks/useEstimateBridgeFees';
-export { fetchBridgeFees, fetchTokenUsdPrice, computeCotiFee, computeErc20Fee, simulateFeeOnChain, getTokenSimulationMeta, getRpcUrlForChainId as getBridgeRpcUrl } from './hooks/useBridgeFees';
+export { fetchBridgeFees, fetchTokenUsdPrice, computeCotiFee, computeErc20Fee, simulateFeeOnChain, getTokenSimulationMeta } from './hooks/useBridgeFees';
 export type { BridgeFees, SimulationResult } from './hooks/useBridgeFees';
 
 // Hooks — Network
