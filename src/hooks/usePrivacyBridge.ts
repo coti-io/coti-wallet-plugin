@@ -1263,8 +1263,12 @@ export const usePrivacyBridge = ({
                     throw new CotiPluginError(CotiErrorCode.SNAP_CONNECT_FAILED, 'Snap connection failed or rejected');
                 }
             } catch (snapErr: any) {
-                // Check if error is related to missing AES key
-                if (snapErr.message && (snapErr.message.includes('AES key not found') || snapErr.message.includes('onboarding'))) {
+                // Check if error is related to missing AES key or onboarding
+                const isAesKeyError = (snapErr instanceof CotiPluginError &&
+                    (snapErr.code === CotiErrorCode.AES_KEY_MISSING || snapErr.code === CotiErrorCode.AES_KEY_MISMATCH || snapErr.code === CotiErrorCode.ACCOUNT_NOT_ONBOARDED)) ||
+                    (snapErr.message && (snapErr.message.includes('AES key not found') || snapErr.message.includes('onboarding')));
+
+                if (isAesKeyError) {
                     console.log("⚠️ Missing AES Key detected. Triggering onboarding...");
                     setToastState({
                         visible: true,

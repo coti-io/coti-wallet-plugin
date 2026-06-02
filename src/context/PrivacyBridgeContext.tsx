@@ -240,7 +240,7 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
                 return;
             }
 
-            if ((error instanceof CotiPluginError && error.code === CotiErrorCode.METAMASK_NOT_INSTALLED) || error.message === 'METAMASK_NOT_INSTALLED') {
+            if (error instanceof CotiPluginError && error.code === CotiErrorCode.METAMASK_NOT_INSTALLED) {
                 setShowInstallModal(true);
                 if (!ethereumListenerRegistered.current) {
                     registerEthereumInitializedListener(() => {
@@ -301,7 +301,7 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
             } catch (err: any) {
                 console.log(`⚠️ Unlock Logic Caught Error: Code=${err.code}, Message="${err.message}"`);
 
-                if ((err instanceof CotiPluginError && err.code === CotiErrorCode.SNAP_CONNECT_FAILED) || err.message === "SNAP_CONNECT_FAILED" || err.message?.includes("SNAP_CONNECT_FAILED")) {
+                if ((err instanceof CotiPluginError && err.code === CotiErrorCode.SNAP_CONNECT_FAILED) || err.message === "SNAP_CONNECT_FAILED") {
                     console.log("⚠️ Snap Connection Failed. Requiring Snap Installation.");
                     throw new CotiPluginError(CotiErrorCode.SNAP_REQUIRED, 'COTI Snap is required but not available');
                 }
@@ -318,7 +318,7 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
                 }
 
                 // Belt-and-suspenders: explicitly handle ACCOUNT_NOT_ONBOARDED (non-onboarded account detected via all-zero ciphertext)
-                if ((err instanceof CotiPluginError && err.code === CotiErrorCode.ACCOUNT_NOT_ONBOARDED) || (err.message && err.message.includes('ACCOUNT_NOT_ONBOARDED'))) {
+                if ((err instanceof CotiPluginError && err.code === CotiErrorCode.ACCOUNT_NOT_ONBOARDED) || (err.message && err.message === 'ACCOUNT_NOT_ONBOARDED')) {
                     console.log("⚠️ Non-onboarded account detected (all-zero ciphertext). Clearing session key and forcing Snap re-onboarding flow.");
                     setSessionAesKey(null);
                     clearSnapCache();
@@ -326,7 +326,7 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
                     throw new CotiPluginError(CotiErrorCode.SNAP_REQUIRED, 'Account not onboarded, Snap re-onboarding required');
                 }
 
-                if ((err instanceof CotiPluginError && err.code === CotiErrorCode.AES_KEY_MISMATCH) || (err.message && (err.message.includes('AES key') || err.message.includes('onboarding')))) {
+                if ((err instanceof CotiPluginError && err.code === CotiErrorCode.AES_KEY_MISMATCH) || (err.message && err.message === 'AES_KEY_MISMATCH')) {
                     console.log("⚠️ AES key issue detected during unlock. Clearing session key and forcing Snap re-onboarding flow.");
                     setSessionAesKey(null);
                     clearSnapCache();

@@ -325,7 +325,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
 
             // RETHROW if it's the specific missing key error so upstream can handle onboarding
             // Also rethrow SNAP_DIALOG_REJECTED so Index.tsx can show the AES Key Missing modal
-            if (error instanceof CotiPluginError || (error.message && (error.message.includes('AES key') || error.message.includes('onboarding') || error.message.includes('SNAP_DIALOG_REJECTED') || error.message.includes('SNAP_CONNECT_FAILED')))) {
+            if (error instanceof CotiPluginError) {
                 throw error;
             }
 

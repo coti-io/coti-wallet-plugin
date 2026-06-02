@@ -158,7 +158,7 @@ export const usePrivateTokenBalance = () => {
             }
         } catch (error: any) {
             // Rethrow specific AES mismatch or Onboarding errors
-            if (error instanceof CotiPluginError || (error.message && (error.message.includes('AES key mismatch') || error.message.includes('ACCOUNT_NOT_ONBOARDED')))) {
+            if (error instanceof CotiPluginError) {
                 throw error;
             }
             console.error(`❌ Failed to fetch/decrypt for ${contractAddress}`, error);

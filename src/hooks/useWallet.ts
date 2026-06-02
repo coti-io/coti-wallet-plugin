@@ -174,7 +174,7 @@ export const useWallet = (): UseWalletResult => {
       });
       setMetamaskDetected(true);
     } catch (error: any) {
-      if ((error instanceof CotiPluginError && error.code === CotiErrorCode.METAMASK_NOT_INSTALLED) || error.message === 'METAMASK_NOT_INSTALLED') {
+      if (error instanceof CotiPluginError && error.code === CotiErrorCode.METAMASK_NOT_INSTALLED) {
         setMetamaskDetected(false);
         setShowInstallModal(true);
         if (!ethereumListenerRegistered.current) {

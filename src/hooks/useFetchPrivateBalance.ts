@@ -157,7 +157,7 @@ export const useFetchPrivateBalance = () => {
                     });
 
                     // RETHROW if it is our custom AES mismatch or non-onboarded error
-                    if (e instanceof CotiPluginError || (e.message && (e.message.includes('AES key mismatch') || e.message.includes('ACCOUNT_NOT_ONBOARDED')))) {
+                    if (e instanceof CotiPluginError) {
                         throw e;
                     }
 
@@ -170,7 +170,7 @@ export const useFetchPrivateBalance = () => {
 
         } catch (error: any) {
             console.error("Error fetching private balance:", error);
-            if (error instanceof CotiPluginError || (error.message && (error.message.includes('AES key mismatch') || error.message.includes('onboarding') || error.message.includes('ACCOUNT_NOT_ONBOARDED')))) {
+            if (error instanceof CotiPluginError) {
                 throw error;
             }
             return '0.00';

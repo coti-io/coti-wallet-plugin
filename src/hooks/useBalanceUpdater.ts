@@ -174,7 +174,7 @@ export const useBalanceUpdater = ({
                         }
                     } catch (privateError: any) {
                         console.warn('⚠️ Could not fetch/decrypt private balance on load:', privateError);
-                        if (privateError instanceof CotiPluginError || (privateError.message && (privateError.message.includes('AES key') || privateError.message.includes('onboarding') || privateError.message.includes('SNAP_DIALOG_REJECTED') || privateError.message.includes('SNAP_CONNECT_FAILED')))) {
+                        if (privateError instanceof CotiPluginError) {
                             throw privateError;
                         }
                         return false;
@@ -184,7 +184,7 @@ export const useBalanceUpdater = ({
             return true;
         } catch (error: any) {
             console.error('Error updating account state:', error);
-            if (error instanceof CotiPluginError || (error.message && (error.message.includes('AES key') || error.message.includes('onboarding') || error.message.includes('SNAP_DIALOG_REJECTED') || error.message.includes('SNAP_CONNECT_FAILED')))) {
+            if (error instanceof CotiPluginError) {
                 throw error;
             }
             return false;
