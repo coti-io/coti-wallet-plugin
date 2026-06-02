@@ -3,6 +3,7 @@ import { useConnectorClient, useAccount } from 'wagmi';
 import { BrowserProvider } from '@coti-io/coti-ethers';
 import { useSnap } from './useSnap';
 import type { WalletTypeInfo } from './useWalletType';
+import { CotiPluginError, CotiErrorCode } from '../errors';
 
 /**
  * Regex pattern for validating AES key format: 32 or 64 hexadecimal characters.
@@ -92,7 +93,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
             return null;
           }
           // SNAP_CONNECT_FAILED means snap is not available — fall through to contract onboarding
-          if (error instanceof Error && error.message === 'SNAP_CONNECT_FAILED') {
+          if ((error instanceof CotiPluginError && error.code === CotiErrorCode.SNAP_CONNECT_FAILED) || (error instanceof Error && error.message === 'SNAP_CONNECT_FAILED')) {
             console.log('ℹ️ Snap not available, falling back to onboard contract');
             // Fall through to Route 2
           } else {

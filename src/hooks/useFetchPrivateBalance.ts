@@ -3,6 +3,7 @@ import { ethers } from 'ethers';
 import * as CotiSDK from '@coti-io/coti-sdk-typescript';
 import { getPluginConfig } from '../config/plugin';
 import { getRpcUrlForChainId } from '../config/chains';
+import { CotiPluginError, CotiErrorCode } from '../errors';
 
 export const useFetchPrivateBalance = () => {
     const fetchPrivateBalance = useCallback(async (
@@ -141,7 +142,7 @@ export const useFetchPrivateBalance = () => {
 
                     if (decryptedVal > hardMismatchThreshold) {
                         console.warn(`⚠️ Decrypted value astronomically high (${decryptedVal}). Likely decryption garbage due to Key Mismatch.`);
-                        throw new Error(`AES key mismatch: Error decrypting. Re-onboarding required.`);
+                        throw new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch: Error decrypting. Re-onboarding required.');
                     }
 
                     return ethers.formatUnits(decryptedVal, decimals);
@@ -156,7 +157,7 @@ export const useFetchPrivateBalance = () => {
                     });
 
                     // RETHROW if it is our custom AES mismatch or non-onboarded error
-                    if (e.message && (e.message.includes('AES key mismatch') || e.message.includes('ACCOUNT_NOT_ONBOARDED'))) {
+                    if (e instanceof CotiPluginError || (e.message && (e.message.includes('AES key mismatch') || e.message.includes('ACCOUNT_NOT_ONBOARDED')))) {
                         throw e;
                     }
 
@@ -169,7 +170,7 @@ export const useFetchPrivateBalance = () => {
 
         } catch (error: any) {
             console.error("Error fetching private balance:", error);
-            if (error.message && (error.message.includes('AES key mismatch') || error.message.includes('onboarding') || error.message.includes('ACCOUNT_NOT_ONBOARDED'))) {
+            if (error instanceof CotiPluginError || (error.message && (error.message.includes('AES key mismatch') || error.message.includes('onboarding') || error.message.includes('ACCOUNT_NOT_ONBOARDED')))) {
                 throw error;
             }
             return '0.00';

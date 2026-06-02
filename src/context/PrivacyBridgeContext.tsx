@@ -11,6 +11,7 @@ import { isMultipleWalletsError } from '../utils/walletErrors';
 import { useWalletType } from '../hooks/useWalletType';
 import { useAesKeyProvider } from '../hooks/useAesKeyProvider';
 import { getEthereumProvider } from '../lib/ethereum';
+import { CotiPluginError, CotiErrorCode } from '../errors';
 
 interface PrivacyBridgeContextType {
     isConnected: boolean;
@@ -239,7 +240,7 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
                 return;
             }
 
-            if (error.message === 'METAMASK_NOT_INSTALLED') {
+            if ((error instanceof CotiPluginError && error.code === CotiErrorCode.METAMASK_NOT_INSTALLED) || error.message === 'METAMASK_NOT_INSTALLED') {
                 setShowInstallModal(true);
                 if (!ethereumListenerRegistered.current) {
                     registerEthereumInitializedListener(() => {
@@ -300,9 +301,9 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
             } catch (err: any) {
                 console.log(`⚠️ Unlock Logic Caught Error: Code=${err.code}, Message="${err.message}"`);
 
-                if (err.message === "SNAP_CONNECT_FAILED" || err.message?.includes("SNAP_CONNECT_FAILED")) {
+                if ((err instanceof CotiPluginError && err.code === CotiErrorCode.SNAP_CONNECT_FAILED) || err.message === "SNAP_CONNECT_FAILED" || err.message?.includes("SNAP_CONNECT_FAILED")) {
                     console.log("⚠️ Snap Connection Failed. Requiring Snap Installation.");
-                    throw new Error("SNAP_REQUIRED");
+                    throw new CotiPluginError(CotiErrorCode.SNAP_REQUIRED, 'COTI Snap is required but not available');
                 }
 
                 if (err.code === 4001 || err.message?.includes("User rejected") || err.message?.includes("rejected the request")) {
@@ -311,28 +312,26 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
                 }
 
                 // Handle explicit rejection (Snap returned null / AES key not found)
-                if (err.message === 'SNAP_DIALOG_REJECTED') {
+                if ((err instanceof CotiPluginError && err.code === CotiErrorCode.SNAP_DIALOG_REJECTED) || err.message === 'SNAP_DIALOG_REJECTED') {
                     console.log("🚫 Snap dialog rejected (likely AES key not found). Rethrowing for UI handling.");
                     throw err; // Let Index.tsx handle this and show the AES Key Missing modal
                 }
 
                 // Belt-and-suspenders: explicitly handle ACCOUNT_NOT_ONBOARDED (non-onboarded account detected via all-zero ciphertext)
-                if (err.message && err.message.includes('ACCOUNT_NOT_ONBOARDED')) {
+                if ((err instanceof CotiPluginError && err.code === CotiErrorCode.ACCOUNT_NOT_ONBOARDED) || (err.message && err.message.includes('ACCOUNT_NOT_ONBOARDED'))) {
                     console.log("⚠️ Non-onboarded account detected (all-zero ciphertext). Clearing session key and forcing Snap re-onboarding flow.");
                     setSessionAesKey(null);
                     clearSnapCache();
                     setArePrivateBalancesHidden(true);
-                    throw new Error("SNAP_REQUIRED");
+                    throw new CotiPluginError(CotiErrorCode.SNAP_REQUIRED, 'Account not onboarded, Snap re-onboarding required');
                 }
 
-                if (err.message && (err.message.includes('AES key') || err.message.includes('onboarding'))) {
+                if ((err instanceof CotiPluginError && err.code === CotiErrorCode.AES_KEY_MISMATCH) || (err.message && (err.message.includes('AES key') || err.message.includes('onboarding')))) {
                     console.log("⚠️ AES key issue detected during unlock. Clearing session key and forcing Snap re-onboarding flow.");
                     setSessionAesKey(null);
                     clearSnapCache();
                     setArePrivateBalancesHidden(true);
-                    const mismatchError = new Error("AES_KEY_MISMATCH");
-                    (mismatchError as any).detail = err.message;
-                    throw mismatchError;
+                    throw new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch detected', err.message);
                 }
                 return false;
             }

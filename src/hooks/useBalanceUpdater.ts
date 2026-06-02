@@ -4,6 +4,7 @@ import { CONTRACT_ADDRESSES, ERC20_ABI, getPublicTokensForChain, getPrivateToken
 import { getRpcUrlForChainId } from '../config/chains';
 import type { Token } from './usePrivacyBridge';
 import { formatTokenBalanceDisplay } from '../lib/utils';
+import { CotiPluginError, CotiErrorCode } from '../errors';
 
 interface UseBalanceUpdaterProps {
     setWalletAddress: (address: string) => void;
@@ -150,7 +151,7 @@ export const useBalanceUpdater = ({
 
                             // Any AES key mismatch means the key is wrong for this account.
                             if (mismatchCount > 0) {
-                                throw new Error('AES key mismatch: Error decrypting. Re-onboarding required.');
+                                throw new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch: Error decrypting. Re-onboarding required.');
                             }
 
                             console.log('🔐 Updating private tokens list');
@@ -173,7 +174,7 @@ export const useBalanceUpdater = ({
                         }
                     } catch (privateError: any) {
                         console.warn('⚠️ Could not fetch/decrypt private balance on load:', privateError);
-                        if (privateError.message && (privateError.message.includes('AES key') || privateError.message.includes('onboarding') || privateError.message.includes('SNAP_DIALOG_REJECTED') || privateError.message.includes('SNAP_CONNECT_FAILED'))) {
+                        if (privateError instanceof CotiPluginError || (privateError.message && (privateError.message.includes('AES key') || privateError.message.includes('onboarding') || privateError.message.includes('SNAP_DIALOG_REJECTED') || privateError.message.includes('SNAP_CONNECT_FAILED')))) {
                             throw privateError;
                         }
                         return false;
@@ -183,7 +184,7 @@ export const useBalanceUpdater = ({
             return true;
         } catch (error: any) {
             console.error('Error updating account state:', error);
-            if (error.message && (error.message.includes('AES key') || error.message.includes('onboarding') || error.message.includes('SNAP_DIALOG_REJECTED') || error.message.includes('SNAP_CONNECT_FAILED'))) {
+            if (error instanceof CotiPluginError || (error.message && (error.message.includes('AES key') || error.message.includes('onboarding') || error.message.includes('SNAP_DIALOG_REJECTED') || error.message.includes('SNAP_CONNECT_FAILED')))) {
                 throw error;
             }
             return false;

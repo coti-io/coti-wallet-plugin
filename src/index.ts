@@ -2,6 +2,9 @@
 export { configureCotiPlugin, getPluginConfig } from './config/plugin';
 export type { CotiPluginConfig } from './config/plugin';
 
+// Errors
+export { CotiPluginError, CotiErrorCode, isCotiPluginError, hasCotiErrorCode } from './errors';
+
 // Chain definitions
 export { cotiMainnet, cotiTestnet, COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID, COTI_MAINNET_RPC, COTI_TESTNET_RPC, getRpcUrlForChainId } from './config/chains';
 
