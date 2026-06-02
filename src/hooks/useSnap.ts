@@ -107,7 +107,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
 
             const snapInfo = Object.values(snaps).find(
                 (snap: any) => snap.id === snapId
-            );
+            ) || (snapId in snaps);
 
             if (snapInfo) {
                 console.log(`✅ Snap found and connected: ${snapId}`);
