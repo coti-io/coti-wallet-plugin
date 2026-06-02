@@ -49,10 +49,17 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
 
     /**
      * Helper to get the MetaMask provider with types.
+     * Handles the case where window.ethereum may be in a broken state
+     * due to property redefinition conflicts between extensions.
      */
     const getProvider = (): MetaMaskInpageProvider | null => {
-        if (typeof window.ethereum !== 'undefined') {
-            return window.ethereum as unknown as MetaMaskInpageProvider;
+        try {
+            if (typeof window.ethereum !== 'undefined') {
+                return window.ethereum as unknown as MetaMaskInpageProvider;
+            }
+        } catch {
+            // window.ethereum access can throw if property is in a broken state
+            console.warn('⚠️ window.ethereum access failed');
         }
         return null;
     };
@@ -82,6 +89,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
      * Checks if the Coti Snap is currently installed AND connected to this origin.
      * Only uses wallet_getSnaps — no dialogs, no side effects.
      * Returns false if snap is not visible (not installed OR not connected to this origin).
+     * Also returns false for non-MetaMask wallets that don't support wallet_getSnaps.
      */
     const isSnapInstalled = useCallback(async (): Promise<boolean> => {
         const provider = getProvider();
@@ -112,6 +120,11 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
             console.log(`ℹ️ Snap ${snapId} not visible via wallet_getSnaps.`);
             return false;
         } catch (error: any) {
+            // -32601 means the wallet doesn't support wallet_getSnaps (Rabby, Trust, etc.)
+            if (error?.code === -32601) {
+                console.log('ℹ️ Wallet does not support wallet_getSnaps (non-MetaMask wallet). Snap unavailable.');
+                return false;
+            }
             console.error('❌ Error checking snap connection:', error);
             return false;
         }
@@ -119,7 +132,8 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
 
 
     /**
-     * Connect to COTI Snap (request permissions)
+     * Connect to COTI Snap (request permissions).
+     * Returns false immediately for wallets that don't support snaps.
      */
     const connectToSnap = useCallback(async (): Promise<boolean> => {
         const provider = getProvider();
@@ -140,6 +154,12 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
             if (setSnapError) setSnapError(null);
             return true;
         } catch (error: any) {
+            // Non-MetaMask wallets don't support wallet_requestSnaps
+            if (error?.code === -32601) {
+                console.log('ℹ️ Wallet does not support wallet_requestSnaps (non-MetaMask wallet).');
+                if (setSnapError) setSnapError('Snap is only available with MetaMask.');
+                return false;
+            }
             console.error('❌ Failed to connect to snap:', error.message);
             if (setSnapError) {
                 if (!isFlask.current) {

@@ -1,9 +1,10 @@
-import { useEffect, useState, useCallback } from 'react';
-import { useAccount, useBalance, useReadContracts } from 'wagmi';
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useAccount, useBalance, useReadContracts, useDisconnect, useSwitchChain } from 'wagmi';
 import { formatUnits } from 'viem';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import {
-  useWallet,
+  useWalletType,
+  useAesKeyProvider,
   usePrivateTokenBalance,
   ERC20_ABI,
 } from '@coti-io/coti-wallet-plugin';
@@ -51,14 +52,39 @@ const erc20BalanceOfAbi = [
 export default function App() {
   const { address, isConnected, chainId } = useAccount();
   const { openConnectModal } = useConnectModal();
-  const {
-    sessionAesKey,
-    isPrivateUnlocked,
-    unlockPrivateBalances,
-    lockPrivateBalances,
-    disconnect,
-  } = useWallet();
+  const { disconnect: wagmiDisconnect } = useDisconnect();
+  const { switchChainAsync } = useSwitchChain();
+
+  // Wallet type detection & AES key provider (routes Snap vs onboard contract)
+  const walletTypeInfo = useWalletType();
+  const { getAesKey, isOnboarding, onboardingError } = useAesKeyProvider(walletTypeInfo);
   const { fetchPrivateBalance } = usePrivateTokenBalance();
+
+  // Session AES key state
+  const [sessionAesKey, setSessionAesKey] = useState<string | null>(null);
+  const isPrivateUnlocked = sessionAesKey !== null;
+
+  // Unlock: fetch AES key via Snap (MetaMask) or onboard contract (Rabby, etc.)
+  const unlockPrivateBalances = useCallback(async () => {
+    if (!address) return;
+    try {
+      // Ensure wallet is on COTI Testnet before onboarding
+      if (chainId !== COTI_TESTNET_CHAIN_ID) {
+        await switchChainAsync({ chainId: COTI_TESTNET_CHAIN_ID });
+      }
+      const key = await getAesKey(address);
+      if (key) {
+        setSessionAesKey(key);
+      }
+    } catch (err) {
+      console.error('Failed to unlock private balances:', err);
+    }
+  }, [address, chainId, switchChainAsync, getAesKey]);
+
+  // Lock: clear session key
+  const lockPrivateBalances = useCallback(() => {
+    setSessionAesKey(null);
+  }, []);
 
   // Token list from remote
   const [tokens, setTokens] = useState<TokenEntry[]>([]);
@@ -82,10 +108,13 @@ export default function App() {
       });
   }, []);
 
-  // Filter tokens for COTI Testnet only
-  const chainTokens = tokens.filter((t) => t.chainId === COTI_TESTNET_CHAIN_ID);
-  const publicTokens = chainTokens.filter((t) => !t.private);
-  const privateTokens = chainTokens.filter((t) => t.private);
+  // Filter tokens for COTI Testnet only (memoized to keep stable references)
+  const chainTokens = useMemo(
+    () => tokens.filter((t) => t.chainId === COTI_TESTNET_CHAIN_ID),
+    [tokens]
+  );
+  const publicTokens = useMemo(() => chainTokens.filter((t) => !t.private), [chainTokens]);
+  const privateTokens = useMemo(() => chainTokens.filter((t) => t.private), [chainTokens]);
 
   // --- Native COTI balance ---
   const { data: nativeBalance } = useBalance({
@@ -161,13 +190,14 @@ export default function App() {
             Connected: <code>{address}</code>
           </p>
           <p>Chain ID: {chainId}</p>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             {!isPrivateUnlocked ? (
               <button
                 onClick={unlockPrivateBalances}
-                style={{ padding: '8px 16px', cursor: 'pointer' }}
+                disabled={isOnboarding}
+                style={{ padding: '8px 16px', cursor: isOnboarding ? 'wait' : 'pointer' }}
               >
-                🔓 Unlock Private Balances
+                {isOnboarding ? '⏳ Signing...' : '🔓 Unlock Private Balances'}
               </button>
             ) : (
               <button
@@ -178,12 +208,18 @@ export default function App() {
               </button>
             )}
             <button
-              onClick={disconnect}
+              onClick={() => wagmiDisconnect()}
               style={{ padding: '8px 16px', cursor: 'pointer' }}
             >
               Disconnect
             </button>
+            {onboardingError && (
+              <span style={{ color: 'red', fontSize: 12 }}>{onboardingError}</span>
+            )}
           </div>
+          <p style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
+            Wallet: {walletTypeInfo.walletType} {walletTypeInfo.isMetaMaskWithSnap ? '(Snap)' : '(Contract onboarding)'}
+          </p>
         </div>
       )}
 

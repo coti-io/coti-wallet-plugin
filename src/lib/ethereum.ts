@@ -14,10 +14,17 @@ export interface EIP1193Provider {
 /**
  * Returns the typed EIP-1193 provider from `window.ethereum`, or null if unavailable.
  * Use this instead of `window.ethereum as any` throughout the codebase.
+ * Handles the case where window.ethereum access may throw due to property
+ * redefinition conflicts between wallet extensions.
  */
 export function getEthereumProvider(): EIP1193Provider | null {
-  if (typeof window === 'undefined' || !window.ethereum) {
+  try {
+    if (typeof window === 'undefined' || !window.ethereum) {
+      return null;
+    }
+    return window.ethereum as unknown as EIP1193Provider;
+  } catch {
+    // window.ethereum access can throw if the property descriptor is in a broken state
     return null;
   }
-  return window.ethereum as unknown as EIP1193Provider;
 }

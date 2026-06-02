@@ -25,9 +25,9 @@ function createWagmiConfig(walletConnectProjectId?: string) {
   return createConfig({
     chains: [cotiMainnet, cotiTestnet, ethereumMainnet],
     connectors: [
-      injected(),
+      injected({ shimDisconnect: true }),
       coinbaseWallet({ appName: 'COTI Privacy Bridge' }),
-      walletConnect({ projectId }),
+      ...(projectId ? [walletConnect({ projectId })] : []),
     ],
     transports: {
       [cotiMainnet.id]: http(COTI_MAINNET_RPC),
