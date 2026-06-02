@@ -176,9 +176,7 @@ graph TD
 
 ## API Reference
 
-### React Hooks
-
-The API is structured around several core React hooks that interact seamlessly.
+### Wallet Operations
 
 #### 1. `useWallet()`
 
@@ -221,6 +219,8 @@ Advanced orchestrator typically used at the Provider level to manage global toke
 
 - **3.1 `updateAccountState(account, checkSnap?, fetchPrivate?, aesKeyOverride?, chainOverride?)`** (`Promise<void>`): Triggers a parallelized refresh of all configured COTI/ERC20 and p.ERC20 token balances.
 
+### Privacy Bridge Hooks
+
 #### 4. `usePrivacyBridge()`
 
 Full bridge orchestration — deposit, withdraw, allowance, and fee estimation.
@@ -247,11 +247,11 @@ Routes AES key retrieval to Snap (MetaMask) or onboard contract (others).
 - **6.4 `useSnap()` / `useMetamask()`**: Standalone hooks for legacy, pure-MetaMask implementations.
 - **6.5 `formatTokenBalanceDisplay(balance)`**: Standardizes token display with thousand separators.
 
-#### 7. Cross-Chain Bridge Hooks
+### Cross-Chain Bridge Hooks
 
-These hooks enable token transfers between COTI and Ethereum networks. They are distinct from the privacy bridge hooks (section 4) which handle public ↔ private token movement on the same chain.
+These hooks enable token transfers between COTI and Ethereum networks. They are distinct from the privacy bridge hooks which handle public ↔ private token movement on the same COTI chain.
 
-##### 7.1 `useCrossChainBridge()`
+#### 7.1 `useCrossChainBridge()`
 
 Executes cross-chain bridge transactions with pre-validation (limits, minimums, balance checks).
 
@@ -261,7 +261,7 @@ Executes cross-chain bridge transactions with pre-validation (limits, minimums, 
 - **`error`** (`BridgeError | null`): Typed error with codes: `DAILY_LIMIT_EXCEEDED`, `BELOW_MINIMUM`, `INSUFFICIENT_BALANCE`, `TRANSACTION_FAILED`, `UNSUPPORTED_TOKEN`.
 - **`txHash`** (`string | null`): Transaction hash after successful submission.
 
-##### 7.2 `useTransactionTracking(txHash, sourceNetworkId, destinationNetworkId)`
+#### 7.2 `useTransactionTracking(txHash, sourceNetworkId, destinationNetworkId)`
 
 Polls the tracking service for real-time transaction progress.
 
@@ -272,7 +272,7 @@ Polls the tracking service for real-time transaction progress.
 - **`fee`** (`string | null`): Bridge fee from the tracking service.
 - **`isLoading`** / **`error`**: Standard loading and error states.
 
-##### 7.3 `useBridgeTransactions(walletAddress, pageSize, pageNumber)`
+#### 7.3 `useBridgeTransactions(walletAddress, pageSize, pageNumber)`
 
 Fetches paginated transaction history with 30-second caching.
 
@@ -280,7 +280,7 @@ Fetches paginated transaction history with 30-second caching.
 - **`totalCount`** (`number`): Total number of transactions for pagination.
 - **`isLoading`** / **`error`**: Standard loading and error states.
 
-##### 7.4 `useBridgeLimits(walletAddress, tokenId)`
+#### 7.4 `useBridgeLimits(walletAddress, tokenId)`
 
 Polls the Cap Meter API for user and global daily bridge limits (default: every 30 seconds).
 
@@ -288,7 +288,7 @@ Polls the Cap Meter API for user and global daily bridge limits (default: every 
 - **`globalDailyLimit`** (`string`): Global remaining daily limit.
 - **`isLoading`** / **`error`**: Standard loading and error states.
 
-##### 7.5 `useWalletStatus()`
+#### 7.5 `useWalletStatus()`
 
 Reports wallet chain validity for cross-chain bridge operations and provides network switching.
 
@@ -300,7 +300,7 @@ Reports wallet chain validity for cross-chain bridge operations and provides net
 - **`switchError`** (`string | null`): Error from last failed switch attempt.
 - **`disconnect()`** (`() => void`): Disconnects the wallet.
 
-##### 7.6 `useOngoingTransactions()`
+#### 7.6 `useOngoingTransactions()`
 
 Monitors all in-progress bridge operations via a module-level registry that persists across component mount/unmount.
 
@@ -308,7 +308,7 @@ Monitors all in-progress bridge operations via a module-level registry that pers
 
 Use `registerTransaction({ tokenId, sourceChainId, destinationChainId, txHash })` to add a transaction to the registry.
 
-#### 8. Cross-Chain Utility Functions
+#### Cross-Chain Utility Functions
 
 | Function | Signature | Description |
 | --- | --- | --- |
