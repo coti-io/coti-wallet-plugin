@@ -2,7 +2,7 @@
 
 **Important:** This library is a **plugin for existing dApps and wallets**, not a standalone wallet application. It is designed to be injected into your existing React/wagmi stack to seamlessly enhance standard wallets with COTI network privacy capabilities.
 
-High-level TypeScript library for **Private Token (pToken) operations** on the COTI network. Provides React hooks, multi-wallet support (via wagmi v2 and RainbowKit), and token detection for any EIP-1193 wallet. Although opiniated to  RainbowKit , wagmi classes can be adapted for use with other frameworks such as `ConnectKit` or `Privy`
+ Provides React hooks, multi-wallet support (via wagmi v2 and RainbowKit), and token detection for any EIP-1193 wallet. Although opiniated to  RainbowKit , wagmi classes can be adapted for use with other frameworks such as `ConnectKit` or `Privy`
 
 ## What It Does
 
@@ -41,7 +41,8 @@ This library sits between your React/wagmi application and the low-level COTI SD
 - **AES Key Management** — Retrieves encryption keys via MetaMask Snap or the COTI Onboarding Contract (multi-wallet support via RainbowKit + wagmi v2)
 - **Balance Decryption** — Fetches encrypted on-chain balances and decrypts them client-side
 - **Privacy Bridge** — Orchestrates Portal In (deposit) and Portal Out (withdraw) operations with fee estimation
-- **Network Configuration** — COTI Mainnet and Testnet chain definitions ready for wagmi/viem
+- **Cross-Chain Bridge** — Transfers tokens between COTI and Ethereum networks (native and ERC20) with transaction tracking, limits management, and ongoing transaction monitoring
+- **Network Configuration** — COTI Mainnet, Testnet, and Ethereum Mainnet chain definitions ready for wagmi/viem
 
 ## Installation
 
@@ -102,6 +103,75 @@ classDiagram
 
     useWallet --> useAesKeyProvider : Delegates AES Retrieval
     useBalanceUpdater --> usePrivateTokenBalance : Orchestrates Batch Fetches
+```
+
+### Cross-Chain Bridge Architecture
+
+The cross-chain bridge module enables token transfers between COTI and Ethereum networks. It is separate from the privacy bridge (which moves tokens between public and private states on the same COTI chain).
+
+```mermaid
+graph TD
+    subgraph Plugin Consumer App
+        A[React App]
+    end
+
+    subgraph coti-wallet-plugin
+        subgraph Hooks Layer
+            H1[useCrossChainBridge]
+            H2[useTransactionTracking]
+            H3[useBridgeTransactions]
+            H4[useBridgeLimits]
+            H5[useWalletStatus]
+            H6[useOngoingTransactions]
+        end
+
+        subgraph Utilities Layer
+            U1[formatTokenAmount / parseTokenAmount / truncateDecimals]
+            U2[getActiveChains / isValidChain / getActiveChainById / getActiveNetworks]
+            U3[getCrossChainTokenConfig]
+        end
+
+        subgraph Config Layer
+            C1[chains.ts - Ethereum Mainnet added]
+            C2[crossChainTokens.ts - Token configs per environment]
+            C3[networks.ts - Extended with Ethereum chains]
+        end
+
+        subgraph Provider Layer
+            P1[WagmiRainbowKitProvider - Extended with Ethereum Mainnet]
+        end
+    end
+
+    subgraph External Services
+        E1[Tracking Service API]
+        E2[Cap Meter API]
+        E3[Ethereum / COTI RPC Nodes]
+    end
+
+    A --> H1
+    A --> H2
+    A --> H3
+    A --> H4
+    A --> H5
+    A --> H6
+    A --> U1
+    A --> U2
+    A --> U3
+
+    H1 --> P1
+    H1 --> U1
+    H1 --> U3
+    H1 --> H4
+    H2 --> E1
+    H3 --> E1
+    H4 --> E2
+    H5 --> P1
+    H6 --> E1
+
+    P1 --> E3
+    C1 --> P1
+    C2 --> H1
+    C2 --> U3
 ```
 
 ## API Reference
@@ -176,6 +246,80 @@ Routes AES key retrieval to Snap (MetaMask) or onboard contract (others).
 - **6.3 `useNetworkEnforcer()`**: Enforces COTI-only networks, prompts chain switch.
 - **6.4 `useSnap()` / `useMetamask()`**: Standalone hooks for legacy, pure-MetaMask implementations.
 - **6.5 `formatTokenBalanceDisplay(balance)`**: Standardizes token display with thousand separators.
+
+#### 7. Cross-Chain Bridge Hooks
+
+These hooks enable token transfers between COTI and Ethereum networks. They are distinct from the privacy bridge hooks (section 4) which handle public ↔ private token movement on the same chain.
+
+##### 7.1 `useCrossChainBridge()`
+
+Executes cross-chain bridge transactions with pre-validation (limits, minimums, balance checks).
+
+- **`bridgeNative(amount, tokenId)`** (`(amount: bigint, tokenId: string) => Promise<void>`): Sends native token to the configured bridge recipient address.
+- **`bridgeERC20(amount, tokenId, tokenAddress)`** (`(amount: bigint, tokenId: string, tokenAddress: \`0x\${string}\`) => Promise<void>`): Calls ERC20 `transfer()` to the configured bridge recipient.
+- **`isLoading`** (`boolean`): Whether a bridge transaction is in progress.
+- **`error`** (`BridgeError | null`): Typed error with codes: `DAILY_LIMIT_EXCEEDED`, `BELOW_MINIMUM`, `INSUFFICIENT_BALANCE`, `TRANSACTION_FAILED`, `UNSUPPORTED_TOKEN`.
+- **`txHash`** (`string | null`): Transaction hash after successful submission.
+
+##### 7.2 `useTransactionTracking(txHash, sourceNetworkId, destinationNetworkId)`
+
+Polls the tracking service for real-time transaction progress.
+
+- **`currentStep`** (`number | null`): Current stage (COTI-source: 4 steps, Ethereum-source: 3 steps).
+- **`destinationHash`** (`string | null`): Destination chain tx hash when completed.
+- **`failureReason`** (`string | null`): Reason if the transaction failed.
+- **`failedStep`** (`number | null`): Step number where failure occurred.
+- **`fee`** (`string | null`): Bridge fee from the tracking service.
+- **`isLoading`** / **`error`**: Standard loading and error states.
+
+##### 7.3 `useBridgeTransactions(walletAddress, pageSize, pageNumber)`
+
+Fetches paginated transaction history with 30-second caching.
+
+- **`transactions`** (`BridgeTransaction[]`): Enriched transaction records with current step, completion status, and destination hash.
+- **`totalCount`** (`number`): Total number of transactions for pagination.
+- **`isLoading`** / **`error`**: Standard loading and error states.
+
+##### 7.4 `useBridgeLimits(walletAddress, tokenId)`
+
+Polls the Cap Meter API for user and global daily bridge limits (default: every 30 seconds).
+
+- **`userDailyLimit`** (`string`): User's remaining daily limit in human-readable token units.
+- **`globalDailyLimit`** (`string`): Global remaining daily limit.
+- **`isLoading`** / **`error`**: Standard loading and error states.
+
+##### 7.5 `useWalletStatus()`
+
+Reports wallet chain validity for cross-chain bridge operations and provides network switching.
+
+- **`isConnected`** (`boolean`): Connection status.
+- **`address`** (`string`): Connected address or empty string.
+- **`chainId`** (`number | null`): Current chain ID.
+- **`isValidChain`** (`boolean`): Whether the current chain is valid for bridge operations.
+- **`switchChain(chainId)`** (`(chainId: number) => Promise<void>`): Switches to a valid chain.
+- **`switchError`** (`string | null`): Error from last failed switch attempt.
+- **`disconnect()`** (`() => void`): Disconnects the wallet.
+
+##### 7.6 `useOngoingTransactions()`
+
+Monitors all in-progress bridge operations via a module-level registry that persists across component mount/unmount.
+
+- **`transactions`** (`OngoingTransaction[]`): All in-progress transactions with current step, destination hash, and failure info.
+
+Use `registerTransaction({ tokenId, sourceChainId, destinationChainId, txHash })` to add a transaction to the registry.
+
+#### 8. Cross-Chain Utility Functions
+
+| Function | Signature | Description |
+| --- | --- | --- |
+| `formatTokenAmount` | `(value: bigint, decimals: number) => string` | Formats bigint to decimal string without trailing zeros |
+| `parseTokenAmount` | `(value: string, decimals: number) => bigint` | Parses decimal string to bigint (throws on invalid input) |
+| `truncateDecimals` | `(value: string, maxDecimals: number) => string` | Truncates without rounding |
+| `getActiveChains` | `(connectedChainId?) => ChainPair[]` | Returns valid chain pairs for the current environment |
+| `isValidChain` | `(chainId, connectedChainId?) => boolean` | Checks if chain is valid for bridge operations |
+| `getActiveChainById` | `(chainId, connectedChainId?) => ChainConfig \| undefined` | Returns chain config for a specific chain |
+| `getActiveNetworks` | `(connectedChainId?) => ChainConfig[]` | Returns all active chain configs |
+| `getCrossChainTokenConfig` | `(tokenId, chainId) => CrossChainTokenConfig \| undefined` | Returns token configuration for bridge operations |
 
 ### Multi-Wallet Support
 
@@ -321,6 +465,54 @@ function BridgeComponent() {
 }
 ```
 
+### Cross-Chain Bridge (COTI ↔ Ethereum)
+
+```tsx
+import {
+  useCrossChainBridge,
+  useTransactionTracking,
+  useWalletStatus,
+  registerTransaction,
+  parseTokenAmount,
+} from '@coti-io/coti-wallet-plugin';
+
+function CrossChainBridge() {
+  const { bridgeNative, bridgeERC20, isLoading, error, txHash } = useCrossChainBridge();
+  const { isValidChain, switchChain } = useWalletStatus();
+  const tracking = useTransactionTracking(txHash, 7082400, 11155111);
+
+  const handleBridgeNative = async () => {
+    if (!isValidChain) {
+      await switchChain(7082400); // Switch to COTI Testnet
+    }
+
+    const amount = parseTokenAmount('10', 18); // 10 COTI
+    await bridgeNative(amount, 'COTI');
+
+    // Register for ongoing monitoring
+    if (txHash) {
+      registerTransaction({
+        tokenId: 'COTI',
+        sourceChainId: 7082400,
+        destinationChainId: 11155111,
+        txHash,
+      });
+    }
+  };
+
+  return (
+    <div>
+      <button onClick={handleBridgeNative} disabled={isLoading}>
+        {isLoading ? 'Bridging...' : 'Bridge 10 COTI to Ethereum'}
+      </button>
+      {error && <p>Error: {error.message}</p>}
+      {tracking.currentStep && <p>Step {tracking.currentStep} of 4</p>}
+      {tracking.destinationHash && <p>Done! Dest tx: {tracking.destinationHash}</p>}
+    </div>
+  );
+}
+```
+
 ## Security
 
 - **Memory-Only Keys** — AES keys live exclusively in React state and a module-level singleton cache. Never written to localStorage, sessionStorage, IndexedDB, or cookies.
@@ -334,16 +526,26 @@ function BridgeComponent() {
 ## Supported Networks
 
 
-| Network      | Chain ID | RPC                         |
-| ------------ | -------- | --------------------------- |
-| COTI Mainnet | 2632500  | https://mainnet.coti.io/rpc |
-| COTI Testnet | 7082400  | https://testnet.coti.io/rpc |
+| Network           | Chain ID   | RPC                                          |
+| ----------------- | ---------- | -------------------------------------------- |
+| COTI Mainnet      | 2632500    | https://mainnet.coti.io/rpc                  |
+| COTI Testnet      | 7082400    | https://testnet.coti.io/rpc                  |
+| Ethereum Mainnet  | 1          | https://eth.llamarpc.com                     |
+| Ethereum Sepolia  | 11155111   | https://ethereum-sepolia-rpc.publicnode.com   |
+
+### Cross-Chain Bridge Chain Pairs
+
+| Environment | COTI Network         | Ethereum Network     |
+| ----------- | -------------------- | -------------------- |
+| Testnet     | COTI Testnet (7082400) | Sepolia (11155111) |
+| Mainnet     | COTI Mainnet (2632500) | Ethereum Mainnet (1) |
 
 ## Build
 
 ```bash
 npm run build    # Produces dist/index.js (CJS) + dist/index.mjs (ESM) + dist/index.d.ts
 npm run lint     # TypeScript type check (tsc --noEmit)
+npm run test     # Run test suite (vitest)
 npm run clean    # Remove dist/
 ```
 
