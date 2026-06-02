@@ -6,7 +6,7 @@
 
 ## What It Does
 
-### 🔌 A PLUGIN, NOT A WALLET
+### A PLUGIN, NOT A WALLET
 
 This package does not provide a wallet application. Instead, it acts as an **enhancement layer** over existing wallet providers that are compatible with EVM and COTI networks via RainbowKit, including:
 - MetaMask
@@ -28,13 +28,11 @@ This package does not provide a wallet application. Instead, it acts as an **enh
 
 By hooking into standard EIP-1193 connections using **wagmi v2 and RainbowKit** as the underlying connection infrastructure, the plugin transparently adds COTI privacy features (AES key derivation, balance decryption, confidential transfers) to whatever wallet the user prefers to use.
 
-### 🔑 ANY WALLET SUPPORT
+### ANY WALLET SUPPORT
 
 Provides a complete React hook toolset for **any EIP-1193 wallet** (MetaMask, Coinbase, Rainbow, WalletConnect, and others) to connect to the COTI privacy layer using RainbowKit + wagmi v2 with on-chain contract onboarding.
 
 **How it works:** When a user connects through RainbowKit, the plugin detects the wallet type via wagmi's stable `connector.id`. For MetaMask, it routes AES key retrieval through the COTI Snap. For all other wallets, it wraps the wallet's EIP-1193 provider into a `@coti-io/coti-ethers` BrowserProvider, obtains a signer, and calls `generateOrRecoverAes()` on the COTI Onboarding Contract — which prompts the user for a single signature to derive or recover their encryption key. This means any wallet that supports standard message signing can participate in COTI's privacy features without needing a custom extension or snap.
-
----
 
 This library sits between your React/wagmi application and the low-level COTI SDKs, handling:
 
@@ -50,25 +48,23 @@ This library sits between your React/wagmi application and the low-level COTI SD
 npm install @coti-io/coti-wallet-plugin
 ```
 
-### Peer Dependencies
+## Peer Dependencies
 
 ```bash
 npm install react ethers viem @coti-io/coti-sdk-typescript @metamask/providers @rainbow-me/rainbowkit wagmi @tanstack/react-query
 ```
 
+## Build
+
+```bash
+npm run build    # Produces dist/index.js (CJS) + dist/index.mjs (ESM) + dist/index.d.ts
+npm run lint     # TypeScript type check (tsc --noEmit)
+npm run test     # Run test suite (vitest)
+npm run clean    # Remove dist/
+```
+
 
 ### Multi-Wallet Support
-
-
-| Export                    | Description                                                      |
-| ------------------------- | ---------------------------------------------------------------- |
-| `WagmiRainbowKitProvider` | Provider wrapping wagmi + RainbowKit for multi-wallet connection |
-| `wagmiConfig`             | Pre-configured wagmi config with COTI chains for consuming apps  |
-| `useWalletType()`         | Detects connected wallet type from wagmi's`connector.id`         |
-| `OnboardModal`            | Modal component for non-MetaMask wallet onboarding flow          |
-| `useConnectModal`         | Re-export from`@rainbow-me/rainbowkit` to open the wallet picker |
-
-### Extending Wallet Support
 
 Wallet types are strictly typed and defined within [`src/hooks/useWalletType.ts`](src/hooks/useWalletType.ts). They determine how the AES key is dynamically retrieved (e.g. via Snap for MetaMask or the Onboarding Contract for others).
 
@@ -120,90 +116,117 @@ const CONNECTOR_ID_TO_WALLET_TYPE: Record<string, WalletType> = {
 
 
 
-## Plugin Architecture
 
-Below is a high-level representation of the core React hooks exposed by this plugin, outlining their key state variables and methods. Numbers reference the [API Reference](#api-reference) sections below.
+## COTI WALLET PLUGIN ARCHITECTURE
+
+### Wallet Operations
+
+Connection, AES key management, and balance decryption hooks.
 
 ```mermaid
-classDiagram
-    direction LR
+graph TD
+    subgraph Consumer App
+        A[React App]
+    end
 
-    class useWallet {
-        +boolean isConnected [1.1.1]
-        +string walletAddress [1.1.2]
-        +string networkName [1.2.1]
-        +string chainId [1.2.2]
-        +string sessionAesKey [1.3.1]
-        +boolean isPrivateUnlocked [1.3.2]
-        +connect() Promise~void~ [1.1.3]
-        +disconnect() Promise~void~ [1.1.4]
-        +getAesKey(address) Promise~string~ [1.3.3]
-        +switchNetwork(chainId) Promise~boolean~ [1.2.3]
-        +unlockPrivateBalances() Promise~boolean~ [1.3.4]
-        +lockPrivateBalances() void [1.3.5]
-        +handleOnboard() Promise~string~
-    }
+    subgraph Wallet Operations
+        W1[useWallet]
+        W2[useAesKeyProvider]
+        W3[usePrivateTokenBalance]
+        W4[useBalanceUpdater]
+        W5[useWalletType]
+    end
 
-    class usePrivateTokenBalance {
-        +fetchPrivateBalance(user, aesKey, address, version, decimals) Promise~string~ [2.1]
-    }
+    subgraph Key Retrieval
+        K1[MetaMask Snap]
+        K2[Onboarding Contract]
+    end
 
-    class useBalanceUpdater {
-      +updateAccountState(account, checkSnap, fetchPrivate, aesKeyOverride, chainOverride) Promise~void~ [3.1]
-    }
+    subgraph Infrastructure
+        P1[WagmiRainbowKitProvider]
+        C1[chains.ts / networks.ts]
+    end
 
-    class usePrivacyBridge {
-        +handleSwap() Promise~void~ [4.1]
-        +boolean isBridgingLoading [4.2]
-        +handleApprove() Promise~void~ [4.4]
-        +boolean isApprovalNeeded [4.3]
-    }
+    A --> W1
+    A --> W3
+    A --> W4
+    W1 --> W2
+    W2 --> W5
+    W5 -->|MetaMask| K1
+    W5 -->|Other Wallets| K2
+    W4 --> W3
+    W1 --> P1
+    P1 --> C1
+```
 
-    class useAesKeyProvider {
-        +boolean isOnboarding [5.2]
-        +string onboardingError [5.3]
-        +getAesKey(address) Promise~string~ [5.1]
-    }
+### Private Portal Architecture
 
-    useWallet --> useAesKeyProvider : Delegates AES Retrieval
-    useBalanceUpdater --> usePrivateTokenBalance : Orchestrates Batch Fetches
+Portal In (deposit) and Portal Out (withdraw) operations between public and private token states on the COTI chain.
+
+```mermaid
+graph TD
+    subgraph Consumer App
+        A[React App]
+    end
+
+    subgraph Privacy Bridge
+        B1[usePrivacyBridge]
+        B2[useBridgeData]
+        B3[useBridgeStatus]
+        B4[useNetworkEnforcer]
+        B5[estimateBridgeFee]
+    end
+
+    subgraph On-Chain Contracts
+        OC1[Portal Contract]
+        OC2[ERC20 Token Contracts]
+    end
+
+    subgraph COTI RPC
+        R1[COTI Mainnet / Testnet]
+    end
+
+    A --> B1
+    A --> B2
+    A --> B3
+    B1 --> B5
+    B1 --> OC1
+    B1 --> OC2
+    B2 --> OC1
+    B4 --> R1
+    OC1 --> R1
+    OC2 --> R1
 ```
 
 ### Cross-Chain Bridge Architecture
 
-The cross-chain bridge module enables token transfers between COTI and Ethereum networks. It is separate from the privacy bridge (which moves tokens between public and private states on the same COTI chain).
+Token transfers between COTI and Ethereum networks via native transfers and ERC20 `transfer()` calls to designated bridge recipient addresses.
 
 ```mermaid
 graph TD
-    subgraph Plugin Consumer App
+    subgraph Consumer App
         A[React App]
     end
 
-    subgraph coti-wallet-plugin
-        subgraph Hooks Layer
-            H1[useCrossChainBridge]
-            H2[useTransactionTracking]
-            H3[useBridgeTransactions]
-            H4[useBridgeLimits]
-            H5[useWalletStatus]
-            H6[useOngoingTransactions]
-        end
+    subgraph Cross-Chain Bridge Hooks
+        H1[useCrossChainBridge]
+        H2[useTransactionTracking]
+        H3[useBridgeTransactions]
+        H4[useBridgeLimits]
+        H5[useWalletStatus]
+        H6[useOngoingTransactions]
+    end
 
-        subgraph Utilities Layer
-            U1[formatTokenAmount / parseTokenAmount / truncateDecimals]
-            U2[getActiveChains / isValidChain / getActiveChainById / getActiveNetworks]
-            U3[getCrossChainTokenConfig]
-        end
+    subgraph Utilities
+        U1[formatTokenAmount / parseTokenAmount / truncateDecimals]
+        U2[getActiveChains / isValidChain / getActiveChainById / getActiveNetworks]
+        U3[getCrossChainTokenConfig]
+    end
 
-        subgraph Config Layer
-            C1[chains.ts - Ethereum Mainnet added]
-            C2[crossChainTokens.ts - Token configs per environment]
-            C3[networks.ts - Extended with Ethereum chains]
-        end
-
-        subgraph Provider Layer
-            P1[WagmiRainbowKitProvider - Extended with Ethereum Mainnet]
-        end
+    subgraph Config
+        C1[chains.ts - Ethereum Mainnet]
+        C2[crossChainTokens.ts]
+        C3[networks.ts]
     end
 
     subgraph External Services
@@ -222,20 +245,19 @@ graph TD
     A --> U2
     A --> U3
 
-    H1 --> P1
     H1 --> U1
     H1 --> U3
     H1 --> H4
+    H1 --> E3
     H2 --> E1
     H3 --> E1
     H4 --> E2
-    H5 --> P1
+    H5 --> E3
     H6 --> E1
 
-    P1 --> E3
-    C1 --> P1
     C2 --> H1
     C2 --> U3
+    C1 --> E3
 ```
 
 ## API Reference
@@ -545,14 +567,6 @@ function CrossChainBridge() {
 | Testnet     | COTI Testnet (7082400) | Sepolia (11155111) |
 | Mainnet     | COTI Mainnet (2632500) | Ethereum Mainnet (1) |
 
-## Build
-
-```bash
-npm run build    # Produces dist/index.js (CJS) + dist/index.mjs (ESM) + dist/index.d.ts
-npm run lint     # TypeScript type check (tsc --noEmit)
-npm run test     # Run test suite (vitest)
-npm run clean    # Remove dist/
-```
 
 ## License
 
