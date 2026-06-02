@@ -23,6 +23,16 @@ describe('Balance Decryption (README: Balance Decryption)', () => {
       expect(decryptCtUint64(0n, validKey)).toBe(0n);
     });
 
+    it('returns 0n for numeric zero ciphertext', () => {
+      // Tests the isZeroValue number branch
+      expect(decryptCtUint64(0 as any, validKey)).toBe(0n);
+    });
+
+    it('returns 0n for string "0" ciphertext', () => {
+      // Tests the isZeroValue string branch
+      expect(decryptCtUint64('0' as any, validKey)).toBe(0n);
+    });
+
     it('decrypts a valid 64-bit ciphertext', () => {
       const result = decryptCtUint64(12345n, validKey);
       expect(result).toBe(100n);
@@ -39,17 +49,27 @@ describe('Balance Decryption (README: Balance Decryption)', () => {
       expect(result).toBeNull();
     });
 
+    it('returns null when decryptUint throws', () => {
+      vi.mocked(CotiSDK.decryptUint).mockImplementationOnce(() => { throw new Error('decrypt failed'); });
+      const result = decryptCtUint64(12345n, validKey);
+      expect(result).toBeNull();
+    });
+
     it('respects custom decimals for threshold', () => {
       const result = decryptCtUint64(12345n, validKey, { decimals: 6 });
       expect(result).toBe(100n);
     });
 
     it('respects custom insaneThresholdBase', () => {
-      // threshold = insaneThresholdBase * 10^decimals = 10 * 10^18 = 10^19
-      // 10^20 > 10^19 → insane → returns null
       vi.mocked(CotiSDK.decryptUint).mockReturnValueOnce(10n ** 20n);
       const result = decryptCtUint64(12345n, validKey, { insaneThresholdBase: 10n });
       expect(result).toBeNull();
+    });
+
+    it('handles non-bigint return from decryptUint (number coercion)', () => {
+      vi.mocked(CotiSDK.decryptUint).mockReturnValueOnce(42 as any);
+      const result = decryptCtUint64(12345n, validKey);
+      expect(result).toBe(42n);
     });
   });
 
@@ -140,6 +160,26 @@ describe('Balance Decryption (README: Balance Decryption)', () => {
 
     it('returns false for zero', () => {
       expect(isInsaneDecryptedValue(0n, 18)).toBe(false);
+    });
+
+    it('handles null/undefined decimals (defaults to 18)', () => {
+      expect(isInsaneDecryptedValue(100n, undefined)).toBe(false);
+      expect(isInsaneDecryptedValue(100n, null as any)).toBe(false);
+    });
+
+    it('handles Infinity decimals (defaults to 18)', () => {
+      expect(isInsaneDecryptedValue(100n, Infinity)).toBe(false);
+    });
+
+    it('clamps negative decimals to 0', () => {
+      // threshold = 1e12 * 10^0 = 1e12
+      expect(isInsaneDecryptedValue(10n ** 13n, -5)).toBe(true);
+      expect(isInsaneDecryptedValue(10n ** 11n, -5)).toBe(false);
+    });
+
+    it('clamps decimals > 36 to 36', () => {
+      // threshold = 1e12 * 10^36 = 1e48
+      expect(isInsaneDecryptedValue(10n ** 49n, 100)).toBe(true);
     });
   });
 
