@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { ethers } from 'ethers';
 import { getPluginConfig } from '../config/plugin';
 import { getEthereumProvider } from '../lib/ethereum';
+import { CotiPluginError, CotiErrorCode } from '../errors';
 
 // Constants for COTI Networks
 const COTI_MAINNET_ID = '0x282b34'; // 2632500
@@ -155,7 +156,7 @@ export const useMetamask = ({
      */
     const connectWallet = async (onConnect: (account: string) => Promise<void>) => {
         if (!window.ethereum) {
-            throw new Error("METAMASK_NOT_INSTALLED");
+            throw new CotiPluginError(CotiErrorCode.METAMASK_NOT_INSTALLED, 'MetaMask or compatible wallet not found');
         }
 
         const eth = getEthereumProvider()!;

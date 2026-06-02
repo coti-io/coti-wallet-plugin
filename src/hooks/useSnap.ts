@@ -5,6 +5,7 @@ const { generateRSAKeyPair, decryptRSA } = CotiSDK;
 import { MetaMaskInpageProvider } from '@metamask/providers';
 import { getPluginConfig } from '../config/plugin';
 import { getEthereumProvider } from '../lib/ethereum';
+import { CotiPluginError, CotiErrorCode } from '../errors';
 
 /**
  * Custom hook that manages the entire lifecycle of the Coti Snap integration.
@@ -169,7 +170,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
                 }
             }
             // Propagate error for context handling
-            throw new Error("SNAP_CONNECT_FAILED");
+            throw new CotiPluginError(CotiErrorCode.SNAP_CONNECT_FAILED, 'Failed to connect to COTI Snap');
         }
     }, [snapId, setSnapError]);
 
@@ -234,7 +235,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
         const installed = await isSnapInstalled();
         if (!installed) {
             console.log('❌ Snap not visible via wallet_getSnaps. Showing snap_missing modal.');
-            throw new Error("SNAP_CONNECT_FAILED");
+            throw new CotiPluginError(CotiErrorCode.SNAP_CONNECT_FAILED, 'COTI Snap is not installed or not connected to this origin');
         }
 
         // Snap is confirmed visible — call wallet_requestSnaps to ensure permission.
@@ -296,7 +297,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
                     if (!key) {
                         console.warn('⚠️ Snap returned null (User likely rejected).');
                         // Throw specific error so we don't trigger "Missing Key" onboarding flow
-                        throw new Error('SNAP_DIALOG_REJECTED');
+                        throw new CotiPluginError(CotiErrorCode.SNAP_DIALOG_REJECTED, 'User rejected Snap dialog');
                     }
 
                     console.log('✅ AES key received from snap');
@@ -324,7 +325,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
 
             // RETHROW if it's the specific missing key error so upstream can handle onboarding
             // Also rethrow SNAP_DIALOG_REJECTED so Index.tsx can show the AES Key Missing modal
-            if (error.message && (error.message.includes('AES key') || error.message.includes('onboarding') || error.message.includes('SNAP_DIALOG_REJECTED') || error.message.includes('SNAP_CONNECT_FAILED'))) {
+            if (error instanceof CotiPluginError || (error.message && (error.message.includes('AES key') || error.message.includes('onboarding') || error.message.includes('SNAP_DIALOG_REJECTED') || error.message.includes('SNAP_CONNECT_FAILED')))) {
                 throw error;
             }
 
@@ -514,7 +515,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
 export const signIT256ViaSnap = async (msgHash: string): Promise<Uint8Array | null> => {
     const currentSnapId = getPluginConfig().snapId;
     const provider = getEthereumProvider();
-    if (!provider) throw new Error('No wallet found');
+    if (!provider) throw new CotiPluginError(CotiErrorCode.NO_PROVIDER, 'No wallet provider found');
 
     const result = await provider.request({
         method: 'wallet_invokeSnap',

@@ -22,9 +22,16 @@ import { buildItSignature } from './signature';
  * Encrypts the plaintext with the user's AES key and signs the ciphertext
  * with the wallet's private key for on-chain verification.
  *
+ * @internal This function requires an `ethers.Wallet` (not a generic Signer) because
+ * the COTI IT construction needs raw ECDSA signing (without EIP-191 prefix) via
+ * direct private key access. The wallet instance should be **deterministically derived**
+ * from the user's AES key using `deriveWallet()` — do NOT pass user-controlled Wallet
+ * instances backed by real private keys or mnemonics. The private key is accessed
+ * in-memory solely for the duration of the signature computation.
+ *
  * @param plaintext - The value to encrypt (must be < 2^64).
  * @param aesKey - The user's AES key (hex string, with or without 0x prefix).
- * @param wallet - An ethers Wallet instance for signing.
+ * @param wallet - A deterministically derived ethers Wallet instance for signing (see `deriveWallet`).
  * @param contractAddress - The target contract address.
  * @param functionSelector - The 4-byte function selector (e.g., "0x12345678").
  * @returns An ItUint64 structure with ciphertext and signature.
@@ -68,9 +75,16 @@ export function buildItUint64(
  * Builds an ItUint256 structure for a 256-bit plaintext.
  * Splits the plaintext into four 64-bit segments and encrypts each independently.
  *
+ * @internal This function requires an `ethers.Wallet` (not a generic Signer) because
+ * the COTI IT construction needs raw ECDSA signing (without EIP-191 prefix) via
+ * direct private key access. The wallet instance should be **deterministically derived**
+ * from the user's AES key using `deriveWallet()` — do NOT pass user-controlled Wallet
+ * instances backed by real private keys or mnemonics. The private key is accessed
+ * in-memory solely for the duration of the signature computation.
+ *
  * @param plaintext - The 256-bit value to encrypt.
  * @param aesKey - The user's AES key (hex string, with or without 0x prefix).
- * @param wallet - An ethers Wallet instance for signing.
+ * @param wallet - A deterministically derived ethers Wallet instance for signing (see `deriveWallet`).
  * @param contractAddress - The target contract address.
  * @param functionSelector - The 4-byte function selector (e.g., "0x12345678").
  * @returns An ItUint256 structure with nested ciphertext and signatures.

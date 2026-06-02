@@ -34,7 +34,7 @@ describe('useMetamask', () => {
 
       await expect(
         result.current.connectWallet(vi.fn())
-      ).rejects.toThrow('METAMASK_NOT_INSTALLED');
+      ).rejects.toThrow('MetaMask or compatible wallet not found');
     });
 
     it('calls onConnect with the account address (integration test)', async () => {

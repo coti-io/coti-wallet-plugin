@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import { useMetamask } from './useMetamask';
 import { useSnap } from './useSnap';
 import { getEthereumProvider } from '../lib/ethereum';
+import { CotiPluginError, CotiErrorCode } from '../errors';
 
 /**
  * Result interface for the unified wallet hook.
@@ -173,7 +174,7 @@ export const useWallet = (): UseWalletResult => {
       });
       setMetamaskDetected(true);
     } catch (error: any) {
-      if (error.message === 'METAMASK_NOT_INSTALLED') {
+      if ((error instanceof CotiPluginError && error.code === CotiErrorCode.METAMASK_NOT_INSTALLED) || error.message === 'METAMASK_NOT_INSTALLED') {
         setMetamaskDetected(false);
         setShowInstallModal(true);
         if (!ethereumListenerRegistered.current) {

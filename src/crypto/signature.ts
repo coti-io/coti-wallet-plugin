@@ -29,11 +29,17 @@ export function signDigest(
  * The signature digest is computed as:
  * `solidityPackedKeccak256(['address','address','bytes4','uint256'], [signer, contract, selector, ct])`
  *
+ * @internal The `privateKey` parameter must come from a **deterministically derived** wallet
+ * (via `deriveWallet(aesKey, account, chainId)`) — never from a user-controlled mnemonic or
+ * imported private key. This raw ECDSA signature (without EIP-191 prefix) is required by the
+ * COTI MPC precompile. The key is used only for the signing operation and should not be
+ * persisted or logged.
+ *
  * @param signerAddress - The signer's Ethereum address.
  * @param contractAddress - The target contract address.
  * @param functionSelector - The 4-byte function selector (e.g., "0x12345678").
  * @param ciphertext - The encrypted ciphertext as a bigint.
- * @param privateKey - The signer's private key (hex string with 0x prefix).
+ * @param privateKey - The derived signer's private key (hex string with 0x prefix).
  * @returns A 65-byte hex string (0x-prefixed, 132 chars) with normalized v (0x00/0x01).
  */
 export function buildItSignature(

@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { ethers } from 'ethers';
 import { decryptCtUint64, decryptCtUint256 } from '../crypto/decryption';
 import { getPluginConfig } from '../config/plugin';
+import { CotiPluginError, CotiErrorCode } from '../errors';
 
 /**
  * ABI for the nested 4-part ciphertext format used by PoD pTokens (e.g., Sepolia p.MTT).
@@ -101,7 +102,7 @@ export const usePrivateTokenBalance = () => {
 
                  const decryptedVal = decryptCtUint64(encryptedBalance, aesKey, { decimals });
                  if (decryptedVal === null) {
-                    throw new Error(`AES key mismatch: Error decrypting. Re-onboarding required.`);
+                    throw new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch: Error decrypting. Re-onboarding required.');
                  }
                  return ethers.formatUnits(decryptedVal, decimals);
             } else {
@@ -141,7 +142,7 @@ export const usePrivateTokenBalance = () => {
                      const normalized = normalizeNestedCiphertext(encryptedBalance);
                      const decryptedVal = decryptCtUint256(normalized, aesKey, { decimals });
                      if (decryptedVal === null) {
-                         throw new Error(`AES key mismatch: Error decrypting. Re-onboarding required.`);
+                         throw new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch: Error decrypting. Re-onboarding required.');
                      }
                      return ethers.formatUnits(decryptedVal, decimals);
                  } else {
@@ -150,14 +151,14 @@ export const usePrivateTokenBalance = () => {
 
                      const decryptedVal = decryptCtUint256(encryptedBalance, aesKey, { decimals });
                      if (decryptedVal === null) {
-                         throw new Error(`AES key mismatch: Error decrypting. Re-onboarding required.`);
+                         throw new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch: Error decrypting. Re-onboarding required.');
                      }
                      return ethers.formatUnits(decryptedVal, decimals);
                  }
             }
         } catch (error: any) {
             // Rethrow specific AES mismatch or Onboarding errors
-            if (error.message && (error.message.includes('AES key mismatch') || error.message.includes('ACCOUNT_NOT_ONBOARDED'))) {
+            if (error instanceof CotiPluginError || (error.message && (error.message.includes('AES key mismatch') || error.message.includes('ACCOUNT_NOT_ONBOARDED')))) {
                 throw error;
             }
             console.error(`❌ Failed to fetch/decrypt for ${contractAddress}`, error);
