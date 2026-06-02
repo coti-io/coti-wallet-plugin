@@ -411,6 +411,21 @@ Use `registerTransaction({ tokenId, sourceChainId, destinationChainId, txHash })
 
 ## Usage Examples
 
+### Example App
+
+A complete working example is available in the [`examples/`](./examples/) directory. It demonstrates wallet connection, public ERC20 balance reading, and private balance decryption using tokens from the [COTI Token List](https://github.com/coti-io/coti-token-list).
+
+```bash
+# Build the plugin first
+npm run build
+
+# Run the example
+cd examples
+cp .env.example .env   # Add your WalletConnect project ID
+npm install
+npm run dev            # Opens at http://localhost:5173
+```
+
 
 ### Basic Setup (MetaMask only)
 
