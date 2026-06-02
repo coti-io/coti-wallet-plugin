@@ -115,151 +115,6 @@ const CONNECTOR_ID_TO_WALLET_TYPE: Record<string, WalletType> = {
 > **Note:** Adding a new wallet type is only necessary if you need to implement wallet-specific behavior. For standard EIP-1193 wallets that use the Onboarding Contract flow, no changes are needed — they work automatically via the `'unknown'` fallback.
 
 
-
-
-## COTI WALLET PLUGIN ARCHITECTURE
-
-### Wallet Operations
-
-Connection, AES key management, and balance decryption hooks.
-
-```mermaid
-graph TD
-    subgraph Consumer App
-        A[React App]
-    end
-
-    subgraph Wallet Operations
-        W1[useWallet]
-        W2[useAesKeyProvider]
-        W3[usePrivateTokenBalance]
-        W4[useBalanceUpdater]
-        W5[useWalletType]
-    end
-
-    subgraph Key Retrieval
-        K1[MetaMask Snap]
-        K2[Onboarding Contract]
-    end
-
-    subgraph Infrastructure
-        P1[WagmiRainbowKitProvider]
-        C1[chains.ts / networks.ts]
-    end
-
-    A --> W1
-    A --> W3
-    A --> W4
-    W1 --> W2
-    W2 --> W5
-    W5 -->|MetaMask| K1
-    W5 -->|Other Wallets| K2
-    W4 --> W3
-    W1 --> P1
-    P1 --> C1
-```
-
-### Private Portal Architecture
-
-Portal In (deposit) and Portal Out (withdraw) operations between public and private token states on the COTI chain.
-
-```mermaid
-graph TD
-    subgraph Consumer App
-        A[React App]
-    end
-
-    subgraph Privacy Bridge
-        B1[usePrivacyBridge]
-        B2[useBridgeData]
-        B3[useBridgeStatus]
-        B4[useNetworkEnforcer]
-        B5[estimateBridgeFee]
-    end
-
-    subgraph On-Chain Contracts
-        OC1[Portal Contract]
-        OC2[ERC20 Token Contracts]
-    end
-
-    subgraph COTI RPC
-        R1[COTI Mainnet / Testnet]
-    end
-
-    A --> B1
-    A --> B2
-    A --> B3
-    B1 --> B5
-    B1 --> OC1
-    B1 --> OC2
-    B2 --> OC1
-    B4 --> R1
-    OC1 --> R1
-    OC2 --> R1
-```
-
-### Cross-Chain Bridge Architecture
-
-Token transfers between COTI and Ethereum networks via native transfers and ERC20 `transfer()` calls to designated bridge recipient addresses.
-
-```mermaid
-graph TD
-    subgraph Consumer App
-        A[React App]
-    end
-
-    subgraph Cross-Chain Bridge Hooks
-        H1[useCrossChainBridge]
-        H2[useTransactionTracking]
-        H3[useBridgeTransactions]
-        H4[useBridgeLimits]
-        H5[useWalletStatus]
-        H6[useOngoingTransactions]
-    end
-
-    subgraph Utilities
-        U1[formatTokenAmount / parseTokenAmount / truncateDecimals]
-        U2[getActiveChains / isValidChain / getActiveChainById / getActiveNetworks]
-        U3[getCrossChainTokenConfig]
-    end
-
-    subgraph Config
-        C1[chains.ts - Ethereum Mainnet]
-        C2[crossChainTokens.ts]
-        C3[networks.ts]
-    end
-
-    subgraph External Services
-        E1[Tracking Service API]
-        E2[Cap Meter API]
-        E3[Ethereum / COTI RPC Nodes]
-    end
-
-    A --> H1
-    A --> H2
-    A --> H3
-    A --> H4
-    A --> H5
-    A --> H6
-    A --> U1
-    A --> U2
-    A --> U3
-
-    H1 --> U1
-    H1 --> U3
-    H1 --> H4
-    H1 --> E3
-    H2 --> E1
-    H3 --> E1
-    H4 --> E2
-    H5 --> E3
-    H6 --> E1
-
-    C2 --> H1
-    C2 --> U3
-    C1 --> E3
-```
-
 ## API Reference
 
 ### Wallet Operations
@@ -415,16 +270,53 @@ Use `registerTransaction({ tokenId, sourceChainId, destinationChainId, txHash })
 
 A complete working example is available in the [`examples/`](./examples/) directory. It demonstrates wallet connection, public ERC20 balance reading, and private balance decryption using tokens from the [COTI Token List](https://github.com/coti-io/coti-token-list).
 
+#### Prerequisites
+
+- Node.js 18+
+- The parent plugin must be built first
+
+#### Setup & Run
+
 ```bash
-# Build the plugin first
+# 1. Build the plugin (from the repository root)
 npm run build
 
-# Run the example
+# 2. Move into the examples directory
 cd examples
-cp .env.example .env   # Add your WalletConnect project ID
+
+# 3. Copy the environment template and add your WalletConnect project ID
+cp .env.example .env
+
+# 4. Install dependencies
 npm install
-npm run dev            # Opens at http://localhost:5173
+
+# 5. Start the dev server
+npm run dev
 ```
+
+Opens at http://localhost:5173
+
+> Get a WalletConnect project ID at https://cloud.walletconnect.com and set it in `examples/.env`:
+> ```
+> VITE_WALLETCONNECT_PROJECT_ID=your_project_id_here
+> ```
+
+#### What the Example App Does
+
+1. **Connect Wallet** — Click to open the RainbowKit modal (MetaMask, Coinbase, Rabby, WalletConnect, etc.)
+2. **Public Balances** — Reads on-chain ERC20 `balanceOf` for all public tokens on COTI Testnet
+3. **Native COTI** — Displays native COTI balance via wagmi
+4. **Private Balances** — Click "Unlock Private Balances" to derive the AES key (via Snap for MetaMask, or on-chain onboarding contract for other wallets), then decrypted private token balances appear
+
+#### Network
+
+The example app targets **COTI Testnet** (chain ID 7082400). Ensure your wallet has COTI Testnet funds. On unlock, the app automatically prompts a network switch if needed.
+
+----
+
+#### More examples
+
+The following snippets show how to use coti-wallet plugin for dapps:
 
 
 ### Basic Setup (MetaMask only)
