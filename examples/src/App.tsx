@@ -29,6 +29,9 @@ interface TokenListResponse {
 const TOKEN_LIST_URL =
   'https://raw.githubusercontent.com/coti-io/coti-token-list/coti-testnet/coti-tokens.json';
 
+// COTI Testnet chain ID — app only shows tokens for this chain
+const COTI_TESTNET_CHAIN_ID = 7082400;
+
 // p.COTI legacy contract uses version 64; all other private tokens use 256
 const PCOTI_ADDRESS = '0x6cE8907414986E73De9e7D28d62Ea2080F8E88E1';
 
@@ -79,15 +82,15 @@ export default function App() {
       });
   }, []);
 
-  // Filter tokens for the current chain
-  const chainTokens = tokens.filter((t) => t.chainId === chainId);
-  const publicTokens = chainTokens.filter((t) => !t.private && t.address !== '');
+  // Filter tokens for COTI Testnet only
+  const chainTokens = tokens.filter((t) => t.chainId === COTI_TESTNET_CHAIN_ID);
+  const publicTokens = chainTokens.filter((t) => !t.private);
   const privateTokens = chainTokens.filter((t) => t.private);
-  const nativeToken = chainTokens.find((t) => !t.private && t.address === '');
 
   // --- Native COTI balance ---
   const { data: nativeBalance } = useBalance({
     address: address,
+    chainId: COTI_TESTNET_CHAIN_ID,
     query: { enabled: isConnected },
   });
 
@@ -97,6 +100,7 @@ export default function App() {
     abi: erc20BalanceOfAbi,
     functionName: 'balanceOf' as const,
     args: [address!] as const,
+    chainId: COTI_TESTNET_CHAIN_ID,
   }));
 
   const { data: publicBalancesData } = useReadContracts({
@@ -189,7 +193,7 @@ export default function App() {
           {loadingTokens ? (
             <p>Loading token list...</p>
           ) : chainTokens.length === 0 ? (
-            <p>No tokens found for chain {chainId}. Switch to COTI Testnet (7082400).</p>
+            <p>No tokens found for COTI Testnet.</p>
           ) : (
             <table
               style={{
@@ -209,18 +213,16 @@ export default function App() {
               </thead>
               <tbody>
                 {/* Native COTI */}
-                {nativeToken && (
-                  <tr style={{ borderBottom: '1px solid #eee' }}>
-                    <td style={{ padding: 8, fontWeight: 600 }}>{nativeToken.symbol}</td>
-                    <td style={{ padding: 8 }}>{nativeToken.name}</td>
-                    <td style={{ padding: 8 }}>Native</td>
-                    <td style={{ padding: 8, fontFamily: 'monospace' }}>
-                      {nativeBalance
-                        ? formatUnits(nativeBalance.value, nativeBalance.decimals)
-                        : '—'}
-                    </td>
-                  </tr>
-                )}
+                <tr style={{ borderBottom: '1px solid #eee' }}>
+                  <td style={{ padding: 8, fontWeight: 600 }}>COTI</td>
+                  <td style={{ padding: 8 }}>COTI (Native)</td>
+                  <td style={{ padding: 8 }}>Native</td>
+                  <td style={{ padding: 8, fontFamily: 'monospace' }}>
+                    {nativeBalance
+                      ? formatUnits(nativeBalance.value, nativeBalance.decimals)
+                      : '—'}
+                  </td>
+                </tr>
 
                 {/* Public ERC20 tokens */}
                 {publicTokens.map((token, i) => (
