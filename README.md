@@ -554,12 +554,6 @@ npm run test     # Run test suite (vitest)
 npm run clean    # Remove dist/
 ```
 
-## Documentation
-
-- [Snap-to-Plugin Architecture](./docs/metamask_wallet_architecture.md) — Module design, data flow, correctness properties
-- [Portal Wallet Requirements](./docs/portal_wallet_requirements.md) — Multi-wallet support design (RainbowKit/wagmi)
-- [Portal Wallet Architecture](./docs/portal_wallet_architecture.md) — Library architecture and security model
-
 ## License
 
 Apache-2.0
