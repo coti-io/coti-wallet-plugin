@@ -16,6 +16,14 @@ export const cotiTestnet = defineChain({
   blockExplorers: { default: { name: 'CotiScan', url: 'https://testnet.cotiscan.io' } },
 })
 
+export const ethereumMainnet = defineChain({
+  id: 1,
+  name: 'Ethereum Mainnet',
+  nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+  rpcUrls: { default: { http: ['https://eth.llamarpc.com'] } },
+  blockExplorers: { default: { name: 'Etherscan', url: 'https://etherscan.io' } },
+})
+
 export const sepolia = defineChain({
   id: 11155111,
   name: 'Sepolia',
@@ -27,13 +35,16 @@ export const sepolia = defineChain({
 export const COTI_MAINNET_CHAIN_ID = 2632500;
 export const COTI_TESTNET_CHAIN_ID = 7082400;
 export const SEPOLIA_CHAIN_ID = 11155111;
+export const ETHEREUM_MAINNET_CHAIN_ID = 1;
 
 export const COTI_MAINNET_RPC = 'https://mainnet.coti.io/rpc';
 export const COTI_TESTNET_RPC = 'https://testnet.coti.io/rpc';
 export const SEPOLIA_RPC = 'https://ethereum-sepolia-rpc.publicnode.com';
+export const ETHEREUM_MAINNET_RPC = 'https://eth.llamarpc.com';
 
 export function getRpcUrlForChainId(chainId: number): string {
   if (chainId === COTI_MAINNET_CHAIN_ID) return COTI_MAINNET_RPC;
+  if (chainId === ETHEREUM_MAINNET_CHAIN_ID) return ETHEREUM_MAINNET_RPC;
   if (chainId === SEPOLIA_CHAIN_ID) return SEPOLIA_RPC;
   return COTI_TESTNET_RPC;
 }

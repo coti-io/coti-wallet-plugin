@@ -6,8 +6,10 @@ import { RainbowKitProvider } from '@rainbow-me/rainbowkit';
 import {
   cotiMainnet,
   cotiTestnet,
+  ethereumMainnet,
   COTI_MAINNET_RPC,
   COTI_TESTNET_RPC,
+  ETHEREUM_MAINNET_RPC,
 } from '../config/chains';
 
 interface WagmiRainbowKitProviderProps {
@@ -21,7 +23,7 @@ function createWagmiConfig(walletConnectProjectId?: string) {
     walletConnectProjectId ?? import.meta.env.VITE_WALLETCONNECT_PROJECT_ID ?? '';
 
   return createConfig({
-    chains: [cotiMainnet, cotiTestnet],
+    chains: [cotiMainnet, cotiTestnet, ethereumMainnet],
     connectors: [
       injected(),
       coinbaseWallet({ appName: 'COTI Privacy Bridge' }),
@@ -30,6 +32,7 @@ function createWagmiConfig(walletConnectProjectId?: string) {
     transports: {
       [cotiMainnet.id]: http(COTI_MAINNET_RPC),
       [cotiTestnet.id]: http(COTI_TESTNET_RPC),
+      [ethereumMainnet.id]: http(ETHEREUM_MAINNET_RPC),
     },
   });
 }

@@ -66,4 +66,29 @@ export { formatTokenBalanceDisplay, truncateDecimalValue, formatBalanceWithNotat
 export { getEthereumProvider } from './lib/ethereum';
 export type { EIP1193Provider } from './lib/ethereum';
 
+// Hooks — Cross-Chain Bridge
+export { useCrossChainBridge } from './hooks/useCrossChainBridge';
+export type { BridgeError, UseCrossChainBridgeResult } from './hooks/useCrossChainBridge';
+export { useTransactionTracking } from './hooks/useTransactionTracking';
+export type { UseTransactionTrackingResult } from './hooks/useTransactionTracking';
+export { useBridgeTransactions } from './hooks/useBridgeTransactions';
+export type { BridgeTransaction, UseBridgeTransactionsResult } from './hooks/useBridgeTransactions';
+export { useBridgeLimits } from './hooks/useBridgeLimits';
+export type { UseBridgeLimitsResult } from './hooks/useBridgeLimits';
+export { useWalletStatus } from './hooks/useWalletStatus';
+export type { UseWalletStatusResult } from './hooks/useWalletStatus';
+export { useOngoingTransactions, registerTransaction } from './hooks/useOngoingTransactions';
+export type { OngoingTransaction, UseOngoingTransactionsResult, RegisterTransactionInput } from './hooks/useOngoingTransactions';
+
+// Cross-Chain Utilities
+export { formatTokenAmount, parseTokenAmount, truncateDecimals, getActiveChains, isValidChain, getActiveChainById, getActiveNetworks } from './lib/crossChainUtils';
+export type { ChainConfig, ChainPair } from './lib/crossChainUtils';
+
+// Cross-Chain Token Configuration
+export { getCrossChainTokenConfig } from './config/crossChainTokens';
+export type { CrossChainTokenConfig } from './config/crossChainTokens';
+
+// Chain definitions — Ethereum Mainnet
+export { ethereumMainnet, ETHEREUM_MAINNET_CHAIN_ID, ETHEREUM_MAINNET_RPC } from './config/chains';
+
 
