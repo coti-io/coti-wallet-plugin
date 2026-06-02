@@ -4,6 +4,7 @@ import { CONTRACT_ADDRESSES, BRIDGE_ABI, BRIDGE_ERC20_ABI, ERC20_ABI, TOKEN_ABI 
 import { formatTokenBalanceDisplay, truncateDecimalValue } from '../lib/utils';
 import { estimateBridgeFee } from './useEstimateBridgeFees';
 import { getEthereumProvider } from '../lib/ethereum';
+import { CotiPluginError, CotiErrorCode } from '../errors';
 
 
 export interface Token {
@@ -470,11 +471,11 @@ export const usePrivacyBridge = ({
                 if (token.symbol === 'USDC.e') privateTokenKey = 'p.USDC_E';
 
                 const privateTokenAddress = addresses[privateTokenKey];
-                if (!privateTokenAddress) throw new Error("Private token address not found");
+                if (!privateTokenAddress) throw new CotiPluginError(CotiErrorCode.CONTRACT_NOT_FOUND, 'Private token address not found');
 
                 // 2. Get AES key for encrypted approval
                 const aesKey = await getAESKeyFromSnap(walletAddress);
-                if (!aesKey) throw new Error("AES key required for private token approval. Please connect your Snap.");
+                if (!aesKey) throw new CotiPluginError(CotiErrorCode.AES_KEY_MISSING, 'AES key required for private token approval. Please connect your Snap.');
 
                 // 3. Create itValue with 256-bit encryption
                 setIsApproving(true);
@@ -605,7 +606,7 @@ export const usePrivacyBridge = ({
         console.log(`🚀 Initiating swap transaction: ${txAmount} (Direction: ${txDirection}, Token Index: ${txTokenIndex})`);
         setIsBridgingLoading(true);
         try {
-            if (!window.ethereum) throw new Error("No wallet found");
+            if (!window.ethereum) throw new CotiPluginError(CotiErrorCode.NO_PROVIDER, 'No wallet provider found');
 
             // Initialize Ethers
             const provider = new ethers.BrowserProvider(window.ethereum);
@@ -615,7 +616,7 @@ export const usePrivacyBridge = ({
             const currentChainId = Number(network.chainId);
             const addresses = CONTRACT_ADDRESSES[currentChainId];
 
-            if (!addresses) throw new Error("Unsupported network");
+            if (!addresses) throw new CotiPluginError(CotiErrorCode.UNSUPPORTED_NETWORK, `Unsupported network: chain ID ${currentChainId}`);
 
             const txPublicToken = publicTokens[txTokenIndex];
             const isWeth = txPublicToken.symbol === 'WETH';
@@ -668,7 +669,7 @@ export const usePrivacyBridge = ({
                 privateDecimals = 18; // Corrected: p.COTI (Native) uses 18 decimals
             }
 
-            if (!bridgeAddress) throw new Error("Bridge address not found for this token");
+            if (!bridgeAddress) throw new CotiPluginError(CotiErrorCode.CONTRACT_NOT_FOUND, `Bridge address not found for ${txPublicToken.symbol}`);
 
             const bridgeAbi = isErc20 ? BRIDGE_ERC20_ABI : BRIDGE_ABI;
 
@@ -707,10 +708,10 @@ export const usePrivacyBridge = ({
                             console.log(`DEBUG: Decimals: ${publicDecimals}`);
                             console.log(`DEBUG: Raw Balance (Wei): ${userBalance.toString()}`);
                             console.log(`DEBUG: Formatted Balance: ${ethers.formatUnits(userBalance, publicDecimals)}`);
-                            throw new Error(`Insufficient ${txPublicToken.symbol} balance. You have ${ethers.formatUnits(userBalance, publicDecimals)} ${txPublicToken.symbol}, trying to bridge ${txAmount}.`);
+                            throw new CotiPluginError(CotiErrorCode.INSUFFICIENT_BALANCE, `Insufficient ${txPublicToken.symbol} balance. You have ${ethers.formatUnits(userBalance, publicDecimals)} ${txPublicToken.symbol}, trying to bridge ${txAmount}.`);
                         }
                         if (userAllowance < amountWeiPublic) {
-                            throw new Error(`Insufficient Allowance. Approved: ${ethers.formatUnits(userAllowance, publicDecimals)}, Required: ${txAmount}. Please Approve again.`);
+                            throw new CotiPluginError(CotiErrorCode.INSUFFICIENT_ALLOWANCE, `Insufficient Allowance. Approved: ${ethers.formatUnits(userAllowance, publicDecimals)}, Required: ${txAmount}. Please Approve again.`);
                         }
 
                         console.log("🔄 Executing ERC20 Deposit...");
@@ -1105,7 +1106,7 @@ export const usePrivacyBridge = ({
                 const baseMsg = 'Transaction failed on-chain.';
                 const detail = revertReason ? ` Reason: ${revertReason}` : '';
                 const txLink = txHashStr ? ` TX: ${txHashStr}` : '';
-                throw new Error(`${baseMsg}${detail}${txLink}`);
+                throw new CotiPluginError(CotiErrorCode.TRANSACTION_REVERTED, `${baseMsg}${detail}${txLink}`, revertReason || undefined);
             }
 
             onProgress?.('transfer-complete', tx.hash);
@@ -1179,7 +1180,7 @@ export const usePrivacyBridge = ({
                 };
 
                 if (errorName && knownErrors[errorName]) {
-                    throw new Error(knownErrors[errorName]);
+                    throw new CotiPluginError(CotiErrorCode.TRANSACTION_REVERTED, knownErrors[errorName], errorName);
                 }
 
                 // Try to match revert data against known error selectors if errorName wasn't decoded
@@ -1198,13 +1199,13 @@ export const usePrivacyBridge = ({
                         '0x045c4b02': 'Token transfer failed. Please check your token balance and approval.',
                     };
                     if (selectorMap[selector]) {
-                        throw new Error(selectorMap[selector]);
+                        throw new CotiPluginError(CotiErrorCode.TRANSACTION_REVERTED, selectorMap[selector], selector);
                     }
                 }
 
                 // Generic revert — show the raw reason if available
                 const reason = error.reason || error.shortMessage || 'Transaction reverted on-chain.';
-                throw new Error(reason);
+                throw new CotiPluginError(CotiErrorCode.TRANSACTION_REVERTED, reason);
             }
 
             let errorMessage = error.reason || error.message || "Unknown error occurred";
@@ -1259,7 +1260,7 @@ export const usePrivacyBridge = ({
                     setHasSnap(true);
                 } else {
                     console.log('⚠️ Snap connection failed or rejected in handleSwap');
-                    throw new Error('Snap connection failed or rejected');
+                    throw new CotiPluginError(CotiErrorCode.SNAP_CONNECT_FAILED, 'Snap connection failed or rejected');
                 }
             } catch (snapErr: any) {
                 // Check if error is related to missing AES key
@@ -1278,7 +1279,7 @@ export const usePrivacyBridge = ({
                         if (retryKey) {
                             setHasSnap(true);
                         } else {
-                            throw new Error("Onboarding incomplete or key retrieval failed after onboarding.");
+                            throw new CotiPluginError(CotiErrorCode.ONBOARDING_INCOMPLETE, 'Onboarding incomplete or key retrieval failed after onboarding.');
                         }
                     } catch (onboardErr) {
                         throw onboardErr;
