@@ -1,6 +1,16 @@
 import React from 'react';
 import { createConfig, http, WagmiProvider } from 'wagmi';
-import { injected, coinbaseWallet, walletConnect } from 'wagmi/connectors';
+import { connectorsForWallets } from '@rainbow-me/rainbowkit';
+import {
+  metaMaskWallet,
+  coinbaseWallet,
+  walletConnectWallet,
+  rainbowWallet,
+  rabbyWallet,
+  ledgerWallet,
+  phantomWallet,
+  trustWallet,
+} from '@rainbow-me/rainbowkit/wallets';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RainbowKitProvider } from '@rainbow-me/rainbowkit';
 import {
@@ -22,13 +32,27 @@ function createWagmiConfig(walletConnectProjectId?: string) {
   const projectId =
     walletConnectProjectId ?? import.meta.env.VITE_WALLETCONNECT_PROJECT_ID ?? '';
 
+  const connectors = connectorsForWallets(
+    [
+      {
+        groupName: 'Recommended',
+        wallets: [metaMaskWallet, rabbyWallet, rainbowWallet, walletConnectWallet],
+      },
+      {
+        groupName: 'Other',
+        wallets: [coinbaseWallet, trustWallet, phantomWallet, ledgerWallet],
+      },
+    ],
+    {
+      appName: 'COTI Wallet Plugin',
+      projectId,
+    }
+  );
+
   return createConfig({
     chains: [cotiMainnet, cotiTestnet, ethereumMainnet],
-    connectors: [
-      injected({ shimDisconnect: true }),
-      coinbaseWallet({ appName: 'COTI Privacy Bridge' }),
-      ...(projectId ? [walletConnect({ projectId })] : []),
-    ],
+    connectors,
+    multiInjectedProviderDiscovery: true,
     transports: {
       [cotiMainnet.id]: http(COTI_MAINNET_RPC),
       [cotiTestnet.id]: http(COTI_TESTNET_RPC),

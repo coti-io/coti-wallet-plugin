@@ -113,16 +113,12 @@ export function useWalletType(): WalletTypeInfo {
 
         if (cancelled) return;
 
-        // Check if the COTI Snap is among the installed snaps
         // wallet_getSnaps returns { [snapId]: { version, ... } }
-        // The snap ID is the key, not a property of the value
         const snapFound = snapId in snaps ||
           Object.values(snaps).some((snap: any) => snap.id === snapId);
 
         setIsMetaMaskWithSnap(snapFound);
       } catch {
-        // If the Snap check fails or times out, default to false
-        // Requirement 2.5: isMetaMaskWithSnap = false on failure
         if (!cancelled) {
           setIsMetaMaskWithSnap(false);
         }

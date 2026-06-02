@@ -76,24 +76,32 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
       // Clear previous error on each new retrieval attempt
       setOnboardingError(null);
 
-      // Route 1: MetaMask with Snap — delegate to existing Snap flow
-      if (walletTypeInfo.isMetaMaskWithSnap) {
+      // Route 1: MetaMask — try Snap path first (handles snap connection on demand)
+      if (walletTypeInfo.walletType === 'metamask') {
         try {
           const key = await getAESKeyFromSnap(address);
           if (key && !isValidAesKey(key)) {
             console.warn('⚠️ AES key from Snap failed format validation');
             return null;
           }
-          return key;
+          if (key) return key;
+          // Snap returned null (user cancelled) — don't fall through to contract
+          return null;
         } catch (error: unknown) {
           if (isUserRejection(error)) {
             return null;
           }
-          throw error;
+          // SNAP_CONNECT_FAILED means snap is not available — fall through to contract onboarding
+          if (error instanceof Error && error.message === 'SNAP_CONNECT_FAILED') {
+            console.log('ℹ️ Snap not available, falling back to onboard contract');
+            // Fall through to Route 2
+          } else {
+            throw error;
+          }
         }
       }
 
-      // Route 2: Non-MetaMask wallet — use onboarding contract flow
+      // Route 2: Non-MetaMask wallet (or MetaMask without snap) — use onboarding contract flow
       if (!connector) {
         setOnboardingError('No wallet provider available. Please connect your wallet.');
         return null;
