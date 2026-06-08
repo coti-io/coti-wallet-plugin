@@ -30,7 +30,7 @@ interface WagmiRainbowKitProviderProps {
 
 function createWagmiConfig(walletConnectProjectId?: string) {
   const projectId =
-    walletConnectProjectId ?? import.meta.env.VITE_WALLETCONNECT_PROJECT_ID ?? '';
+    walletConnectProjectId ?? import.meta.env.VITE_WALLETCONNECT_PROJECT_ID ?? '147a7ca938c2ce172909ee7567bfb4c7';
 
   const connectors = connectorsForWallets(
     [
@@ -50,9 +50,10 @@ function createWagmiConfig(walletConnectProjectId?: string) {
   );
 
   return createConfig({
-    chains: [cotiMainnet, cotiTestnet, ethereumMainnet],
+    chains: [cotiTestnet, cotiMainnet, ethereumMainnet],
     connectors,
     multiInjectedProviderDiscovery: true,
+    ssr: false,
     transports: {
       [cotiMainnet.id]: http(COTI_MAINNET_RPC),
       [cotiTestnet.id]: http(COTI_TESTNET_RPC),
@@ -81,7 +82,11 @@ export function WagmiRainbowKitProvider({
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider>
+        <RainbowKitProvider
+          initialChain={cotiTestnet}
+          modalSize="compact"
+          appInfo={{ appName: 'COTI Wallet' }}
+        >
           {children}
         </RainbowKitProvider>
       </QueryClientProvider>
