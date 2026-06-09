@@ -5,7 +5,7 @@ import { useSnap } from './useSnap';
 import type { WalletTypeInfo } from './useWalletType';
 import { CotiPluginError, CotiErrorCode } from '../errors';
 import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID } from '../config/chains';
-import { muteChainUpdates, unmuteChainUpdates } from '../lib/chainMute';
+import { muteChainUpdates, unmuteChainUpdates, isChainUpdatesMuted } from '../lib/chainMute';
 
 /**
  * Regex pattern for validating AES key format: 32 or 64 hexadecimal characters.
@@ -179,7 +179,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           console.log('✅ AES key retrieved successfully:', aesKey?.length, 'characters');
         }
 
-        // Switch wallet back to original chain and unmute
+        // Switch wallet back to original chain (unmute happens in finally)
         if (!isCotiChain && originalChainHex) {
           console.log('🔇 [AesKeyProvider] Switching back to:', originalChainHex);
           try {
@@ -190,12 +190,23 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           } catch {
             console.warn('⚠️ [AesKeyProvider] Could not switch back to original chain');
           }
-          unmuteChainUpdates();
-          console.log('🔊 [AesKeyProvider] Chain updates unmuted');
         }
 
         return aesKey;
       } catch (error: unknown) {
+        // On error, attempt to switch wallet back to the original chain
+        if (connectedChainId !== COTI_MAINNET_CHAIN_ID && connectedChainId !== COTI_TESTNET_CHAIN_ID && connectedChainId) {
+          try {
+            const wp = await connector.getProvider() as any;
+            await wp?.request({
+              method: 'wallet_switchEthereumChain',
+              params: [{ chainId: '0x' + connectedChainId.toString(16) }],
+            });
+          } catch {
+            console.warn('⚠️ [AesKeyProvider] Could not restore original chain after error');
+          }
+        }
+
         // EIP-1193 error code 4001: user rejected the signature request
         if (isUserRejection(error)) {
           return null;
@@ -208,6 +219,12 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         console.error('❌ Onboarding contract AES key retrieval failed:', error);
         return null;
       } finally {
+        // Always unmute (after a delay so the switch-back chainChanged event is ignored).
+        if (isChainUpdatesMuted()) {
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          unmuteChainUpdates();
+          console.log('🔊 [AesKeyProvider] Chain updates unmuted');
+        }
         setIsOnboarding(false);
       }
     },
