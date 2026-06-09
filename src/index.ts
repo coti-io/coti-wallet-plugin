@@ -95,3 +95,7 @@ export type { CrossChainTokenConfig } from './config/crossChainTokens';
 export { ethereumMainnet, ETHEREUM_MAINNET_CHAIN_ID, ETHEREUM_MAINNET_RPC } from './config/chains';
 
 
+
+
+// Chain mute utilities (for suppressing UI reactions during cross-chain onboarding)
+export { muteChainUpdates, unmuteChainUpdates, isChainUpdatesMuted } from './lib/chainMute';

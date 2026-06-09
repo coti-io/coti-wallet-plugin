@@ -5,6 +5,7 @@ import { useSnap } from './useSnap';
 import type { WalletTypeInfo } from './useWalletType';
 import { CotiPluginError, CotiErrorCode } from '../errors';
 import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID } from '../config/chains';
+import { muteChainUpdates, unmuteChainUpdates } from '../lib/chainMute';
 
 /**
  * Regex pattern for validating AES key format: 32 or 64 hexadecimal characters.
@@ -112,16 +113,6 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
       try {
         setIsOnboarding(true);
 
-        // Onboarding requires sending a transaction to the COTI onboard contract.
-        // This only works when the wallet is on a COTI chain (Testnet or Mainnet).
-        // If on a non-COTI chain (e.g. Sepolia), reject with a clear message so
-        // the UI can show the manual AES key input instead.
-        const isCotiChain = connectedChainId === COTI_MAINNET_CHAIN_ID || connectedChainId === COTI_TESTNET_CHAIN_ID;
-        if (!isCotiChain) {
-          setOnboardingError('ONBOARD_REQUIRES_COTI_CHAIN');
-          return null;
-        }
-
         // Get the EIP-1193 provider from the wagmi connector
         const walletProvider = await connector.getProvider() as any;
         if (!walletProvider) {
@@ -129,26 +120,79 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           return null;
         }
 
-        // Create a @coti-io/coti-ethers BrowserProvider from the EIP-1193 provider
-        const provider = new BrowserProvider(walletProvider);
+        // Determine if we need to switch to a COTI chain for onboarding
+        const isCotiChain = connectedChainId === COTI_MAINNET_CHAIN_ID || connectedChainId === COTI_TESTNET_CHAIN_ID;
+        const targetCotiChainHex = '0x' + COTI_TESTNET_CHAIN_ID.toString(16);
+        const originalChainHex = connectedChainId ? '0x' + connectedChainId.toString(16) : null;
 
-        // Get the signer for the connected address
+        // If not on COTI, mute UI chain reactions and switch provider-level
+        if (!isCotiChain) {
+          console.log('🔇 [AesKeyProvider] Muting chain updates, switching to COTI Testnet for onboarding...');
+          muteChainUpdates();
+          try {
+            await walletProvider.request({
+              method: 'wallet_switchEthereumChain',
+              params: [{ chainId: targetCotiChainHex }],
+            });
+          } catch (switchErr: any) {
+            if (switchErr?.code === 4902) {
+              try {
+                await walletProvider.request({
+                  method: 'wallet_addEthereumChain',
+                  params: [{
+                    chainId: targetCotiChainHex,
+                    chainName: 'COTI Testnet',
+                    nativeCurrency: { name: 'COTI', symbol: 'COTI', decimals: 18 },
+                    rpcUrls: ['https://testnet.coti.io/rpc'],
+                    blockExplorerUrls: ['https://testnet.cotiscan.io'],
+                  }],
+                });
+              } catch {
+                unmuteChainUpdates();
+                setOnboardingError('Failed to add COTI Testnet to wallet.');
+                return null;
+              }
+            } else {
+              unmuteChainUpdates();
+              if (switchErr?.code === 4001) return null; // user rejected
+              setOnboardingError('Failed to switch to COTI Testnet for onboarding.');
+              return null;
+            }
+          }
+        }
+
+        // Create a @coti-io/coti-ethers BrowserProvider (now on COTI Testnet)
+        const provider = new BrowserProvider(walletProvider);
         const signer = await provider.getSigner(address);
 
-        // Call generateOrRecoverAes() — signs a message + sends tx on COTI
+        // Execute onboarding on COTI Testnet
         await signer.generateOrRecoverAes();
 
-        // Retrieve the AES key from the signer's onboard info
         const onboardInfo = signer.getUserOnboardInfo();
         const aesKey = onboardInfo?.aesKey ?? null;
 
         if (aesKey && !isValidAesKey(aesKey)) {
           console.warn('⚠️ AES key from onboard contract failed format validation');
           setOnboardingError('Retrieved AES key has invalid format');
-          return null;
+          // Still switch back before returning
+        } else {
+          console.log('✅ AES key retrieved successfully:', aesKey?.length, 'characters');
         }
 
-        console.log('✅ AES key retrieved successfully:', aesKey?.length, 'characters');
+        // Switch wallet back to original chain and unmute
+        if (!isCotiChain && originalChainHex) {
+          console.log('🔇 [AesKeyProvider] Switching back to:', originalChainHex);
+          try {
+            await walletProvider.request({
+              method: 'wallet_switchEthereumChain',
+              params: [{ chainId: originalChainHex }],
+            });
+          } catch {
+            console.warn('⚠️ [AesKeyProvider] Could not switch back to original chain');
+          }
+          unmuteChainUpdates();
+          console.log('🔊 [AesKeyProvider] Chain updates unmuted');
+        }
 
         return aesKey;
       } catch (error: unknown) {
