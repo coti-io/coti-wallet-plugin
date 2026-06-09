@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { useConnectorClient, useAccount, useSwitchChain } from 'wagmi';
+import { useConnectorClient, useAccount } from 'wagmi';
 import { BrowserProvider } from '@coti-io/coti-ethers';
 import { useSnap } from './useSnap';
 import type { WalletTypeInfo } from './useWalletType';
@@ -72,7 +72,6 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
   const { getAESKeyFromSnap } = useSnap();
   const { connector, chainId: connectedChainId } = useAccount();
   const { data: connectorClient } = useConnectorClient();
-  const { switchChainAsync } = useSwitchChain();
 
   const getAesKey = useCallback(
     async (address: string): Promise<string | null> => {
@@ -113,63 +112,84 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
       try {
         setIsOnboarding(true);
 
-        // Determine if we need to switch to a COTI chain for onboarding
-        const isCotiChain = connectedChainId === COTI_MAINNET_CHAIN_ID || connectedChainId === COTI_TESTNET_CHAIN_ID;
-        const originalChainId = connectedChainId;
-        const targetCotiChainId = COTI_TESTNET_CHAIN_ID;
-
-        // If not on a COTI chain, switch to COTI Testnet for onboarding
-        if (!isCotiChain) {
-          console.log('🔗 [AesKeyProvider] Not on COTI chain, switching to COTI Testnet for onboarding...');
-          try {
-            await switchChainAsync({ chainId: targetCotiChainId });
-            console.log('🔗 [AesKeyProvider] Switched to COTI Testnet');
-          } catch (switchErr) {
-            setOnboardingError('Failed to switch to COTI Testnet for onboarding. Please switch manually.');
-            return null;
-          }
-        }
-
-        // Get the EIP-1193 provider from the wagmi connector (now on COTI chain)
-        const walletProvider = await connector.getProvider();
+        // Get the EIP-1193 provider from the wagmi connector
+        const walletProvider = await connector.getProvider() as any;
         if (!walletProvider) {
           setOnboardingError('Could not get provider from wallet connector.');
           return null;
         }
 
-        // Create a @coti-io/coti-ethers BrowserProvider from the EIP-1193 provider
-        const provider = new BrowserProvider(walletProvider as any);
+        // Determine if we need to switch to a COTI chain for onboarding.
+        // The onboard contract only exists on COTI chains.
+        const isCotiChain = connectedChainId === COTI_MAINNET_CHAIN_ID || connectedChainId === COTI_TESTNET_CHAIN_ID;
+        const targetCotiChainHex = '0x' + COTI_TESTNET_CHAIN_ID.toString(16);
+        const originalChainHex = connectedChainId ? '0x' + connectedChainId.toString(16) : null;
+
+        // Switch wallet to COTI Testnet directly via provider (bypasses wagmi state)
+        if (!isCotiChain) {
+          console.log('🔗 [AesKeyProvider] Switching wallet to COTI Testnet for onboarding (provider-level, no UI change)...');
+          try {
+            await walletProvider.request({
+              method: 'wallet_switchEthereumChain',
+              params: [{ chainId: targetCotiChainHex }],
+            });
+          } catch (switchErr: any) {
+            // 4902 = chain not added
+            if (switchErr?.code === 4902) {
+              try {
+                await walletProvider.request({
+                  method: 'wallet_addEthereumChain',
+                  params: [{
+                    chainId: targetCotiChainHex,
+                    chainName: 'COTI Testnet',
+                    nativeCurrency: { name: 'COTI', symbol: 'COTI', decimals: 18 },
+                    rpcUrls: ['https://testnet.coti.io/rpc'],
+                    blockExplorerUrls: ['https://testnet.cotiscan.io'],
+                  }],
+                });
+              } catch {
+                setOnboardingError('Failed to add COTI Testnet to wallet. Please add it manually.');
+                return null;
+              }
+            } else if (switchErr?.code === 4001) {
+              // User rejected
+              return null;
+            } else {
+              setOnboardingError('Failed to switch to COTI Testnet for onboarding.');
+              return null;
+            }
+          }
+        }
+
+        // Create a @coti-io/coti-ethers BrowserProvider (now pointing to COTI Testnet)
+        const provider = new BrowserProvider(walletProvider);
 
         // Get the signer for the connected address
         const signer = await provider.getSigner(address);
 
-        // Call generateOrRecoverAes() — this triggers a wallet signature request
+        // Call generateOrRecoverAes() — signs a message + sends tx on COTI Testnet
         await signer.generateOrRecoverAes();
 
         // Retrieve the AES key from the signer's onboard info
         const onboardInfo = signer.getUserOnboardInfo();
         const aesKey = onboardInfo?.aesKey ?? null;
 
-        console.log('🔍 DEBUG: Retrieved AES key from onboard contract:', {
-          length: aesKey?.length,
-          hasPrefix: aesKey?.startsWith('0x'),
-        });
-
         if (aesKey && !isValidAesKey(aesKey)) {
           console.warn('⚠️ AES key from onboard contract failed format validation');
-          console.warn('Expected: 32 or 64 hex characters (without 0x prefix)');
-          console.warn('Received key length:', aesKey?.length);
           setOnboardingError('Retrieved AES key has invalid format');
           return null;
         }
 
-        console.log('✅ AES key validation passed:', aesKey?.length, 'characters');
+        console.log('✅ AES key retrieved successfully:', aesKey?.length, 'characters');
 
-        // Switch back to original chain if we switched away
-        if (!isCotiChain && originalChainId) {
-          console.log('🔗 [AesKeyProvider] Switching back to original chain:', originalChainId);
+        // Switch wallet back to original chain (provider-level, no wagmi state change)
+        if (!isCotiChain && originalChainHex) {
+          console.log('🔗 [AesKeyProvider] Switching wallet back to:', originalChainHex);
           try {
-            await switchChainAsync({ chainId: originalChainId });
+            await walletProvider.request({
+              method: 'wallet_switchEthereumChain',
+              params: [{ chainId: originalChainHex }],
+            });
           } catch {
             console.warn('⚠️ [AesKeyProvider] Could not switch back to original chain');
           }
@@ -192,7 +212,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         setIsOnboarding(false);
       }
     },
-    [walletTypeInfo.isMetaMaskWithSnap, getAESKeyFromSnap, connector, connectedChainId, switchChainAsync]
+    [walletTypeInfo.isMetaMaskWithSnap, getAESKeyFromSnap, connector, connectedChainId]
   );
 
   return {
