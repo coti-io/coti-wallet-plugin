@@ -112,6 +112,16 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
       try {
         setIsOnboarding(true);
 
+        // Onboarding requires sending a transaction to the COTI onboard contract.
+        // This only works when the wallet is on a COTI chain (Testnet or Mainnet).
+        // If on a non-COTI chain (e.g. Sepolia), reject with a clear message so
+        // the UI can show the manual AES key input instead.
+        const isCotiChain = connectedChainId === COTI_MAINNET_CHAIN_ID || connectedChainId === COTI_TESTNET_CHAIN_ID;
+        if (!isCotiChain) {
+          setOnboardingError('ONBOARD_REQUIRES_COTI_CHAIN');
+          return null;
+        }
+
         // Get the EIP-1193 provider from the wagmi connector
         const walletProvider = await connector.getProvider() as any;
         if (!walletProvider) {
@@ -119,55 +129,13 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           return null;
         }
 
-        // Determine if we need to switch to a COTI chain for onboarding.
-        // The onboard contract only exists on COTI chains.
-        const isCotiChain = connectedChainId === COTI_MAINNET_CHAIN_ID || connectedChainId === COTI_TESTNET_CHAIN_ID;
-        const targetCotiChainHex = '0x' + COTI_TESTNET_CHAIN_ID.toString(16);
-        const originalChainHex = connectedChainId ? '0x' + connectedChainId.toString(16) : null;
-
-        // Switch wallet to COTI Testnet directly via provider (bypasses wagmi state)
-        if (!isCotiChain) {
-          console.log('🔗 [AesKeyProvider] Switching wallet to COTI Testnet for onboarding (provider-level, no UI change)...');
-          try {
-            await walletProvider.request({
-              method: 'wallet_switchEthereumChain',
-              params: [{ chainId: targetCotiChainHex }],
-            });
-          } catch (switchErr: any) {
-            // 4902 = chain not added
-            if (switchErr?.code === 4902) {
-              try {
-                await walletProvider.request({
-                  method: 'wallet_addEthereumChain',
-                  params: [{
-                    chainId: targetCotiChainHex,
-                    chainName: 'COTI Testnet',
-                    nativeCurrency: { name: 'COTI', symbol: 'COTI', decimals: 18 },
-                    rpcUrls: ['https://testnet.coti.io/rpc'],
-                    blockExplorerUrls: ['https://testnet.cotiscan.io'],
-                  }],
-                });
-              } catch {
-                setOnboardingError('Failed to add COTI Testnet to wallet. Please add it manually.');
-                return null;
-              }
-            } else if (switchErr?.code === 4001) {
-              // User rejected
-              return null;
-            } else {
-              setOnboardingError('Failed to switch to COTI Testnet for onboarding.');
-              return null;
-            }
-          }
-        }
-
-        // Create a @coti-io/coti-ethers BrowserProvider (now pointing to COTI Testnet)
+        // Create a @coti-io/coti-ethers BrowserProvider from the EIP-1193 provider
         const provider = new BrowserProvider(walletProvider);
 
         // Get the signer for the connected address
         const signer = await provider.getSigner(address);
 
-        // Call generateOrRecoverAes() — signs a message + sends tx on COTI Testnet
+        // Call generateOrRecoverAes() — signs a message + sends tx on COTI
         await signer.generateOrRecoverAes();
 
         // Retrieve the AES key from the signer's onboard info
@@ -181,19 +149,6 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         }
 
         console.log('✅ AES key retrieved successfully:', aesKey?.length, 'characters');
-
-        // Switch wallet back to original chain (provider-level, no wagmi state change)
-        if (!isCotiChain && originalChainHex) {
-          console.log('🔗 [AesKeyProvider] Switching wallet back to:', originalChainHex);
-          try {
-            await walletProvider.request({
-              method: 'wallet_switchEthereumChain',
-              params: [{ chainId: originalChainHex }],
-            });
-          } catch {
-            console.warn('⚠️ [AesKeyProvider] Could not switch back to original chain');
-          }
-        }
 
         return aesKey;
       } catch (error: unknown) {
