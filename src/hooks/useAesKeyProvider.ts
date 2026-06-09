@@ -1,9 +1,10 @@
 import { useState, useCallback } from 'react';
-import { useConnectorClient, useAccount } from 'wagmi';
+import { useConnectorClient, useAccount, useSwitchChain } from 'wagmi';
 import { BrowserProvider } from '@coti-io/coti-ethers';
 import { useSnap } from './useSnap';
 import type { WalletTypeInfo } from './useWalletType';
 import { CotiPluginError, CotiErrorCode } from '../errors';
+import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID } from '../config/chains';
 
 /**
  * Regex pattern for validating AES key format: 32 or 64 hexadecimal characters.
@@ -69,8 +70,9 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
   const [onboardingError, setOnboardingError] = useState<string | null>(null);
 
   const { getAESKeyFromSnap } = useSnap();
-  const { connector } = useAccount();
+  const { connector, chainId: connectedChainId } = useAccount();
   const { data: connectorClient } = useConnectorClient();
+  const { switchChainAsync } = useSwitchChain();
 
   const getAesKey = useCallback(
     async (address: string): Promise<string | null> => {
@@ -111,7 +113,24 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
       try {
         setIsOnboarding(true);
 
-        // Get the EIP-1193 provider from the wagmi connector (not the transport)
+        // Determine if we need to switch to a COTI chain for onboarding
+        const isCotiChain = connectedChainId === COTI_MAINNET_CHAIN_ID || connectedChainId === COTI_TESTNET_CHAIN_ID;
+        const originalChainId = connectedChainId;
+        const targetCotiChainId = COTI_TESTNET_CHAIN_ID;
+
+        // If not on a COTI chain, switch to COTI Testnet for onboarding
+        if (!isCotiChain) {
+          console.log('🔗 [AesKeyProvider] Not on COTI chain, switching to COTI Testnet for onboarding...');
+          try {
+            await switchChainAsync({ chainId: targetCotiChainId });
+            console.log('🔗 [AesKeyProvider] Switched to COTI Testnet');
+          } catch (switchErr) {
+            setOnboardingError('Failed to switch to COTI Testnet for onboarding. Please switch manually.');
+            return null;
+          }
+        }
+
+        // Get the EIP-1193 provider from the wagmi connector (now on COTI chain)
         const walletProvider = await connector.getProvider();
         if (!walletProvider) {
           setOnboardingError('Could not get provider from wallet connector.');
@@ -146,6 +165,16 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
 
         console.log('✅ AES key validation passed:', aesKey?.length, 'characters');
 
+        // Switch back to original chain if we switched away
+        if (!isCotiChain && originalChainId) {
+          console.log('🔗 [AesKeyProvider] Switching back to original chain:', originalChainId);
+          try {
+            await switchChainAsync({ chainId: originalChainId });
+          } catch {
+            console.warn('⚠️ [AesKeyProvider] Could not switch back to original chain');
+          }
+        }
+
         return aesKey;
       } catch (error: unknown) {
         // EIP-1193 error code 4001: user rejected the signature request
@@ -163,7 +192,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         setIsOnboarding(false);
       }
     },
-    [walletTypeInfo.isMetaMaskWithSnap, getAESKeyFromSnap, connector]
+    [walletTypeInfo.isMetaMaskWithSnap, getAESKeyFromSnap, connector, connectedChainId, switchChainAsync]
   );
 
   return {
