@@ -3,6 +3,7 @@ import { ethers } from 'ethers';
 import { getPluginConfig } from '../config/plugin';
 import { getEthereumProvider } from '../lib/ethereum';
 import { CotiPluginError, CotiErrorCode } from '../errors';
+import { isChainUpdatesMuted } from '../lib/chainMute';
 
 // Constants for COTI Networks
 const COTI_MAINNET_ID = '0x282b34'; // 2632500
@@ -242,6 +243,13 @@ export const useMetamask = ({
             };
 
             const handleChainChanged = () => {
+                // Skip reload if chain updates are muted (cross-chain onboarding in progress).
+                // The onboarding flow temporarily switches to COTI and back; reloading would
+                // disrupt the UI and lose the onboarding state.
+                if (isChainUpdatesMuted()) {
+                    console.log('🔇 [useMetamask] chainChanged ignored (muted for onboarding)');
+                    return;
+                }
                 window.location.reload();
             };
 
