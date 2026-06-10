@@ -5,6 +5,7 @@ import { getRpcUrlForChainId } from '../config/chains';
 import type { Token } from './usePrivacyBridge';
 import { formatTokenBalanceDisplay } from '../lib/utils';
 import { CotiPluginError, CotiErrorCode } from '../errors';
+import { logger } from '../lib/logger';
 
 interface UseBalanceUpdaterProps {
     setWalletAddress: (address: string) => void;
@@ -92,7 +93,7 @@ export const useBalanceUpdater = ({
                     }
                 }));
 
-                console.log('✅ Updating public tokens list');
+                logger.log('✅ Updating public tokens list');
                 setPublicTokens(publicTokenConfigs.map((token, index) => ({
                     symbol: token.symbol,
                     name: token.name,
@@ -120,7 +121,7 @@ export const useBalanceUpdater = ({
                         if (aesKey) {
                             if (!sessionAesKey) setHasSnap(true);
 
-                            console.log('🔄 Fetching private balances...');
+                            logger.log('🔄 Fetching private balances...');
 
                             const privateTokenConfigs = getPrivateTokensForChain(currentChainId);
 
@@ -140,7 +141,7 @@ export const useBalanceUpdater = ({
                                         msg.includes('ACCOUNT_NOT_ONBOARDED') ||
                                         msg.includes('implausible decrypted balance');
                                     if (isMismatch) {
-                                        console.warn(`⚠️ Private token decrypt mismatch for ${tokenAddress}. Falling back to 0.`);
+                                        logger.warn(`⚠️ Private token decrypt mismatch for ${tokenAddress}. Falling back to 0.`);
                                         return { symbol: token.symbol, value: '0', isMismatch: true };
                                     }
                                     throw e;
@@ -154,7 +155,7 @@ export const useBalanceUpdater = ({
                                 throw new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch: Error decrypting. Re-onboarding required.');
                             }
 
-                            console.log('🔐 Updating private tokens list');
+                            logger.log('🔐 Updating private tokens list');
                             setPrivateTokens(privateTokenConfigs.map(token => {
                                 const result = privateFetches.find(r => r.symbol === token.symbol);
                                 return {
@@ -169,11 +170,11 @@ export const useBalanceUpdater = ({
                             }));
                             return true;
                         } else {
-                            console.log('ℹ️ Snap available but keys missing/rejected.');
+                            logger.log('ℹ️ Snap available but keys missing/rejected.');
                             return false;
                         }
                     } catch (privateError: any) {
-                        console.warn('⚠️ Could not fetch/decrypt private balance on load:', privateError);
+                        logger.warn('⚠️ Could not fetch/decrypt private balance on load:', privateError);
                         if (privateError instanceof CotiPluginError) {
                             throw privateError;
                         }
@@ -183,7 +184,7 @@ export const useBalanceUpdater = ({
             }
             return true;
         } catch (error: any) {
-            console.error('Error updating account state:', error);
+            logger.error('Error updating account state:', error);
             if (error instanceof CotiPluginError) {
                 throw error;
             }

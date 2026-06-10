@@ -2,6 +2,10 @@
 export { configureCotiPlugin, getPluginConfig } from './config/plugin';
 export type { CotiPluginConfig } from './config/plugin';
 
+// Logging — silent by default, opt in via configureCotiPlugin({ debug: true })
+export { logger, setDebugLogging } from './lib/logger';
+export type { Logger } from './lib/logger';
+
 // Errors
 export { CotiPluginError, CotiErrorCode, isCotiPluginError, hasCotiErrorCode } from './errors';
 

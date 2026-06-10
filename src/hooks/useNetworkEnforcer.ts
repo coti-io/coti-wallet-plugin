@@ -1,4 +1,5 @@
 import { useEffect, useCallback, useState } from 'react';
+import { logger } from '../lib/logger';
 import { useSwitchChain, useAccount } from 'wagmi';
 import { getPluginConfig } from '../config/plugin';
 import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID } from '../config/chains';
@@ -109,7 +110,7 @@ export const useNetworkEnforcer = (
       const targetHex = '0x' + targetChainId.toString(16);
 
       if (currentChainIdHex.toLowerCase() !== targetHex.toLowerCase()) {
-        console.warn(
+        logger.warn(
           `[NetworkEnforcer] MetaMask on wrong network: ${currentChainIdHex}. Enforcing: ${targetHex}`
         );
         try {
@@ -122,7 +123,7 @@ export const useNetworkEnforcer = (
             setNetworkMismatchWarning(null);
           }
         } catch (err) {
-          console.error('[NetworkEnforcer] MetaMask switch error:', err);
+          logger.error('[NetworkEnforcer] MetaMask switch error:', err);
           setNetworkMismatchWarning(
             'Failed to switch network. Please switch to a COTI network manually.'
           );
@@ -133,14 +134,14 @@ export const useNetworkEnforcer = (
       if (!chain) return;
 
       if (!isCotiChain(chain.id)) {
-        console.warn(
+        logger.warn(
           `[NetworkEnforcer] Non-MetaMask wallet on wrong network: ${chain.id}. Enforcing: ${targetChainId}`
         );
         try {
           switchChain({ chainId: targetChainId });
           setNetworkMismatchWarning(null);
         } catch (err) {
-          console.error('[NetworkEnforcer] wagmi switchChain error:', err);
+          logger.error('[NetworkEnforcer] wagmi switchChain error:', err);
           setNetworkMismatchWarning(
             'Network switch was rejected. Please switch to a COTI network to continue.'
           );

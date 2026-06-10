@@ -6,6 +6,7 @@ import { MetaMaskInpageProvider } from '@metamask/providers';
 import { getPluginConfig } from '../config/plugin';
 import { getEthereumProvider } from '../lib/ethereum';
 import { CotiPluginError, CotiErrorCode } from '../errors';
+import { logger } from '../lib/logger';
 
 /**
  * Custom hook that manages the entire lifecycle of the Coti Snap integration.
@@ -60,7 +61,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
             }
         } catch {
             // window.ethereum access can throw if property is in a broken state
-            console.warn('⚠️ window.ethereum access failed');
+            logger.warn('⚠️ window.ethereum access failed');
         }
         return null;
     };
@@ -77,11 +78,11 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
         try {
             const clientVersion = await provider.request({ method: 'web3_clientVersion' });
             const isFlaskDetected = (clientVersion as string).includes('flask');
-            console.log(`🦊 Client Version: ${clientVersion} (Flask: ${isFlaskDetected})`);
+            logger.log(`🦊 Client Version: ${clientVersion} (Flask: ${isFlaskDetected})`);
             isFlask.current = isFlaskDetected;
             return isFlaskDetected;
         } catch (e) {
-            console.warn('⚠️ Failed to check client version', e);
+            logger.warn('⚠️ Failed to check client version', e);
             return false;
         }
     }, []);
@@ -95,38 +96,38 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
     const isSnapInstalled = useCallback(async (): Promise<boolean> => {
         const provider = getProvider();
         if (!provider) {
-            console.log('❌ isSnapInstalled: No window.ethereum');
+            logger.log('❌ isSnapInstalled: No window.ethereum');
             return false;
         }
 
         try {
             await detectFlask();
 
-            console.log('🕵️‍♀️ requesting wallet_getSnaps...');
+            logger.log('🕵️‍♀️ requesting wallet_getSnaps...');
             const snaps = (await provider.request({ method: 'wallet_getSnaps' })) as Record<string, any>;
-            console.log('🕵️‍♀️ wallet_getSnaps result:', JSON.stringify(snaps, null, 2));
+            logger.log('🕵️‍♀️ wallet_getSnaps result:', JSON.stringify(snaps, null, 2));
 
             const snapInfo = Object.values(snaps).find(
                 (snap: any) => snap.id === snapId
             ) || (snapId in snaps);
 
             if (snapInfo) {
-                console.log(`✅ Snap found and connected: ${snapId}`);
+                logger.log(`✅ Snap found and connected: ${snapId}`);
                 return true;
             }
 
             // Snap not visible — either not installed or installed but not connected to this origin.
             // We cannot distinguish without showing a MetaMask dialog.
             // Return false and let the UI guide the user.
-            console.log(`ℹ️ Snap ${snapId} not visible via wallet_getSnaps.`);
+            logger.log(`ℹ️ Snap ${snapId} not visible via wallet_getSnaps.`);
             return false;
         } catch (error: any) {
             // -32601 means the wallet doesn't support wallet_getSnaps (Rabby, Trust, etc.)
             if (error?.code === -32601) {
-                console.log('ℹ️ Wallet does not support wallet_getSnaps (non-MetaMask wallet). Snap unavailable.');
+                logger.log('ℹ️ Wallet does not support wallet_getSnaps (non-MetaMask wallet). Snap unavailable.');
                 return false;
             }
-            console.error('❌ Error checking snap connection:', error);
+            logger.error('❌ Error checking snap connection:', error);
             return false;
         }
     }, [snapId, detectFlask]);
@@ -139,29 +140,29 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
     const connectToSnap = useCallback(async (): Promise<boolean> => {
         const provider = getProvider();
         if (!provider) {
-            console.log('❌ No window.ethereum available');
+            logger.log('❌ No window.ethereum available');
             return false;
         }
 
         try {
-            console.log('🔌 Requesting permission to connect to COTI Snap...');
+            logger.log('🔌 Requesting permission to connect to COTI Snap...');
             await provider.request({
                 method: 'wallet_requestSnaps',
                 params: {
                     [snapId]: {}
                 }
             });
-            console.log('✅ Connected to COTI Snap');
+            logger.log('✅ Connected to COTI Snap');
             if (setSnapError) setSnapError(null);
             return true;
         } catch (error: any) {
             // Non-MetaMask wallets don't support wallet_requestSnaps
             if (error?.code === -32601) {
-                console.log('ℹ️ Wallet does not support wallet_requestSnaps (non-MetaMask wallet).');
+                logger.log('ℹ️ Wallet does not support wallet_requestSnaps (non-MetaMask wallet).');
                 if (setSnapError) setSnapError('Snap is only available with MetaMask.');
                 return false;
             }
-            console.error('❌ Failed to connect to snap:', error.message);
+            logger.error('❌ Failed to connect to snap:', error.message);
             if (setSnapError) {
                 if (!isFlask.current) {
                     setSnapError('MetaMask Flask is required for this Snap.');
@@ -188,13 +189,13 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
         const installed = await isSnapInstalled();
 
         if (installed) {
-            console.log('✅ Snap is installed. Attempting to retrieve key...');
+            logger.log('✅ Snap is installed. Attempting to retrieve key...');
             const success = await onSnapFound();
             if (!success) {
-                console.log('⚠️ Snap installed but key retrieval failed/cancelled. Banner handles error.');
+                logger.log('⚠️ Snap installed but key retrieval failed/cancelled. Banner handles error.');
             }
         } else {
-            console.log('ℹ️ Snap NOT installed/detected. Setting info banner.');
+            logger.log('ℹ️ Snap NOT installed/detected. Setting info banner.');
             if (setSnapError) {
                 // Customized message based on detection
                 if (!isFlask.current) {
@@ -215,18 +216,18 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
 
         // Return cached key if available
         if (globalAESKeyCache[accountAddress.toLowerCase()]) {
-            console.log('🔑 Returning globally cached AES key');
+            logger.log('🔑 Returning globally cached AES key');
             return globalAESKeyCache[accountAddress.toLowerCase()];
         }
 
         if (isSnapRequestPending.current) {
-            console.log('⏳ Snap request already pending, skipping concurrent call.');
+            logger.log('⏳ Snap request already pending, skipping concurrent call.');
             return null;
         }
 
         const provider = getProvider();
         if (!provider) {
-            console.log('❌ No window.ethereum available');
+            logger.log('❌ No window.ethereum available');
             return null;
         }
 
@@ -234,7 +235,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
         // If snap is not visible, show snap_missing modal immediately.
         const installed = await isSnapInstalled();
         if (!installed) {
-            console.log('❌ Snap not visible via wallet_getSnaps. Showing snap_missing modal.');
+            logger.log('❌ Snap not visible via wallet_getSnaps. Showing snap_missing modal.');
             throw new CotiPluginError(CotiErrorCode.SNAP_CONNECT_FAILED, 'COTI Snap is not installed or not connected to this origin');
         }
 
@@ -242,7 +243,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
         // Since snap is already installed, this will NOT show an install dialog.
         const connected = await connectToSnap();
         if (!connected) {
-            console.log('❌ Could not connect to snap');
+            logger.log('❌ Could not connect to snap');
             if (setSnapError) setSnapError('Failed to connect to Snap');
             return null;
         }
@@ -255,7 +256,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
 
         try {
             isSnapRequestPending.current = true;
-            console.log('🔑 Requesting AES key from COTI Snap...');
+            logger.log('🔑 Requesting AES key from COTI Snap...');
 
             // Fetch ChainID for explicit context
             const chainIdHex = await provider.request({ method: 'eth_chainId' }) as string;
@@ -277,7 +278,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
                     const rawChainId = parseInt(rawChainIdHex, 16);
                     const cotiChainId = rawChainId === COTI_MAINNET_ID ? COTI_MAINNET_ID : COTI_TESTNET_ID;
 
-                    console.log(`🔑 Requesting AES key for COTI chainId: ${cotiChainId} (wallet chainId: ${rawChainId})`);
+                    logger.log(`🔑 Requesting AES key for COTI chainId: ${cotiChainId} (wallet chainId: ${rawChainId})`);
 
                     // Directly request the key (User preference to force fetch)
                     // Explicitly passing chainId to bypass sync state issues
@@ -292,15 +293,15 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
                         }
                     });
 
-                    console.log('🔍 wallet_invokeSnap: key received, length:', (key as string)?.length);
+                    logger.log('🔍 wallet_invokeSnap: key received, length:', (key as string)?.length);
 
                     if (!key) {
-                        console.warn('⚠️ Snap returned null (User likely rejected).');
+                        logger.warn('⚠️ Snap returned null (User likely rejected).');
                         // Throw specific error so we don't trigger "Missing Key" onboarding flow
                         throw new CotiPluginError(CotiErrorCode.SNAP_DIALOG_REJECTED, 'User rejected Snap dialog');
                     }
 
-                    console.log('✅ AES key received from snap');
+                    logger.log('✅ AES key received from snap');
                     
                     globalAESKeyCache[accountAddress.toLowerCase()] = key as string; // Update Cache
                     return key as string;
@@ -309,11 +310,11 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
                     lastError = error;
 
                     if (error.message?.includes('No account connected') && retries > 1) {
-                        console.log(`⏳ Account not ready, retrying... (${retries - 1} attempts left)`);
+                        logger.log(`⏳ Account not ready, retrying... (${retries - 1} attempts left)`);
                         await new Promise(resolve => setTimeout(resolve, 1000));
                         retries--;
                     } else {
-                        console.error('❌ Error during Snap interaction:', error);
+                        logger.error('❌ Error during Snap interaction:', error);
                         throw error;
                     }
                 }
@@ -321,7 +322,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
 
             throw lastError;
         } catch (error: any) {
-            console.error('❌ Failed to get AES key from snap:', error.message);
+            logger.error('❌ Failed to get AES key from snap:', error.message);
 
             // RETHROW if it's the specific missing key error so upstream can handle onboarding
             // Also rethrow SNAP_DIALOG_REJECTED so Index.tsx can show the AES Key Missing modal
@@ -343,7 +344,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
         const provider = getProvider();
         if (!provider) return false;
         try {
-            console.log('💾 Saving AES key to Snap...');
+            logger.log('💾 Saving AES key to Snap...');
             await provider.request({
                 method: 'wallet_invokeSnap',
                 params: {
@@ -354,12 +355,12 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
                     }
                 }
             });
-            console.log('✅ AES key saved to Snap successfully');
+            logger.log('✅ AES key saved to Snap successfully');
             globalAESKeyCache[accountAddress.toLowerCase()] = key; // Update Cache
             if (setSnapError) setSnapError(null);
             return true;
         } catch (err: any) {
-            console.error('❌ Failed to save AES key to Snap:', err);
+            logger.error('❌ Failed to save AES key to Snap:', err);
             return false;
         }
     }, [setSnapError, snapId]);
@@ -373,7 +374,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
      * This forces the next unlock request to go back to the Snap or Onboarding flow.
      */
     const clearSnapCache = useCallback(() => {
-        console.log('🧹 Clearing global AES key cache');
+        logger.log('🧹 Clearing global AES key cache');
         globalAESKeyCache = {};
     }, []);
 
@@ -397,7 +398,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
             const environment = chainId === COTI_MAINNET_ID ? 'mainnet' : 'testnet';
             const cotiChainId = chainId === COTI_MAINNET_ID ? COTI_MAINNET_ID : COTI_TESTNET_ID;
 
-            console.log(`🌍 Syncing Snap Environment to: ${environment} (requested ChainID: ${chainId} → COTI ChainID: ${cotiChainId})`);
+            logger.log(`🌍 Syncing Snap Environment to: ${environment} (requested ChainID: ${chainId} → COTI ChainID: ${cotiChainId})`);
 
             await provider.request({
                 method: 'wallet_invokeSnap',
@@ -409,9 +410,9 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
                     }
                 }
             });
-            console.log('✅ Snap Environment Synced');
+            logger.log('✅ Snap Environment Synced');
         } catch (error) {
-            console.warn('⚠️ Failed to sync Snap environment:', error);
+            logger.warn('⚠️ Failed to sync Snap environment:', error);
             // Non-critical, but good to know
         }
     }, [snapId]);
@@ -433,21 +434,21 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
      */
     const handleManualOnboarding = useCallback(async (): Promise<string | null> => {
         try {
-            console.log("🚀 Starting manual onboarding flow...");
+            logger.log("🚀 Starting manual onboarding flow...");
             const key = await onboardUser();
 
             if (key && key !== "PENDING") {
-                console.log("🔑 Key recovered from SDK:", key);
+                logger.log("🔑 Key recovered from SDK:", key);
                 // Persist to Snap immediately
                 await saveAESKeyToSnap(key);
 
-                console.log("✅ Onboarding flow finished.");
+                logger.log("✅ Onboarding flow finished.");
 
                 return key;
             }
             return null;
         } catch (e: any) {
-            console.error("❌ Manual Onboarding failed:", e);
+            logger.error("❌ Manual Onboarding failed:", e);
             alert(`Onboarding Failed: ${e.message}`);
             if (setSnapError) setSnapError(`Onboarding Failed: ${e.message}`);
             return null;
@@ -460,32 +461,32 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
      */
     const handleKeyVerification = useCallback(async (): Promise<void> => {
         try {
-            console.log("🔍 STARTING KEY VERIFICATION...");
-            console.log("1️⃣  Fetching AES Key from Snap Storage...");
+            logger.log("🔍 STARTING KEY VERIFICATION...");
+            logger.log("1️⃣  Fetching AES Key from Snap Storage...");
             const snapKey = await getAESKeyFromSnap('');
-            console.log("   -> Snap Key length:", snapKey?.length);
+            logger.log("   -> Snap Key length:", snapKey?.length);
 
-            console.log("2️⃣  Computing AES Key from Network (generateOrRecoverAes)...");
-            console.log("   (Please sign the message in MetaMask)");
+            logger.log("2️⃣  Computing AES Key from Network (generateOrRecoverAes)...");
+            logger.log("   (Please sign the message in MetaMask)");
 
             const netKey = await onboardUser();
-            console.log("   -> Network Key length:", (netKey as string)?.length);
+            logger.log("   -> Network Key length:", (netKey as string)?.length);
 
-            console.log("3️⃣  COMPARISON RESULT:");
+            logger.log("3️⃣  COMPARISON RESULT:");
             const match = snapKey === netKey;
-            console.log(`   MATCH: ${match ? "✅ YES" : "❌ NO"}`);
+            logger.log(`   MATCH: ${match ? "✅ YES" : "❌ NO"}`);
 
             if (!match) {
-                console.error("CRITICAL MISMATCH DETECTED!");
-                console.error("Snap key and Network key do NOT match. You MUST Force Onboard to fix this.");
+                logger.error("CRITICAL MISMATCH DETECTED!");
+                logger.error("Snap key and Network key do NOT match. You MUST Force Onboard to fix this.");
                 alert(`MISMATCH DETECTED!\n\nKeys do NOT match. You must Force Onboard.`);
             } else {
-                console.log("✅ Keys match. Issues are likely elsewhere.");
+                logger.log("✅ Keys match. Issues are likely elsewhere.");
                 alert(`✅ MATCH!\n\nBoth Snap and Network agree.`);
             }
 
         } catch (e: any) {
-            console.error("❌ Key Verification Failed:", e);
+            logger.error("❌ Key Verification Failed:", e);
             alert(`Verification Failed: ${e.message}`);
         }
     }, [getAESKeyFromSnap]);

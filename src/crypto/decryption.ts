@@ -9,6 +9,7 @@ import { decryptUint, decryptUint256 } from '@coti-io/coti-sdk-typescript';
 import type { CtUint64, CtUint256 } from '../types/ciphertext';
 import { isCtUint256, isZeroCtUint256 } from '../types/ciphertext';
 import { normalizeAesKey } from './aesKey';
+import { logger } from '../lib/logger';
 
 /** Options for decryption behavior. */
 export interface DecryptionOptions {
@@ -113,7 +114,7 @@ export function decryptCtUint64(
 
     return decrypted;
   } catch (error) {
-    console.error(
+    logger.error(
       '[decryptCtUint64] failed:',
       error instanceof Error ? error.message : error,
     );
@@ -213,7 +214,7 @@ export function decryptCtUint256(
 
     return null;
   } catch (error) {
-    console.error(
+    logger.error(
       '[decryptCtUint256] failed:',
       error instanceof Error ? error.message : error,
     );

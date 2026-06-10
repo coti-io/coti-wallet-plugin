@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 import { BRIDGE_ABI, BRIDGE_ERC20_ABI, COTI_PRICE_CONSUMER_ABI, CONTRACT_ADDRESSES } from '../contracts/config';
 import { getRpcUrlForChainId } from '../config/chains';
+import { logger } from '../lib/logger';
 
 /**
  * Maps bridge token symbols to the `_base` argument of the COTI price consumer's
@@ -45,7 +46,7 @@ export async function fetchTokenUsdPrice(
 ): Promise<number | null> {
   const base = SYMBOL_TO_ORACLE_BASE[symbol];
   if (!base) {
-    console.warn(`No on-chain price mapping for symbol: ${symbol}`);
+    logger.warn(`No on-chain price mapping for symbol: ${symbol}`);
     return null;
   }
 
@@ -62,7 +63,7 @@ export async function fetchTokenUsdPrice(
     const decoded = err?.revert?.name === 'StaleOracleData'
       ? `oracle data stale (lastUpdated=${err.revert.args?.[0]}, threshold=${err.revert.args?.[1]})`
       : err?.shortMessage || err?.message || 'unknown error';
-    console.error(`Error fetching on-chain USD price for ${symbol}: ${decoded}`);
+    logger.error(`Error fetching on-chain USD price for ${symbol}: ${decoded}`);
     return null;
   }
 }
@@ -128,7 +129,7 @@ export async function fetchBridgeFees(
       withdrawMaxFee: ethers.formatEther(withdrawMaxFee),
     };
   } catch (err) {
-    console.error(`Error fetching fees for bridge ${bridgeAddress}:`, err);
+    logger.error(`Error fetching fees for bridge ${bridgeAddress}:`, err);
     return ERROR_FEES;
   }
 }
@@ -329,7 +330,7 @@ export async function simulateFeeOnChain(
 
     return { fee: feeFormatted, explanation };
   } catch (err) {
-    console.error('simulateFeeOnChain error:', err);
+    logger.error('simulateFeeOnChain error:', err);
     return { fee: '—', explanation: 'Contract call failed' };
   }
 }

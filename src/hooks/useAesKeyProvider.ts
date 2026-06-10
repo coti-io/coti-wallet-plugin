@@ -4,6 +4,7 @@ import { BrowserProvider } from '@coti-io/coti-ethers';
 import { useSnap } from './useSnap';
 import type { WalletTypeInfo } from './useWalletType';
 import { CotiPluginError, CotiErrorCode } from '../errors';
+import { logger } from '../lib/logger';
 import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID } from '../config/chains';
 import { muteChainUpdates, unmuteChainUpdates, isChainUpdatesMuted } from '../lib/chainMute';
 
@@ -84,7 +85,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         try {
           const key = await getAESKeyFromSnap(address);
           if (key && !isValidAesKey(key)) {
-            console.warn('⚠️ AES key from Snap failed format validation');
+            logger.warn('⚠️ AES key from Snap failed format validation');
             return null;
           }
           if (key) return key;
@@ -96,7 +97,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           }
           // SNAP_CONNECT_FAILED means snap is not available — fall through to contract onboarding
           if (error instanceof CotiPluginError && error.code === CotiErrorCode.SNAP_CONNECT_FAILED) {
-            console.log('ℹ️ Snap not available, falling back to onboard contract');
+            logger.log('ℹ️ Snap not available, falling back to onboard contract');
             // Fall through to Route 2
           } else {
             throw error;
@@ -127,7 +128,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
 
         // If not on COTI, mute UI chain reactions and switch provider-level
         if (!isCotiChain) {
-          console.log('🔇 [AesKeyProvider] Muting chain updates, switching to COTI Testnet for onboarding...');
+          logger.log('🔇 [AesKeyProvider] Muting chain updates, switching to COTI Testnet for onboarding...');
           muteChainUpdates();
           try {
             await walletProvider.request({
@@ -172,23 +173,23 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         const aesKey = onboardInfo?.aesKey ?? null;
 
         if (aesKey && !isValidAesKey(aesKey)) {
-          console.warn('⚠️ AES key from onboard contract failed format validation');
+          logger.warn('⚠️ AES key from onboard contract failed format validation');
           setOnboardingError('Retrieved AES key has invalid format');
           // Still switch back before returning
         } else {
-          console.log('✅ AES key retrieved successfully:', aesKey?.length, 'characters');
+          logger.log('✅ AES key retrieved successfully:', aesKey?.length, 'characters');
         }
 
         // Switch wallet back to original chain (unmute happens in finally)
         if (!isCotiChain && originalChainHex) {
-          console.log('🔇 [AesKeyProvider] Switching back to:', originalChainHex);
+          logger.log('🔇 [AesKeyProvider] Switching back to:', originalChainHex);
           try {
             await walletProvider.request({
               method: 'wallet_switchEthereumChain',
               params: [{ chainId: originalChainHex }],
             });
           } catch {
-            console.warn('⚠️ [AesKeyProvider] Could not switch back to original chain');
+            logger.warn('⚠️ [AesKeyProvider] Could not switch back to original chain');
           }
         }
 
@@ -203,7 +204,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
               params: [{ chainId: '0x' + connectedChainId.toString(16) }],
             });
           } catch {
-            console.warn('⚠️ [AesKeyProvider] Could not restore original chain after error');
+            logger.warn('⚠️ [AesKeyProvider] Could not restore original chain after error');
           }
         }
 
@@ -216,14 +217,14 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         const errorMessage =
           error instanceof Error ? error.message : 'Failed to retrieve AES key from onboarding contract';
         setOnboardingError(errorMessage);
-        console.error('❌ Onboarding contract AES key retrieval failed:', error);
+        logger.error('❌ Onboarding contract AES key retrieval failed:', error);
         return null;
       } finally {
         // Always unmute (after a delay so the switch-back chainChanged event is ignored).
         if (isChainUpdatesMuted()) {
           await new Promise(resolve => setTimeout(resolve, 1500));
           unmuteChainUpdates();
-          console.log('🔊 [AesKeyProvider] Chain updates unmuted');
+          logger.log('🔊 [AesKeyProvider] Chain updates unmuted');
         }
         setIsOnboarding(false);
       }

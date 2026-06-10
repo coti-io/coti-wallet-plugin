@@ -7,11 +7,18 @@ export interface CotiPluginConfig {
   snapId: string;
   /** If set, enforces a specific network chain ID (decimal string or hex). */
   defaultNetworkId?: string;
+  /**
+   * Enables verbose internal logging via the plugin logger.
+   * Disabled by default — the library is silent unless a consumer opts in.
+   * Even when enabled, secret material (AES keys, ciphertext, signatures) is never logged.
+   */
+  debug?: boolean;
 }
 
 let _config: CotiPluginConfig = {
   snapId: 'npm:@coti-io/coti-snap',
   defaultNetworkId: undefined,
+  debug: false,
 };
 
 /**

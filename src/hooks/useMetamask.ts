@@ -3,6 +3,7 @@ import { ethers } from 'ethers';
 import { getPluginConfig } from '../config/plugin';
 import { getEthereumProvider } from '../lib/ethereum';
 import { CotiPluginError, CotiErrorCode } from '../errors';
+import { logger } from '../lib/logger';
 import { isChainUpdatesMuted } from '../lib/chainMute';
 
 // Constants for COTI Networks
@@ -129,7 +130,7 @@ export const useMetamask = ({
                         });
                     } catch (retrySwitchError) {
                         // If this fails, MetaMask likely already switched during the add
-                        console.log('Network added successfully, proceeding.');
+                        logger.log('Network added successfully, proceeding.');
                     }
 
                     // Trigger callback
@@ -138,11 +139,11 @@ export const useMetamask = ({
                     }
                     return true;
                 } catch (addError) {
-                    console.error(`Failed to add ${networkConfig.chainName}:`, addError);
+                    logger.error(`Failed to add ${networkConfig.chainName}:`, addError);
                     return false;
                 }
             } else {
-                console.error('Failed to switch network:', switchError);
+                logger.error('Failed to switch network:', switchError);
                 return false;
             }
         }
@@ -184,10 +185,10 @@ export const useMetamask = ({
                         if (envDefaultNetwork) {
                             // STRICT MODE: If env var is set (CI/CD deployments), enforce that specific network
                             if (network.chainId !== BigInt(envDefaultNetwork)) {
-                                console.log(`Enforcing strict network switch to ${envDefaultNetwork}`);
+                                logger.log(`Enforcing strict network switch to ${envDefaultNetwork}`);
                                 const success = await switchNetwork(envDefaultNetwork);
                                 if (!success) {
-                                    console.error(`Failed to switch to required network (${envDefaultNetwork})`);
+                                    logger.error(`Failed to switch to required network (${envDefaultNetwork})`);
                                 }
                             }
                         } else { */
@@ -196,7 +197,7 @@ export const useMetamask = ({
                             if (network.chainId !== BigInt(COTI_MAINNET_ID) && network.chainId !== BigInt(COTI_TESTNET_ID) && network.chainId !== BigInt(SEPOLIA_ID)) {
                                 const success = await switchNetwork(COTI_MAINNET_ID);
                                 if (!success) {
-                                    console.error("Failed to switch to mainnet default");
+                                    logger.error("Failed to switch to mainnet default");
                                 }
                             }
                         } */
@@ -206,7 +207,7 @@ export const useMetamask = ({
                 await onConnect(accounts[0]);
             }
         } catch (error) {
-            console.error('Error connecting to MetaMask:', error);
+            logger.error('Error connecting to MetaMask:', error);
         }
     };
 
@@ -224,7 +225,7 @@ export const useMetamask = ({
                 await onNetworkChanged();
             }
         } catch (error) {
-            console.error('Error refreshing network state:', error);
+            logger.error('Error refreshing network state:', error);
         }
     }, [checkNetwork, onNetworkChanged]);
 
@@ -247,7 +248,7 @@ export const useMetamask = ({
                 // The onboarding flow temporarily switches to COTI and back; reloading would
                 // disrupt the UI and lose the onboarding state.
                 if (isChainUpdatesMuted()) {
-                    console.log('🔇 [useMetamask] chainChanged ignored (muted for onboarding)');
+                    logger.log('🔇 [useMetamask] chainChanged ignored (muted for onboarding)');
                     return;
                 }
                 window.location.reload();
@@ -258,17 +259,17 @@ export const useMetamask = ({
 
             // Check if already connected - ONLY ONCE
             if (!isInitialCheckDone.current) {
-                console.log('🔄 useMetamask: Performing initial eth_accounts check');
+                logger.log('🔄 useMetamask: Performing initial eth_accounts check');
                 (eth.request({ method: 'eth_accounts' }) as Promise<string[]>).then((accounts) => {
-                    console.log('🔄 useMetamask: eth_accounts result:', accounts);
+                    logger.log('🔄 useMetamask: eth_accounts result:', accounts);
                     if (accounts.length > 0) {
                         if (onAccountChanged) onAccountChanged(accounts[0]);
-                        console.log('🔄 useMetamask: triggering checkSnapConnection');
+                        logger.log('🔄 useMetamask: triggering checkSnapConnection');
                         if (onSnapCheck) onSnapCheck(accounts[0]);
                     } else {
-                        console.log('ℹ️ useMetamask: No accounts returned by eth_accounts');
+                        logger.log('ℹ️ useMetamask: No accounts returned by eth_accounts');
                     }
-                }).catch((err: any) => console.error('❌ useMetamask: eth_accounts failed', err));
+                }).catch((err: any) => logger.error('❌ useMetamask: eth_accounts failed', err));
                 isInitialCheckDone.current = true;
             }
 
@@ -283,7 +284,7 @@ export const useMetamask = ({
 
         // Also listen for late injection (MetaMask not yet loaded when page mounted)
         const handleEthereumInitialized = () => {
-            console.log('🔄 useMetamask: ethereum#initialized fired, re-running setup');
+            logger.log('🔄 useMetamask: ethereum#initialized fired, re-running setup');
             setup();
         };
         window.addEventListener('ethereum#initialized', handleEthereumInitialized, { once: true });

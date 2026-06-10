@@ -3,6 +3,7 @@ import { ethers } from 'ethers';
 import { decryptCtUint64, decryptCtUint256 } from '../crypto/decryption';
 import { getPluginConfig } from '../config/plugin';
 import { CotiPluginError, CotiErrorCode } from '../errors';
+import { logger } from '../lib/logger';
 
 /**
  * ABI for the nested 4-part ciphertext format used by PoD pTokens (e.g., Sepolia p.MTT).
@@ -82,7 +83,7 @@ export const usePrivateTokenBalance = () => {
             if (envDefaultNetwork) {
                 const network = await provider.getNetwork();
                 if (Number(network.chainId) !== Number(envDefaultNetwork)) {
-                    console.warn(`[FetchPrivate] Skipping: Wrong Network`);
+                    logger.warn(`[FetchPrivate] Skipping: Wrong Network`);
                     return '0.00';
                 }
             }
@@ -161,7 +162,7 @@ export const usePrivateTokenBalance = () => {
             if (error instanceof CotiPluginError) {
                 throw error;
             }
-            console.error(`❌ Failed to fetch/decrypt for ${contractAddress}`, error);
+            logger.error(`❌ Failed to fetch/decrypt for ${contractAddress}`, error);
             return '0.00';
         }
     }, []);

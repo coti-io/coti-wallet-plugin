@@ -12,6 +12,7 @@ import { useWalletType } from '../hooks/useWalletType';
 import { useAesKeyProvider } from '../hooks/useAesKeyProvider';
 import { getEthereumProvider } from '../lib/ethereum';
 import { CotiPluginError, CotiErrorCode } from '../errors';
+import { logger } from '../lib/logger';
 
 interface PrivacyBridgeContextType {
     isConnected: boolean;
@@ -117,7 +118,7 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
     useEffect(() => {
         // Skip the initial mount (when prevWagmiAddressRef is undefined and wagmiAddress is first set)
         if (prevWagmiAddressRef.current !== undefined && wagmiAddress !== prevWagmiAddressRef.current) {
-            console.log("👤 Wagmi address changed, clearing sessionAesKey and locking");
+            logger.log("👤 Wagmi address changed, clearing sessionAesKey and locking");
             setSessionAesKey(null);
             setArePrivateBalancesHidden(true);
         }
@@ -182,13 +183,13 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
         onAccountChanged: async (account) => {
             // Prevent spurious updates if account is same (ignoring case)
             if (walletAddress && account.toLowerCase() === walletAddress.toLowerCase()) {
-                console.log("ℹ️ Account unchanged, skipping session reset");
+                logger.log("ℹ️ Account unchanged, skipping session reset");
                 return;
             }
 
             // Do not fetch private balances automatically on account change
             // Clear session key on account change
-            console.log("👤 Account changed, clearing sessionAesKey and locking");
+            logger.log("👤 Account changed, clearing sessionAesKey and locking");
             setSessionAesKey(null);
             setArePrivateBalancesHidden(true);
             await updateAccountState(account, hasSnap, false);
@@ -232,7 +233,7 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
                 await updateAccountState(account, false, false);
             });
         } catch (error: any) {
-            console.error("Connection failed:", error);
+            logger.error("Connection failed:", error);
 
             // Check for multiple wallets conflict FIRST
             if (isMultipleWalletsError(error?.message)) {
@@ -275,7 +276,7 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
     // Trigger update when sessionAesKey is set
     useEffect(() => {
         if (sessionAesKey && walletAddress) {
-            console.log("🔄 Session AES Key set, refreshing account state...");
+            logger.log("🔄 Session AES Key set, refreshing account state...");
             // We have a key, so we can consider the "snap" (or key provider) active
             if (!hasSnap) setHasSnap(true);
             updateAccountState(walletAddress, true, false);
@@ -292,34 +293,34 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
 
     const refreshPrivateBalances = async () => {
         if (walletAddress) {
-            console.log("🔓 Triggering private balance fetch...");
+            logger.log("🔓 Triggering private balance fetch...");
             try {
                 const success = await updateAccountState(walletAddress, true, true);
-                console.log(`🔓 Private Balance Fetch Completed. Success: ${success}`);
+                logger.log(`🔓 Private Balance Fetch Completed. Success: ${success}`);
                 if (success) setArePrivateBalancesHidden(false);
                 return success;
             } catch (err: any) {
-                console.log(`⚠️ Unlock Logic Caught Error: Code=${err.code}, Message="${err.message}"`);
+                logger.log(`⚠️ Unlock Logic Caught Error: Code=${err.code}, Message="${err.message}"`);
 
                 if ((err instanceof CotiPluginError && err.code === CotiErrorCode.SNAP_CONNECT_FAILED) || err.message === "SNAP_CONNECT_FAILED") {
-                    console.log("⚠️ Snap Connection Failed. Requiring Snap Installation.");
+                    logger.log("⚠️ Snap Connection Failed. Requiring Snap Installation.");
                     throw new CotiPluginError(CotiErrorCode.SNAP_REQUIRED, 'COTI Snap is required but not available');
                 }
 
                 if (err.code === 4001 || err.message?.includes("User rejected") || err.message?.includes("rejected the request")) {
-                    console.log("🚫 User rejected unlock. Skipping onboarding.");
+                    logger.log("🚫 User rejected unlock. Skipping onboarding.");
                     return false;
                 }
 
                 // Handle explicit rejection (Snap returned null / AES key not found)
                 if ((err instanceof CotiPluginError && err.code === CotiErrorCode.SNAP_DIALOG_REJECTED) || err.message === 'SNAP_DIALOG_REJECTED') {
-                    console.log("🚫 Snap dialog rejected (likely AES key not found). Rethrowing for UI handling.");
+                    logger.log("🚫 Snap dialog rejected (likely AES key not found). Rethrowing for UI handling.");
                     throw err; // Let Index.tsx handle this and show the AES Key Missing modal
                 }
 
                 // Belt-and-suspenders: explicitly handle ACCOUNT_NOT_ONBOARDED (non-onboarded account detected via all-zero ciphertext)
                 if ((err instanceof CotiPluginError && err.code === CotiErrorCode.ACCOUNT_NOT_ONBOARDED) || (err.message && err.message === 'ACCOUNT_NOT_ONBOARDED')) {
-                    console.log("⚠️ Non-onboarded account detected (all-zero ciphertext). Clearing session key and forcing Snap re-onboarding flow.");
+                    logger.log("⚠️ Non-onboarded account detected (all-zero ciphertext). Clearing session key and forcing Snap re-onboarding flow.");
                     setSessionAesKey(null);
                     clearSnapCache();
                     setArePrivateBalancesHidden(true);
@@ -327,7 +328,7 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
                 }
 
                 if ((err instanceof CotiPluginError && err.code === CotiErrorCode.AES_KEY_MISMATCH) || (err.message && err.message === 'AES_KEY_MISMATCH')) {
-                    console.log("⚠️ AES key issue detected during unlock. Clearing session key and forcing Snap re-onboarding flow.");
+                    logger.log("⚠️ AES key issue detected during unlock. Clearing session key and forcing Snap re-onboarding flow.");
                     setSessionAesKey(null);
                     clearSnapCache();
                     setArePrivateBalancesHidden(true);
@@ -385,7 +386,7 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
                     params: [{ eth_accounts: {} }]
                 });
             } catch (err) {
-                console.warn("⚠️ wallet_revokePermissions failed (may not be supported):", err);
+                logger.warn("⚠️ wallet_revokePermissions failed (may not be supported):", err);
             }
         }
 
@@ -398,7 +399,7 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
         setArePrivateBalancesHidden(true);
         setShowMultipleWalletsModal(false);
         clearSnapCache();
-        console.log("🔌 Disconnected wallet");
+        logger.log("🔌 Disconnected wallet");
     };
 
 
@@ -406,7 +407,7 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
     const lockPrivateBalances = () => {
         // Hard lock: Hide balances, clear displayed data, AND clear the session/cache keys
         // so the next unlock MUST re-request permission/signature.
-        console.log("🔒 Hard locking private balances and clearing caches");
+        logger.log("🔒 Hard locking private balances and clearing caches");
         setArePrivateBalancesHidden(true);
         setSessionAesKey(null);
         clearSnapCache();

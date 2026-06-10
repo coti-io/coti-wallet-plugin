@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import { CONTRACT_ADDRESSES } from '../contracts/config';
+import { logger } from '../lib/logger';
 
 const ERC20_ESTIMATE_FEE_ABI = [
   'function estimateDepositFee(uint256 amount) view returns (uint256 fee, uint256 cotiLastUpdated, uint256 tokenLastUpdated, uint256 blockTimestamp)',
@@ -44,7 +45,7 @@ export async function estimateBridgeFee(
 ): Promise<FeeEstimate> {
   const meta = TOKEN_META[symbol];
   if (!meta) {
-    console.warn(`No token metadata for symbol: ${symbol}`);
+    logger.warn(`No token metadata for symbol: ${symbol}`);
     return ERROR_ESTIMATE;
   }
 
@@ -91,7 +92,7 @@ export async function estimateBridgeFee(
       };
     }
   } catch (err) {
-    console.error(`Error estimating bridge fees for ${symbol}:`, err);
+    logger.error(`Error estimating bridge fees for ${symbol}:`, err);
     return ERROR_ESTIMATE;
   }
 }

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { ethers } from 'ethers';
 import { CONTRACT_ADDRESSES, BRIDGE_ABI, BRIDGE_ERC20_ABI, ERC20_ABI, SUPPORTED_TOKENS } from '../contracts/config';
 import { fetchBridgeFees, BridgeFees } from './useBridgeFees';
+import { logger } from '../lib/logger';
 
 export interface BridgeData extends BridgeFees {
   bridgeName: string;
@@ -66,7 +67,7 @@ export const useBridgeData = (chainId: number) => {
           const bridgeAddress = addresses[token.bridgeAddressKey as keyof typeof addresses] as string;
 
           if (!bridgeAddress || bridgeAddress === '') {
-            console.warn(`Bridge address not found for ${token.symbol}`);
+            logger.warn(`Bridge address not found for ${token.symbol}`);
             continue;
           }
 
@@ -123,7 +124,7 @@ export const useBridgeData = (chainId: number) => {
               error: null,
             });
           } catch (err) {
-            console.error(`Error fetching data for ${token.symbol} bridge:`, err);
+            logger.error(`Error fetching data for ${token.symbol} bridge:`, err);
             bridges.push({
               bridgeName: `${token.symbol} Bridge`,
               bridgeAddress,
@@ -155,7 +156,7 @@ export const useBridgeData = (chainId: number) => {
 
         setBridgesData(bridges);
       } catch (err) {
-        console.error('Error fetching bridge data:', err);
+        logger.error('Error fetching bridge data:', err);
         setError(err instanceof Error ? err.message : 'Unknown error');
       } finally {
         setIsLoading(false);

@@ -4,6 +4,7 @@ import * as CotiSDK from '@coti-io/coti-sdk-typescript';
 import { getPluginConfig } from '../config/plugin';
 import { getRpcUrlForChainId } from '../config/chains';
 import { CotiPluginError, CotiErrorCode } from '../errors';
+import { logger } from '../lib/logger';
 
 export const useFetchPrivateBalance = () => {
     const fetchPrivateBalance = useCallback(async (
@@ -14,14 +15,14 @@ export const useFetchPrivateBalance = () => {
         decimals: number = 18,
         readChainId?: number | string
     ): Promise<string> => {
-        console.log(`🔍 fetchPrivateBalance CALLED for ${currentChainIdOrAddress} (Direct: ${isDirectAddress})`);
+        logger.log(`🔍 fetchPrivateBalance CALLED for ${currentChainIdOrAddress} (Direct: ${isDirectAddress})`);
 
         if (!window.ethereum || !aesKey) {
-            console.log('❌ Missing ethereum or aesKey');
+            logger.log('❌ Missing ethereum or aesKey');
             return '0.00';
         }
 
-        console.log(`🔍 fetchPrivateBalance START for ${currentChainIdOrAddress} (isDirect=${isDirectAddress})`);
+        logger.log(`🔍 fetchPrivateBalance START for ${currentChainIdOrAddress} (isDirect=${isDirectAddress})`);
 
         try {
             const provider = new ethers.BrowserProvider(window.ethereum);
@@ -39,7 +40,7 @@ export const useFetchPrivateBalance = () => {
             if (envDefaultNetwork && !readChainId) {
                 const networkChainId = Number((await provider.getNetwork()).chainId);
                 if (networkChainId !== Number(envDefaultNetwork)) {
-                    console.warn(`[FetchPrivate] Skipping: Wrong Network`);
+                    logger.warn(`[FetchPrivate] Skipping: Wrong Network`);
                     return '0.00';
                 }
             }
@@ -101,7 +102,7 @@ export const useFetchPrivateBalance = () => {
 
                     // All zeros means no balance
                     if (words.length > 0 && words.every(w => w === 0n)) {
-                        console.log('ℹ️ Encrypted Balance is 0/Uninitialized. Returning 0.00');
+                        logger.log('ℹ️ Encrypted Balance is 0/Uninitialized. Returning 0.00');
                         return '0.00';
                     }
 
@@ -125,11 +126,11 @@ export const useFetchPrivateBalance = () => {
                         }
                         decryptedVal = CotiSDK.decryptUint256({ ciphertextHigh, ciphertextLow }, aesKey);
                     } else {
-                        console.warn('⚠️ Unexpected ciphertext format');
+                        logger.warn('⚠️ Unexpected ciphertext format');
                         return '0.00';
                     }
 
-                    console.log('💰 Total Decrypted Value:', decryptedVal);
+                    logger.log('💰 Total Decrypted Value:', decryptedVal);
 
                     // SAFEGUARD: allow very large real balances (rendered as M/B/T in UI),
                     // but still reject astronomically large values that are almost certainly bad decrypts.
@@ -137,18 +138,18 @@ export const useFetchPrivateBalance = () => {
                     const hardMismatchThreshold = BigInt("1000000000000000000000000000000") * BigInt(10) ** BigInt(decimals); // 1e30 tokens
 
                     if (decryptedVal > notationThreshold) {
-                        console.warn(`⚠️ Large private balance detected (${decryptedVal}). Showing value with notation in UI.`);
+                        logger.warn(`⚠️ Large private balance detected (${decryptedVal}). Showing value with notation in UI.`);
                     }
 
                     if (decryptedVal > hardMismatchThreshold) {
-                        console.warn(`⚠️ Decrypted value astronomically high (${decryptedVal}). Likely decryption garbage due to Key Mismatch.`);
+                        logger.warn(`⚠️ Decrypted value astronomically high (${decryptedVal}). Likely decryption garbage due to Key Mismatch.`);
                         throw new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch: Error decrypting. Re-onboarding required.');
                     }
 
                     return ethers.formatUnits(decryptedVal, decimals);
                 } catch (e: any) {
                     // Try to get more info about the revert
-                    console.error(`❌ Failed to fetch/decrypt for ${contractAddress}`, {
+                    logger.error(`❌ Failed to fetch/decrypt for ${contractAddress}`, {
                         error: e,
                         code: e.code,
                         revert: e.revert,
@@ -169,7 +170,7 @@ export const useFetchPrivateBalance = () => {
             }
 
         } catch (error: any) {
-            console.error("Error fetching private balance:", error);
+            logger.error("Error fetching private balance:", error);
             if (error instanceof CotiPluginError) {
                 throw error;
             }
