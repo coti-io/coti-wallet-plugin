@@ -16,11 +16,12 @@ import { RainbowKitProvider } from '@rainbow-me/rainbowkit';
 import {
   cotiMainnet,
   cotiTestnet,
-  ethereumMainnet,
+  sepolia,
   COTI_MAINNET_RPC,
   COTI_TESTNET_RPC,
-  ETHEREUM_MAINNET_RPC,
+  SEPOLIA_RPC,
 } from '../config/chains';
+import { getPluginConfig } from '../config/plugin';
 
 interface WagmiRainbowKitProviderProps {
   children: React.ReactNode;
@@ -49,15 +50,18 @@ function createWagmiConfig(walletConnectProjectId?: string) {
     }
   );
 
+  const pluginConfig = getPluginConfig();
+  const sepoliaRpc = pluginConfig.sepoliaRpcUrl ?? SEPOLIA_RPC;
+
   return createConfig({
-    chains: [cotiTestnet, cotiMainnet, ethereumMainnet],
+    chains: [sepolia, cotiTestnet, cotiMainnet],
     connectors,
     multiInjectedProviderDiscovery: true,
     ssr: false,
     transports: {
+      [sepolia.id]: http(sepoliaRpc),
       [cotiMainnet.id]: http(COTI_MAINNET_RPC),
       [cotiTestnet.id]: http(COTI_TESTNET_RPC),
-      [ethereumMainnet.id]: http(ETHEREUM_MAINNET_RPC),
     },
   });
 }

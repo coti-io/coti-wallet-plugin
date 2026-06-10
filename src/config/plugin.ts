@@ -7,6 +7,10 @@ export interface CotiPluginConfig {
   snapId: string;
   /** If set, enforces a specific network chain ID (decimal string or hex). */
   defaultNetworkId?: string;
+  /** Sepolia RPC URL for PoD portal operations. */
+  sepoliaRpcUrl?: string;
+  /** COTI testnet RPC URL for PoD SDK tracking. */
+  cotiTestnetRpcUrl?: string;
   /**
    * Enables verbose internal logging via the plugin logger.
    * Disabled by default — the library is silent unless a consumer opts in.

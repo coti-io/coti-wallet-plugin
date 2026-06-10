@@ -10,7 +10,44 @@ export type { Logger } from './lib/logger';
 export { CotiPluginError, CotiErrorCode, isCotiPluginError, hasCotiErrorCode } from './errors';
 
 // Chain definitions
-export { cotiMainnet, cotiTestnet, COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID, COTI_MAINNET_RPC, COTI_TESTNET_RPC, getRpcUrlForChainId } from './config/chains';
+export { cotiMainnet, cotiTestnet, sepolia, ethereumMainnet, COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID, SEPOLIA_CHAIN_ID, ETHEREUM_MAINNET_CHAIN_ID, COTI_MAINNET_RPC, COTI_TESTNET_RPC, SEPOLIA_RPC, ETHEREUM_MAINNET_RPC, getRpcUrlForChainId } from './config/chains';
+
+// Chain registry (multi-chain portal strategies)
+export {
+  CHAIN_CONFIGS,
+  DEFAULT_CHAIN_ID,
+  getChainConfig,
+  requireChainConfig,
+  getContractAddresses,
+  getTokensForChain,
+  getExplorerBaseUrlForChain,
+  getRpcUrlForChain,
+  getNetworkNameForChain,
+  getUnlockStrategyForChain,
+  getWalletNetworkConfigs,
+  getWalletNetworkOptions,
+  getChainIdConstants,
+  resolveIndexPageUi,
+} from './chains';
+export type { ChainConfig as PortalChainConfig, ResolvedIndexPageUi, UnlockStrategy, PortalStrategy, WalletNetworkConfig, ChainIndexPageUi } from './chains/types';
+
+// PoD portal
+export {
+  SEPOLIA_CHAIN_ID as POD_SEPOLIA_CHAIN_ID,
+  COTI_TESTNET_CHAIN_ID as POD_COTI_TESTNET_CHAIN_ID,
+  DEFAULT_POD_EXPLORER_BASE_URL,
+  buildPodExplorerRequestUrl,
+  PRIVACY_PORTAL_ABI,
+  POD_PTOKEN_ABI,
+} from './contracts/pod';
+export type { PodPortalRequest, PodPortalRequestStatus, PodBalanceState, PodBalanceTrustState } from './contracts/pod';
+export { loadPodRequests, savePodRequests, podRequestsStorageKey } from './pod/podPortalRequestsStorage';
+export { saveAesKeyLocally, unlockCachedAesKey, hasCachedAesKey, clearCachedAesKey } from './crypto/localAesKeyVault';
+export { estimateCotiBridgeGasFeeDisplay } from './chains/cotiBridgeGasEstimate';
+export { estimatePodPortalGasFeeDisplay } from './chains/portal/podGasEstimate';
+export { resolvePodRequestStatus } from './chains/portal/podRequestStatus';
+export { executePodPortalTransaction, signPodWithdrawPermit, getPodSdkConfig, getSepoliaGasPrice, quotePortalPodRequest } from './chains/portal/executePodPortalTransaction';
+export type { PodWithdrawPermit } from './chains/portal/executePodPortalTransaction';
 
 // Contracts
 export { CONTRACT_ADDRESSES, SUPPORTED_TOKENS, MINIMUM_PORTAL_IN_AMOUNTS, ERC20_ABI, getPublicTokensForChain, getPrivateTokensForChain } from './contracts/config';
@@ -95,8 +132,6 @@ export type { ChainConfig, ChainPair } from './lib/crossChainUtils';
 export { getCrossChainTokenConfig } from './config/crossChainTokens';
 export type { CrossChainTokenConfig } from './config/crossChainTokens';
 
-// Chain definitions — Ethereum Mainnet
-export { ethereumMainnet, ETHEREUM_MAINNET_CHAIN_ID, ETHEREUM_MAINNET_RPC } from './config/chains';
 
 
 
