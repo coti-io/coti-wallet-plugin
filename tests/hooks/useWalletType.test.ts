@@ -1,5 +1,13 @@
-import { describe, it, expect } from 'vitest';
-import { mapConnectorIdToWalletType } from '../../src/hooks/useWalletType';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { renderHook, waitFor } from '@testing-library/react';
+import { mapConnectorIdToWalletType, useWalletType } from '../../src/hooks/useWalletType';
+
+const useAccountMock = vi.fn();
+vi.mock('wagmi', () => ({
+  useAccount: () => useAccountMock(),
+}));
+
+const SNAP_ID = 'npm:@coti-io/coti-snap';
 
 describe('Wallet Type Detection (README: Multi-Wallet Support)', () => {
   describe('mapConnectorIdToWalletType', () => {
@@ -92,6 +100,77 @@ describe('Wallet Type Detection (README: Multi-Wallet Support)', () => {
 
     it('returns "unknown" for empty string', () => {
       expect(mapConnectorIdToWalletType('')).toBe('unknown');
+    });
+  });
+
+  describe('useWalletType hook', () => {
+    beforeEach(() => {
+      useAccountMock.mockReset();
+    });
+
+    it('returns disconnected state when no connector is present', () => {
+      useAccountMock.mockReturnValue({ connector: undefined });
+      const { result } = renderHook(() => useWalletType());
+      expect(result.current).toEqual({
+        isMetaMaskWithSnap: false,
+        walletType: 'unknown',
+        connectorId: undefined,
+      });
+    });
+
+    it('reports walletType for a non-metamask connector and never flags snap', async () => {
+      useAccountMock.mockReturnValue({
+        connector: { id: 'coinbaseWalletSDK', getProvider: vi.fn() },
+      });
+      const { result } = renderHook(() => useWalletType());
+      expect(result.current.walletType).toBe('coinbase');
+      expect(result.current.connectorId).toBe('coinbaseWalletSDK');
+      expect(result.current.isMetaMaskWithSnap).toBe(false);
+    });
+
+    it('detects an installed COTI snap for a metamask connector', async () => {
+      const request = vi.fn().mockResolvedValue({ [SNAP_ID]: { version: '1.0.0' } });
+      useAccountMock.mockReturnValue({
+        connector: { id: 'metaMask', getProvider: vi.fn().mockResolvedValue({ request }) },
+      });
+
+      const { result } = renderHook(() => useWalletType());
+
+      await waitFor(() => expect(result.current.isMetaMaskWithSnap).toBe(true));
+      expect(request).toHaveBeenCalledWith({ method: 'wallet_getSnaps' });
+    });
+
+    it('detects snap via the id field of an enumerated snap', async () => {
+      const request = vi.fn().mockResolvedValue({ someKey: { id: SNAP_ID } });
+      useAccountMock.mockReturnValue({
+        connector: { id: 'metaMask', getProvider: vi.fn().mockResolvedValue({ request }) },
+      });
+
+      const { result } = renderHook(() => useWalletType());
+      await waitFor(() => expect(result.current.isMetaMaskWithSnap).toBe(true));
+    });
+
+    it('leaves snap false when the snap is not installed', async () => {
+      const request = vi.fn().mockResolvedValue({});
+      useAccountMock.mockReturnValue({
+        connector: { id: 'metaMask', getProvider: vi.fn().mockResolvedValue({ request }) },
+      });
+
+      const { result } = renderHook(() => useWalletType());
+      // allow the effect to run
+      await waitFor(() => expect(request).toHaveBeenCalled());
+      expect(result.current.isMetaMaskWithSnap).toBe(false);
+    });
+
+    it('swallows errors from wallet_getSnaps and keeps snap false', async () => {
+      const request = vi.fn().mockRejectedValue(new Error('not supported'));
+      useAccountMock.mockReturnValue({
+        connector: { id: 'metaMask', getProvider: vi.fn().mockResolvedValue({ request }) },
+      });
+
+      const { result } = renderHook(() => useWalletType());
+      await waitFor(() => expect(request).toHaveBeenCalled());
+      expect(result.current.isMetaMaskWithSnap).toBe(false);
     });
   });
 });

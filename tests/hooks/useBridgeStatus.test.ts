@@ -1,30 +1,31 @@
-import { describe, it, expect, vi } from 'vitest';
-
-// Mock wagmi and react hooks
-vi.mock('wagmi', () => ({
-  useAccount: vi.fn(() => ({ connector: undefined })),
-  useConnectorClient: vi.fn(() => ({ data: undefined })),
-  useSwitchChain: vi.fn(() => ({ switchChain: vi.fn() })),
-}));
-
-// The useBridgeStatus hook is simple enough to test by importing directly
-// since it only uses useMemo
+import { describe, it, expect } from 'vitest';
+import { renderHook } from '@testing-library/react';
 import { useBridgeStatus } from '../../src/hooks/useBridgeStatus';
 import type { BridgeData } from '../../src/hooks/useBridgeData';
 
-// Since useBridgeStatus uses useMemo, we need React context.
-// But it's so simple we can test the logic directly.
-// Let's just verify the module exports correctly and test the logic.
+function makeBridge(isPaused: boolean): BridgeData {
+  return { isPaused } as BridgeData;
+}
 
-describe('useBridgeStatus (README: useBridgeStatus)', () => {
-  it('is exported as a function', () => {
-    expect(typeof useBridgeStatus).toBe('function');
+describe('useBridgeStatus', () => {
+  it('returns "active" when the bridge is not paused', () => {
+    const { result } = renderHook(() => useBridgeStatus(makeBridge(false)));
+    expect(result.current).toBe('active');
   });
 
-  // The hook returns bridge.isPaused ? 'paused' : 'active'
-  // We can't call hooks outside React, but we can verify the logic pattern
-  it('module exports BridgeStatus type correctly', async () => {
-    const mod = await import('../../src/hooks/useBridgeStatus');
-    expect(mod.useBridgeStatus).toBeDefined();
+  it('returns "paused" when the bridge is paused', () => {
+    const { result } = renderHook(() => useBridgeStatus(makeBridge(true)));
+    expect(result.current).toBe('paused');
+  });
+
+  it('recomputes when isPaused changes', () => {
+    const { result, rerender } = renderHook(
+      ({ paused }) => useBridgeStatus(makeBridge(paused)),
+      { initialProps: { paused: false } },
+    );
+    expect(result.current).toBe('active');
+
+    rerender({ paused: true });
+    expect(result.current).toBe('paused');
   });
 });
