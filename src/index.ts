@@ -59,17 +59,14 @@ export { LIMITS } from './contracts/limits';
 export { useSnap, signIT256ViaSnap, onboardUser } from './hooks/useSnap';
 export { useMetamask } from './hooks/useMetamask';
 
-// Hooks — Unified Wallet Abstraction
-export { useWallet } from './hooks/useWallet';
-export type { UseWalletResult } from './hooks/useWallet';
-
 // Hooks — Balance Manager
 export { usePrivateTokenBalance } from './hooks/usePrivateTokenBalance';
 export { useBalanceUpdater } from './hooks/useBalanceUpdater';
 
 // Hooks — Bridge Operations
-export { usePrivacyBridge, getInitialPublicTokens, getInitialPrivateTokens } from './hooks/usePrivacyBridge';
-export type { Token, SwapProgressStage } from './hooks/usePrivacyBridge';
+// NOTE: `usePrivacyBridge` (and its `getInitialPublicTokens`/`getInitialPrivateTokens`
+// helpers + `Token`/`SwapProgressStage` types) are intentionally NOT exported. They are
+// internal to `PrivacyBridgeProvider`; consumers should use the provider + context instead.
 export { useBridgeData } from './hooks/useBridgeData';
 export type { BridgeData } from './hooks/useBridgeData';
 export { useBridgeStatus } from './hooks/useBridgeStatus';
@@ -109,32 +106,6 @@ export { isMultipleWalletsError, MULTIPLE_WALLETS_ERROR_SUBSTRING } from './util
 export { formatTokenBalanceDisplay, truncateDecimalValue, formatBalanceWithNotation, addThousandsSeparators } from './lib/utils';
 export { getEthereumProvider } from './lib/ethereum';
 export type { EIP1193Provider } from './lib/ethereum';
-
-// Hooks — Cross-Chain Bridge
-export { useCrossChainBridge } from './hooks/useCrossChainBridge';
-export type { BridgeError, UseCrossChainBridgeResult } from './hooks/useCrossChainBridge';
-export { useTransactionTracking } from './hooks/useTransactionTracking';
-export type { UseTransactionTrackingResult } from './hooks/useTransactionTracking';
-export { useBridgeTransactions } from './hooks/useBridgeTransactions';
-export type { BridgeTransaction, UseBridgeTransactionsResult } from './hooks/useBridgeTransactions';
-export { useBridgeLimits } from './hooks/useBridgeLimits';
-export type { UseBridgeLimitsResult } from './hooks/useBridgeLimits';
-export { useWalletStatus } from './hooks/useWalletStatus';
-export type { UseWalletStatusResult } from './hooks/useWalletStatus';
-export { useOngoingTransactions, registerTransaction } from './hooks/useOngoingTransactions';
-export type { OngoingTransaction, UseOngoingTransactionsResult, RegisterTransactionInput } from './hooks/useOngoingTransactions';
-
-// Cross-Chain Utilities
-export { formatTokenAmount, parseTokenAmount, truncateDecimals, getActiveChains, isValidChain, getActiveChainById, getActiveNetworks } from './lib/crossChainUtils';
-export type { ChainConfig, ChainPair } from './lib/crossChainUtils';
-
-// Cross-Chain Token Configuration
-export { getCrossChainTokenConfig } from './config/crossChainTokens';
-export type { CrossChainTokenConfig } from './config/crossChainTokens';
-
-
-
-
 
 // Chain mute utilities (for suppressing UI reactions during cross-chain onboarding)
 export { muteChainUpdates, unmuteChainUpdates, isChainUpdatesMuted } from './lib/chainMute';

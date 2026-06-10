@@ -16,6 +16,41 @@ Object.defineProperty(window, 'ethereum', {
   configurable: true,
 });
 
+// jsdom runs on an opaque origin (about:blank), which disables a usable
+// localStorage. Provide a simple in-memory implementation so modules that
+// persist to localStorage can be tested deterministically.
+const createLocalStorageMock = (): Storage => {
+  let store: Record<string, string> = {};
+  return {
+    get length() {
+      return Object.keys(store).length;
+    },
+    clear: () => {
+      store = {};
+    },
+    getItem: (key: string) => (key in store ? store[key] : null),
+    setItem: (key: string, value: string) => {
+      store[key] = String(value);
+    },
+    removeItem: (key: string) => {
+      delete store[key];
+    },
+    key: (index: number) => Object.keys(store)[index] ?? null,
+  } as Storage;
+};
+
+const localStorageMock = createLocalStorageMock();
+Object.defineProperty(window, 'localStorage', {
+  value: localStorageMock,
+  writable: true,
+  configurable: true,
+});
+Object.defineProperty(globalThis, 'localStorage', {
+  value: localStorageMock,
+  writable: true,
+  configurable: true,
+});
+
 // Mock console methods to reduce noise in tests
 vi.spyOn(console, 'log').mockImplementation(() => {});
 vi.spyOn(console, 'warn').mockImplementation(() => {});
