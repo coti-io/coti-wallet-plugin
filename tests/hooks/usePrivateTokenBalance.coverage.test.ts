@@ -133,4 +133,20 @@ describe('usePrivateTokenBalance (ciphertext shape coverage)', () => {
     expect(bal).toBe('formatted:42');
     expect(h.getSigner).toHaveBeenCalled();
   });
+
+  it('treats a null nested ciphertext response as zero balance', async () => {
+    h.balanceOf.mockResolvedValue(null);
+    const { result } = renderHook(() => usePrivateTokenBalance());
+    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(64), CONTRACT, 256, 18);
+    expect(bal).toBe('0.00');
+  });
+
+  it('treats sparse nested limbs with undefined values as zero', async () => {
+    h.balanceOf
+      .mockResolvedValueOnce({ high: { high: 0n, low: 0n } })
+      .mockResolvedValueOnce(null);
+    const { result } = renderHook(() => usePrivateTokenBalance());
+    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(64), CONTRACT, 256, 18);
+    expect(bal).toBe('0.00');
+  });
 });

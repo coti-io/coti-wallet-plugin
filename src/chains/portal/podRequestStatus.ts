@@ -17,7 +17,10 @@ const getFailedRequestHex = async (
   request: PodPortalRequest,
   pTokenAddress: string,
 ) => {
-  if (!request.requestId) return "0x";
+  if (!request.requestId) {
+    /* v8 ignore next -- unreachable: resolvePodRequestStatus guards requestId before calling */
+    return "0x";
+  }
   const pToken = new ethers.Contract(pTokenAddress, POD_PTOKEN_ABI, provider);
   const failedRaw = await pToken.failedRequests(request.requestId).catch(() => "0x");
   return typeof failedRaw === "string" ? failedRaw : ethers.hexlify(failedRaw);

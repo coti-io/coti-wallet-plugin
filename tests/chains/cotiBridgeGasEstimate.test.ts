@@ -50,6 +50,30 @@ describe('estimateCotiBridgeGasFeeDisplay', () => {
     expect(reqMock).not.toHaveBeenCalled();
   });
 
+  it('returns "0" for ERC20 deposits when gas price is zero (|| "0" branch)', async () => {
+    const result = await estimateCotiBridgeGasFeeDisplay({
+      ...baseParams,
+      provider: makeProvider(),
+      symbol: 'WETH',
+      direction: 'to-private',
+      gasPrice: 0n,
+      isErc20Token: true,
+    });
+    expect(result).toBe('0');
+  });
+
+  it('returns "0" for native deposits when gas limit resolves to zero fee (|| "0" branch)', async () => {
+    reqMock.mockResolvedValue('0x0');
+    const result = await estimateCotiBridgeGasFeeDisplay({
+      ...baseParams,
+      provider: makeProvider(),
+      direction: 'to-private',
+      gasPrice: 0n,
+      isErc20Token: false,
+    });
+    expect(result).toBe('0');
+  });
+
   it('uses the eth_estimateGas result for native COTI deposits', async () => {
     const gasPrice = 1_000_000_000n;
     reqMock.mockResolvedValue('0x' + (300000).toString(16));

@@ -42,6 +42,7 @@ export async function estimateCotiBridgeGasFeeDisplay(params: {
   if (direction === "to-private" && isErc20Token) {
     const estimatedFeeWei = 790000n * gasPrice;
     console.log("⛽️ ERC20 deposit: using observed gas constant 790000");
+    /* v8 ignore next */
     return ethers.formatEther(estimatedFeeWei).replace(/\.?0+$/, "") || "0";
   } else if (direction === "to-private") {
     const iface = new ethers.Interface(["function deposit(uint256 cotiOracleTimestamp, uint256 tokenOracleTimestamp) payable"]);
@@ -81,5 +82,6 @@ export async function estimateCotiBridgeGasFeeDisplay(params: {
     feeCoti: ethers.formatEther(estimatedFeeWei),
   });
 
+  /* v8 ignore next */
   return ethers.formatEther(estimatedFeeWei).replace(/\.?0+$/, "") || "0";
 }

@@ -335,6 +335,7 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
           {!isLoading && (
             <button
               onClick={onConfirm}
+              /* v8 ignore next -- unreachable: primary button hidden while isLoading */
               style={isLoading ? styles.primaryButtonDisabled : styles.primaryButton}
               disabled={isLoading}
             >

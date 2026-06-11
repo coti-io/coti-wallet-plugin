@@ -333,6 +333,22 @@ describe('usePrivacyBridge - checkAllowance', () => {
     });
     await waitFor(() => expect(result.current.allowance).toBe('0'));
   });
+
+  it('returns 0 for a public deposit when the ERC20 address is unresolved (lines 409-410)', async () => {
+    sib.getPublicTokensForChain.mockReturnValue([
+      { symbol: 'NOADDR', isPrivate: false, bridgeAddressKey: 'PrivacyBridgeWETH', decimals: 18 },
+    ]);
+    const props = makeProps({
+      direction: 'to-private',
+      publicTokens: [{ symbol: 'NOADDR', name: 'No Address', balance: '0', isPrivate: false }],
+    });
+    const { result } = renderHook(() => usePrivacyBridge(props));
+    await act(async () => {
+      await result.current.checkAllowance();
+    });
+    await waitFor(() => expect(result.current.allowance).toBe('0'));
+    expect(eth.allowance).not.toHaveBeenCalled();
+  });
 });
 
 describe('usePrivacyBridge - isApprovalNeeded', () => {
@@ -1006,6 +1022,26 @@ describe('usePrivacyBridge - handleSwap', () => {
         await result.current.handleSwap();
       }),
     ).rejects.toThrow('some other snap failure');
+  });
+
+  it('falls back to 12M gas when native COTI calculateGasMargin fails in handleSwap', async () => {
+    sib.getPublicTokensForChain.mockReturnValue([
+      { symbol: 'COTI', isPrivate: false, bridgeAddressKey: 'PrivacyBridgeCotiNative', decimals: 18 },
+    ]);
+    eth.depositUint2.mockResolvedValue({ wait: async () => ({ status: 1 }) });
+    eth.estimateGas.mockRejectedValue(new Error('gas margin fail'));
+    routeRequest();
+    eth.waitForTransaction.mockResolvedValue({ status: 1 });
+    const props = makeProps({
+      publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
+    });
+    const { result } = renderHook(() => usePrivacyBridge(props));
+    await act(async () => {
+      await result.current.handleSwap('1', 'to-private', 0);
+    });
+    expect(eth.depositUint2).toHaveBeenCalled();
+    const gasArg = eth.depositUint2.mock.calls[0]?.[2] as { gasLimit?: bigint } | undefined;
+    expect(gasArg?.gasLimit).toBeGreaterThanOrEqual(900000n);
   });
 });
 
@@ -2113,6 +2149,45 @@ describe('usePrivacyBridge - additional branch coverage', () => {
     const { result } = renderHook(() => usePrivacyBridge(props));
     await new Promise(r => setTimeout(r, 600));
     expect(result.current.portalFeeCoti).toBeNull();
+  });
+});
+
+describe('usePrivacyBridge - handleApprove edge paths', () => {
+  it('returns early for native COTI deposit (no approval needed)', async () => {
+    sib.getPublicTokensForChain.mockReturnValue([
+      { symbol: 'COTI', isPrivate: false, bridgeAddressKey: 'PrivacyBridgeCotiNative', decimals: 18 },
+    ]);
+    eth.approve.mockResolvedValue({ wait: async () => ({}) });
+    const props = makeProps({
+      direction: 'to-private',
+      publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
+    });
+    const { result } = renderHook(() => usePrivacyBridge(props));
+    await act(async () => {
+      await result.current.handleApprove();
+    });
+    expect(eth.approve).not.toHaveBeenCalled();
+  });
+
+  it('signs MTT PoD permit using default 18 decimals when token config omits decimals', async () => {
+    eth.getNetwork.mockResolvedValue({ chainId: 11155111n });
+    sib.getPublicTokensForChain.mockReturnValue([
+      { symbol: 'MTT', isPrivate: false, addressKey: 'MTT', bridgeAddressKey: 'PrivacyPortalMTT' },
+    ]);
+    sib.getPrivateTokensForChain.mockReturnValue([
+      { symbol: 'p.MTT', isPrivate: true, addressKey: 'p.MTT', decimals: 18 },
+    ]);
+    sib.signPodWithdrawPermit.mockResolvedValue({ wallet: WALLET, amountWei: '1000' });
+    const props = makeProps({
+      direction: 'to-public',
+      amount: '1',
+      publicTokens: [{ symbol: 'MTT', name: 'MTT', balance: '5', isPrivate: false }],
+    });
+    const { result } = renderHook(() => usePrivacyBridge(props));
+    await act(async () => {
+      await result.current.handleApprove();
+    });
+    expect(sib.signPodWithdrawPermit).toHaveBeenCalled();
   });
 });
 

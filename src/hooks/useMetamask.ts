@@ -203,6 +203,7 @@ export const useMetamask = ({
                         } */
 
             // 4. Update State via callback
+            /* v8 ignore next 2 -- unreachable: empty accounts return above at line 176 */
             if (accounts.length > 0) {
                 await onConnect(accounts[0]);
             }

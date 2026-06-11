@@ -117,6 +117,34 @@ describe('useSnap (branch coverage)', () => {
     });
   });
 
+  it('returns null from getAESKeyFromSnap when requestSnaps is unsupported after install check', async () => {
+    mockRequest.mockImplementation((args: ReqArgs) => {
+      if (args.method === 'web3_clientVersion') return Promise.resolve('MetaMask/v11.0.0');
+      if (args.method === 'wallet_getSnaps') return Promise.resolve({ [SNAP_ID]: { version: '1.0.0' } });
+      if (args.method === 'wallet_requestSnaps') {
+        return Promise.reject(Object.assign(new Error('unsupported'), { code: -32601 }));
+      }
+      return Promise.resolve(undefined);
+    });
+    const setSnapError = vi.fn();
+    const { result } = renderHook(() => useSnap(setSnapError));
+    await expect(result.current.getAESKeyFromSnap(ACCOUNT)).resolves.toBeNull();
+    expect(setSnapError).toHaveBeenCalledWith('Failed to connect to Snap');
+  });
+
+  it('returns null from getAESKeyFromSnap without calling setSnapError when no callback is provided', async () => {
+    mockRequest.mockImplementation((args: ReqArgs) => {
+      if (args.method === 'web3_clientVersion') return Promise.resolve('MetaMask/v11.0.0');
+      if (args.method === 'wallet_getSnaps') return Promise.resolve({ [SNAP_ID]: { version: '1.0.0' } });
+      if (args.method === 'wallet_requestSnaps') {
+        return Promise.reject(Object.assign(new Error('unsupported'), { code: -32601 }));
+      }
+      return Promise.resolve(undefined);
+    });
+    const { result } = renderHook(() => useSnap());
+    await expect(result.current.getAESKeyFromSnap(ACCOUNT)).resolves.toBeNull();
+  });
+
   // ─── executeSnapCheck ───────────────────────────────────────────────────
 
   it('does not log a failure when the installed-snap callback succeeds', async () => {
