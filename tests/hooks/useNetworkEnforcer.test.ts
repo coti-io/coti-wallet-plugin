@@ -136,7 +136,7 @@ describe('useNetworkEnforcer', () => {
     expect(result.current.networkMismatchWarning).toContain('manually');
   });
 
-  it('enforceNetwork calls wagmi switchChain for non-MetaMask on wrong network', async () => {
+  it('enforceNetwork calls wagmi switchChain for non-MetaMask on unsupported chain', async () => {
     mockWalletType = 'rabby';
     mockAccountChain = { id: 999 };
 
@@ -147,6 +147,32 @@ describe('useNetworkEnforcer', () => {
     });
 
     expect(mockSwitchChain).toHaveBeenCalledWith({ chainId: 2632500 });
+  });
+
+  it('enforceNetwork calls wagmi switchChain when on a supported chain that is not the target', async () => {
+    mockWalletType = 'rabby';
+    mockAccountChain = { id: 11155111 };
+
+    const { result } = renderHook(() => useNetworkEnforcer(null, mockSwitchNetwork));
+
+    await act(async () => {
+      await result.current.enforceNetwork();
+    });
+
+    expect(mockSwitchChain).toHaveBeenCalledWith({ chainId: 2632500 });
+  });
+
+  it('enforceNetwork does not call wagmi switchChain when already on the target chain', async () => {
+    mockWalletType = 'rabby';
+    mockAccountChain = { id: 2632500 };
+
+    const { result } = renderHook(() => useNetworkEnforcer(null, mockSwitchNetwork));
+
+    await act(async () => {
+      await result.current.enforceNetwork();
+    });
+
+    expect(mockSwitchChain).not.toHaveBeenCalled();
   });
 
   it('handles hex chainId for MetaMask', () => {

@@ -20,7 +20,8 @@ export interface NetworkEnforcerResult {
  *
  * - MetaMask path: uses the provided `switchNetwork` callback (wallet_switchEthereumChain)
  * - Non-MetaMask path: uses wagmi's `useSwitchChain` hook for chain switching
- * - Both paths treat any {@link CHAIN_CONFIGS} chain as valid (COTI Mainnet/Testnet, Sepolia PoD, …)
+ * - Both paths treat any {@link CHAIN_CONFIGS} chain as valid for {@link isWrongNetwork}
+ * - {@link enforceNetwork} switches to the configured target when current chain ≠ target (both paths)
  *
  * @param chainId - Current chain ID as a string (decimal or hex), used for MetaMask path
  * @param switchNetwork - MetaMask-specific network switch function (wallet_switchEthereumChain)
@@ -120,12 +121,12 @@ export const useNetworkEnforcer = (
         }
       }
     } else {
-      // Non-MetaMask path: use wagmi useSwitchChain
+      // Non-MetaMask path: use wagmi useSwitchChain (same rule as MetaMask — switch when not on target)
       if (!chain) return;
 
-      if (!isSupportedChain(chain.id)) {
+      if (chain.id !== targetChainId) {
         logger.warn(
-          `[NetworkEnforcer] Non-MetaMask wallet on wrong network: ${chain.id}. Enforcing: ${targetChainId}`
+          `[NetworkEnforcer] Non-MetaMask wallet on chain ${chain.id}. Enforcing: ${targetChainId}`
         );
         try {
           switchChain({ chainId: targetChainId });
