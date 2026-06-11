@@ -87,6 +87,21 @@ describe('OnboardModal Component (README: OnboardModal)', () => {
     expect(screen.getByText(/WalletConnect/)).toBeInTheDocument();
   });
 
+  it('shows wallet name for rainbow', () => {
+    render(<OnboardModal {...defaultProps} walletType="rainbow" />);
+    expect(screen.getByText(/Rainbow/)).toBeInTheDocument();
+  });
+
+  it('shows wallet name for metamask', () => {
+    render(<OnboardModal {...defaultProps} walletType="metamask" />);
+    expect(screen.getByText(/MetaMask/)).toBeInTheDocument();
+  });
+
+  it('falls back to "your wallet" for unknown wallet types', () => {
+    render(<OnboardModal {...defaultProps} walletType="phantom" />);
+    expect(screen.getByText(/your wallet/)).toBeInTheDocument();
+  });
+
   it('auto-closes when sessionAesKey is set', () => {
     const onClose = vi.fn();
     const { rerender } = render(

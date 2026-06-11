@@ -55,6 +55,13 @@ describe('Balance Decryption (README: Balance Decryption)', () => {
       expect(result).toBeNull();
     });
 
+    it('returns null when decryptUint throws a non-Error value', () => {
+      // Exercises the `: error` branch of the catch logger (non-Error path).
+      vi.mocked(CotiSDK.decryptUint).mockImplementationOnce(() => { throw 'string failure'; });
+      const result = decryptCtUint64(12345n, validKey);
+      expect(result).toBeNull();
+    });
+
     it('respects custom decimals for threshold', () => {
       const result = decryptCtUint64(12345n, validKey, { decimals: 6 });
       expect(result).toBe(100n);
@@ -70,6 +77,13 @@ describe('Balance Decryption (README: Balance Decryption)', () => {
       vi.mocked(CotiSDK.decryptUint).mockReturnValueOnce(42 as any);
       const result = decryptCtUint64(12345n, validKey);
       expect(result).toBe(42n);
+    });
+
+    it('treats a non-bigint/number/string ciphertext as non-zero (isZeroValue fallthrough)', () => {
+      // An object ciphertext is not bigint/number/string, so isZeroValue returns false
+      // and decryption proceeds with the mocked decryptUint (100n).
+      const result = decryptCtUint64({} as any, validKey);
+      expect(result).toBe(100n);
     });
   });
 
@@ -105,6 +119,21 @@ describe('Balance Decryption (README: Balance Decryption)', () => {
       expect(result).toBe(1000000000000000000n);
     });
 
+    it('coerces non-bigint flat ciphertext fields via BigInt', () => {
+      // Numeric (non-bigint) fields exercise the `: BigInt(...)` coercion branches.
+      const ct = { ciphertextHigh: 1, ciphertextLow: 2 } as any;
+      const result = decryptCtUint256(ct, validKey);
+      expect(result).toBe(1000000000000000000n);
+    });
+
+    it('returns null when decryptUint256 throws a non-Error value', () => {
+      // Exercises the `: error` branch of the 256-bit catch logger.
+      vi.mocked(CotiSDK.decryptUint256).mockImplementationOnce(() => { throw 'boom'; });
+      const ct = { ciphertextHigh: 1n, ciphertextLow: 2n };
+      const result = decryptCtUint256(ct, validKey);
+      expect(result).toBeNull();
+    });
+
     it('returns null for invalid AES key', () => {
       const ct = { ciphertextHigh: 1n, ciphertextLow: 2n };
       const result = decryptCtUint256(ct, 'invalid');
@@ -115,6 +144,21 @@ describe('Balance Decryption (README: Balance Decryption)', () => {
       vi.mocked(CotiSDK.decryptUint256).mockReturnValueOnce(10n ** 31n);
       const ct = { ciphertextHigh: 1n, ciphertextLow: 2n };
       const result = decryptCtUint256(ct, validKey);
+      expect(result).toBeNull();
+    });
+
+    it('returns null for an insane decrypted value from the nested format', () => {
+      // Each segment decrypts to a huge value; reconstructed total is "insane".
+      vi.mocked(CotiSDK.decryptUint).mockReturnValue(10n ** 40n);
+      const ct = { high: { high: 1n, low: 2n }, low: { high: 3n, low: 4n } };
+      const result = decryptCtUint256(ct, validKey);
+      expect(result).toBeNull();
+    });
+
+    it('returns null for a non-zero ciphertext that matches neither nested nor flat shape', () => {
+      // isZeroCtUint256 is false (a defined, non-zero field) but neither the nested
+      // nor the flat branch matches, so the function falls through to `return null`.
+      const result = decryptCtUint256({ somethingElse: 1n } as any, validKey);
       expect(result).toBeNull();
     });
   });

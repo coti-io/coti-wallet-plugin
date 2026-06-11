@@ -74,4 +74,57 @@ describe('estimatePodPortalGasFeeDisplay', () => {
     });
     expect(result).toBe(fmt(850000n * 1_000_000_000n));
   });
+
+  it('defaults decimals to 18 when pubTok is undefined', async () => {
+    reqMock.mockResolvedValue('0x' + (100000).toString(16));
+    const result = await estimatePodPortalGasFeeDisplay({
+      ...baseParams,
+      pubTok: undefined,
+      provider: makeProvider(),
+      direction: 'to-private',
+    });
+    expect(result).toBe(fmt(100000n * 1_000_000_000n + 5_000n));
+  });
+
+  it('suppresses the console warning when the quote error is a pending/untrusted state', async () => {
+    quotePortalPodRequest.mockRejectedValue(new Error('A PoD request is already pending'));
+    const result = await estimatePodPortalGasFeeDisplay({
+      ...baseParams,
+      provider: makeProvider(),
+      direction: 'to-private',
+    });
+    expect(result).toBe(fmt(850000n * 1_000_000_000n));
+  });
+
+  it('uses the 900000 withdraw fallback gas when a withdraw quote throws', async () => {
+    quotePortalPodRequest.mockRejectedValue(new Error('not onboarded'));
+    const result = await estimatePodPortalGasFeeDisplay({
+      ...baseParams,
+      provider: makeProvider(),
+      direction: 'to-public',
+    });
+    expect(result).toBe(fmt(900000n * 1_000_000_000n));
+  });
+
+  it('handles a non-Error thrown value from quoting (String(err) path)', async () => {
+    quotePortalPodRequest.mockRejectedValue('string failure');
+    const result = await estimatePodPortalGasFeeDisplay({
+      ...baseParams,
+      provider: makeProvider(),
+      direction: 'to-private',
+    });
+    expect(result).toBe(fmt(850000n * 1_000_000_000n));
+  });
+
+  it('returns "0" when the total native fee is zero', async () => {
+    getSepoliaGasPrice.mockResolvedValue(0n);
+    quotePortalPodRequest.mockResolvedValue({ totalFeeWei: 0n, callbackFeeWei: 0n });
+    reqMock.mockResolvedValue('0x0');
+    const result = await estimatePodPortalGasFeeDisplay({
+      ...baseParams,
+      provider: makeProvider(),
+      direction: 'to-private',
+    });
+    expect(result).toBe('0');
+  });
 });
