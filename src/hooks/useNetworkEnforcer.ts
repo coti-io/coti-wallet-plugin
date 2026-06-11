@@ -2,18 +2,8 @@ import { useEffect, useCallback, useState } from 'react';
 import { logger } from '../lib/logger';
 import { useSwitchChain, useAccount } from 'wagmi';
 import { getPluginConfig } from '../config/plugin';
-import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID } from '../config/chains';
+import { COTI_MAINNET_CHAIN_ID, isSupportedChain } from '../chains';
 import { useWalletType } from './useWalletType';
-
-/** Allowed COTI chain IDs */
-const ALLOWED_CHAIN_IDS = [COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID];
-
-/**
- * Determines if a chain ID is a supported COTI chain.
- */
-function isCotiChain(chainId: number): boolean {
-  return ALLOWED_CHAIN_IDS.includes(chainId);
-}
 
 export interface NetworkEnforcerResult {
   /** Whether the connected wallet is on an unsupported network */
@@ -30,7 +20,7 @@ export interface NetworkEnforcerResult {
  *
  * - MetaMask path: uses the provided `switchNetwork` callback (wallet_switchEthereumChain)
  * - Non-MetaMask path: uses wagmi's `useSwitchChain` hook for chain switching
- * - Both paths enforce COTI Mainnet (2632500) or Testnet (7082400) only
+ * - Both paths treat any {@link CHAIN_CONFIGS} chain as valid (COTI Mainnet/Testnet, Sepolia PoD, …)
  *
  * @param chainId - Current chain ID as a string (decimal or hex), used for MetaMask path
  * @param switchNetwork - MetaMask-specific network switch function (wallet_switchEthereumChain)
@@ -56,7 +46,7 @@ export const useNetworkEnforcer = (
         const parsed = envDefaultNetwork.startsWith('0x')
           ? parseInt(envDefaultNetwork, 16)
           : Number(envDefaultNetwork);
-        if (isCotiChain(parsed)) return parsed;
+        if (isSupportedChain(parsed)) return parsed;
       } catch {
         // Fall through to default
       }
@@ -75,14 +65,14 @@ export const useNetworkEnforcer = (
         const currentChainNum = chainId.startsWith('0x')
           ? parseInt(chainId, 16)
           : Number(chainId);
-        return !isCotiChain(currentChainNum);
+        return !isSupportedChain(currentChainNum);
       } catch {
         return false;
       }
     } else {
       // Non-MetaMask path: use wagmi's chain from useAccount
       if (!chain) return false;
-      return !isCotiChain(chain.id);
+      return !isSupportedChain(chain.id);
     }
   }, [chainId, chain, walletType, isMetaMaskWithSnap]);
 
@@ -117,7 +107,7 @@ export const useNetworkEnforcer = (
           const success = await switchNetwork(targetHex);
           if (!success) {
             setNetworkMismatchWarning(
-              'Network switch was rejected. Please switch to a COTI network to continue.'
+              'Network switch was rejected. Please switch to a supported network to continue.'
             );
           } else {
             setNetworkMismatchWarning(null);
@@ -125,7 +115,7 @@ export const useNetworkEnforcer = (
         } catch (err) {
           logger.error('[NetworkEnforcer] MetaMask switch error:', err);
           setNetworkMismatchWarning(
-            'Failed to switch network. Please switch to a COTI network manually.'
+            'Failed to switch network. Please switch to a supported network manually.'
           );
         }
       }
@@ -133,7 +123,7 @@ export const useNetworkEnforcer = (
       // Non-MetaMask path: use wagmi useSwitchChain
       if (!chain) return;
 
-      if (!isCotiChain(chain.id)) {
+      if (!isSupportedChain(chain.id)) {
         logger.warn(
           `[NetworkEnforcer] Non-MetaMask wallet on wrong network: ${chain.id}. Enforcing: ${targetChainId}`
         );
@@ -143,7 +133,7 @@ export const useNetworkEnforcer = (
         } catch (err) {
           logger.error('[NetworkEnforcer] wagmi switchChain error:', err);
           setNetworkMismatchWarning(
-            'Network switch was rejected. Please switch to a COTI network to continue.'
+            'Network switch was rejected. Please switch to a supported network to continue.'
           );
         }
       }

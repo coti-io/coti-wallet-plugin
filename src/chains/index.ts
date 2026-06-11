@@ -19,6 +19,14 @@ export const CHAIN_CONFIGS: Record<number, ChainConfig> = {
 
 export const DEFAULT_CHAIN_ID = COTI_TESTNET_CHAIN_ID;
 
+/** Numeric chain IDs registered in {@link CHAIN_CONFIGS} (COTI + Sepolia PoD, etc.). */
+export const getSupportedChainIds = (): number[] =>
+  Object.keys(CHAIN_CONFIGS).map(id => Number(id));
+
+/** True when the chain has plugin config (bridge/PoD portal, tokens, RPC). */
+export const isSupportedChain = (chainId: number): boolean =>
+  Number.isFinite(chainId) && chainId in CHAIN_CONFIGS;
+
 export const getChainConfig = (chainId?: number | string | null) => {
   const numericChainId = chainId == null ? undefined : Number(chainId);
   return numericChainId ? CHAIN_CONFIGS[numericChainId] : undefined;

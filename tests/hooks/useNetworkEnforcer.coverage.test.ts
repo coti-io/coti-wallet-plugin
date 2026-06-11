@@ -60,13 +60,22 @@ describe('useNetworkEnforcer branch coverage', () => {
     expect(mockSwitchNetwork).toHaveBeenCalledWith('0x6c11a0');
   });
 
-  it('falls back to COTI Mainnet when defaultNetworkId is not a COTI chain', async () => {
+  it('falls back to COTI Mainnet when defaultNetworkId is not a supported chain', async () => {
     configureCotiPlugin({ defaultNetworkId: '999' });
     mockWalletType = 'metamask';
     const { result } = renderHook(() => useNetworkEnforcer('11155111', mockSwitchNetwork));
 
     await act(async () => { await result.current.enforceNetwork(); });
     expect(mockSwitchNetwork).toHaveBeenCalledWith('0x' + COTI_MAINNET.toString(16));
+  });
+
+  it('resolves Sepolia from defaultNetworkId when configured for PoD', async () => {
+    configureCotiPlugin({ defaultNetworkId: '11155111' });
+    mockWalletType = 'metamask';
+    const { result } = renderHook(() => useNetworkEnforcer('2632500', mockSwitchNetwork));
+
+    await act(async () => { await result.current.enforceNetwork(); });
+    expect(mockSwitchNetwork).toHaveBeenCalledWith('0xaa36a7');
   });
 
   // ─── isWrongNetwork edge paths ──────────────────────────────────────────

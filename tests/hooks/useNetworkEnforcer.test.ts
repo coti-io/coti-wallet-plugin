@@ -45,11 +45,19 @@ describe('useNetworkEnforcer', () => {
     expect(result.current.isWrongNetwork).toBe(false);
   });
 
-  it('returns isWrongNetwork=true for wrong network with MetaMask', () => {
+  it('returns isWrongNetwork=false for Sepolia (11155111) with MetaMask', () => {
     mockWalletType = 'metamask';
     mockIsMetaMaskWithSnap = true;
 
     const { result } = renderHook(() => useNetworkEnforcer('11155111', mockSwitchNetwork));
+    expect(result.current.isWrongNetwork).toBe(false);
+  });
+
+  it('returns isWrongNetwork=true for unsupported network with MetaMask', () => {
+    mockWalletType = 'metamask';
+    mockIsMetaMaskWithSnap = true;
+
+    const { result } = renderHook(() => useNetworkEnforcer('999', mockSwitchNetwork));
     expect(result.current.isWrongNetwork).toBe(true);
   });
 
@@ -67,6 +75,14 @@ describe('useNetworkEnforcer', () => {
 
     const { result } = renderHook(() => useNetworkEnforcer(null, mockSwitchNetwork));
     expect(result.current.isWrongNetwork).toBe(true);
+  });
+
+  it('returns isWrongNetwork=false for non-MetaMask on Sepolia', () => {
+    mockWalletType = 'rabby';
+    mockAccountChain = { id: 11155111 };
+
+    const { result } = renderHook(() => useNetworkEnforcer(null, mockSwitchNetwork));
+    expect(result.current.isWrongNetwork).toBe(false);
   });
 
   it('returns isWrongNetwork=false for non-MetaMask on COTI chain', () => {

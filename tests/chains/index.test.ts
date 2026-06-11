@@ -16,6 +16,8 @@ import {
   getWalletNetworkOptions,
   getChainIdConstants,
   resolveIndexPageUi,
+  getSupportedChainIds,
+  isSupportedChain,
   COTI_MAINNET_CHAIN_ID,
   COTI_TESTNET_CHAIN_ID,
   SEPOLIA_CHAIN_ID,
@@ -52,6 +54,21 @@ describe('chains/index', () => {
 
     it('throws for an unsupported chain ID', () => {
       expect(() => requireChainConfig(999999)).toThrow('Unsupported chain ID: 999999');
+    });
+  });
+
+  describe('getSupportedChainIds / isSupportedChain', () => {
+    it('lists every chain registered in CHAIN_CONFIGS', () => {
+      expect(getSupportedChainIds().sort()).toEqual(
+        [COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID, SEPOLIA_CHAIN_ID].sort(),
+      );
+    });
+
+    it('accepts COTI and Sepolia PoD chains', () => {
+      expect(isSupportedChain(COTI_MAINNET_CHAIN_ID)).toBe(true);
+      expect(isSupportedChain(COTI_TESTNET_CHAIN_ID)).toBe(true);
+      expect(isSupportedChain(SEPOLIA_CHAIN_ID)).toBe(true);
+      expect(isSupportedChain(999999)).toBe(false);
     });
   });
 
