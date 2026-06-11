@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { createConfig, http, WagmiProvider } from 'wagmi';
 import { connectorsForWallets } from '@rainbow-me/rainbowkit';
 import {
@@ -79,9 +79,12 @@ export function WagmiRainbowKitProvider({
   children,
   walletConnectProjectId,
 }: WagmiRainbowKitProviderProps) {
-  const config = walletConnectProjectId
-    ? createWagmiConfig(walletConnectProjectId)
-    : wagmiConfig;
+  const config = useMemo(
+    () => walletConnectProjectId
+      ? createWagmiConfig(walletConnectProjectId)
+      : wagmiConfig,
+    [walletConnectProjectId],
+  );
 
   return (
     <WagmiProvider config={config}>
