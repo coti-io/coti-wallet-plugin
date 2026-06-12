@@ -17,12 +17,19 @@ export interface CotiPluginConfig {
    * Even when enabled, secret material (AES keys, ciphertext, signatures) is never logged.
    */
   debug?: boolean;
+  /**
+   * When true, clears the in-memory session AES key (and Snap cache) on implicit
+   * wagmi/RainbowKit disconnect. Default false preserves the key so reconnecting
+   * the same wallet can skip Snap re-fetch; use true for stricter shared-browser security.
+   */
+  clearSessionKeyOnWagmiDisconnect?: boolean;
 }
 
 let _config: CotiPluginConfig = {
   snapId: 'npm:@coti-io/coti-snap',
   defaultNetworkId: undefined,
   debug: false,
+  clearSessionKeyOnWagmiDisconnect: false,
 };
 
 /**

@@ -6,6 +6,7 @@ import { muteChainUpdates, unmuteChainUpdates } from '../../src/lib/chainMute';
 import { MULTIPLE_WALLETS_ERROR_SUBSTRING } from '../../src/utils/walletErrors';
 import { podRequestsStorageKey } from '../../src/pod/podPortalRequestsStorage';
 import { logger } from '../../src/lib/logger';
+import { configureCotiPlugin } from '../../src/config/plugin';
 
 // ─── Capturing mock state ────────────────────────────────────────────────────
 const h = vi.hoisted(() => ({
@@ -243,6 +244,7 @@ function makePodRequest(overrides: Partial<PodPortalRequest> = {}): PodPortalReq
 describe('PrivacyBridgeContext (flow coverage)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    configureCotiPlugin({ clearSessionKeyOnWagmiDisconnect: false });
     localStorage.clear();
     unmuteChainUpdates();
     reqMock.mockReset();
@@ -516,6 +518,40 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
       await bumpWagmi();
       expect(latest!.isConnected).toBe(false);
       expect(latest!.walletAddress).toBe('');
+    });
+
+    it('preserves session key record on wagmi disconnect by default', async () => {
+      await connectWagmi();
+      await act(async () => {
+        h.balanceUpdater.params?.setSessionAesKey('h'.repeat(64), WALLET_A);
+      });
+      h.wagmi.isConnected = false;
+      h.wagmi.address = undefined;
+      await bumpWagmi();
+      expect(h.snap.clearSnapCache).not.toHaveBeenCalled();
+
+      h.wagmi.address = WALLET_A;
+      h.wagmi.isConnected = true;
+      await bumpWagmi();
+      expect(latest!.sessionAesKey).toBe('h'.repeat(64));
+    });
+
+    it('clears session key and snap cache on wagmi disconnect when configured', async () => {
+      configureCotiPlugin({ clearSessionKeyOnWagmiDisconnect: true });
+      await connectWagmi();
+      await act(async () => {
+        h.balanceUpdater.params?.setSessionAesKey('h'.repeat(64), WALLET_A);
+      });
+      h.snap.clearSnapCache.mockClear();
+      h.wagmi.isConnected = false;
+      h.wagmi.address = undefined;
+      await bumpWagmi();
+      expect(h.snap.clearSnapCache).toHaveBeenCalled();
+
+      h.wagmi.address = WALLET_A;
+      h.wagmi.isConnected = true;
+      await bumpWagmi();
+      expect(latest!.sessionAesKey).toBeNull();
     });
 
     it('handles wagmi account switch while connected', async () => {

@@ -1,6 +1,7 @@
 import { ethers } from "ethers";
 import type { TokenConfig } from "../types";
 import { getSepoliaGasPrice, quotePortalPodRequest } from "./executePodPortalTransaction";
+import { logger } from "../../lib/logger";
 
 type EthereumRequest = {
   request: (args: { method: string; params?: unknown[] }) => Promise<string>;
@@ -112,10 +113,10 @@ export async function estimatePodPortalGasFeeDisplay(params: {
   } catch (err) {
     // The PoD portal contract reverts estimateFee() when the wallet is not yet registered
     // (i.e. before the user has completed onboarding). Suppress the error and return a
-    // static realistic fallback so the UI can still render without spamming the console.
+    // static realistic fallback so the UI can still render without spamming logs.
     const msg = err instanceof Error ? err.message : String(err);
     if (!msg.includes("pending") && !msg.includes("untrusted")) {
-      console.warn("⚠️ PoD gas estimation unavailable (wallet may not be onboarded yet). Using static fallback.");
+      logger.warn('PoD gas estimation unavailable (wallet may not be onboarded yet). Using static fallback.');
     }
     // Static fallback: 850k gas × 1 gwei for deposit, 900k gas × 1 gwei for withdraw
     const fallbackGas = direction === "to-private" ? 850000n : 900000n;

@@ -1,4 +1,5 @@
 import type { PodPortalRequest } from "../contracts/pod";
+import { logger } from "../lib/logger";
 
 const STORAGE_PREFIX = "pod-portal-requests:v1";
 
@@ -20,6 +21,6 @@ export function savePodRequests(wallet: string | undefined, requests: PodPortalR
   try {
     localStorage.setItem(podRequestsStorageKey(wallet), JSON.stringify(requests.slice(0, 20)));
   } catch (e) {
-    console.warn("savePodRequests failed:", e);
+    logger.warn('savePodRequests failed', e);
   }
 }

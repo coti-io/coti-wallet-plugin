@@ -4,7 +4,11 @@ import { configureCotiPlugin, getPluginConfig } from '../../src/config/plugin';
 describe('Plugin Configuration (README: Basic Setup)', () => {
   beforeEach(() => {
     // Reset to defaults
-    configureCotiPlugin({ snapId: 'npm:@coti-io/coti-snap', defaultNetworkId: undefined });
+    configureCotiPlugin({
+      snapId: 'npm:@coti-io/coti-snap',
+      defaultNetworkId: undefined,
+      clearSessionKeyOnWagmiDisconnect: false,
+    });
   });
 
   it('returns default configuration when not configured', () => {
@@ -43,5 +47,14 @@ describe('Plugin Configuration (README: Basic Setup)', () => {
     const config = getPluginConfig();
     expect(config).toBeDefined();
     expect(typeof config.snapId).toBe('string');
+  });
+
+  it('defaults clearSessionKeyOnWagmiDisconnect to false', () => {
+    expect(getPluginConfig().clearSessionKeyOnWagmiDisconnect).toBe(false);
+  });
+
+  it('allows enabling clearSessionKeyOnWagmiDisconnect', () => {
+    configureCotiPlugin({ clearSessionKeyOnWagmiDisconnect: true });
+    expect(getPluginConfig().clearSessionKeyOnWagmiDisconnect).toBe(true);
   });
 });

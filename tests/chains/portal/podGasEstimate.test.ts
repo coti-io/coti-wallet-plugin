@@ -86,7 +86,7 @@ describe('estimatePodPortalGasFeeDisplay', () => {
     expect(result).toBe(fmt(100000n * 1_000_000_000n + 5_000n));
   });
 
-  it('suppresses the console warning when the quote error is a pending/untrusted state', async () => {
+  it('suppresses the logger warning when the quote error is a pending/untrusted state', async () => {
     quotePortalPodRequest.mockRejectedValue(new Error('A PoD request is already pending'));
     const result = await estimatePodPortalGasFeeDisplay({
       ...baseParams,

@@ -17,6 +17,7 @@ import { resolvePodRequestStatus } from '../chains/portal/podRequestStatus';
 import { isMultipleWalletsError } from '../utils/walletErrors';
 import { useWalletType } from '../hooks/useWalletType';
 import { useAesKeyProvider } from '../hooks/useAesKeyProvider';
+import { getPluginConfig } from '../config/plugin';
 
 interface PrivacyBridgeContextType {
     isConnected: boolean;
@@ -421,8 +422,12 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
             wagmiSyncRef.current = false;
             setIsConnected(false);
             setWalletAddress('');
-            // We intentionally do NOT clear setSessionAesKey(null) here, so the
-            // ephemeral AES key cache survives a temporary wallet lock.
+            if (getPluginConfig().clearSessionKeyOnWagmiDisconnect) {
+                setSessionAesKey(null);
+                clearSnapCache();
+            }
+            // When clearSessionKeyOnWagmiDisconnect is false, sessionKeyRecord survives
+            // a temporary wallet lock so the same address can reconnect without Snap re-fetch.
             setArePrivateBalancesHidden(true);
         }
 

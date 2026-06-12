@@ -32,7 +32,7 @@ export async function estimateCotiBridgeGasFeeDisplay(params: {
         nativeCotiFee = (feeWei * 101n) / 100n;
       }
     } catch (e) {
-      console.warn("⚠️ Could not compute dynamic fee for gas estimation");
+      logger.warn('Could not compute dynamic fee for gas estimation', e);
     }
   }
 
@@ -41,7 +41,7 @@ export async function estimateCotiBridgeGasFeeDisplay(params: {
 
   if (direction === "to-private" && isErc20Token) {
     const estimatedFeeWei = 790000n * gasPrice;
-    console.log("⛽️ ERC20 deposit: using observed gas constant 790000");
+    logger.log('ERC20 deposit: using observed gas constant 790000');
     /* v8 ignore next */
     return ethers.formatEther(estimatedFeeWei).replace(/\.?0+$/, "") || "0";
   } else if (direction === "to-private") {
@@ -68,15 +68,18 @@ export async function estimateCotiBridgeGasFeeDisplay(params: {
       ],
     });
     gasLimit = BigInt(gasEstimateHex);
-    console.log(`⛽️ eth_estimateGas succeeded: ${gasLimit.toString()} gas units`);
+    logger.log('eth_estimateGas succeeded', { gasLimit: gasLimit.toString() });
   } catch (estimateErr: any) {
     const isNativeCotiDeposit = !isErc20Token && direction === "to-private";
     gasLimit = isNativeCotiDeposit ? 660000n : 500000n;
-    console.warn(`⚠️ eth_estimateGas failed, using realistic fallback (${gasLimit}):`, estimateErr?.message);
+    logger.warn('eth_estimateGas failed, using realistic fallback', {
+      gasLimit: gasLimit.toString(),
+      message: estimateErr?.message,
+    });
   }
 
   const estimatedFeeWei = gasLimit * gasPrice;
-  console.log("⛽️ Gas Fee Estimation:", {
+  logger.log('Gas fee estimation', {
     gasPrice: gasPrice.toString(),
     gasLimit: gasLimit.toString(),
     feeCoti: ethers.formatEther(estimatedFeeWei),
