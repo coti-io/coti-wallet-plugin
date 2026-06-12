@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { ethers } from 'ethers';
 import { CONTRACT_ADDRESSES, ERC20_ABI, getPublicTokensForChain, getPrivateTokensForChain } from '../contracts/config';
 import { getRpcUrlForChainId } from '../config/chains';
@@ -39,6 +39,7 @@ export const useBalanceUpdater = ({
     sessionAesKey,
     setSessionAesKey
 }: UseBalanceUpdaterProps) => {
+    const updateGenerationRef = useRef(0);
 
     const updateAccountState = useCallback(async (
         account: string,
@@ -47,6 +48,9 @@ export const useBalanceUpdater = ({
         aesKeyOverride?: string | null,
         chainOverride?: number
     ) => {
+        const generation = ++updateGenerationRef.current;
+        const isStale = () => generation !== updateGenerationRef.current;
+
         try {
             setWalletAddress(account);
             setIsConnected(true);
@@ -58,11 +62,13 @@ export const useBalanceUpdater = ({
                 // Ensure network name is updated immediately when MetaMask is available.
                 if (browserProvider) {
                     await checkNetwork(browserProvider);
+                    if (isStale()) return false;
                 }
 
                 const currentChainId = hasChainOverride
                     ? chainOverride
                     : Number((await browserProvider!.getNetwork()).chainId);
+                if (isStale()) return false;
                 const readProvider = hasChainOverride
                     ? new ethers.JsonRpcProvider(getRpcUrlForChainId(currentChainId), currentChainId)
                     : browserProvider!;
@@ -93,6 +99,8 @@ export const useBalanceUpdater = ({
                     }
                 }));
 
+                if (isStale()) return false;
+
                 logger.log('✅ Updating public tokens list');
                 setPublicTokens(publicTokenConfigs.map((token, index) => ({
                     symbol: token.symbol,
@@ -111,15 +119,20 @@ export const useBalanceUpdater = ({
                         // Only fetch from Snap if no session key is provided
                         if (!aesKey) {
                             aesKey = await getAESKeyFromSnap(account);
+                            if (isStale()) return false;
                             if (aesKey) {
                                 setSessionAesKey(aesKey, account);
                             }
                         } else {
+                            if (isStale()) return false;
                             setHasSnap(true);
                         }
 
                         if (aesKey) {
-                            if (!sessionAesKey) setHasSnap(true);
+                            if (!sessionAesKey) {
+                                if (isStale()) return false;
+                                setHasSnap(true);
+                            }
 
                             logger.log('🔄 Fetching private balances...');
 
@@ -148,10 +161,13 @@ export const useBalanceUpdater = ({
                                 }
                             }));
 
+                            if (isStale()) return false;
+
                             const mismatchCount = privateFetches.filter(r => r.isMismatch).length;
 
                             // Any AES key mismatch means the key is wrong for this account.
                             if (mismatchCount > 0) {
+                                if (isStale()) return false;
                                 throw new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch: Error decrypting. Re-onboarding required.');
                             }
 
@@ -174,6 +190,7 @@ export const useBalanceUpdater = ({
                             return false;
                         }
                     } catch (privateError: any) {
+                        if (isStale()) return false;
                         logger.warn('⚠️ Could not fetch/decrypt private balance on load:', privateError);
                         if (privateError instanceof CotiPluginError) {
                             throw privateError;
@@ -184,6 +201,7 @@ export const useBalanceUpdater = ({
             }
             return true;
         } catch (error: any) {
+            if (isStale()) return false;
             logger.error('Error updating account state:', error);
             if (error instanceof CotiPluginError) {
                 throw error;

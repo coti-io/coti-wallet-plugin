@@ -222,4 +222,173 @@ describe('useBalanceUpdater', () => {
     const ok = await result.current.updateAccountState(ACCOUNT, false, false);
     expect(ok).toBe(false);
   });
+
+  it('ignores stale public balance updates when a newer updateAccountState starts', async () => {
+    const original = (window as any).ethereum;
+    delete (window as any).ethereum;
+
+    let resolveSlowBalance!: (value: bigint) => void;
+    const slowBalance = new Promise<bigint>(resolve => {
+      resolveSlowBalance = resolve;
+    });
+
+    h.getBalance
+      .mockReturnValueOnce(slowBalance)
+      .mockResolvedValue(2000000000000000000n);
+    h.formatEther.mockReturnValueOnce('1.5').mockReturnValueOnce('2.0');
+
+    const props = makeProps();
+    const { result } = renderHook(() => useBalanceUpdater(props));
+
+    const accountB = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+    const slowUpdate = result.current.updateAccountState(ACCOUNT, false, false, null, COTI_TESTNET);
+    const fastUpdate = result.current.updateAccountState(accountB, false, false, null, COTI_TESTNET);
+
+    resolveSlowBalance(1500000000000000000n);
+    const [slowOk, fastOk] = await Promise.all([slowUpdate, fastUpdate]);
+
+    expect(slowOk).toBe(false);
+    expect(fastOk).toBe(true);
+    expect(props.setPublicTokens).toHaveBeenCalledTimes(1);
+    expect(props.setWalletAddress).toHaveBeenLastCalledWith(accountB);
+
+    (window as any).ethereum = original;
+  });
+
+  it('ignores stale private balance updates when a newer updateAccountState starts', async () => {
+    const original = (window as any).ethereum;
+    delete (window as any).ethereum;
+
+    let resolveSlowPrivate!: (value: string) => void;
+    const slowPrivate = new Promise<string>(resolve => {
+      resolveSlowPrivate = resolve;
+    });
+
+    const props = makeProps({
+      sessionAesKey: 'f'.repeat(64),
+      fetchPrivateBalance: vi
+        .fn()
+        .mockReturnValueOnce(slowPrivate)
+        .mockResolvedValue('99'),
+    });
+    const { result } = renderHook(() => useBalanceUpdater(props));
+
+    const accountB = '0xcccccccccccccccccccccccccccccccccccccccc';
+    const slowUpdate = result.current.updateAccountState(
+      ACCOUNT,
+      true,
+      true,
+      undefined,
+      COTI_TESTNET,
+    );
+    const fastUpdate = result.current.updateAccountState(
+      accountB,
+      true,
+      true,
+      'a'.repeat(64),
+      COTI_TESTNET,
+    );
+
+    resolveSlowPrivate('11');
+    const [slowOk, fastOk] = await Promise.all([slowUpdate, fastUpdate]);
+
+    expect(slowOk).toBe(false);
+    expect(fastOk).toBe(true);
+    expect(props.setPrivateTokens).toHaveBeenCalledTimes(1);
+    expect(props.setWalletAddress).toHaveBeenLastCalledWith(accountB);
+
+    (window as any).ethereum = original;
+  });
+
+  it('does not throw AES_KEY_MISMATCH from a stale private balance request', async () => {
+    const original = (window as any).ethereum;
+    delete (window as any).ethereum;
+
+    let rejectSlowPrivate!: (error: Error) => void;
+    const slowPrivate = new Promise<string>((_, reject) => {
+      rejectSlowPrivate = reject;
+    });
+    const accountB = '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
+
+    const props = makeProps({
+      sessionAesKey: 'd'.repeat(64),
+      fetchPrivateBalance: vi.fn().mockImplementation((userAddress: string) =>
+        userAddress === ACCOUNT ? slowPrivate : Promise.resolve('5'),
+      ),
+    });
+    const { result } = renderHook(() => useBalanceUpdater(props));
+
+    const slowUpdate = result.current.updateAccountState(
+      ACCOUNT,
+      true,
+      true,
+      undefined,
+      COTI_TESTNET,
+    );
+    await vi.waitFor(() => {
+      expect(props.fetchPrivateBalance).toHaveBeenCalled();
+    });
+    const fastUpdate = result.current.updateAccountState(
+      accountB,
+      true,
+      true,
+      'e'.repeat(64),
+      COTI_TESTNET,
+    );
+
+    await fastUpdate;
+    rejectSlowPrivate(new Error('AES key mismatch'));
+    const slowOk = await slowUpdate;
+
+    expect(slowOk).toBe(false);
+
+    (window as any).ethereum = original;
+  });
+
+  it('does not cache snap AES key from a stale request superseded before getAESKeyFromSnap returns', async () => {
+    const original = (window as any).ethereum;
+    delete (window as any).ethereum;
+
+    let resolveSlowSnap!: (value: string) => void;
+    const slowSnap = new Promise<string>(resolve => {
+      resolveSlowSnap = resolve;
+    });
+
+    const props = makeProps({
+      getAESKeyFromSnap: vi.fn().mockImplementation((userAddress: string) =>
+        userAddress === ACCOUNT ? slowSnap : Promise.resolve('b'.repeat(64)),
+      ),
+      fetchPrivateBalance: vi.fn().mockResolvedValue('7'),
+    });
+    const { result } = renderHook(() => useBalanceUpdater(props));
+
+    const accountB = '0xdddddddddddddddddddddddddddddddddddddddd';
+    const slowUpdate = result.current.updateAccountState(
+      ACCOUNT,
+      true,
+      true,
+      undefined,
+      COTI_TESTNET,
+    );
+    await vi.waitFor(() => {
+      expect(props.getAESKeyFromSnap).toHaveBeenCalledWith(ACCOUNT);
+    });
+    const fastUpdate = result.current.updateAccountState(
+      accountB,
+      true,
+      true,
+      undefined,
+      COTI_TESTNET,
+    );
+
+    await fastUpdate;
+    resolveSlowSnap('a'.repeat(64));
+    const slowOk = await slowUpdate;
+
+    expect(slowOk).toBe(false);
+    expect(props.setSessionAesKey).not.toHaveBeenCalledWith('a'.repeat(64), ACCOUNT);
+    expect(props.setSessionAesKey).toHaveBeenCalledWith('b'.repeat(64), accountB);
+
+    (window as any).ethereum = original;
+  });
 });
