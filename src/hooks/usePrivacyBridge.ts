@@ -14,6 +14,10 @@ import { estimateBridgeFee } from './useEstimateBridgeFees';
 import { getChainConfig, getPrivateTokensForChain, getPublicTokensForChain, getRpcUrlForChain } from '../chains';
 import { getEthereumProvider } from '../lib/ethereum';
 import { logger } from '../lib/logger';
+import { truncateAddress } from '../lib/format';
+
+const shortHash = (value: string | undefined | null) =>
+    value && value.length > 12 ? `${value.slice(0, 10)}…` : value ?? 'n/a';
 
 
 export interface Token {
@@ -389,14 +393,14 @@ export const usePrivacyBridge = ({
                                 return;
                             }
                         } catch (decryptErr) {
-                            console.warn("Could not decrypt private allowance, defaulting to 0", decryptErr);
+                            logger.warn("Could not decrypt private allowance, defaulting to 0", decryptErr);
                         }
                     }
                     
                     // If no AES key or user rejected, fall back to 0 so they can re-approve
                     setAllowance('0');
                 } catch (e) {
-                    console.warn("Could not check private allowance, defaulting to 0", e);
+                    logger.warn("Could not check private allowance, defaulting to 0", e);
                     setAllowance('0');
                 }
                 return;
@@ -413,7 +417,7 @@ export const usePrivacyBridge = ({
 
             setAllowance(ethers.formatUnits(currentAllowance, decimals));
         } catch (err) {
-            console.error("Failed to check allowance", err);
+            logger.error("Failed to check allowance", err);
             setAllowance('0');
         }
     }, [isConnected, walletAddress, selectedTokenIndex, publicTokens, hasSnap, getAESKeyFromSnap, direction]);
@@ -590,7 +594,7 @@ export const usePrivacyBridge = ({
                     signer
                 );
 
-                console.log("🔄 Approving private token for bridge (256-bit)...");
+                logger.log("🔄 Approving private token for bridge (256-bit)...");
 
                 // Manually encode the calldata
                 const approveInterface = new ethers.Interface([
@@ -612,7 +616,7 @@ export const usePrivacyBridge = ({
                     }]
                 });
 
-                console.log("🔄 Waiting for approve tx hash:", rawTxHash);
+                logger.log('Waiting for approve tx', { txHash: shortHash(rawTxHash) });
                 await provider.waitForTransaction(rawTxHash);
                 
                 setIsApproving(false);
@@ -643,7 +647,7 @@ export const usePrivacyBridge = ({
             setToastState(prev => ({ ...prev, visible: false }));
 
         } catch (err) {
-            console.error("Approval failed", err);
+            logger.error("Approval failed", err);
             setIsApproving(false);
             setToastState(prev => ({ ...prev, visible: false }));
             throw err; // Rethrow to allow UI to handle error (e.g. show message, reset state)
@@ -685,18 +689,18 @@ export const usePrivacyBridge = ({
         overrides: any = {}
     ): Promise<bigint> => {
         try {
-            console.log(`Estimating gas for ${methodName}...`);
+            logger.log(`Estimating gas for ${methodName}...`);
             const estimatedGas = await contract[methodName].estimateGas(...args, overrides);
             // removing 20% buffer as requested
             // const safeGas = (estimatedGas * 120n) / 100n;
             const safeGas = estimatedGas;
-            console.log(`Gas estimation successful: ${estimatedGas.toString()} -> Safe limit: ${safeGas.toString()}`);
+            logger.log(`Gas estimation successful: ${estimatedGas.toString()} -> Safe limit: ${safeGas.toString()}`);
             return safeGas;
         } catch (error: any) {
-            console.warn(`Gas estimation failed for ${methodName}`, error);
+            logger.warn(`Gas estimation failed for ${methodName}`, error);
             // Log specific error reason if available
-            if (error.reason) console.warn(`   Reason: ${error.reason}`);
-            if (error.data) console.warn(`   Data: ${error.data}`);
+            if (error.reason) logger.warn(`   Reason: ${error.reason}`);
+            if (error.data) logger.warn(`   Data: ${error.data}`);
 
             return fallbackGasLimit;
         }
@@ -708,7 +712,7 @@ export const usePrivacyBridge = ({
         txTokenIndex: number,
         onProgress?: (stage: SwapProgressStage, txHash?: string) => void
     ) => {
-        console.log(`🚀 Initiating swap transaction: ${txAmount} (Direction: ${txDirection}, Token Index: ${txTokenIndex})`);
+        logger.log(`🚀 Initiating swap transaction: ${txAmount} (Direction: ${txDirection}, Token Index: ${txTokenIndex})`);
         setIsBridgingLoading(true);
         try {
             if (!window.ethereum) throw new Error("No wallet found");
@@ -811,14 +815,12 @@ export const usePrivacyBridge = ({
                     : undefined;
 
                 if (!bridgeAddress || !tokenAddress || !pTokenAddress) {
-                    console.error("❌ PoD portal config check failed:", {
-                        bridgeAddress,
-                        tokenAddress,
-                        pTokenAddress,
-                        privTokExec: privTokExec?.symbol,
-                        privTokAddressKey: privTokExec?.addressKey,
-                        currentChainId,
-                        addressKeys: Object.keys(addresses /* v8 ignore branch */ || {}),
+                    logger.error('PoD portal config check failed', {
+                        token: privTokExec?.symbol,
+                        chainId: currentChainId,
+                        hasBridge: !!bridgeAddress,
+                        hasToken: !!tokenAddress,
+                        hasPToken: !!pTokenAddress,
                     });
                     throw new Error("Sepolia PoD portal is not configured");
                 }
@@ -854,7 +856,7 @@ export const usePrivacyBridge = ({
                         ? 'Deposit submitted on Sepolia. Private balance will update after the PoD callback succeeds.'
                         : 'Withdraw submitted on Sepolia. Funds are released after the PoD callback succeeds.',
                 });
-                console.log("Sepolia PoD request submitted:", result.txHash);
+                logger.log('Sepolia PoD request submitted', { txHash: shortHash(result.txHash) });
                 return;
             }
 
@@ -862,7 +864,10 @@ export const usePrivacyBridge = ({
 
             if (txDirection === 'to-private') {
                 // Deposit
-                console.log(`Depositing ${txAmount} ${txPublicToken.symbol} to ${bridgeAddress}`);
+                logger.log('Depositing to bridge', {
+                    token: txPublicToken.symbol,
+                    bridge: truncateAddress(bridgeAddress),
+                });
 
                 setToastState({
                     visible: true,
@@ -882,18 +887,17 @@ export const usePrivacyBridge = ({
                         const userAllowance = await tokenContract.allowance(walletAddress, bridgeAddress);
 
                         if (userBalance < amountWeiPublic) {
-                            console.log(`DEBUG: Insufficient Balance Check`);
-                            console.log(`DEBUG: Token: ${txPublicToken.symbol}`);
-                            console.log(`DEBUG: Decimals: ${publicDecimals}`);
-                            console.log(`DEBUG: Raw Balance (Wei): ${userBalance.toString()}`);
-                            console.log(`DEBUG: Formatted Balance: ${ethers.formatUnits(userBalance, publicDecimals)}`);
+                            logger.log('Insufficient balance for deposit', {
+                                token: txPublicToken.symbol,
+                                decimals: publicDecimals,
+                            });
                             throw new Error(`Insufficient ${txPublicToken.symbol} balance. You have ${ethers.formatUnits(userBalance, publicDecimals)} ${txPublicToken.symbol}, trying to bridge ${txAmount}.`);
                         }
                         if (userAllowance < amountWeiPublic) {
                             throw new Error(`Insufficient Allowance. Approved: ${ethers.formatUnits(userAllowance, publicDecimals)}, Required: ${txAmount}. Please Approve again.`);
                         }
 
-                        console.log("🔄 Executing ERC20 Deposit...");
+                        logger.log("🔄 Executing ERC20 Deposit...");
 
                         // Get fee from on-chain estimateDepositFee
                         let nativeFee = 0n;
@@ -910,14 +914,17 @@ export const usePrivacyBridge = ({
                             }
                             cotiOracleTimestamp = BigInt(feeEstimate.cotiLastUpdated || '0');
                             tokenOracleTimestamp = BigInt(feeEstimate.tokenLastUpdated || '0');
-                            console.log("   Computed COTI Fee (with 1% slippage):", ethers.formatEther(nativeFee));
-                            console.log("   COTI oracle timestamp:", cotiOracleTimestamp.toString());
-                            console.log("   Token oracle timestamp:", tokenOracleTimestamp.toString());
+                            logger.log('Computed COTI fee for ERC20 deposit');
+                            logger.log('Oracle timestamps loaded for ERC20 deposit', {
+                                coti: cotiOracleTimestamp.toString(),
+                                token: tokenOracleTimestamp.toString(),
+                            });
                         } catch (e) {
-                            console.warn("⚠️ Could not compute dynamic fee, defaulting to 0:", e);
+                            logger.warn("⚠️ Could not compute dynamic fee, defaulting to 0:", e);
                         }
 
-                        console.log("   Amount (Wei):", amountWeiPublic.toString());
+
+                        logger.log('ERC20 deposit prepared', { token: txPublicToken.symbol });
 
                         onProgress?.('transfer-start');
 
@@ -938,9 +945,9 @@ export const usePrivacyBridge = ({
                                 }]
                             });
                             depositGasLimit = (BigInt(depositGasHex) * 130n) / 100n;
-                            console.log(`🔍 ERC20 deposit gas: estimated=${BigInt(depositGasHex)}, buffered=${depositGasLimit}`);
+                            logger.log(`🔍 ERC20 deposit gas: estimated=${BigInt(depositGasHex)}, buffered=${depositGasLimit}`);
                         } catch (estErr: any) {
-                            console.warn("⚠️ ERC20 deposit gas estimation failed, falling back to 12M:", estErr?.message);
+                            logger.warn("⚠️ ERC20 deposit gas estimation failed, falling back to 12M:", estErr?.message);
                         }
 
                         const rawDepositTxHash = await (window.ethereum as any).request({
@@ -954,7 +961,7 @@ export const usePrivacyBridge = ({
                             }]
                         });
 
-                        console.log("ERC20 deposit tx sent:", rawDepositTxHash);
+                        logger.log('ERC20 deposit tx sent', { txHash: shortHash(rawDepositTxHash) });
                         tx = {
                             hash: rawDepositTxHash,
                             wait: async () => await provider.waitForTransaction(rawDepositTxHash)
@@ -962,7 +969,7 @@ export const usePrivacyBridge = ({
 
                     } else {
                         // Native COTI Deposit
-                        console.log("🔄 Executing Native COTI Deposit...");
+                        logger.log("🔄 Executing Native COTI Deposit...");
 
                         // Get dual oracle timestamps from fee estimation
                         let cotiOracleTimestamp = 0n;
@@ -973,20 +980,21 @@ export const usePrivacyBridge = ({
                             const feeEstimate = await estimateBridgeFee('COTI', txAmount, rpcProvider);
                             cotiOracleTimestamp = BigInt(feeEstimate.cotiLastUpdated || '0');
                             tokenOracleTimestamp = cotiOracleTimestamp;
-                            console.log("   COTI oracle timestamp:", cotiOracleTimestamp.toString());
-                            console.log("   Token oracle timestamp:", tokenOracleTimestamp.toString());
+                            logger.log('Oracle timestamps loaded for native COTI deposit', {
+                                coti: cotiOracleTimestamp.toString(),
+                                token: tokenOracleTimestamp.toString(),
+                            });
                         } catch (e) {
-                            console.warn("⚠️ Could not fetch oracle timestamp:", e);
+                            logger.warn("⚠️ Could not fetch oracle timestamp:", e);
                         }
 
                         // Default fallback 12M — native COTI bridge.deposit() triggers MPC operations.
                         let safeGasLimit = 12000000n;
 
-                        console.log("   Amount (Wei):", amountWei.toString());
-                        console.log("   Fallback Gas Limit:", safeGasLimit.toString());
+                        logger.log('Native COTI deposit prepared', { token: txPublicToken.symbol, gasLimit: safeGasLimit.toString() });
 
                         try {
-                            console.log("🔍 Attempting calculateGasMargin for native COTI deposit...");
+                            logger.log("🔍 Attempting calculateGasMargin for native COTI deposit...");
                             const estimatedGas = await calculateGasMargin(
                                 bridge,
                                 'deposit(uint256,uint256)',
@@ -996,10 +1004,10 @@ export const usePrivacyBridge = ({
                             );
                             const buffered = (estimatedGas * 130n) / 100n;
                             safeGasLimit = buffered > 900000n ? buffered : 900000n;
-                            console.log(`🔍 Native COTI deposit gas: estimated=${estimatedGas}, buffered=${buffered}, final=${safeGasLimit}`);
+                            logger.log(`🔍 Native COTI deposit gas: estimated=${estimatedGas}, buffered=${buffered}, final=${safeGasLimit}`);
                         /* v8 ignore start -- calculateGasMargin never throws; it returns fallbackGasLimit internally */
                         } catch (e) {
-                            console.warn("⚠️ Native COTI deposit gas estimation failed, falling back to 12M:", e);
+                            logger.warn("⚠️ Native COTI deposit gas estimation failed, falling back to 12M:", e);
                         }
                         /* v8 ignore stop */
 
@@ -1013,7 +1021,7 @@ export const usePrivacyBridge = ({
                 }
             } else {
                 // Withdraw (Portal Out) — Uses bridge.withdraw()
-                console.log(`Withdrawing ${txAmount} p.${txPublicToken.symbol}`);
+                logger.log(`Withdrawing ${txAmount} p.${txPublicToken.symbol}`);
 
                 try {
                     // Check Allowance first (similar to Deposit)
@@ -1052,11 +1060,13 @@ export const usePrivacyBridge = ({
                             }
                             cotiOracleTimestamp = BigInt(feeEstimate.cotiLastUpdated || '0');
                             tokenOracleTimestamp = BigInt(feeEstimate.tokenLastUpdated || '0');
-                            console.log("   Computed COTI Fee for withdraw (with 1% slippage):", ethers.formatEther(nativeFee));
-                            console.log("   COTI oracle timestamp:", cotiOracleTimestamp.toString());
-                            console.log("   Token oracle timestamp:", tokenOracleTimestamp.toString());
+                            logger.log('Computed COTI fee for withdraw');
+                            logger.log('Oracle timestamps loaded for withdraw', {
+                                coti: cotiOracleTimestamp.toString(),
+                                token: tokenOracleTimestamp.toString(),
+                            });
                         } catch (e) {
-                            console.warn("⚠️ Could not compute dynamic fee for withdraw, defaulting to 0:", e);
+                            logger.warn("⚠️ Could not compute dynamic fee for withdraw, defaulting to 0:", e);
                         }
                     } else {
                         // Native COTI withdrawal — get dual oracle timestamps
@@ -1066,27 +1076,28 @@ export const usePrivacyBridge = ({
                             const feeEstimate = await estimateBridgeFee('COTI', txAmount, rpcProvider);
                             cotiOracleTimestamp = BigInt(feeEstimate.cotiLastUpdated || '0');
                             tokenOracleTimestamp = cotiOracleTimestamp;
-                            console.log("   COTI oracle timestamp for native withdraw:", cotiOracleTimestamp.toString());
-                            console.log("   Token oracle timestamp for native withdraw:", tokenOracleTimestamp.toString());
+                            logger.log('Oracle timestamps loaded for native withdraw', {
+                                coti: cotiOracleTimestamp.toString(),
+                                token: tokenOracleTimestamp.toString(),
+                            });
                         } catch (e) {
-                            console.warn("⚠️ Could not fetch oracle timestamps for withdraw:", e);
+                            logger.warn("⚠️ Could not fetch oracle timestamps for withdraw:", e);
                         }
                     }
 
-                    console.log("🔄 Executing Withdraw via bridge.withdraw()...");
+                    logger.log("🔄 Executing Withdraw via bridge.withdraw()...");
                     // Default fallback gas limit for MPC operations.
                     // COTI node's estimateGas can under-count, but we will try to calculate dynamically.
                     let safeGasLimit = 12000000n;
 
-                    console.log("   Amount (Wei):", amountWei.toString());
-                    console.log("   Fallback Gas Limit:", safeGasLimit.toString());
+                    logger.log('Withdraw prepared', { token: txPublicToken.symbol, gasLimit: safeGasLimit.toString() });
 
                     // CRITICAL: We also bypass the Coti provider here because it strips the data field
                     // from normal (non-encrypted) transactions. Without this, msg.data lands as "" and reverts.
                     const withdrawCalldata = bridgeContract.interface.encodeFunctionData('withdraw(uint256,uint256,uint256)', [amountWei, cotiOracleTimestamp, tokenOracleTimestamp]);
 
                     try {
-                        console.log("🔍 Attempting eth_estimateGas for withdraw...");
+                        logger.log("🔍 Attempting eth_estimateGas for withdraw...");
                         const gasEstimateHex = await (window.ethereum as any).request({
                             method: 'eth_estimateGas',
                             params: [{
@@ -1099,10 +1110,10 @@ export const usePrivacyBridge = ({
                         // Add 30% buffer — MPC operations have significant gas variance between
                         // estimation and execution, 10% is not enough and causes silent reverts.
                         safeGasLimit = (BigInt(gasEstimateHex) * 130n) / 100n;
-                        console.log(`🔍 Withdraw gas estimation successful: ${BigInt(gasEstimateHex).toString()} → with 30% buffer: ${safeGasLimit.toString()}`);
+                        logger.log(`🔍 Withdraw gas estimation successful: ${BigInt(gasEstimateHex).toString()} → with 30% buffer: ${safeGasLimit.toString()}`);
                     } catch (estimateErr: any) {
-                        console.warn("⚠️ Withdraw gas estimation failed, falling back to 12M:", estimateErr);
-                        if (estimateErr.message) console.warn("   Reason:", estimateErr.message);
+                        logger.warn("⚠️ Withdraw gas estimation failed, falling back to 12M:", estimateErr);
+                        if (estimateErr.message) logger.warn("   Reason:", estimateErr.message);
                     }
 
                     const rawWithdrawTxHash = await (window.ethereum as any).request({
@@ -1116,7 +1127,7 @@ export const usePrivacyBridge = ({
                         }]
                     });
 
-                    console.log("Transaction sent:", rawWithdrawTxHash);
+                    logger.log('Withdraw tx sent', { txHash: shortHash(rawWithdrawTxHash) });
                     onProgress?.('transfer-start');
 
                     // We mock a transaction response shape for the shared logic below
@@ -1138,7 +1149,7 @@ export const usePrivacyBridge = ({
             // ... (Wait, I need to update Gas Estimation separately below)
 
 
-            console.log("Transaction sent:", tx.hash);
+            logger.log('Transaction sent', { txHash: shortHash(tx.hash) });
 
             // Show processing toast now that we have the tx
             setToastState({
@@ -1148,14 +1159,21 @@ export const usePrivacyBridge = ({
             });
 
             const receipt = await tx.wait();
-            console.log("Transaction confirmed:", receipt);
-            console.log(`⛽️ Gas used: ${receipt.gasUsed?.toString()} / limit: ${receipt.gasLimit?.toString() ?? 'n/a'}`);
+            logger.log('Transaction confirmed', {
+                status: receipt.status,
+                blockNumber: receipt.blockNumber,
+                gasUsed: receipt.gasUsed?.toString(),
+                gasLimit: receipt.gasLimit?.toString() ?? 'n/a',
+            });
 
             // Validate transaction succeeded on-chain
             if (receipt.status !== 1) {
                 const gasUsed = receipt.gasUsed ? Number(receipt.gasUsed) : 0;
                 const txHashStr = tx.hash || receipt.hash || '';
-                console.warn(`⚠️ Transaction reverted on-chain. Gas used: ${gasUsed}, tx: ${txHashStr}`);
+                logger.warn('Transaction reverted on-chain', {
+                    gasUsed,
+                    txHash: shortHash(txHashStr),
+                });
 
                 // Try to extract revert reason by replaying the tx via eth_call
                 let revertReason = '';
@@ -1238,8 +1256,10 @@ export const usePrivacyBridge = ({
             }
 
             if (refreshPrivateBalances) {
-                console.log("🔄 Triggering immediate balance refresh...");
-                refreshPrivateBalances().catch(console.error);
+                logger.log("🔄 Triggering immediate balance refresh...");
+                refreshPrivateBalances().catch(err =>
+                    logger.error('Immediate balance refresh failed', err),
+                );
             }
 
             setToastState({
@@ -1251,7 +1271,7 @@ export const usePrivacyBridge = ({
             });
 
         } catch (error: any) {
-            console.error("Transaction failed:", error);
+            logger.error("Transaction failed:", error);
 
             // In ethers v6, tx.wait() throws CALL_EXCEPTION with receipt attached when tx reverts.
             // Try to decode the custom revert error from the contract ABI.
@@ -1259,7 +1279,7 @@ export const usePrivacyBridge = ({
                 const revertData = error.data || error.error?.data;
                 const errorName = error.errorName || error.revert?.name;
                 const gasUsed = error.receipt?.gasUsed ? Number(error.receipt.gasUsed) : 0;
-                console.warn(`⚠️ CALL_EXCEPTION on-chain revert. Error: ${errorName || 'unknown'}, Gas used: ${gasUsed}`);
+                logger.warn(`⚠️ CALL_EXCEPTION on-chain revert. Error: ${errorName || 'unknown'}, Gas used: ${gasUsed}`);
 
                 // Map known contract custom errors to user-friendly messages
                 const knownErrors: Record<string, string> = {
@@ -1352,7 +1372,7 @@ export const usePrivacyBridge = ({
 
         // Prevent duplicate submissions while a transaction is already in progress
         if (isBridgingLoading) {
-            console.warn("⚠️ Transaction already in progress, ignoring duplicate submission.");
+            logger.warn("⚠️ Transaction already in progress, ignoring duplicate submission.");
             return;
         }
 
@@ -1371,13 +1391,13 @@ export const usePrivacyBridge = ({
                 if (aesKey) {
                     setHasSnap(true);
                 } else {
-                    console.log('⚠️ Snap connection failed or rejected in handleSwap');
+                    logger.log('⚠️ Snap connection failed or rejected in handleSwap');
                     throw new Error('Snap connection failed or rejected');
                 }
             } catch (snapErr: any) {
                 // Check if error is related to missing AES key
                 if (snapErr.message && (snapErr.message.includes('AES key not found') || snapErr.message.includes('onboarding'))) {
-                    console.log("⚠️ Missing AES Key detected. Triggering onboarding...");
+                    logger.log("⚠️ Missing AES Key detected. Triggering onboarding...");
                     setToastState({
                         visible: true,
                         title: 'Missing AES Key',
@@ -1502,7 +1522,7 @@ export const usePrivacyBridge = ({
                 const gasPriceHex = await provider.send("eth_gasPrice", []);
                 gasPrice = BigInt(gasPriceHex);
             } catch (err) {
-                console.warn("⚠️ eth_gasPrice failed, using default (1 Gwei).");
+                logger.warn("⚠️ eth_gasPrice failed, using default (1 Gwei).");
             }
 
             if (chainConfig?.portalStrategy === 'pod-privacy-portal') {
@@ -1533,7 +1553,7 @@ export const usePrivacyBridge = ({
             setEstimatedGasFee(cotiDisplay);
 
         } catch (error) {
-            console.error("Error estimating gas:", error);
+            logger.error("Error estimating gas:", error);
             setEstimatedGasFee(null);
         } finally {
             setIsGasEstimating(false);
@@ -1605,7 +1625,7 @@ export const usePrivacyBridge = ({
                 });
             }
         } catch (e) {
-            console.warn("Could not fetch portal fee", e);
+            logger.warn("Could not fetch portal fee", e);
             if (requestId === feeRequestId.current) {
                 setPortalFeeCoti(null);
                 setFeeDebugInfo(null);
