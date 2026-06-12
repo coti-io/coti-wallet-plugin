@@ -524,6 +524,11 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
         if (walletAddress) {
             console.log("🔓 Triggering private balance fetch...");
             try {
+                // Brief delay to allow the Snap's internal state to settle
+                // after the AES key retrieval (prevents "rejected" race condition
+                // on the first attempt).
+                await new Promise(resolve => setTimeout(resolve, 800));
+
                 // Pass wagmiChainId when connected via RainbowKit so useBalanceUpdater
                 // uses the correct RPC instead of window.ethereum (which may be hijacked)
                 const chainOverride = wagmiSyncRef.current ? wagmiChainId : undefined;
