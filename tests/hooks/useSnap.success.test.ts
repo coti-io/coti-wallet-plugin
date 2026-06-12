@@ -311,11 +311,12 @@ describe('useSnap (success & lifecycle paths)', () => {
 
       const key = await result.current.handleManualOnboarding();
       expect(key).toBeNull();
-      expect(setSnapError).toHaveBeenCalled();
+      expect(setSnapError).toHaveBeenCalledWith(expect.stringContaining('Onboarding failed'));
+      expect(alertSpy).not.toHaveBeenCalled();
       alertSpy.mockRestore();
     });
 
-    it('handleKeyVerification surfaces verification failure via alert', async () => {
+    it('handleKeyVerification surfaces verification failure via setSnapError', async () => {
       mockRequest.mockImplementation((args: { method: string; params?: unknown }) => {
         switch (args.method) {
           case 'web3_clientVersion': return Promise.resolve('MetaMask/v11.0.0');
@@ -331,12 +332,14 @@ describe('useSnap (success & lifecycle paths)', () => {
         }
       });
       const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
-      const { result } = renderHook(() => useSnap());
+      const setSnapError = vi.fn();
+      const { result } = renderHook(() => useSnap(setSnapError));
 
       const promise = result.current.handleKeyVerification();
       await vi.advanceTimersByTimeAsync(500);
       await promise;
-      expect(alertSpy).toHaveBeenCalled();
+      expect(setSnapError).toHaveBeenCalledWith(expect.stringContaining('Verification failed'));
+      expect(alertSpy).not.toHaveBeenCalled();
       alertSpy.mockRestore();
     });
   });

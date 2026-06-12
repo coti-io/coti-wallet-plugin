@@ -123,9 +123,6 @@ async function encryptValue256(
     // Sign with personal_sign via signer.signMessage() — same as snap site
     const signature = await signer.signMessage(ethers.getBytes(message));
 
-    console.log('🔐 encryptValue256: ciphertextHigh:', ciphertextHigh.toString(16), 'ciphertextLow:', ciphertextLow.toString(16));
-    console.log('🔐 encryptValue256: signature:', signature);
-
     return {
         ciphertext: { ciphertextHigh, ciphertextLow },
         signature,

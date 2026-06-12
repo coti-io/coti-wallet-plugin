@@ -6,6 +6,8 @@ import { useBalanceUpdater } from '../hooks/useBalanceUpdater';
 import { usePrivateTokenBalance } from '../hooks/usePrivateTokenBalance';
 import { useNetworkEnforcer } from '../hooks/useNetworkEnforcer';
 import { isChainUpdatesMuted } from '../lib/chainMute';
+import { logger } from '../lib/logger';
+import { truncateAddress } from '../lib/format';
 import { usePrivacyBridge, Token, getInitialPublicTokens, getInitialPrivateTokens, type SwapProgressStage } from '../hooks/usePrivacyBridge';
 import { saveAesKeyLocally, unlockCachedAesKey as unlockCachedAesKeyFromVault } from '../crypto/localAesKeyVault';
 import { loadPodRequests, savePodRequests } from '../pod/podPortalRequestsStorage';
@@ -151,7 +153,7 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
         }
         const w = keyWallet ?? walletAddress;
         if (!w) {
-            console.warn('setSessionAesKey: no wallet for key binding; clearing');
+            logger.warn('setSessionAesKey: no wallet for key binding; clearing');
             setSessionKeyRecord(null);
             return;
         }
@@ -199,7 +201,7 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
      */
     const switchNetworkViaWagmiProvider = useCallback(async (targetChainId: string): Promise<boolean> => {
         if (!wagmiConnector) {
-            console.warn("[switchNetworkViaWagmi] No wagmi connector available");
+            logger.warn('[switchNetworkViaWagmi] No wagmi connector available');
             return false;
         }
 
@@ -208,12 +210,12 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
         try {
             provider = await wagmiConnector.getProvider();
         } catch (e) {
-            console.warn("[switchNetworkViaWagmi] Failed to get provider from connector:", e);
+            logger.warn('[switchNetworkViaWagmi] Failed to get provider from connector:', e);
             return false;
         }
 
         if (!provider?.request) {
-            console.warn("[switchNetworkViaWagmi] Provider has no request method");
+            logger.warn('[switchNetworkViaWagmi] Provider has no request method');
             return false;
         }
 
@@ -229,7 +231,7 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
             if (switchError.code === 4902) {
                 const networkConfig = networks[targetChainId];
                 if (!networkConfig) {
-                    console.error("[switchNetworkViaWagmi] No network config for", targetChainId);
+                    logger.error('[switchNetworkViaWagmi] No network config for chainId', targetChainId);
                     return false;
                 }
                 try {
@@ -239,11 +241,11 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
                     });
                     return true;
                 } catch (addError) {
-                    console.error("[switchNetworkViaWagmi] Failed to add chain:", addError);
+                    logger.error('[switchNetworkViaWagmi] Failed to add chain:', addError);
                     return false;
                 }
             }
-            console.error("[switchNetworkViaWagmi] Failed to switch:", switchError);
+            logger.error('[switchNetworkViaWagmi] Failed to switch:', switchError);
             return false;
         }
     }, [wagmiConnector]);
@@ -252,25 +254,25 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
         onAccountChanged: async (account) => {
             // Ignore MetaMask events when connected via RainbowKit/wagmi
             if (wagmiSyncRef.current || wagmiConnected) {
-                console.log("ℹ️ Ignoring MetaMask accountsChanged — wagmi is managing connection");
+                logger.log('Ignoring MetaMask accountsChanged — wagmi is managing connection');
                 return;
             }
 
             // Ignore MetaMask auto-detection unless user explicitly clicked MetaMask button
             if (!metamaskExplicitConnect.current && !isConnected) {
-                console.log("ℹ️ Ignoring MetaMask auto-detection — user hasn't clicked MetaMask");
+                logger.log("Ignoring MetaMask auto-detection — user hasn't clicked MetaMask");
                 return;
             }
 
             // Prevent spurious updates if account is same (ignoring case)
             if (walletAddress && account.toLowerCase() === walletAddress.toLowerCase()) {
-                console.log("ℹ️ Account unchanged, skipping session reset");
+                logger.log('Account unchanged, skipping session reset');
                 return;
             }
 
             // Do not fetch private balances automatically on account change
             // Clear session key on account change
-            console.log("👤 Account changed, clearing sessionAesKey and locking");
+            logger.log('Account changed, clearing sessionAesKey and locking', truncateAddress(account));
             setSessionAesKey(null);
             setArePrivateBalancesHidden(true);
             await updateAccountState(account, hasSnap, false);
@@ -357,7 +359,7 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
                 await updateAccountState(account, false, false);
             });
         } catch (error: any) {
-            console.error("Connection failed:", error);
+            logger.error('Connection failed:', error);
 
             // Check for multiple wallets conflict FIRST
             if (isMultipleWalletsError(error?.message)) {
@@ -390,7 +392,10 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
         // Only act when wagmi is connected AND our context is NOT already connected
         // (avoids double-triggering when MetaMask flow already set isConnected)
         if (wagmiConnected && wagmiAddress && !isConnected) {
-            console.log("🌈 RainbowKit connection detected, syncing to context:", wagmiAddress, "chain:", wagmiChainId);
+            logger.log('RainbowKit connection detected, syncing to context', {
+                address: truncateAddress(wagmiAddress),
+                chainId: wagmiChainId,
+            });
             wagmiSyncRef.current = true;
             // Pass wagmiChainId so useBalanceUpdater uses RPC directly instead of window.ethereum
             updateAccountState(wagmiAddress, false, false, undefined, wagmiChainId);
@@ -402,9 +407,9 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
             const connectorName = wagmiConnector?.name?.toLowerCase() || '';
             const isMetaMask = connectorId.includes('metamask') || connectorName.includes('metamask') || connectorId === 'io.metamask';
             if (isMetaMask) {
-                console.log("🦊 MetaMask detected via RainbowKit — checking Snap...");
+                logger.log('MetaMask detected via RainbowKit — checking Snap...');
                 executeSnapCheck(async () => {
-                    console.log("🦊 Snap found via RainbowKit MetaMask connection");
+                    logger.log('Snap found via RainbowKit MetaMask connection');
                     setHasSnap(true);
                     return true;
                 });
@@ -412,7 +417,7 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
         }
         // If wagmi disconnects but we were synced via wagmi, clear state
         if (!wagmiConnected && wagmiSyncRef.current) {
-            console.log("🌈 RainbowKit disconnected, clearing context");
+            logger.log('RainbowKit disconnected, clearing context');
             wagmiSyncRef.current = false;
             setIsConnected(false);
             setWalletAddress('');
@@ -423,7 +428,7 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
 
         // If wagmi account switches while connected, clear state and update
         if (wagmiConnected && wagmiAddress && isConnected && wagmiAddress !== walletAddress) {
-            console.log("🌈 RainbowKit account switched:", wagmiAddress);
+            logger.log('RainbowKit account switched', truncateAddress(wagmiAddress));
             setSessionAesKey(null);
             clearSnapCache();
             updateAccountState(wagmiAddress, false, false, undefined, wagmiChainId);
@@ -437,11 +442,17 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
             if (prevWagmiChainIdRef.current !== undefined && prevWagmiChainIdRef.current !== wagmiChainId) {
                 // Skip UI update if chain changes are muted (onboarding in progress)
                 if (isChainUpdatesMuted()) {
-                    console.log("🔇 [ChainMuted] Ignoring chain change during onboarding:", prevWagmiChainIdRef.current, "→", wagmiChainId);
+                    logger.log('[ChainMuted] Ignoring chain change during onboarding', {
+                        from: prevWagmiChainIdRef.current,
+                        to: wagmiChainId,
+                    });
                     prevWagmiChainIdRef.current = wagmiChainId;
                     return;
                 }
-                console.log("🌈 RainbowKit chain changed:", prevWagmiChainIdRef.current, "→", wagmiChainId);
+                logger.log('RainbowKit chain changed', {
+                    from: prevWagmiChainIdRef.current,
+                    to: wagmiChainId,
+                });
                 updateAccountState(wagmiAddress, false, false, undefined, wagmiChainId);
             }
             prevWagmiChainIdRef.current = wagmiChainId;
@@ -472,7 +483,7 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
     // Trigger update when sessionAesKey is set
     useEffect(() => {
         if (sessionAesKey && walletAddress) {
-            console.log("🔄 Session AES Key set, refreshing account state...");
+            logger.log('Session AES Key set, refreshing account state...');
             // We have a key, so we can consider the "snap" (or key provider) active
             if (!hasSnap) setHasSnap(true);
             const chainOverride = wagmiSyncRef.current ? wagmiChainId : undefined;
@@ -522,7 +533,7 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
 
     const refreshPrivateBalances = async () => {
         if (walletAddress) {
-            console.log("🔓 Triggering private balance fetch...");
+            logger.log('Triggering private balance fetch...');
             try {
                 // Brief delay to allow the Snap's internal state to settle
                 // after the AES key retrieval (prevents "rejected" race condition
@@ -533,14 +544,14 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
                 // uses the correct RPC instead of window.ethereum (which may be hijacked)
                 const chainOverride = wagmiSyncRef.current ? wagmiChainId : undefined;
                 let success = await updateAccountState(walletAddress, true, true, undefined, chainOverride);
-                console.log(`🔓 Private Balance Fetch Completed. Success: ${success}`);
+                logger.log('Private balance fetch completed', { success });
 
                 // Auto-retry once if first attempt fails (Snap state race condition)
                 if (!success) {
-                    console.log("🔓 First attempt failed, retrying after 1.5s...");
+                    logger.log('First private balance fetch failed, retrying after 1.5s');
                     await new Promise(resolve => setTimeout(resolve, 1500));
                     success = await updateAccountState(walletAddress, true, true, undefined, chainOverride);
-                    console.log(`🔓 Retry Private Balance Fetch. Success: ${success}`);
+                    logger.log('Retry private balance fetch completed', { success });
                 }
 
                 if (success) {
@@ -549,27 +560,27 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
                 }
                 return success;
             } catch (err: any) {
-                console.log(`⚠️ Unlock Logic Caught Error: Code=${err.code}, Message="${err.message}"`);
+                logger.log('Unlock logic caught error', { code: err.code, name: err.name });
 
                 if (err.message === "SNAP_CONNECT_FAILED" || err.message?.includes("SNAP_CONNECT_FAILED")) {
-                    console.log("⚠️ Snap Connection Failed. Requiring Snap Installation.");
+                    logger.log('Snap connection failed. Requiring Snap installation.');
                     throw new Error("SNAP_REQUIRED");
                 }
 
                 if (err.code === 4001 || err.message?.includes("User rejected") || err.message?.includes("rejected the request")) {
-                    console.log("🚫 User rejected unlock. Skipping onboarding.");
+                    logger.log('User rejected unlock. Skipping onboarding.');
                     return false;
                 }
 
                 // Handle explicit rejection (Snap returned null / AES key not found)
                 if (err.message === 'SNAP_DIALOG_REJECTED') {
-                    console.log("🚫 Snap dialog rejected (likely AES key not found). Rethrowing for UI handling.");
+                    logger.log('Snap dialog rejected (likely AES key not found). Rethrowing for UI handling.');
                     throw err; // Let Index.tsx handle this and show the AES Key Missing modal
                 }
 
                 // Belt-and-suspenders: explicitly handle ACCOUNT_NOT_ONBOARDED (non-onboarded account detected via all-zero ciphertext)
                 if (err.message && err.message.includes('ACCOUNT_NOT_ONBOARDED')) {
-                    console.log("⚠️ Non-onboarded account detected (all-zero ciphertext). Clearing session key and forcing Snap re-onboarding flow.");
+                    logger.log('Non-onboarded account detected (all-zero ciphertext). Clearing session key and forcing Snap re-onboarding flow.');
                     setSessionAesKey(null);
                     clearSnapCache();
                     setArePrivateBalancesHidden(true);
@@ -577,7 +588,7 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
                 }
 
                 if (err.message && (err.message.includes('AES key') || err.message.includes('onboarding'))) {
-                    console.log("⚠️ AES key issue detected during unlock. Clearing session key and forcing Snap re-onboarding flow.");
+                    logger.log('AES key issue detected during unlock. Clearing session key and forcing Snap re-onboarding flow.');
                     setSessionAesKey(null);
                     clearSnapCache();
                     setArePrivateBalancesHidden(true);
@@ -639,7 +650,7 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
             try {
                 await refreshPrivateBalances();
             } catch (e) {
-                console.warn('refreshBalancesAfterPodCompletion', e);
+                logger.warn('refreshBalancesAfterPodCompletion', e);
             } finally {
                 updatePodRequest(requestId, { balanceRefreshPending: false });
             }
@@ -680,7 +691,7 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
                     });
                     return;
                 }
-                console.warn('refreshPodRequest', e);
+                logger.warn('refreshPodRequest', e);
             }
         },
         [updatePodRequest, refreshBalancesAfterPodCompletion],
@@ -696,10 +707,10 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
         );
         if (active.length === 0) return;
         active.forEach(r => {
-            refreshPodRequest(r).catch(console.warn);
+            refreshPodRequest(r).catch(err => logger.warn('refreshPodRequest poll failed', err));
         });
         const intervalId = setInterval(() => {
-            active.forEach(r => refreshPodRequest(r).catch(console.warn));
+            active.forEach(r => refreshPodRequest(r).catch(err => logger.warn('refreshPodRequest poll failed', err)));
         }, 10_000);
         return () => clearInterval(intervalId);
     }, [podRequests, refreshPodRequest, walletAddress]);
@@ -757,7 +768,7 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
                     params: [{ eth_accounts: {} }]
                 });
             } catch (err) {
-                console.warn("⚠️ wallet_revokePermissions failed (may not be supported):", err);
+                logger.warn('wallet_revokePermissions failed (may not be supported):', err);
             }
         }
 
@@ -770,7 +781,7 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
         setArePrivateBalancesHidden(true);
         setShowMultipleWalletsModal(false);
         clearSnapCache();
-        console.log("🔌 Disconnected wallet");
+        logger.log('Disconnected wallet');
     };
 
 
@@ -778,7 +789,7 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
     const lockPrivateBalances = () => {
         // Hard lock: Hide balances, clear displayed data, AND clear the session/cache keys
         // so the next unlock MUST re-request permission/signature.
-        console.log("🔒 Hard locking private balances and clearing caches");
+        logger.log('Hard locking private balances and clearing caches');
         setArePrivateBalancesHidden(true);
         setSessionAesKey(null);
         clearSnapCache();

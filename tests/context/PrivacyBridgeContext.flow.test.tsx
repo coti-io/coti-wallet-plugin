@@ -5,6 +5,7 @@ import { SEPOLIA_CHAIN_ID, type PodPortalRequest } from '../../src/contracts/pod
 import { muteChainUpdates, unmuteChainUpdates } from '../../src/lib/chainMute';
 import { MULTIPLE_WALLETS_ERROR_SUBSTRING } from '../../src/utils/walletErrors';
 import { podRequestsStorageKey } from '../../src/pod/podPortalRequestsStorage';
+import { logger } from '../../src/lib/logger';
 
 // ─── Capturing mock state ────────────────────────────────────────────────────
 const h = vi.hoisted(() => ({
@@ -694,7 +695,7 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
 
     it('warns and clears when setSessionAesKey is called without a wallet', async () => {
       await renderProvider();
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
       act(() => {
         h.balanceUpdater.params?.setSessionAesKey('e'.repeat(64));
       });
@@ -839,7 +840,7 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
 
     it('returns false without unlocking when updateAccountState fails softly', async () => {
       await connectWagmi();
-      h.balanceUpdater.updateAccountState.mockResolvedValueOnce(false);
+      h.balanceUpdater.updateAccountState.mockResolvedValue(false);
       await expect(latest!.refreshPrivateBalances()).resolves.toBe(false);
       expect(latest!.isPrivateUnlocked).toBe(false);
     });
@@ -985,7 +986,7 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
       await connectWagmi();
       const req = makePodRequest({ id: 'generic-err', requestId: '0x' + 'e'.repeat(64) });
       h.resolvePodStatus.mockRejectedValue(new Error('rpc timeout'));
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
       await act(async () => {
         await latest!.refreshPodRequest(req);
       });
@@ -997,7 +998,7 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
       await connectWagmi();
       const req = makePodRequest({ id: 'str-err', requestId: '0x' + '5'.repeat(64) });
       h.resolvePodStatus.mockRejectedValue('plain failure');
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
       await act(async () => {
         await latest!.refreshPodRequest(req);
       });
@@ -1006,24 +1007,36 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
     });
 
     it('refreshBalancesAfterPodCompletion swallows refreshPrivateBalances errors', async () => {
-      await connectWagmi();
-      const req = makePodRequest({ id: 'catch-refresh', requestId: '0x' + 'f'.repeat(64) });
-      act(() => {
-        h.privacyBridge.upsertPodRequest?.(req);
-      });
-      h.resolvePodStatus.mockResolvedValue({
-        status: 'succeeded',
-        message: 'ok',
-        refreshPrivateBalances: true,
-      });
-      h.balanceUpdater.updateAccountState.mockRejectedValue(new Error('SNAP_CONNECT_FAILED'));
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      await act(async () => {
-        await latest!.refreshPodRequest(req);
-        await Promise.resolve();
-      });
-      expect(warnSpy).toHaveBeenCalledWith('refreshBalancesAfterPodCompletion', expect.any(Error));
-      warnSpy.mockRestore();
+      vi.useFakeTimers();
+      try {
+        await connectWagmi();
+        const req = makePodRequest({ id: 'catch-refresh', requestId: '0x' + 'f'.repeat(64) });
+        act(() => {
+          h.privacyBridge.upsertPodRequest?.(req);
+        });
+        h.resolvePodStatus.mockResolvedValue({
+          status: 'succeeded',
+          message: 'ok',
+          refreshPrivateBalances: true,
+        });
+        h.balanceUpdater.updateAccountState.mockRejectedValue(new Error('SNAP_CONNECT_FAILED'));
+        const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+        await act(async () => {
+          await latest!.refreshPodRequest(req);
+        });
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(800);
+        });
+        await vi.waitFor(() => {
+          expect(warnSpy).toHaveBeenCalledWith(
+            'refreshBalancesAfterPodCompletion',
+            expect.any(Error),
+          );
+        });
+        warnSpy.mockRestore();
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('polls active pod requests on an interval', async () => {

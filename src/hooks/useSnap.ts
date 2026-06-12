@@ -448,10 +448,10 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
             }
             /* v8 ignore next */
             return null;
-        } catch (e: any) {
-            logger.error("❌ Manual Onboarding failed:", e);
-            alert(`Onboarding Failed: ${e.message}`);
-            if (setSnapError) setSnapError(`Onboarding Failed: ${e.message}`);
+        } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : 'Unknown error';
+            logger.error('Manual onboarding failed:', e);
+            if (setSnapError) setSnapError(`Onboarding failed: ${message}`);
             return null;
         }
     }, [saveAESKeyToSnap, setSnapError]);
@@ -479,20 +479,24 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
             logger.log(`   MATCH: ${match ? "✅ YES" : "❌ NO"}`);
 
             if (!match) {
-                logger.error("CRITICAL MISMATCH DETECTED!");
-                logger.error("Snap key and Network key do NOT match. You MUST Force Onboard to fix this.");
-                alert(`MISMATCH DETECTED!\n\nKeys do NOT match. You must Force Onboard.`);
+                logger.error('CRITICAL MISMATCH DETECTED!');
+                logger.error('Snap key and Network key do NOT match. You MUST Force Onboard to fix this.');
+                if (setSnapError) {
+                    setSnapError('AES key mismatch: Snap and network keys do not match. Force onboard to fix.');
+                }
             } else {
-                logger.log("✅ Keys match. Issues are likely elsewhere.");
-                alert(`✅ MATCH!\n\nBoth Snap and Network agree.`);
+                logger.log('Keys match. Issues are likely elsewhere.');
+                if (setSnapError) setSnapError(null);
             }
             /* v8 ignore stop */
 
-        } catch (e: any) {
-            logger.error("❌ Key Verification Failed:", e);
-            alert(`Verification Failed: ${e.message}`);
+        } catch (e: unknown) {
+            logger.error('Key verification failed:', e);
+            const message = e instanceof Error ? e.message : 'Key verification failed';
+            if (setSnapError) setSnapError(`Verification failed: ${message}`);
+            if (e instanceof CotiPluginError) throw e;
         }
-    }, [getAESKeyFromSnap]);
+    }, [getAESKeyFromSnap, setSnapError]);
 
     return {
         isSnapInstalled,

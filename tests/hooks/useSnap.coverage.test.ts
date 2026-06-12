@@ -277,19 +277,20 @@ describe('useSnap (branch coverage)', () => {
     const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
     const { result } = renderHook(() => useSnap());
     expect(await result.current.handleManualOnboarding()).toBeNull();
-    expect(alertSpy).toHaveBeenCalled();
+    expect(alertSpy).not.toHaveBeenCalled();
     alertSpy.mockRestore();
   });
 
   it('handleKeyVerification fetches the snap key before onboardUser throws', async () => {
     const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
-    const { result } = renderHook(() => useSnap());
+    const setSnapError = vi.fn();
+    const { result } = renderHook(() => useSnap(setSnapError));
 
     const promise = result.current.handleKeyVerification();
     await vi.advanceTimersByTimeAsync(500);
     await promise;
-    // onboardUser throws after the snap key is fetched → failure alert
-    expect(alertSpy).toHaveBeenCalled();
+    expect(setSnapError).toHaveBeenCalledWith(expect.stringContaining('Verification failed'));
+    expect(alertSpy).not.toHaveBeenCalled();
     alertSpy.mockRestore();
   });
 });
