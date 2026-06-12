@@ -532,8 +532,17 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
                 // Pass wagmiChainId when connected via RainbowKit so useBalanceUpdater
                 // uses the correct RPC instead of window.ethereum (which may be hijacked)
                 const chainOverride = wagmiSyncRef.current ? wagmiChainId : undefined;
-                const success = await updateAccountState(walletAddress, true, true, undefined, chainOverride);
+                let success = await updateAccountState(walletAddress, true, true, undefined, chainOverride);
                 console.log(`🔓 Private Balance Fetch Completed. Success: ${success}`);
+
+                // Auto-retry once if first attempt fails (Snap state race condition)
+                if (!success) {
+                    console.log("🔓 First attempt failed, retrying after 1.5s...");
+                    await new Promise(resolve => setTimeout(resolve, 1500));
+                    success = await updateAccountState(walletAddress, true, true, undefined, chainOverride);
+                    console.log(`🔓 Retry Private Balance Fetch. Success: ${success}`);
+                }
+
                 if (success) {
                     setArePrivateBalancesHidden(false);
                     setSnapError(null);
