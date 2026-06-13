@@ -5,36 +5,13 @@ import { getEthereumProvider } from '../lib/ethereum';
 import { CotiPluginError, CotiErrorCode } from '../errors';
 import { logger } from '../lib/logger';
 import { isChainUpdatesMuted } from '../lib/chainMute';
+import {
+    getChainIdConstants,
+    getNetworkNameForChain,
+    getWalletNetworkConfigs,
+} from '../chains';
 
-// Constants for COTI Networks
-const COTI_MAINNET_ID = '0x282b34'; // 2632500
-const COTI_TESTNET_ID = '0x6c11a0'; // 7082400
-const SEPOLIA_ID = '0xaa36a7'; // 11155111
-
-// Network Configurations
-const networks = {
-    [COTI_MAINNET_ID]: {
-        chainId: COTI_MAINNET_ID,
-        chainName: 'COTI Mainnet',
-        rpcUrls: ['https://mainnet.coti.io/rpc'],
-        nativeCurrency: { name: 'COTI', symbol: 'COTI', decimals: 18 },
-        blockExplorerUrls: ['https://mainnet.cotiscan.io'],
-    },
-    [COTI_TESTNET_ID]: {
-        chainId: COTI_TESTNET_ID,
-        chainName: 'COTI Testnet',
-        rpcUrls: ['https://testnet.coti.io/rpc'],
-        nativeCurrency: { name: 'COTI', symbol: 'COTI', decimals: 18 },
-        blockExplorerUrls: ['https://testnet.cotiscan.io'],
-    },
-    [SEPOLIA_ID]: {
-        chainId: SEPOLIA_ID,
-        chainName: 'Sepolia',
-        rpcUrls: ['https://ethereum-sepolia-rpc.publicnode.com'],
-        nativeCurrency: { name: 'Sepolia Ether', symbol: 'ETH', decimals: 18 },
-        blockExplorerUrls: ['https://sepolia.etherscan.io'],
-    }
-};
+const { COTI_MAINNET_ID, COTI_TESTNET_ID, SEPOLIA_ID } = getChainIdConstants();
 
 interface UseMetamaskCallbacks {
     onNetworkChanged?: () => Promise<void>;
@@ -76,15 +53,7 @@ export const useMetamask = ({
         const id = Number(network.chainId);
         setChainId(id.toString());
 
-        if (id === 2632500) {
-            setNetworkName('COTI Mainnet');
-        } else if (id === 7082400) {
-            setNetworkName('COTI Testnet');
-        } else if (id === 11155111) {
-            setNetworkName('Sepolia');
-        } else {
-            setNetworkName('Wrong Network');
-        }
+        setNetworkName(getNetworkNameForChain(id));
     }, []);
 
 
@@ -114,7 +83,7 @@ export const useMetamask = ({
         } catch (switchError: any) {
             // This error code indicates that the chain has not been added to MetaMask.
             if (switchError.code === 4902) {
-                const networkConfig = (networks as any)[targetChainId];
+                const networkConfig = getWalletNetworkConfigs()[targetChainId];
                 try {
                     // Add the network
                     await eth.request({

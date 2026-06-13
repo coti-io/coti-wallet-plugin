@@ -2,13 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 
 // Mock wagmi hooks
-const mockSwitchChain = vi.fn();
+const mockSwitchChainAsync = vi.fn().mockResolvedValue(undefined);
 let mockAccountChain: any = undefined;
 let mockWalletType = 'unknown';
 let mockIsMetaMaskWithSnap = false;
 
 vi.mock('wagmi', () => ({
-  useSwitchChain: () => ({ switchChain: mockSwitchChain }),
+  useSwitchChain: () => ({ switchChainAsync: mockSwitchChainAsync }),
   useAccount: () => ({ chain: mockAccountChain, connector: undefined }),
 }));
 
@@ -27,6 +27,7 @@ describe('useNetworkEnforcer', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSwitchChainAsync.mockResolvedValue(undefined);
     mockAccountChain = undefined;
     mockWalletType = 'unknown';
     mockIsMetaMaskWithSnap = false;
@@ -146,7 +147,7 @@ describe('useNetworkEnforcer', () => {
       await result.current.enforceNetwork();
     });
 
-    expect(mockSwitchChain).toHaveBeenCalledWith({ chainId: 2632500 });
+    expect(mockSwitchChainAsync).toHaveBeenCalledWith({ chainId: 2632500 });
   });
 
   it('enforceNetwork calls wagmi switchChain when on a supported chain that is not the target', async () => {
@@ -159,7 +160,7 @@ describe('useNetworkEnforcer', () => {
       await result.current.enforceNetwork();
     });
 
-    expect(mockSwitchChain).toHaveBeenCalledWith({ chainId: 2632500 });
+    expect(mockSwitchChainAsync).toHaveBeenCalledWith({ chainId: 2632500 });
   });
 
   it('enforceNetwork does not call wagmi switchChain when already on the target chain', async () => {
@@ -172,7 +173,7 @@ describe('useNetworkEnforcer', () => {
       await result.current.enforceNetwork();
     });
 
-    expect(mockSwitchChain).not.toHaveBeenCalled();
+    expect(mockSwitchChainAsync).not.toHaveBeenCalled();
   });
 
   it('handles hex chainId for MetaMask', () => {

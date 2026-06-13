@@ -32,7 +32,7 @@ export const useNetworkEnforcer = (
 ): NetworkEnforcerResult => {
   const { chain } = useAccount();
   const { isMetaMaskWithSnap, walletType } = useWalletType();
-  const { switchChain } = useSwitchChain();
+  const { switchChainAsync } = useSwitchChain();
   const [networkMismatchWarning, setNetworkMismatchWarning] = useState<string | null>(null);
 
   const envDefaultNetwork = getPluginConfig().defaultNetworkId;
@@ -129,7 +129,7 @@ export const useNetworkEnforcer = (
           `[NetworkEnforcer] Non-MetaMask wallet on chain ${chain.id}. Enforcing: ${targetChainId}`
         );
         try {
-          switchChain({ chainId: targetChainId });
+          await switchChainAsync({ chainId: targetChainId });
           setNetworkMismatchWarning(null);
         } catch (err) {
           logger.error('[NetworkEnforcer] wagmi switchChain error:', err);
@@ -145,7 +145,7 @@ export const useNetworkEnforcer = (
     walletType,
     isMetaMaskWithSnap,
     switchNetwork,
-    switchChain,
+    switchChainAsync,
     getTargetChainId,
   ]);
 
