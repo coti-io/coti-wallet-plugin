@@ -82,7 +82,13 @@ vi.mock('../../src/hooks/useBalanceUpdater', () => ({
 }));
 
 vi.mock('../../src/hooks/useNetworkEnforcer', () => ({
-  useNetworkEnforcer: () => ({ isWrongNetwork: false }),
+  useNetworkEnforcer: vi.fn(() => ({
+    isUnsupportedNetwork: false,
+    isOffTargetNetwork: false,
+    isWrongNetwork: false,
+    networkMismatchWarning: null,
+    enforceNetwork: vi.fn().mockResolvedValue(undefined),
+  })),
 }));
 
 // Keep the real getInitialPublic/PrivateTokens helpers; only stub the heavy hook.
@@ -113,6 +119,7 @@ import {
   PrivacyBridgeProvider,
   usePrivacyBridgeContext,
 } from '../../src/context/PrivacyBridgeContext';
+import { useNetworkEnforcer } from '../../src/hooks/useNetworkEnforcer';
 
 type Ctx = ReturnType<typeof usePrivacyBridgeContext>;
 const reqMock = window.ethereum!.request as unknown as ReturnType<typeof vi.fn>;
@@ -174,6 +181,19 @@ describe('PrivacyBridgeContext', () => {
     expect(ctx.SEPOLIA_ID).toBe('11155111');
     expect(ctx.networkName).toBe('COTI Testnet');
     expect(ctx.chainId).toBe('7082400');
+    expect(ctx.isUnsupportedNetwork).toBe(false);
+    expect(ctx.isOffTargetNetwork).toBe(false);
+    expect(ctx.isWrongNetwork).toBe(false);
+    expect(ctx.networkMismatchWarning).toBeNull();
+    expect(ctx.enforceNetwork).toBeDefined();
+  });
+
+  it('wires useNetworkEnforcer with effective chainId and unified switchNetwork', async () => {
+    await renderProvider();
+    expect(useNetworkEnforcer).toHaveBeenCalledWith(
+      '7082400',
+      expect.any(Function),
+    );
   });
 
   it('updates transaction inputs through setters', async () => {

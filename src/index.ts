@@ -85,7 +85,7 @@ export type { NetworkEnforcerResult } from './hooks/useNetworkEnforcer';
 export { PrivacyBridgeProvider, usePrivacyBridgeContext } from './context/PrivacyBridgeContext';
 
 // Providers — Multi-Wallet Support
-export { WagmiRainbowKitProvider, wagmiConfig } from './providers/WagmiRainbowKitProvider';
+export { WagmiRainbowKitProvider, getWagmiConfig } from './providers/WagmiRainbowKitProvider';
 
 // Hooks — Wallet Type Detection
 export { useWalletType } from './hooks/useWalletType';
@@ -98,6 +98,10 @@ export type { AesKeyProviderResult } from './hooks/useAesKeyProvider';
 // Components — Onboarding
 export { OnboardModal } from './components/OnboardModal';
 export type { OnboardModalProps } from './components/OnboardModal';
+
+// Components — Network
+export { NetworkGuard } from './components/NetworkGuard';
+export type { NetworkGuardProps } from './components/NetworkGuard';
 
 // Re-export from RainbowKit for consuming apps
 export { useConnectModal } from '@rainbow-me/rainbowkit';

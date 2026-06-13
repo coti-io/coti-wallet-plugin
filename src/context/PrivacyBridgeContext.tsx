@@ -55,6 +55,12 @@ interface PrivacyBridgeContextType {
     // Network Switch
     switchNetwork: (chainId: string) => Promise<boolean>;
     networkName: string;
+    isUnsupportedNetwork: boolean;
+    isOffTargetNetwork: boolean;
+    /** @deprecated Use isUnsupportedNetwork */
+    isWrongNetwork: boolean;
+    networkMismatchWarning: string | null;
+    enforceNetwork: () => Promise<void>;
     COTI_MAINNET_ID: string;
     COTI_TESTNET_ID: string;
     SEPOLIA_ID: string;
@@ -292,9 +298,6 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
         }
     });
 
-    // Enforce Network Policy
-    useNetworkEnforcer(metamaskChainId, metamaskSwitchNetwork);
-
     // ─── Unified switchNetwork ───────────────────────────────────────────
     // Routes to wagmi connector provider when connected via RainbowKit,
     // or to useMetamask's switchNetwork when connected directly.
@@ -315,6 +318,14 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
         }
         return metamaskChainId;
     }, [wagmiConnected, wagmiChainId, metamaskChainId]);
+
+    const {
+        isUnsupportedNetwork,
+        isOffTargetNetwork,
+        isWrongNetwork,
+        networkMismatchWarning,
+        enforceNetwork,
+    } = useNetworkEnforcer(chainId, switchNetwork);
 
     const currentChainId = chainId ? Number(chainId) : undefined;
     const usesManualAesKey = getUnlockStrategyForChain(currentChainId) === 'manual-aes-key';
@@ -832,6 +843,11 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
             handleDisconnect,
             switchNetwork,
             networkName,
+            isUnsupportedNetwork,
+            isOffTargetNetwork,
+            isWrongNetwork,
+            networkMismatchWarning,
+            enforceNetwork,
             COTI_MAINNET_ID,
             COTI_TESTNET_ID,
             SEPOLIA_ID,

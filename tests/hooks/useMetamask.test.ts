@@ -104,6 +104,26 @@ describe('useMetamask', () => {
       const success = await result.current.switchNetwork('0x6c11a0');
       expect(success).toBe(false);
     });
+
+    it('returns false on 4902 when target chain is not in wallet network configs', async () => {
+      const { result } = renderHook(() => useMetamask());
+
+      mockRequest.mockImplementation(({ method }: { method: string }) => {
+        if (method === 'wallet_switchEthereumChain') {
+          return Promise.reject({ code: 4902 });
+        }
+        return Promise.resolve([]);
+      });
+
+      const success = await result.current.switchNetwork('0xdeadbeef');
+      expect(success).toBe(false);
+      expect(mockRequest).toHaveBeenCalledWith(
+        expect.objectContaining({ method: 'wallet_switchEthereumChain' }),
+      );
+      expect(mockRequest).not.toHaveBeenCalledWith(
+        expect.objectContaining({ method: 'wallet_addEthereumChain' }),
+      );
+    });
   });
 
   describe('event listeners', () => {

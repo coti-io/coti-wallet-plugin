@@ -4,6 +4,7 @@ import { getPluginConfig } from '../config/plugin';
 import { getEthereumProvider } from '../lib/ethereum';
 import { CotiPluginError, CotiErrorCode } from '../errors';
 import { logger } from '../lib/logger';
+import { truncateAddress } from '../lib/format';
 import { isChainUpdatesMuted } from '../lib/chainMute';
 import {
     getChainIdConstants,
@@ -84,6 +85,10 @@ export const useMetamask = ({
             // This error code indicates that the chain has not been added to MetaMask.
             if (switchError.code === 4902) {
                 const networkConfig = getWalletNetworkConfigs()[targetChainId];
+                if (!networkConfig) {
+                    logger.error(`Unsupported chain for wallet_addEthereumChain: ${targetChainId}`);
+                    return false;
+                }
                 try {
                     // Add the network
                     await eth.request({
@@ -231,7 +236,12 @@ export const useMetamask = ({
             if (!isInitialCheckDone.current) {
                 logger.log('🔄 useMetamask: Performing initial eth_accounts check');
                 (eth.request({ method: 'eth_accounts' }) as Promise<string[]>).then((accounts) => {
-                    logger.log('🔄 useMetamask: eth_accounts result:', accounts);
+                    logger.log(
+                        '🔄 useMetamask: eth_accounts result:',
+                        accounts.length === 0
+                            ? 'no accounts'
+                            : `${accounts.length} account(s), primary: ${truncateAddress(accounts[0])}`,
+                    );
                     if (accounts.length > 0) {
                         if (onAccountChanged) onAccountChanged(accounts[0]);
                         logger.log('🔄 useMetamask: triggering checkSnapConnection');

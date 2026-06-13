@@ -142,7 +142,13 @@ vi.mock('../../src/hooks/useBalanceUpdater', () => ({
 }));
 
 vi.mock('../../src/hooks/useNetworkEnforcer', () => ({
-  useNetworkEnforcer: vi.fn(),
+  useNetworkEnforcer: vi.fn(() => ({
+    isUnsupportedNetwork: false,
+    isOffTargetNetwork: false,
+    isWrongNetwork: false,
+    networkMismatchWarning: null,
+    enforceNetwork: vi.fn().mockResolvedValue(undefined),
+  })),
 }));
 
 vi.mock('../../src/hooks/usePrivacyBridge', async (importOriginal) => {

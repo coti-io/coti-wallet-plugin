@@ -2,15 +2,21 @@ import { useEffect, useCallback, useState } from 'react';
 import { logger } from '../lib/logger';
 import { useSwitchChain, useAccount } from 'wagmi';
 import { getPluginConfig } from '../config/plugin';
-import { COTI_MAINNET_CHAIN_ID, isSupportedChain } from '../chains';
+import { DEFAULT_CHAIN_ID, isSupportedChain } from '../chains';
 import { useWalletType } from './useWalletType';
 
 export interface NetworkEnforcerResult {
-  /** Whether the connected wallet is on an unsupported network */
+  /** Wallet is on a chain outside {@link CHAIN_CONFIGS} */
+  isUnsupportedNetwork: boolean;
+  /** Wallet is on a supported chain but not the configured enforcement target */
+  isOffTargetNetwork: boolean;
+  /**
+   * @deprecated Use {@link isUnsupportedNetwork}. Kept for backward compatibility.
+   */
   isWrongNetwork: boolean;
   /** Error/warning message when network switch is rejected or fails */
   networkMismatchWarning: string | null;
-  /** Manually trigger network enforcement */
+  /** Manually trigger network enforcement (switches to configured target) */
   enforceNetwork: () => Promise<void>;
 }
 
@@ -20,11 +26,12 @@ export interface NetworkEnforcerResult {
  *
  * - MetaMask path: uses the provided `switchNetwork` callback (wallet_switchEthereumChain)
  * - Non-MetaMask path: uses wagmi's `useSwitchChain` hook for chain switching
- * - Both paths treat any {@link CHAIN_CONFIGS} chain as valid for {@link isWrongNetwork}
- * - {@link enforceNetwork} switches to the configured target when current chain ≠ target (both paths)
+ * - {@link isUnsupportedNetwork}: chain ∉ {@link CHAIN_CONFIGS}
+ * - {@link isOffTargetNetwork}: supported chain ≠ configured target ({@link getTargetChainId})
+ * - {@link enforceNetwork} switches to the configured target when current chain ≠ target
  *
  * @param chainId - Current chain ID as a string (decimal or hex), used for MetaMask path
- * @param switchNetwork - MetaMask-specific network switch function (wallet_switchEthereumChain)
+ * @param switchNetwork - Network switch function (wallet_switchEthereumChain or unified router)
  */
 export const useNetworkEnforcer = (
   chainId: string | null,
@@ -39,7 +46,7 @@ export const useNetworkEnforcer = (
 
   /**
    * Determines the target chain ID to enforce.
-   * Uses the plugin config's defaultNetworkId if set, otherwise defaults to COTI Mainnet.
+   * Uses the plugin config's defaultNetworkId if set, otherwise {@link DEFAULT_CHAIN_ID} (COTI Testnet).
    */
   const getTargetChainId = useCallback((): number => {
     if (envDefaultNetwork) {
@@ -52,30 +59,34 @@ export const useNetworkEnforcer = (
         // Fall through to default
       }
     }
-    return COTI_MAINNET_CHAIN_ID;
+    return DEFAULT_CHAIN_ID;
   }, [envDefaultNetwork]);
 
-  /**
-   * Checks if the current network is wrong based on the wallet type.
-   */
-  const isWrongNetwork = useCallback((): boolean => {
+  const getCurrentChainNum = useCallback((): number | null => {
     if (walletType === 'metamask' || isMetaMaskWithSnap) {
-      // MetaMask path: use the chainId string prop
-      if (!chainId) return false;
+      if (!chainId) return null;
       try {
-        const currentChainNum = chainId.startsWith('0x')
+        return chainId.startsWith('0x')
           ? parseInt(chainId, 16)
           : Number(chainId);
-        return !isSupportedChain(currentChainNum);
       } catch {
-        return false;
+        return null;
       }
-    } else {
-      // Non-MetaMask path: use wagmi's chain from useAccount
-      if (!chain) return false;
-      return !isSupportedChain(chain.id);
     }
+    return chain?.id ?? null;
   }, [chainId, chain, walletType, isMetaMaskWithSnap]);
+
+  const isUnsupportedNetwork = useCallback((): boolean => {
+    const current = getCurrentChainNum();
+    if (current == null) return false;
+    return !isSupportedChain(current);
+  }, [getCurrentChainNum]);
+
+  const isOffTargetNetwork = useCallback((): boolean => {
+    const current = getCurrentChainNum();
+    if (current == null || !isSupportedChain(current)) return false;
+    return current !== getTargetChainId();
+  }, [getCurrentChainNum, getTargetChainId]);
 
   /**
    * Enforce network switch.
@@ -86,7 +97,6 @@ export const useNetworkEnforcer = (
     const targetChainId = getTargetChainId();
 
     if (walletType === 'metamask' || isMetaMaskWithSnap) {
-      // MetaMask path: continue using existing switchNetwork via wallet_switchEthereumChain
       if (!chainId) return;
 
       let currentChainIdHex = '';
@@ -121,7 +131,6 @@ export const useNetworkEnforcer = (
         }
       }
     } else {
-      // Non-MetaMask path: use wagmi useSwitchChain (same rule as MetaMask — switch when not on target)
       if (!chain) return;
 
       if (chain.id !== targetChainId) {
@@ -149,21 +158,26 @@ export const useNetworkEnforcer = (
     getTargetChainId,
   ]);
 
+  const unsupported = isUnsupportedNetwork();
+  const offTarget = isOffTargetNetwork();
+
   // Auto-enforce on chain changes (disabled in favor of NetworkGuard UI, but available)
   useEffect(() => {
     // Automatic enforcement is disabled in favor of NetworkGuard UI
     // enforceNetwork();
   }, [enforceNetwork]);
 
-  // Clear warning when network becomes correct
+  // Clear warning when on the configured target (supported and not off-target)
   useEffect(() => {
-    if (!isWrongNetwork()) {
+    if (!unsupported && !offTarget) {
       setNetworkMismatchWarning(null);
     }
-  }, [isWrongNetwork]);
+  }, [unsupported, offTarget]);
 
   return {
-    isWrongNetwork: isWrongNetwork(),
+    isUnsupportedNetwork: unsupported,
+    isOffTargetNetwork: offTarget,
+    isWrongNetwork: unsupported,
     networkMismatchWarning,
     enforceNetwork,
   };

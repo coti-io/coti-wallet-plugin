@@ -24,6 +24,7 @@ vi.mock('../../src/hooks/useWalletType', () => ({
 import { useNetworkEnforcer } from '../../src/hooks/useNetworkEnforcer';
 
 const COTI_MAINNET = 2632500;
+const COTI_TESTNET = 7082400;
 
 describe('useNetworkEnforcer branch coverage', () => {
   const mockSwitchNetwork = vi.fn().mockResolvedValue(true);
@@ -61,13 +62,13 @@ describe('useNetworkEnforcer branch coverage', () => {
     expect(mockSwitchNetwork).toHaveBeenCalledWith('0x6c11a0');
   });
 
-  it('falls back to COTI Mainnet when defaultNetworkId is not a supported chain', async () => {
+  it('falls back to COTI Testnet when defaultNetworkId is not a supported chain', async () => {
     configureCotiPlugin({ defaultNetworkId: '999' });
     mockWalletType = 'metamask';
     const { result } = renderHook(() => useNetworkEnforcer('11155111', mockSwitchNetwork));
 
     await act(async () => { await result.current.enforceNetwork(); });
-    expect(mockSwitchNetwork).toHaveBeenCalledWith('0x' + COTI_MAINNET.toString(16));
+    expect(mockSwitchNetwork).toHaveBeenCalledWith('0x' + COTI_TESTNET.toString(16));
   });
 
   it('resolves Sepolia from defaultNetworkId when configured for PoD', async () => {
@@ -79,20 +80,20 @@ describe('useNetworkEnforcer branch coverage', () => {
     expect(mockSwitchNetwork).toHaveBeenCalledWith('0xaa36a7');
   });
 
-  // ─── isWrongNetwork edge paths ──────────────────────────────────────────
+  // ─── isUnsupportedNetwork / isOffTargetNetwork edge paths ────────────────
 
-  it('returns false for MetaMask when chainId is null', () => {
+  it('returns false for both flags when MetaMask chainId is null', () => {
     mockWalletType = 'metamask';
     const { result } = renderHook(() => useNetworkEnforcer(null, mockSwitchNetwork));
-    expect(result.current.isWrongNetwork).toBe(false);
+    expect(result.current.isUnsupportedNetwork).toBe(false);
+    expect(result.current.isOffTargetNetwork).toBe(false);
   });
 
-  it('returns false for MetaMask when chainId parsing throws (malformed input)', () => {
+  it('returns false for both flags when MetaMask chainId parsing throws (malformed input)', () => {
     mockWalletType = 'metamask';
-    // A non-string chainId makes `.startsWith` throw → defensive catch returns false.
-     
     const { result } = renderHook(() => useNetworkEnforcer(123 as any, mockSwitchNetwork));
-    expect(result.current.isWrongNetwork).toBe(false);
+    expect(result.current.isUnsupportedNetwork).toBe(false);
+    expect(result.current.isOffTargetNetwork).toBe(false);
   });
 
   // ─── enforceNetwork edge paths ──────────────────────────────────────────
@@ -120,9 +121,9 @@ describe('useNetworkEnforcer branch coverage', () => {
   });
 
   it('does nothing for MetaMask already on the target chain', async () => {
-    // default target is COTI Mainnet; chainId equals it → no switch
+    // default target is COTI Testnet; chainId equals it → no switch
     mockWalletType = 'metamask';
-    const { result } = renderHook(() => useNetworkEnforcer('2632500', mockSwitchNetwork));
+    const { result } = renderHook(() => useNetworkEnforcer('7082400', mockSwitchNetwork));
     await act(async () => { await result.current.enforceNetwork(); });
     expect(mockSwitchNetwork).not.toHaveBeenCalled();
   });
@@ -135,20 +136,20 @@ describe('useNetworkEnforcer branch coverage', () => {
     expect(mockSwitchChainAsync).not.toHaveBeenCalled();
   });
 
-  it('switches a non-MetaMask wallet from testnet to the default mainnet target', async () => {
+  it('does nothing for a non-MetaMask wallet already on the default testnet target', async () => {
     mockWalletType = 'rabby';
-    mockAccountChain = { id: 7082400 };
+    mockAccountChain = { id: COTI_TESTNET };
     const { result } = renderHook(() => useNetworkEnforcer(null, mockSwitchNetwork));
     await act(async () => { await result.current.enforceNetwork(); });
-    expect(mockSwitchChainAsync).toHaveBeenCalledWith({ chainId: COTI_MAINNET });
+    expect(mockSwitchChainAsync).not.toHaveBeenCalled();
   });
 
-  it('does nothing for a non-MetaMask wallet already on the target chain', async () => {
+  it('switches a non-MetaMask wallet from mainnet to the default testnet target', async () => {
     mockWalletType = 'rabby';
     mockAccountChain = { id: COTI_MAINNET };
     const { result } = renderHook(() => useNetworkEnforcer(null, mockSwitchNetwork));
     await act(async () => { await result.current.enforceNetwork(); });
-    expect(mockSwitchChainAsync).not.toHaveBeenCalled();
+    expect(mockSwitchChainAsync).toHaveBeenCalledWith({ chainId: COTI_TESTNET });
   });
 
   it('switches a non-MetaMask wallet from Sepolia when PoD target is configured', async () => {

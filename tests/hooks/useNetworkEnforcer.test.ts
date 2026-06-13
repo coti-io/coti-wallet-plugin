@@ -33,64 +33,80 @@ describe('useNetworkEnforcer', () => {
     mockIsMetaMaskWithSnap = false;
   });
 
-  it('returns isWrongNetwork=false when chainId is null', () => {
+  it('returns isUnsupportedNetwork=false when chainId is null', () => {
     const { result } = renderHook(() => useNetworkEnforcer(null, mockSwitchNetwork));
+    expect(result.current.isUnsupportedNetwork).toBe(false);
+    expect(result.current.isOffTargetNetwork).toBe(false);
     expect(result.current.isWrongNetwork).toBe(false);
   });
 
-  it('returns isWrongNetwork=false for COTI Testnet (7082400) with MetaMask', () => {
+  it('returns both flags false for COTI Testnet with MetaMask (default target testnet)', () => {
     mockWalletType = 'metamask';
     mockIsMetaMaskWithSnap = true;
 
     const { result } = renderHook(() => useNetworkEnforcer('7082400', mockSwitchNetwork));
+    expect(result.current.isUnsupportedNetwork).toBe(false);
+    expect(result.current.isOffTargetNetwork).toBe(false);
     expect(result.current.isWrongNetwork).toBe(false);
   });
 
-  it('returns isWrongNetwork=false for Sepolia (11155111) with MetaMask', () => {
+  it('returns isUnsupportedNetwork=false and isOffTargetNetwork=true for Sepolia with MetaMask', () => {
     mockWalletType = 'metamask';
     mockIsMetaMaskWithSnap = true;
 
     const { result } = renderHook(() => useNetworkEnforcer('11155111', mockSwitchNetwork));
+    expect(result.current.isUnsupportedNetwork).toBe(false);
+    expect(result.current.isOffTargetNetwork).toBe(true);
     expect(result.current.isWrongNetwork).toBe(false);
   });
 
-  it('returns isWrongNetwork=true for unsupported network with MetaMask', () => {
+  it('returns isUnsupportedNetwork=true for unsupported network with MetaMask', () => {
     mockWalletType = 'metamask';
     mockIsMetaMaskWithSnap = true;
 
     const { result } = renderHook(() => useNetworkEnforcer('999', mockSwitchNetwork));
+    expect(result.current.isUnsupportedNetwork).toBe(true);
+    expect(result.current.isOffTargetNetwork).toBe(false);
     expect(result.current.isWrongNetwork).toBe(true);
   });
 
-  it('returns isWrongNetwork=false for COTI Mainnet (2632500) with MetaMask', () => {
+  it('returns isOffTargetNetwork=true for COTI Mainnet with MetaMask (default target testnet)', () => {
     mockWalletType = 'metamask';
     mockIsMetaMaskWithSnap = true;
 
     const { result } = renderHook(() => useNetworkEnforcer('2632500', mockSwitchNetwork));
+    expect(result.current.isUnsupportedNetwork).toBe(false);
+    expect(result.current.isOffTargetNetwork).toBe(true);
     expect(result.current.isWrongNetwork).toBe(false);
   });
 
-  it('returns isWrongNetwork=true for non-MetaMask on wrong chain', () => {
+  it('returns isUnsupportedNetwork=true for non-MetaMask on unsupported chain', () => {
     mockWalletType = 'rabby';
     mockAccountChain = { id: 999 };
 
     const { result } = renderHook(() => useNetworkEnforcer(null, mockSwitchNetwork));
+    expect(result.current.isUnsupportedNetwork).toBe(true);
+    expect(result.current.isOffTargetNetwork).toBe(false);
     expect(result.current.isWrongNetwork).toBe(true);
   });
 
-  it('returns isWrongNetwork=false for non-MetaMask on Sepolia', () => {
+  it('returns isOffTargetNetwork=true for non-MetaMask on Sepolia (default target testnet)', () => {
     mockWalletType = 'rabby';
     mockAccountChain = { id: 11155111 };
 
     const { result } = renderHook(() => useNetworkEnforcer(null, mockSwitchNetwork));
+    expect(result.current.isUnsupportedNetwork).toBe(false);
+    expect(result.current.isOffTargetNetwork).toBe(true);
     expect(result.current.isWrongNetwork).toBe(false);
   });
 
-  it('returns isWrongNetwork=false for non-MetaMask on COTI chain', () => {
+  it('returns both flags false for non-MetaMask on COTI testnet (default target testnet)', () => {
     mockWalletType = 'rabby';
     mockAccountChain = { id: 7082400 };
 
     const { result } = renderHook(() => useNetworkEnforcer(null, mockSwitchNetwork));
+    expect(result.current.isUnsupportedNetwork).toBe(false);
+    expect(result.current.isOffTargetNetwork).toBe(false);
     expect(result.current.isWrongNetwork).toBe(false);
   });
 
@@ -147,7 +163,7 @@ describe('useNetworkEnforcer', () => {
       await result.current.enforceNetwork();
     });
 
-    expect(mockSwitchChainAsync).toHaveBeenCalledWith({ chainId: 2632500 });
+    expect(mockSwitchChainAsync).toHaveBeenCalledWith({ chainId: 7082400 });
   });
 
   it('enforceNetwork calls wagmi switchChain when on a supported chain that is not the target', async () => {
@@ -160,12 +176,12 @@ describe('useNetworkEnforcer', () => {
       await result.current.enforceNetwork();
     });
 
-    expect(mockSwitchChainAsync).toHaveBeenCalledWith({ chainId: 2632500 });
+    expect(mockSwitchChainAsync).toHaveBeenCalledWith({ chainId: 7082400 });
   });
 
   it('enforceNetwork does not call wagmi switchChain when already on the target chain', async () => {
     mockWalletType = 'rabby';
-    mockAccountChain = { id: 2632500 };
+    mockAccountChain = { id: 7082400 };
 
     const { result } = renderHook(() => useNetworkEnforcer(null, mockSwitchNetwork));
 
@@ -181,10 +197,11 @@ describe('useNetworkEnforcer', () => {
     mockIsMetaMaskWithSnap = true;
 
     const { result } = renderHook(() => useNetworkEnforcer('0x6c11a0', mockSwitchNetwork));
-    expect(result.current.isWrongNetwork).toBe(false);
+    expect(result.current.isUnsupportedNetwork).toBe(false);
+    expect(result.current.isOffTargetNetwork).toBe(false);
   });
 
-  it('clears warning when network becomes correct', () => {
+  it('clears warning when network becomes on-target', () => {
     mockWalletType = 'metamask';
     mockIsMetaMaskWithSnap = true;
 
@@ -193,7 +210,13 @@ describe('useNetworkEnforcer', () => {
       { initialProps: { chainId: '7082400' } }
     );
 
-    expect(result.current.isWrongNetwork).toBe(false);
+    expect(result.current.isOffTargetNetwork).toBe(false);
     expect(result.current.networkMismatchWarning).toBeNull();
+
+    rerender({ chainId: '2632500' });
+    expect(result.current.isOffTargetNetwork).toBe(true);
+
+    rerender({ chainId: '7082400' });
+    expect(result.current.isOffTargetNetwork).toBe(false);
   });
 });
