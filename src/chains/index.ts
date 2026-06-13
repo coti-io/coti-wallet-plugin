@@ -87,3 +87,17 @@ export const resolveIndexPageUi = (chainId: number): ResolvedIndexPageUi => {
     amountModalGasSymbol: ip.amountModalGasSymbol === "native" ? nativeSymbol : "COTI",
   };
 };
+
+export {
+  chainConfigToViemChain,
+  cotiMainnet,
+  cotiTestnet,
+  sepolia,
+  ethereumMainnet,
+  ETHEREUM_MAINNET_CHAIN_ID,
+  ETHEREUM_MAINNET_RPC,
+  COTI_MAINNET_RPC,
+  COTI_TESTNET_RPC,
+  SEPOLIA_RPC,
+  getRpcUrlForChainId,
+} from "./viemChains";

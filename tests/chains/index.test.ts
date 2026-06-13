@@ -21,6 +21,12 @@ import {
   COTI_MAINNET_CHAIN_ID,
   COTI_TESTNET_CHAIN_ID,
   SEPOLIA_CHAIN_ID,
+  cotiMainnet,
+  cotiTestnet,
+  sepolia,
+  COTI_MAINNET_RPC,
+  COTI_TESTNET_RPC,
+  SEPOLIA_RPC,
 } from '../../src/chains/index';
 
 describe('chains/index', () => {
@@ -162,6 +168,24 @@ describe('chains/index', () => {
         COTI_TESTNET_ID: CHAIN_CONFIGS[COTI_TESTNET_CHAIN_ID].hexId,
         SEPOLIA_ID: CHAIN_CONFIGS[SEPOLIA_CHAIN_ID].hexId,
       });
+    });
+  });
+
+  describe('viem chains derived from CHAIN_CONFIGS', () => {
+    it('exports viem chains whose ids and RPC URLs match the registry', () => {
+      for (const [chain, rpcConstant] of [
+        [cotiMainnet, COTI_MAINNET_RPC],
+        [cotiTestnet, COTI_TESTNET_RPC],
+        [sepolia, SEPOLIA_RPC],
+      ] as const) {
+        const cfg = CHAIN_CONFIGS[chain.id];
+        expect(cfg).toBeDefined();
+        expect(chain.name).toBe(cfg.name);
+        expect(chain.nativeCurrency).toEqual(cfg.walletNetwork.nativeCurrency);
+        expect(chain.rpcUrls.default.http[0]).toBe(cfg.rpcUrl);
+        expect(rpcConstant).toBe(cfg.rpcUrl);
+        expect(chain.blockExplorers?.default?.url).toBe(cfg.explorerBaseUrl);
+      }
     });
   });
 

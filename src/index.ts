@@ -9,8 +9,22 @@ export type { Logger } from './lib/logger';
 // Errors
 export { CotiPluginError, CotiErrorCode, isCotiPluginError, hasCotiErrorCode } from './errors';
 
-// Chain definitions
-export { cotiMainnet, cotiTestnet, sepolia, ethereumMainnet, COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID, SEPOLIA_CHAIN_ID, ETHEREUM_MAINNET_CHAIN_ID, COTI_MAINNET_RPC, COTI_TESTNET_RPC, SEPOLIA_RPC, ETHEREUM_MAINNET_RPC, getRpcUrlForChainId } from './config/chains';
+// Chain definitions (viem + RPC — derived from CHAIN_CONFIGS)
+export {
+  cotiMainnet,
+  cotiTestnet,
+  sepolia,
+  ethereumMainnet,
+  COTI_MAINNET_CHAIN_ID,
+  COTI_TESTNET_CHAIN_ID,
+  SEPOLIA_CHAIN_ID,
+  ETHEREUM_MAINNET_CHAIN_ID,
+  COTI_MAINNET_RPC,
+  COTI_TESTNET_RPC,
+  SEPOLIA_RPC,
+  ETHEREUM_MAINNET_RPC,
+  getRpcUrlForChainId,
+} from './chains';
 
 // Chain registry (multi-chain portal strategies)
 export {
