@@ -66,10 +66,23 @@ function createWagmiConfig(walletConnectProjectId?: string) {
   });
 }
 
-/** Default wagmi config using env variable for WalletConnect project ID */
-export const wagmiConfig = createWagmiConfig();
-
 const queryClient = new QueryClient();
+
+/**
+ * Builds wagmi config from current {@link getPluginConfig} and optional WalletConnect project ID.
+ * Prefer {@link WagmiRainbowKitProvider} in React apps; use this for non-React wagmi setup.
+ */
+export function getWagmiConfig(walletConnectProjectId?: string) {
+  return createWagmiConfig(walletConnectProjectId);
+}
+
+/**
+ * Default wagmi config (backward-compatible export).
+ * Built at module load — same as pre-0.2 behavior for `import { wagmiConfig }`.
+ * For config that reflects {@link configureCotiPlugin} after import, use {@link getWagmiConfig}
+ * or {@link WagmiRainbowKitProvider}.
+ */
+export const wagmiConfig = getWagmiConfig();
 
 /**
  * Wraps children with wagmi WagmiProvider, React Query QueryClientProvider,
@@ -79,11 +92,10 @@ export function WagmiRainbowKitProvider({
   children,
   walletConnectProjectId,
 }: WagmiRainbowKitProviderProps) {
+  const { sepoliaRpcUrl } = getPluginConfig();
   const config = useMemo(
-    () => walletConnectProjectId
-      ? createWagmiConfig(walletConnectProjectId)
-      : wagmiConfig,
-    [walletConnectProjectId],
+    () => createWagmiConfig(walletConnectProjectId),
+    [walletConnectProjectId, sepoliaRpcUrl],
   );
 
   return (

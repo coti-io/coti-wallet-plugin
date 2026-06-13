@@ -85,7 +85,7 @@ export type { NetworkEnforcerResult } from './hooks/useNetworkEnforcer';
 export { PrivacyBridgeProvider, usePrivacyBridgeContext } from './context/PrivacyBridgeContext';
 
 // Providers — Multi-Wallet Support
-export { WagmiRainbowKitProvider, getWagmiConfig } from './providers/WagmiRainbowKitProvider';
+export { WagmiRainbowKitProvider, getWagmiConfig, wagmiConfig } from './providers/WagmiRainbowKitProvider';
 
 // Hooks — Wallet Type Detection
 export { useWalletType } from './hooks/useWalletType';

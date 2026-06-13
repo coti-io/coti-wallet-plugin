@@ -26,9 +26,15 @@ vi.mock('viem', () => ({
 
 // rainbowkit and rainbowkit/wallets are mocked via vitest.config.ts aliases
 
-import { WagmiRainbowKitProvider } from '../../src/providers/WagmiRainbowKitProvider';
+import { WagmiRainbowKitProvider, getWagmiConfig, wagmiConfig } from '../../src/providers/WagmiRainbowKitProvider';
+import { configureCotiPlugin } from '../../src/config/plugin';
+import { createConfig, http } from 'wagmi';
 
 describe('WagmiRainbowKitProvider', () => {
+  it('exports wagmiConfig for backward compatibility', () => {
+    expect(wagmiConfig).toBeDefined();
+  });
+
   it('renders children', () => {
     render(
       <WagmiRainbowKitProvider>
@@ -60,5 +66,15 @@ describe('WagmiRainbowKitProvider', () => {
 
     expect(screen.getByText('First')).toBeDefined();
     expect(screen.getByText('Second')).toBeDefined();
+  });
+
+  it('getWagmiConfig uses configureCotiPlugin sepoliaRpcUrl at call time', () => {
+    configureCotiPlugin({ sepoliaRpcUrl: 'https://custom-sepolia.example/rpc' });
+    getWagmiConfig();
+    const createConfigMock = vi.mocked(createConfig);
+    const lastCall = createConfigMock.mock.calls.at(-1)?.[0];
+    expect(lastCall?.transports).toBeDefined();
+    expect(http).toHaveBeenCalledWith('https://custom-sepolia.example/rpc');
+    configureCotiPlugin({ sepoliaRpcUrl: undefined });
   });
 });
