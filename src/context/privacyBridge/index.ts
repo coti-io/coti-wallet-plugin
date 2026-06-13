@@ -1,9 +1,5 @@
-/**
- * @deprecated Import from `./privacyBridge` for new code.
- * Re-exported so existing `context/PrivacyBridgeContext` import paths keep working.
- */
+export { PrivacyBridgeProvider } from './PrivacyBridgeProvider';
 export {
-  PrivacyBridgeProvider,
   usePrivacyBridgeContext,
   usePrivacyBridgeWallet,
   usePrivacyBridgeNetwork,
@@ -12,8 +8,7 @@ export {
   usePrivacyBridgeSwap,
   usePrivacyBridgePod,
   usePrivacyBridgeModals,
-} from './privacyBridge';
-
+} from './contexts';
 export type {
   PrivacyBridgeContextType,
   PrivacyBridgeWalletContextValue,
@@ -23,4 +18,6 @@ export type {
   PrivacyBridgeSwapContextValue,
   PrivacyBridgePodContextValue,
   PrivacyBridgeModalsContextValue,
-} from './privacyBridge';
+  PrivacyBridgeContextSlices,
+} from './types';
+export { mergePrivacyBridgeSlices } from './types';

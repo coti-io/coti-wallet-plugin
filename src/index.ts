@@ -95,8 +95,28 @@ export type { BridgeFees, SimulationResult } from './hooks/useBridgeFees';
 export { useNetworkEnforcer } from './hooks/useNetworkEnforcer';
 export type { NetworkEnforcerResult } from './hooks/useNetworkEnforcer';
 
-// Context
-export { PrivacyBridgeProvider, usePrivacyBridgeContext } from './context/PrivacyBridgeContext';
+// Context — legacy flat API + bounded slice hooks
+export {
+  PrivacyBridgeProvider,
+  usePrivacyBridgeContext,
+  usePrivacyBridgeWallet,
+  usePrivacyBridgeNetwork,
+  usePrivacyBridgeUnlock,
+  usePrivacyBridgeTokens,
+  usePrivacyBridgeSwap,
+  usePrivacyBridgePod,
+  usePrivacyBridgeModals,
+} from './context/privacyBridge';
+export type {
+  PrivacyBridgeContextType,
+  PrivacyBridgeWalletContextValue,
+  PrivacyBridgeNetworkContextValue,
+  PrivacyBridgeUnlockContextValue,
+  PrivacyBridgeTokensContextValue,
+  PrivacyBridgeSwapContextValue,
+  PrivacyBridgePodContextValue,
+  PrivacyBridgeModalsContextValue,
+} from './context/privacyBridge';
 
 // Providers — Multi-Wallet Support
 export { WagmiRainbowKitProvider, getWagmiConfig, wagmiConfig } from './providers/WagmiRainbowKitProvider';
