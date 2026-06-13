@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { createConfig, http, WagmiProvider } from 'wagmi';
+import { createConfig, http, WagmiProvider, type Config } from 'wagmi';
 import { connectorsForWallets } from '@rainbow-me/rainbowkit';
 import {
   metaMaskWallet,
@@ -22,16 +22,16 @@ import {
   SEPOLIA_RPC,
 } from '../config/chains';
 import { getPluginConfig } from '../config/plugin';
+import { resolveWalletConnectProjectId } from '../config/walletConnect';
 
 interface WagmiRainbowKitProviderProps {
   children: React.ReactNode;
-  /** Optional override for WalletConnect project ID (defaults to VITE_WALLETCONNECT_PROJECT_ID) */
+  /** WalletConnect Cloud project ID (falls back to configureCotiPlugin or VITE_WALLETCONNECT_PROJECT_ID). */
   walletConnectProjectId?: string;
 }
 
 function createWagmiConfig(walletConnectProjectId?: string) {
-  const projectId =
-    walletConnectProjectId ?? import.meta.env.VITE_WALLETCONNECT_PROJECT_ID ?? '147a7ca938c2ce172909ee7567bfb4c7';
+  const projectId = resolveWalletConnectProjectId(walletConnectProjectId);
 
   const connectors = connectorsForWallets(
     [
@@ -47,7 +47,7 @@ function createWagmiConfig(walletConnectProjectId?: string) {
     {
       appName: 'COTI Wallet Plugin',
       projectId,
-    }
+    },
   );
 
   const pluginConfig = getPluginConfig();
@@ -68,21 +68,35 @@ function createWagmiConfig(walletConnectProjectId?: string) {
 
 const queryClient = new QueryClient();
 
+let cachedDefaultWagmiConfig: Config | undefined;
+
 /**
  * Builds wagmi config from current {@link getPluginConfig} and optional WalletConnect project ID.
  * Prefer {@link WagmiRainbowKitProvider} in React apps; use this for non-React wagmi setup.
  */
 export function getWagmiConfig(walletConnectProjectId?: string) {
-  return createWagmiConfig(walletConnectProjectId);
+  if (walletConnectProjectId !== undefined) {
+    return createWagmiConfig(walletConnectProjectId);
+  }
+  if (!cachedDefaultWagmiConfig) {
+    cachedDefaultWagmiConfig = createWagmiConfig();
+  }
+  return cachedDefaultWagmiConfig;
 }
 
 /**
  * Default wagmi config (backward-compatible export).
- * Built at module load — same as pre-0.2 behavior for `import { wagmiConfig }`.
+ * Lazily initialized on first property access — requires a configured WalletConnect project ID.
  * For config that reflects {@link configureCotiPlugin} after import, use {@link getWagmiConfig}
  * or {@link WagmiRainbowKitProvider}.
  */
-export const wagmiConfig = getWagmiConfig();
+export const wagmiConfig: Config = new Proxy({} as Config, {
+  get(_target, prop, receiver) {
+    const config = getWagmiConfig();
+    const value = Reflect.get(config as object, prop, receiver);
+    return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(config) : value;
+  },
+});
 
 /**
  * Wraps children with wagmi WagmiProvider, React Query QueryClientProvider,

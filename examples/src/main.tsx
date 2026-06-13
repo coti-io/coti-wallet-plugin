@@ -6,7 +6,9 @@ import App from './App';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <WagmiRainbowKitProvider>
+    <WagmiRainbowKitProvider
+      walletConnectProjectId={import.meta.env.VITE_WALLETCONNECT_PROJECT_ID}
+    >
       <App />
     </WagmiRainbowKitProvider>
   </React.StrictMode>

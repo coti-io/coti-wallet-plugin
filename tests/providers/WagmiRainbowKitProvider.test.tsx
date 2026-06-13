@@ -28,6 +28,8 @@ vi.mock('viem', () => ({
 
 import { WagmiRainbowKitProvider, getWagmiConfig, wagmiConfig } from '../../src/providers/WagmiRainbowKitProvider';
 import { configureCotiPlugin } from '../../src/config/plugin';
+import { resolveWalletConnectProjectId } from '../../src/config/walletConnect';
+import { CotiErrorCode, CotiPluginError, hasCotiErrorCode } from '../../src/errors';
 import { createConfig, http } from 'wagmi';
 
 describe('WagmiRainbowKitProvider', () => {
@@ -70,11 +72,31 @@ describe('WagmiRainbowKitProvider', () => {
 
   it('getWagmiConfig uses configureCotiPlugin sepoliaRpcUrl at call time', () => {
     configureCotiPlugin({ sepoliaRpcUrl: 'https://custom-sepolia.example/rpc' });
-    getWagmiConfig();
+    getWagmiConfig('test-project-id');
     const createConfigMock = vi.mocked(createConfig);
     const lastCall = createConfigMock.mock.calls.at(-1)?.[0];
     expect(lastCall?.transports).toBeDefined();
     expect(http).toHaveBeenCalledWith('https://custom-sepolia.example/rpc');
     configureCotiPlugin({ sepoliaRpcUrl: undefined });
+  });
+
+  it('throws CotiPluginError when WalletConnect project ID is missing', () => {
+    configureCotiPlugin({ walletConnectProjectId: undefined });
+    vi.stubEnv('VITE_WALLETCONNECT_PROJECT_ID', '');
+
+    expect(() => resolveWalletConnectProjectId()).toThrow(CotiPluginError);
+    try {
+      resolveWalletConnectProjectId();
+    } catch (error) {
+      expect(hasCotiErrorCode(error, CotiErrorCode.WALLETCONNECT_PROJECT_ID_MISSING)).toBe(true);
+    }
+
+    vi.stubEnv('VITE_WALLETCONNECT_PROJECT_ID', 'vitest-walletconnect-project-id');
+  });
+
+  it('resolveWalletConnectProjectId prefers prop over plugin config', () => {
+    configureCotiPlugin({ walletConnectProjectId: 'from-plugin' });
+    expect(resolveWalletConnectProjectId('from-prop')).toBe('from-prop');
+    configureCotiPlugin({ walletConnectProjectId: undefined });
   });
 });

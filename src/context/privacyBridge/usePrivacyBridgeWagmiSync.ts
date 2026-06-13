@@ -1,0 +1,126 @@
+import { useEffect, useRef } from 'react';
+import { getPluginConfig } from '../../config/plugin';
+import { isChainUpdatesMuted } from '../../lib/chainMute';
+import { logger } from '../../lib/logger';
+import { truncateAddress } from '../../lib/format';
+import type { PrivacyBridgeAccountSync } from './usePrivacyBridgeAccountSync';
+import type { PrivacyBridgeNetworkSession } from './usePrivacyBridgeNetworkSession';
+import type { PrivacyBridgeSessionCore } from './sessionShared';
+
+interface UsePrivacyBridgeWagmiSyncOptions {
+  core: PrivacyBridgeSessionCore;
+  network: PrivacyBridgeNetworkSession;
+  accountSync: PrivacyBridgeAccountSync;
+}
+
+/** Syncs RainbowKit/wagmi connection state into the bridge session. */
+export const usePrivacyBridgeWagmiSync = ({
+  core,
+  network,
+  accountSync,
+}: UsePrivacyBridgeWagmiSyncOptions) => {
+  const {
+    isConnected,
+    walletAddress,
+    setIsConnected,
+    setWalletAddress,
+    setHasSnap,
+    wagmiSyncRef,
+    setSessionAesKey,
+    setArePrivateBalancesHidden,
+    executeSnapCheck,
+    clearSnapCache,
+  } = core;
+
+  const {
+    wagmiAddress,
+    wagmiConnected,
+    wagmiChainId,
+    wagmiConnector,
+  } = network;
+
+  const { updateAccountState } = accountSync;
+
+  useEffect(() => {
+    if (wagmiConnected && wagmiAddress && !isConnected) {
+      logger.log('RainbowKit connection detected, syncing to context', {
+        address: truncateAddress(wagmiAddress),
+        chainId: wagmiChainId,
+      });
+      wagmiSyncRef.current = true;
+      updateAccountState(wagmiAddress, false, false, undefined, wagmiChainId);
+
+      const connectorId = wagmiConnector?.id?.toLowerCase() || '';
+      const connectorName = wagmiConnector?.name?.toLowerCase() || '';
+      const isMetaMask =
+        connectorId.includes('metamask') ||
+        connectorName.includes('metamask') ||
+        connectorId === 'io.metamask';
+      if (isMetaMask) {
+        logger.log('MetaMask detected via RainbowKit — checking Snap...');
+        executeSnapCheck(async () => {
+          logger.log('Snap found via RainbowKit MetaMask connection');
+          setHasSnap(true);
+          return true;
+        });
+      }
+    }
+
+    if (!wagmiConnected && wagmiSyncRef.current) {
+      logger.log('RainbowKit disconnected, clearing context');
+      wagmiSyncRef.current = false;
+      setIsConnected(false);
+      setWalletAddress('');
+      if (getPluginConfig().clearSessionKeyOnWagmiDisconnect) {
+        setSessionAesKey(null);
+        clearSnapCache();
+      }
+      setArePrivateBalancesHidden(true);
+    }
+
+    if (wagmiConnected && wagmiAddress && isConnected && wagmiAddress !== walletAddress) {
+      logger.log('RainbowKit account switched', truncateAddress(wagmiAddress));
+      setSessionAesKey(null);
+      clearSnapCache();
+      updateAccountState(wagmiAddress, false, false, undefined, wagmiChainId);
+    }
+  }, [
+    wagmiConnected,
+    wagmiAddress,
+    walletAddress,
+    isConnected,
+    wagmiChainId,
+    wagmiConnector,
+    updateAccountState,
+    wagmiSyncRef,
+    setIsConnected,
+    setWalletAddress,
+    setHasSnap,
+    setSessionAesKey,
+    setArePrivateBalancesHidden,
+    executeSnapCheck,
+    clearSnapCache,
+  ]);
+
+  const prevWagmiChainIdRef = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (wagmiConnected && wagmiAddress && isConnected && wagmiAddress === walletAddress && wagmiChainId) {
+      if (prevWagmiChainIdRef.current !== undefined && prevWagmiChainIdRef.current !== wagmiChainId) {
+        if (isChainUpdatesMuted()) {
+          logger.log('[ChainMuted] Ignoring chain change during onboarding', {
+            from: prevWagmiChainIdRef.current,
+            to: wagmiChainId,
+          });
+          prevWagmiChainIdRef.current = wagmiChainId;
+          return;
+        }
+        logger.log('RainbowKit chain changed', {
+          from: prevWagmiChainIdRef.current,
+          to: wagmiChainId,
+        });
+        updateAccountState(wagmiAddress, false, false, undefined, wagmiChainId);
+      }
+      prevWagmiChainIdRef.current = wagmiChainId;
+    }
+  }, [wagmiConnected, wagmiAddress, walletAddress, isConnected, wagmiChainId, updateAccountState]);
+};

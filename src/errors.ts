@@ -38,6 +38,8 @@ export enum CotiErrorCode {
   // ─── Network ───────────────────────────────────────────────────────────
   /** Connected to an unsupported chain ID. */
   UNSUPPORTED_NETWORK = 'UNSUPPORTED_NETWORK',
+  /** WalletConnect Cloud project ID was not configured. */
+  WALLETCONNECT_PROJECT_ID_MISSING = 'WALLETCONNECT_PROJECT_ID_MISSING',
 
   // ─── Bridge / Transaction ──────────────────────────────────────────────
   /** Insufficient token balance for the requested operation. */

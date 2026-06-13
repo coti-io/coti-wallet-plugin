@@ -11,6 +11,8 @@ export interface CotiPluginConfig {
   sepoliaRpcUrl?: string;
   /** COTI testnet RPC URL for PoD SDK tracking. */
   cotiTestnetRpcUrl?: string;
+  /** WalletConnect Cloud project ID for RainbowKit / WalletConnect wallets. */
+  walletConnectProjectId?: string;
   /**
    * Enables verbose internal logging via the plugin logger.
    * Disabled by default — the library is silent unless a consumer opts in.
