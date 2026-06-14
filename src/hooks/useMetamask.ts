@@ -126,11 +126,11 @@ export const useMetamask = ({
     /**
      * Connects to the user's Metamask wallet.
      * Requests permissions, gets accounts, ensures the correct network, and triggers state updates.
-     * 
+     *
      * @param onConnect - Callback to execute with the connected account address.
-     * @returns Void. Handles errors internally.
+     * @returns `true` when an account was connected and `onConnect` completed; `false` on rejection, empty accounts, or provider errors.
      */
-    const connectWallet = async (onConnect: (account: string) => Promise<void>) => {
+    const connectWallet = async (onConnect: (account: string) => Promise<void>): Promise<boolean> => {
         if (!window.ethereum) {
             throw new CotiPluginError(CotiErrorCode.METAMASK_NOT_INSTALLED, 'MetaMask or compatible wallet not found');
         }
@@ -147,7 +147,7 @@ export const useMetamask = ({
             // 2. Get Selected Accounts
             const accounts = await eth.request({ method: 'eth_requestAccounts' }) as string[];
 
-            if (!accounts || accounts.length === 0) return;
+            if (!accounts || accounts.length === 0) return false;
 
             // Check network, default to Mainnet if on wrong network
             const provider = new ethers.BrowserProvider(window.ethereum);
@@ -180,9 +180,12 @@ export const useMetamask = ({
             /* v8 ignore next 2 -- unreachable: empty accounts return above at line 176 */
             if (accounts.length > 0) {
                 await onConnect(accounts[0]);
+                return true;
             }
+            return false;
         } catch (error) {
             logger.error('Error connecting to MetaMask:', error);
+            return false;
         }
     };
 

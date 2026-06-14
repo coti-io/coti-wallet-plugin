@@ -122,9 +122,13 @@ vi.mock('../../src/hooks/useSnap', () => ({
   },
 }));
 
-vi.mock('../../src/hooks/useWalletType', () => ({
-  useWalletType: () => ({ walletType: 'metamask', isMetaMaskWithSnap: true, connectorId: 'io.metamask' }),
-}));
+vi.mock('../../src/hooks/useWalletType', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../src/hooks/useWalletType')>();
+  return {
+    ...actual,
+    useWalletType: () => ({ walletType: 'metamask', isMetaMaskWithSnap: true, connectorId: 'io.metamask' }),
+  };
+});
 
 vi.mock('../../src/hooks/useAesKeyProvider', () => ({
   useAesKeyProvider: () => ({ getAesKey: h.aesKeyProvider.getAesKey }),
@@ -266,6 +270,7 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
     h.metamask.onSnapCheck = null;
     h.metamask.connectWallet.mockImplementation(async (onConnect: (a: string) => Promise<void>) => {
       await onConnect(WALLET_A);
+      return true;
     });
     h.metamask.switchNetwork.mockResolvedValue(true);
     h.metamask.registerEthereumInitializedListener.mockReset();

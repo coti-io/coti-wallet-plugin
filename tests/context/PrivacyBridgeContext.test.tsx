@@ -54,9 +54,13 @@ vi.mock('../../src/hooks/useSnap', () => ({
   }),
 }));
 
-vi.mock('../../src/hooks/useWalletType', () => ({
-  useWalletType: () => ({ walletType: 'unknown', isMetaMaskWithSnap: false, connectorId: undefined }),
-}));
+vi.mock('../../src/hooks/useWalletType', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../src/hooks/useWalletType')>();
+  return {
+    ...actual,
+    useWalletType: () => ({ walletType: 'unknown', isMetaMaskWithSnap: false, connectorId: undefined }),
+  };
+});
 
 vi.mock('../../src/hooks/useAesKeyProvider', () => ({
   useAesKeyProvider: () => ({ getAesKey: vi.fn(async () => null) }),

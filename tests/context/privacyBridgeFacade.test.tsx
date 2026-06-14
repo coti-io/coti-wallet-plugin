@@ -22,6 +22,12 @@ const h = vi.hoisted(() => ({
     connector: undefined as unknown,
   },
   disconnect: vi.fn(),
+  connectWallet: vi.fn(async (onConnect?: (account: string) => Promise<void>) => {
+    if (onConnect) {
+      await onConnect('0xabc1234567890123456789012345678901234567');
+    }
+    return true;
+  }),
   resolvePodStatus: vi.fn(async () => null as unknown),
   snap: {
     clearSnapCache: vi.fn(),
@@ -39,7 +45,7 @@ vi.mock('wagmi', () => ({
 
 vi.mock('../../src/hooks/useMetamask', () => ({
   useMetamask: () => ({
-    connectWallet: vi.fn(async () => undefined),
+    connectWallet: h.connectWallet,
     checkNetwork: vi.fn(async () => true),
     switchNetwork: vi.fn(async () => true),
     networkName: 'COTI Testnet',
@@ -65,9 +71,13 @@ vi.mock('../../src/hooks/useSnap', () => ({
   }),
 }));
 
-vi.mock('../../src/hooks/useWalletType', () => ({
-  useWalletType: () => ({ walletType: 'unknown', isMetaMaskWithSnap: false, connectorId: undefined }),
-}));
+vi.mock('../../src/hooks/useWalletType', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../src/hooks/useWalletType')>();
+  return {
+    ...actual,
+    useWalletType: () => ({ walletType: 'unknown', isMetaMaskWithSnap: false, connectorId: undefined }),
+  };
+});
 
 vi.mock('../../src/hooks/useAesKeyProvider', () => ({
   useAesKeyProvider: () => ({ getAesKey: vi.fn(async () => null) }),
@@ -118,7 +128,14 @@ describe('privacyBridge facade', () => {
     h.wagmi.address = undefined;
     h.wagmi.isConnected = false;
     h.wagmi.chainId = 7082400;
+    h.wagmi.connector = undefined;
     vi.clearAllMocks();
+    h.connectWallet.mockImplementation(async (onConnect?: (account: string) => Promise<void>) => {
+      if (onConnect) {
+        await onConnect('0xabc1234567890123456789012345678901234567');
+      }
+      return true;
+    });
   });
 
   it('mergePrivacyBridgeSlices produces the same keys as the legacy context', () => {
@@ -247,5 +264,126 @@ describe('privacyBridge facade', () => {
         </PrivacyBridgeProvider>,
       );
     });
+  });
+
+  it('sets metamaskDetected when wagmi connects via a MetaMask connector', async () => {
+    let wallet: ReturnType<typeof usePrivacyBridgeWallet> | null = null;
+
+    function Probe() {
+      wallet = usePrivacyBridgeWallet();
+      return null;
+    }
+
+    h.wagmi.address = '0xabc1234567890123456789012345678901234567';
+    h.wagmi.isConnected = true;
+    h.wagmi.connector = { id: 'io.metamask', name: 'MetaMask' };
+
+    await act(async () => {
+      render(
+        <PrivacyBridgeProvider>
+          <Probe />
+        </PrivacyBridgeProvider>,
+      );
+    });
+
+    expect(wallet!.metamaskDetected).toBe(true);
+  });
+
+  it('clears metamaskDetected for non-MetaMask wagmi connectors', async () => {
+    let wallet: ReturnType<typeof usePrivacyBridgeWallet> | null = null;
+
+    function Probe() {
+      wallet = usePrivacyBridgeWallet();
+      return null;
+    }
+
+    h.wagmi.address = '0xabc1234567890123456789012345678901234567';
+    h.wagmi.isConnected = true;
+    h.wagmi.connector = { id: 'walletConnect', name: 'WalletConnect' };
+
+    await act(async () => {
+      render(
+        <PrivacyBridgeProvider>
+          <Probe />
+        </PrivacyBridgeProvider>,
+      );
+    });
+
+    expect(wallet!.metamaskDetected).toBe(false);
+  });
+
+  it('sets metamaskDetected after explicit MetaMask handleConnect', async () => {
+    let wallet: ReturnType<typeof usePrivacyBridgeWallet> | null = null;
+
+    function Probe() {
+      wallet = usePrivacyBridgeWallet();
+      return null;
+    }
+
+    render(
+      <PrivacyBridgeProvider>
+        <Probe />
+      </PrivacyBridgeProvider>,
+    );
+
+    expect(wallet!.metamaskDetected).toBe(false);
+
+    await act(async () => {
+      await wallet!.handleConnect();
+    });
+
+    expect(wallet!.metamaskDetected).toBe(true);
+  });
+
+  it('does not set metamaskDetected when connectWallet returns false', async () => {
+    let wallet: ReturnType<typeof usePrivacyBridgeWallet> | null = null;
+
+    function Probe() {
+      wallet = usePrivacyBridgeWallet();
+      return null;
+    }
+
+    h.connectWallet.mockResolvedValueOnce(false);
+
+    render(
+      <PrivacyBridgeProvider>
+        <Probe />
+      </PrivacyBridgeProvider>,
+    );
+
+    await act(async () => {
+      await wallet!.handleConnect();
+    });
+
+    expect(wallet!.metamaskDetected).toBe(false);
+  });
+
+  it('does not set metamaskDetected from handleConnect when wagmi manages the session', async () => {
+    let wallet: ReturnType<typeof usePrivacyBridgeWallet> | null = null;
+
+    function Probe() {
+      wallet = usePrivacyBridgeWallet();
+      return null;
+    }
+
+    h.wagmi.address = '0xabc1234567890123456789012345678901234567';
+    h.wagmi.isConnected = true;
+    h.wagmi.connector = { id: 'walletConnect', name: 'WalletConnect' };
+
+    await act(async () => {
+      render(
+        <PrivacyBridgeProvider>
+          <Probe />
+        </PrivacyBridgeProvider>,
+      );
+    });
+
+    expect(wallet!.metamaskDetected).toBe(false);
+
+    await act(async () => {
+      await wallet!.handleConnect();
+    });
+
+    expect(wallet!.metamaskDetected).toBe(false);
   });
 });

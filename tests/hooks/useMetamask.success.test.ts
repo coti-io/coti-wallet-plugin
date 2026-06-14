@@ -78,19 +78,21 @@ describe('useMetamask (success & lifecycle paths)', () => {
       const { result } = renderHook(() => useMetamask());
 
       await act(async () => {
-        await result.current.connectWallet(onConnect);
+        const connected = await result.current.connectWallet(onConnect);
+        expect(connected).toBe(true);
       });
 
       expect(onConnect).toHaveBeenCalledWith('0xabc123');
     });
 
-    it('swallows provider errors without rethrowing', async () => {
+    it('returns false on provider errors without rethrowing', async () => {
       mockRequest.mockRejectedValue(new Error('user rejected'));
       const onConnect = vi.fn();
       const { result } = renderHook(() => useMetamask());
 
       await act(async () => {
-        await expect(result.current.connectWallet(onConnect)).resolves.toBeUndefined();
+        const connected = await result.current.connectWallet(onConnect);
+        expect(connected).toBe(false);
       });
       expect(onConnect).not.toHaveBeenCalled();
     });

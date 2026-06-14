@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { getPluginConfig } from '../../config/plugin';
+import { mapConnectorIdToWalletType } from '../../hooks/useWalletType';
 import { isChainUpdatesMuted } from '../../lib/chainMute';
 import { logger } from '../../lib/logger';
 import { truncateAddress } from '../../lib/format';
@@ -30,6 +31,7 @@ export const usePrivacyBridgeWagmiSync = ({
     setArePrivateBalancesHidden,
     executeSnapCheck,
     clearSnapCache,
+    setMetamaskDetected,
   } = core;
 
   const {
@@ -50,12 +52,7 @@ export const usePrivacyBridgeWagmiSync = ({
       wagmiSyncRef.current = true;
       updateAccountState(wagmiAddress, false, false, undefined, wagmiChainId);
 
-      const connectorId = wagmiConnector?.id?.toLowerCase() || '';
-      const connectorName = wagmiConnector?.name?.toLowerCase() || '';
-      const isMetaMask =
-        connectorId.includes('metamask') ||
-        connectorName.includes('metamask') ||
-        connectorId === 'io.metamask';
+      const isMetaMask = mapConnectorIdToWalletType(wagmiConnector?.id) === 'metamask';
       if (isMetaMask) {
         logger.log('MetaMask detected via RainbowKit — checking Snap...');
         executeSnapCheck(async () => {
@@ -71,6 +68,7 @@ export const usePrivacyBridgeWagmiSync = ({
       wagmiSyncRef.current = false;
       setIsConnected(false);
       setWalletAddress('');
+      setMetamaskDetected(false);
       if (getPluginConfig().clearSessionKeyOnWagmiDisconnect) {
         setSessionAesKey(null);
         clearSnapCache();
@@ -100,7 +98,18 @@ export const usePrivacyBridgeWagmiSync = ({
     setArePrivateBalancesHidden,
     executeSnapCheck,
     clearSnapCache,
+    setMetamaskDetected,
   ]);
+
+  useEffect(() => {
+    if (wagmiConnected && wagmiConnector) {
+      setMetamaskDetected(mapConnectorIdToWalletType(wagmiConnector.id) === 'metamask');
+      return;
+    }
+    if (!wagmiConnected && wagmiSyncRef.current) {
+      setMetamaskDetected(false);
+    }
+  }, [wagmiConnected, wagmiConnector, wagmiSyncRef, setMetamaskDetected]);
 
   const prevWagmiChainIdRef = useRef<number | undefined>(undefined);
   useEffect(() => {

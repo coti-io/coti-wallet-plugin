@@ -117,10 +117,10 @@ export function WagmiRainbowKitProvider({
   children,
   walletConnectProjectId,
 }: WagmiRainbowKitProviderProps) {
-  const { sepoliaRpcUrl } = getPluginConfig();
+  const pluginConfig = getPluginConfig();
   const config = useMemo(
     () => createWagmiConfig(walletConnectProjectId),
-    [walletConnectProjectId, sepoliaRpcUrl],
+    [walletConnectProjectId, pluginConfig.sepoliaRpcUrl, pluginConfig.walletConnectProjectId],
   );
 
   return (

@@ -34,6 +34,7 @@ export const usePrivacyBridgeWalletConnection = ({
     setArePrivateBalancesHidden,
     clearSnapCache,
     wagmiSyncRef,
+    setMetamaskDetected,
   } = core;
 
   const { connectWallet, registerEthereumInitializedListener, wagmiConnected, wagmiDisconnect } = network;
@@ -45,9 +46,12 @@ export const usePrivacyBridgeWalletConnection = ({
     if (!window.ethereum && ethereumListenerRegistered.current) return;
     metamaskExplicitConnect.current = true;
     try {
-      await connectWallet(async account => {
+      const connected = await connectWallet(async account => {
         await updateAccountState(account, false, false);
       });
+      if (connected && !wagmiSyncRef.current && !wagmiConnected) {
+        setMetamaskDetected(true);
+      }
     } catch (error: any) {
       logger.error('Connection failed:', error);
 
@@ -92,6 +96,7 @@ export const usePrivacyBridgeWalletConnection = ({
     setIsConnected(false);
     setWalletAddress('');
     setHasSnap(false);
+    setMetamaskDetected(false);
     setPublicTokens(getInitialPublicTokens(currentChainId));
     setPrivateTokens(getInitialPrivateTokens(currentChainId));
     setSessionAesKey(null);

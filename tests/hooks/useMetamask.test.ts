@@ -46,7 +46,8 @@ describe('useMetamask', () => {
       const { result } = renderHook(() => useMetamask());
 
       await act(async () => {
-        await result.current.connectWallet(onConnect);
+        const connected = await result.current.connectWallet(onConnect);
+        expect(connected).toBe(false);
       });
 
       // No accounts returned → onConnect not called
@@ -62,7 +63,8 @@ describe('useMetamask', () => {
       const { result } = renderHook(() => useMetamask());
 
       await act(async () => {
-        await result.current.connectWallet(onConnect);
+        const connected = await result.current.connectWallet(onConnect);
+        expect(connected).toBe(false);
       });
 
       expect(onConnect).not.toHaveBeenCalled();
