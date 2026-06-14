@@ -15,10 +15,18 @@ vi.mock('wagmi/connectors', () => ({
   walletConnect: vi.fn(() => ({})),
 }));
 
-vi.mock('@tanstack/react-query', () => ({
-  QueryClient: class MockQueryClient {},
-  QueryClientProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}));
+vi.mock('@tanstack/react-query', () => {
+  const queryClientInstances: unknown[] = [];
+  return {
+    queryClientInstances,
+    QueryClient: class MockQueryClient {
+      constructor() {
+        queryClientInstances.push(this);
+      }
+    },
+    QueryClientProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  };
+});
 
 vi.mock('viem', () => ({
   defineChain: (chain: any) => chain,
@@ -32,6 +40,7 @@ import { resolveWalletConnectProjectId } from '../../src/config/walletConnect';
 import { CotiErrorCode, CotiPluginError, hasCotiErrorCode } from '../../src/errors';
 import { SEPOLIA_RPC } from '../../src/chains';
 import { createConfig, http } from 'wagmi';
+import { queryClientInstances } from '@tanstack/react-query';
 
 describe('WagmiRainbowKitProvider', () => {
   it('exports wagmiConfig for backward compatibility', () => {
@@ -47,6 +56,26 @@ describe('WagmiRainbowKitProvider', () => {
 
     expect(screen.getByTestId('child')).toBeDefined();
     expect(screen.getByText('Hello')).toBeDefined();
+  });
+
+  it('creates an isolated QueryClient per provider instance (WAG-04)', () => {
+    const before = queryClientInstances.length;
+    const { unmount: unmountFirst } = render(
+      <WagmiRainbowKitProvider>
+        <div>First</div>
+      </WagmiRainbowKitProvider>,
+    );
+    const afterFirst = queryClientInstances.length;
+    render(
+      <WagmiRainbowKitProvider>
+        <div>Second</div>
+      </WagmiRainbowKitProvider>,
+    );
+
+    expect(afterFirst).toBe(before + 1);
+    expect(queryClientInstances.length).toBe(before + 2);
+    expect(queryClientInstances.at(-1)).not.toBe(queryClientInstances.at(-2));
+    unmountFirst();
   });
 
   it('renders with custom walletConnectProjectId', () => {
@@ -100,6 +129,21 @@ describe('WagmiRainbowKitProvider', () => {
     configureCotiPlugin({ sepoliaRpcUrl: 'https://updated-sepolia.example/rpc' });
     const third = getWagmiConfig();
     expect(third).not.toBe(first);
+    configureCotiPlugin({ sepoliaRpcUrl: undefined });
+  });
+
+  it('WagmiRainbowKitProvider reuses getCachedWagmiConfig with getWagmiConfig (WAG-05)', () => {
+    configureCotiPlugin({ sepoliaRpcUrl: 'https://provider-cache.example/rpc' });
+    vi.mocked(createConfig).mockClear();
+    render(
+      <WagmiRainbowKitProvider walletConnectProjectId="wag5-project-id">
+        <div>Cached</div>
+      </WagmiRainbowKitProvider>,
+    );
+    const fromProvider = getWagmiConfig('wag5-project-id');
+    const fromGetWagmiConfig = getWagmiConfig('wag5-project-id');
+    expect(fromProvider).toBe(fromGetWagmiConfig);
+    expect(createConfig).toHaveBeenCalledTimes(1);
     configureCotiPlugin({ sepoliaRpcUrl: undefined });
   });
 

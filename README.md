@@ -13,7 +13,7 @@ npm install @coti-io/coti-wallet-plugin
 ## Peer Dependencies
 
 ```bash
-npm install react react-dom ethers viem @coti-io/coti-sdk-typescript @metamask/providers @rainbow-me/rainbowkit wagmi @tanstack/react-query
+npm install react react-dom ethers viem @coti-io/coti-ethers @coti-io/coti-sdk-typescript @metamask/providers @rainbow-me/rainbowkit wagmi @tanstack/react-query
 ```
 
 ## Build

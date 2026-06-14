@@ -66,8 +66,6 @@ function createWagmiConfig(walletConnectProjectId?: string) {
   });
 }
 
-const queryClient = new QueryClient();
-
 function getWagmiConfigCacheKey(walletConnectProjectId?: string): string {
   const pluginConfig = getPluginConfig();
   const projectId = resolveWalletConnectProjectId(walletConnectProjectId);
@@ -117,9 +115,10 @@ export function WagmiRainbowKitProvider({
   children,
   walletConnectProjectId,
 }: WagmiRainbowKitProviderProps) {
+  const queryClient = useMemo(() => new QueryClient(), []);
   const pluginConfig = getPluginConfig();
   const config = useMemo(
-    () => createWagmiConfig(walletConnectProjectId),
+    () => getCachedWagmiConfig(walletConnectProjectId),
     [walletConnectProjectId, pluginConfig.sepoliaRpcUrl, pluginConfig.walletConnectProjectId],
   );
 

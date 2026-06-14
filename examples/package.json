@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@coti-io/coti-wallet-plugin": "file:../",
+    "@coti-io/coti-ethers": "^1.0.0",
     "@coti-io/coti-sdk-typescript": "^1.0.7",
     "@coti/pod-sdk": "github:cotitech-io/coti-pod-sdk",
     "@metamask/providers": "^22.0.0",

@@ -42,10 +42,8 @@
   ],
   "author": "COTI",
   "license": "Apache-2.0",
-  "dependencies": {
-    "@coti-io/coti-ethers": "^1.0.0"
-  },
   "peerDependencies": {
+    "@coti-io/coti-ethers": "^1.0.0",
     "@coti/pod-sdk": "*",
     "@coti-io/coti-sdk-typescript": "^1.0.7",
     "@metamask/providers": "^22.0.0",
@@ -58,6 +56,7 @@
     "wagmi": "^2.0.0"
   },
   "devDependencies": {
+    "@coti-io/coti-ethers": "^1.0.0",
     "@coti/pod-sdk": "github:cotitech-io/coti-pod-sdk",
     "@coti-io/coti-sdk-typescript": "^1.0.7",
     "@eslint/js": "^10.0.1",
