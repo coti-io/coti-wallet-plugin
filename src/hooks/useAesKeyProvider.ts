@@ -6,6 +6,7 @@ import type { WalletTypeInfo } from './useWalletType';
 import { CotiPluginError, CotiErrorCode } from '../errors';
 import { logger } from '../lib/logger';
 import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID } from '../config/chains';
+import { getKeySourceChainId } from '../chains';
 import { muteChainUpdates, unmuteChainUpdates, isChainUpdatesMuted } from '../lib/chainMute';
 
 /**
@@ -122,13 +123,14 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         }
 
         // Determine if we need to switch to a COTI chain for onboarding
+        const keySourceChainId = getKeySourceChainId(connectedChainId);
         const isCotiChain = connectedChainId === COTI_MAINNET_CHAIN_ID || connectedChainId === COTI_TESTNET_CHAIN_ID;
-        const targetCotiChainHex = '0x' + COTI_TESTNET_CHAIN_ID.toString(16);
+        const targetCotiChainHex = '0x' + keySourceChainId.toString(16);
         const originalChainHex = connectedChainId ? '0x' + connectedChainId.toString(16) : null;
 
         // If not on COTI, mute UI chain reactions and switch provider-level
         if (!isCotiChain) {
-          logger.log('🔇 [AesKeyProvider] Muting chain updates, switching to COTI Testnet for onboarding...');
+          logger.log(`🔇 [AesKeyProvider] Muting chain updates, switching to ${keySourceChainId === COTI_MAINNET_CHAIN_ID ? 'COTI Mainnet' : 'COTI Testnet'} for onboarding...`);
           muteChainUpdates();
           try {
             await walletProvider.request({
@@ -137,36 +139,39 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
             });
           } catch (switchErr: any) {
             if (switchErr?.code === 4902) {
+              const chainName = keySourceChainId === COTI_MAINNET_CHAIN_ID ? 'COTI Mainnet' : 'COTI Testnet';
+              const rpcUrl = keySourceChainId === COTI_MAINNET_CHAIN_ID ? 'https://mainnet.coti.io/rpc' : 'https://testnet.coti.io/rpc';
+              const explorerUrl = keySourceChainId === COTI_MAINNET_CHAIN_ID ? 'https://mainnet.cotiscan.io' : 'https://testnet.cotiscan.io';
               try {
                 await walletProvider.request({
                   method: 'wallet_addEthereumChain',
                   params: [{
                     chainId: targetCotiChainHex,
-                    chainName: 'COTI Testnet',
+                    chainName,
                     nativeCurrency: { name: 'COTI', symbol: 'COTI', decimals: 18 },
-                    rpcUrls: ['https://testnet.coti.io/rpc'],
-                    blockExplorerUrls: ['https://testnet.cotiscan.io'],
+                    rpcUrls: [rpcUrl],
+                    blockExplorerUrls: [explorerUrl],
                   }],
                 });
               } catch {
                 unmuteChainUpdates();
-                setOnboardingError('Failed to add COTI Testnet to wallet.');
+                setOnboardingError(`Failed to add ${chainName} to wallet.`);
                 return null;
               }
             } else {
               unmuteChainUpdates();
               if (switchErr?.code === 4001) return null; // user rejected
-              setOnboardingError('Failed to switch to COTI Testnet for onboarding.');
+              setOnboardingError('Failed to switch to COTI chain for onboarding.');
               return null;
             }
           }
         }
 
-        // Create a @coti-io/coti-ethers BrowserProvider (now on COTI Testnet)
+        // Create a @coti-io/coti-ethers BrowserProvider (now on the target COTI chain)
         const provider = new BrowserProvider(walletProvider);
         const signer = await provider.getSigner(address);
 
-        // Execute onboarding on COTI Testnet
+        // Execute onboarding on the target COTI chain
         await signer.generateOrRecoverAes();
 
         const onboardInfo = signer.getUserOnboardInfo();

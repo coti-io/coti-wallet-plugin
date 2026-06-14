@@ -2,13 +2,14 @@ import { cotiMainnetChain, cotiTestnetChain, COTI_MAINNET_CHAIN_ID, COTI_TESTNET
 import { sepoliaChain, SEPOLIA_CHAIN_ID } from "./sepolia";
 import type {
   ChainConfig,
+  KeySourceChain,
   ResolvedIndexPageUi,
   TokenConfig,
   UnlockStrategy,
   WalletNetworkConfig,
 } from "./types";
 
-export type { ChainConfig, ResolvedIndexPageUi, TokenConfig, UnlockStrategy, WalletNetworkConfig };
+export type { ChainConfig, KeySourceChain, ResolvedIndexPageUi, TokenConfig, UnlockStrategy, WalletNetworkConfig };
 export { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID, SEPOLIA_CHAIN_ID };
 
 export const CHAIN_CONFIGS: Record<number, ChainConfig> = {
@@ -101,3 +102,15 @@ export {
   SEPOLIA_RPC,
   getRpcUrlForChainId,
 } from "./viemChains";
+
+/**
+ * Returns the COTI chain ID that holds the AES key for a given connected chain.
+ * - Sepolia, COTI Testnet, Fiji → COTI Testnet (7082400)
+ * - Ethereum Mainnet, COTI Mainnet, Avalanche → COTI Mainnet (2632500)
+ * - Unknown chains default to COTI Testnet.
+ */
+export const getKeySourceChainId = (chainId?: number | string | null): number => {
+  const cfg = getChainConfig(chainId);
+  if (!cfg) return COTI_TESTNET_CHAIN_ID;
+  return cfg.keySourceChain === 'coti-mainnet' ? COTI_MAINNET_CHAIN_ID : COTI_TESTNET_CHAIN_ID;
+};

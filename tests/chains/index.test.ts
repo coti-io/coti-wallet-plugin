@@ -134,7 +134,7 @@ describe('chains/index', () => {
     });
 
     it('getUnlockStrategyForChain returns chain strategy when known', () => {
-      expect(getUnlockStrategyForChain(SEPOLIA_CHAIN_ID)).toBe('manual-aes-key');
+      expect(getUnlockStrategyForChain(SEPOLIA_CHAIN_ID)).toBe('snap');
     });
 
     it('getUnlockStrategyForChain falls back to "snap"', () => {

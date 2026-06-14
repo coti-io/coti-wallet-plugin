@@ -1,7 +1,5 @@
 import { useCallback, useEffect } from 'react';
 import { useBalanceUpdater } from '../../hooks/useBalanceUpdater';
-import { unlockCachedAesKey as unlockCachedAesKeyFromVault } from '../../crypto/localAesKeyVault';
-import { getUnlockStrategyForChain } from '../../chains';
 import { isChainUpdatesMuted } from '../../lib/chainMute';
 import { logger } from '../../lib/logger';
 import {
@@ -42,20 +40,12 @@ export const usePrivacyBridgeAccountSync = ({
 
   const { checkNetwork, currentChainId, wagmiChainId } = network;
 
-  const usesManualAesKey = getUnlockStrategyForChain(currentChainId) === 'manual-aes-key';
-
   const getAESKeyForCurrentNetwork = useCallback(
     async (accountAddress: string) => {
       if (sessionAesKey) return sessionAesKey;
-
-      if (usesManualAesKey) {
-        const cachedKey = await unlockCachedAesKeyFromVault(accountAddress);
-        if (cachedKey) return cachedKey;
-      }
-
       return getAesKeyFromProvider(accountAddress);
     },
-    [getAesKeyFromProvider, usesManualAesKey, sessionAesKey],
+    [getAesKeyFromProvider, sessionAesKey],
   );
 
   const { updateAccountState } = useBalanceUpdater({

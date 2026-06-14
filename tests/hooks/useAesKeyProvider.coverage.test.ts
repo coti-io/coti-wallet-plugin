@@ -351,7 +351,7 @@ describe('useAesKeyProvider (full branch coverage)', () => {
         key = await result.current.getAesKey(ADDR);
       });
       expect(key).toBeNull();
-      expect(result.current.onboardingError).toContain('Failed to switch to COTI Testnet');
+      expect(result.current.onboardingError).toContain('Failed to switch to COTI chain for onboarding');
     });
 
     it('handles a null connectedChainId (no originalChainHex, no switch back)', async () => {

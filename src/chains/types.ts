@@ -3,6 +3,13 @@ import type { BridgeData } from "../hooks/useBridgeData";
 export type UnlockStrategy = "snap" | "manual-aes-key";
 export type PortalStrategy = "coti-bridge" | "pod-privacy-portal";
 
+/**
+ * Determines which COTI chain holds the AES key for this network.
+ * - Testnet chains (Sepolia, COTI Testnet, Fiji) → COTI Testnet (7082400)
+ * - Mainnet chains (Ethereum, COTI Mainnet, Avalanche) → COTI Mainnet (2632500)
+ */
+export type KeySourceChain = "coti-testnet" | "coti-mainnet";
+
 export interface TokenConfig {
   symbol: string;
   name: string;
@@ -45,6 +52,13 @@ export interface ChainConfig {
   addresses: Record<string, string>;
   tokens: TokenConfig[];
   unlockStrategy: UnlockStrategy;
+  /**
+   * Which COTI chain to use when retrieving/generating the AES key.
+   * The Snap and onboard contract both live on COTI chains — this tells
+   * the key provider which one to target for wallets connected to non-COTI networks.
+   * Defaults to "coti-testnet" if not specified.
+   */
+  keySourceChain: KeySourceChain;
   portalStrategy: PortalStrategy;
   walletNetwork: WalletNetworkConfig;
   getBridgeDataOverride?: (addresses: Record<string, string>) => BridgeData[];

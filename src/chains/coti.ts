@@ -29,6 +29,7 @@ export const cotiTestnetChain: ChainConfig = {
   rpcUrl: "https://testnet.coti.io/rpc",
   explorerBaseUrl: "https://testnet.cotiscan.io",
   unlockStrategy: "snap",
+  keySourceChain: "coti-testnet",
   portalStrategy: "coti-bridge",
   addresses: {
     PrivateCoti: "0x6cE8907414986E73De9e7D28d62Ea2080F8E88E1",
@@ -78,6 +79,7 @@ export const cotiMainnetChain: ChainConfig = {
   rpcUrl: "https://mainnet.coti.io/rpc",
   explorerBaseUrl: "https://mainnet.cotiscan.io",
   unlockStrategy: "snap",
+  keySourceChain: "coti-mainnet",
   portalStrategy: "coti-bridge",
   addresses: {
     PrivateCoti: "",

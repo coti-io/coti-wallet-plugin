@@ -762,17 +762,17 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
       expect(h.aesKeyProvider.getAesKey).not.toHaveBeenCalled();
     });
 
-    it('uses cached vault key on manual-aes-key chains before provider lookup', async () => {
+    it('on Sepolia, uses the same snap/onboard key provider as COTI chains', async () => {
       h.wagmi.chainId = 11155111;
       h.metamask.chainId = '11155111';
-      h.unlockCachedAesKeyFromVault.mockResolvedValue('h'.repeat(64));
+      h.aesKeyProvider.getAesKey.mockResolvedValue('a'.repeat(64));
       await connectWagmi(WALLET_A, 11155111);
       h.aesKeyProvider.getAesKey.mockClear();
       await act(async () => {
         await latest!.refreshPrivateBalances();
       });
-      expect(h.unlockCachedAesKeyFromVault).toHaveBeenCalledWith(WALLET_A);
-      expect(h.aesKeyProvider.getAesKey).not.toHaveBeenCalled();
+      // Should use the standard provider path (snap or onboard contract), not vault
+      expect(h.aesKeyProvider.getAesKey).toHaveBeenCalledWith(WALLET_A);
     });
 
     it('saveManualAesKey passes wagmi chain override when update succeeds', async () => {

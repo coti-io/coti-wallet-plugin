@@ -8,7 +8,8 @@ export const sepoliaChain: ChainConfig = {
   name: "Sepolia",
   rpcUrl: "https://ethereum-sepolia-rpc.publicnode.com",
   explorerBaseUrl: "https://sepolia.etherscan.io",
-  unlockStrategy: "manual-aes-key",
+  unlockStrategy: "snap",
+  keySourceChain: "coti-testnet",
   portalStrategy: "pod-privacy-portal",
   addresses: {
     MTT: "0xd3f5c63f4D87D2235b295FbA83351d31d0eD1BeE",

@@ -38,12 +38,13 @@ export {
   getRpcUrlForChain,
   getNetworkNameForChain,
   getUnlockStrategyForChain,
+  getKeySourceChainId,
   getWalletNetworkConfigs,
   getWalletNetworkOptions,
   getChainIdConstants,
   resolveIndexPageUi,
 } from './chains';
-export type { ChainConfig as PortalChainConfig, ResolvedIndexPageUi, UnlockStrategy, PortalStrategy, WalletNetworkConfig, ChainIndexPageUi } from './chains/types';
+export type { ChainConfig as PortalChainConfig, ResolvedIndexPageUi, UnlockStrategy, KeySourceChain, PortalStrategy, WalletNetworkConfig, ChainIndexPageUi } from './chains/types';
 
 // PoD portal
 export {
