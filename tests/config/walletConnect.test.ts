@@ -11,6 +11,25 @@ function readWalletConnectEnvLikeCjs(importMeta: { env?: { VITE_WALLETCONNECT_PR
 describe('resolveWalletConnectProjectId', () => {
   afterEach(() => {
     configureCotiPlugin({ walletConnectProjectId: undefined });
+    vi.stubEnv('VITE_WALLETCONNECT_PROJECT_ID', 'vitest-walletconnect-project-id');
+  });
+
+  it('prefers prop over plugin config and env (WC-03)', () => {
+    configureCotiPlugin({ walletConnectProjectId: 'from-plugin' });
+    vi.stubEnv('VITE_WALLETCONNECT_PROJECT_ID', 'from-env');
+    expect(resolveWalletConnectProjectId('  from-prop  ')).toBe('from-prop');
+  });
+
+  it('resolves from plugin config when prop is omitted (WC-01)', () => {
+    vi.stubEnv('VITE_WALLETCONNECT_PROJECT_ID', '');
+    configureCotiPlugin({ walletConnectProjectId: 'plugin-id' });
+    expect(resolveWalletConnectProjectId()).toBe('plugin-id');
+  });
+
+  it('resolves from Vite env when prop and plugin are unset (WC-02)', () => {
+    configureCotiPlugin({ walletConnectProjectId: undefined });
+    vi.stubEnv('VITE_WALLETCONNECT_PROJECT_ID', 'env-id');
+    expect(resolveWalletConnectProjectId()).toBe('env-id');
   });
 
   it('env access pattern does not throw when import.meta.env is missing (CJS-safe)', () => {

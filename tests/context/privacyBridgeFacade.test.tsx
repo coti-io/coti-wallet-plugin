@@ -386,4 +386,46 @@ describe('privacyBridge facade', () => {
 
     expect(wallet!.metamaskDetected).toBe(false);
   });
+
+  it('clears metamaskDetected on wagmi disconnect via connector effect (WAG-01)', async () => {
+    let wallet: ReturnType<typeof usePrivacyBridgeWallet> | null = null;
+
+    function Probe() {
+      wallet = usePrivacyBridgeWallet();
+      return null;
+    }
+
+    h.wagmi.address = '0xabc1234567890123456789012345678901234567';
+    h.wagmi.isConnected = true;
+    h.wagmi.connector = { id: 'io.metamask', name: 'MetaMask' };
+
+    const { rerender } = render(
+      <PrivacyBridgeProvider>
+        <Probe />
+      </PrivacyBridgeProvider>,
+    );
+
+    await act(async () => {
+      rerender(
+        <PrivacyBridgeProvider>
+          <Probe />
+        </PrivacyBridgeProvider>,
+      );
+    });
+    expect(wallet!.metamaskDetected).toBe(true);
+
+    h.wagmi.isConnected = false;
+    h.wagmi.address = undefined;
+    h.wagmi.connector = undefined;
+
+    await act(async () => {
+      rerender(
+        <PrivacyBridgeProvider>
+          <Probe />
+        </PrivacyBridgeProvider>,
+      );
+    });
+
+    expect(wallet!.metamaskDetected).toBe(false);
+  });
 });
