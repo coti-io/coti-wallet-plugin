@@ -80,6 +80,37 @@ describe('WagmiRainbowKitProvider', () => {
     configureCotiPlugin({ sepoliaRpcUrl: undefined });
   });
 
+  it('getWagmiConfig() without project id reflects later configureCotiPlugin updates', () => {
+    configureCotiPlugin({ sepoliaRpcUrl: 'https://first-sepolia.example/rpc' });
+    getWagmiConfig();
+    vi.mocked(http).mockClear();
+    configureCotiPlugin({ sepoliaRpcUrl: 'https://second-sepolia.example/rpc' });
+    getWagmiConfig();
+    expect(http).toHaveBeenCalledWith('https://second-sepolia.example/rpc');
+    configureCotiPlugin({ sepoliaRpcUrl: undefined });
+  });
+
+  it('getWagmiConfig returns the same instance until plugin config changes', () => {
+    configureCotiPlugin({ sepoliaRpcUrl: 'https://stable-sepolia.example/rpc' });
+    const first = getWagmiConfig();
+    const second = getWagmiConfig();
+    expect(first).toBe(second);
+
+    configureCotiPlugin({ sepoliaRpcUrl: 'https://updated-sepolia.example/rpc' });
+    const third = getWagmiConfig();
+    expect(third).not.toBe(first);
+    configureCotiPlugin({ sepoliaRpcUrl: undefined });
+  });
+
+  it('wagmiConfig proxy reuses one config instance across property accesses', () => {
+    configureCotiPlugin({ sepoliaRpcUrl: 'https://proxy-stable.example/rpc' });
+    vi.mocked(createConfig).mockClear();
+    void wagmiConfig.chains;
+    void wagmiConfig.connectors;
+    expect(createConfig).toHaveBeenCalledTimes(1);
+    configureCotiPlugin({ sepoliaRpcUrl: undefined });
+  });
+
   it('throws CotiPluginError when WalletConnect project ID is missing', () => {
     configureCotiPlugin({ walletConnectProjectId: undefined });
     vi.stubEnv('VITE_WALLETCONNECT_PROJECT_ID', '');

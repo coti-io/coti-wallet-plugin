@@ -68,31 +68,42 @@ function createWagmiConfig(walletConnectProjectId?: string) {
 
 const queryClient = new QueryClient();
 
-let cachedDefaultWagmiConfig: Config | undefined;
+function getWagmiConfigCacheKey(walletConnectProjectId?: string): string {
+  const pluginConfig = getPluginConfig();
+  const projectId = resolveWalletConnectProjectId(walletConnectProjectId);
+  const sepoliaRpc = pluginConfig.sepoliaRpcUrl ?? SEPOLIA_RPC;
+  return `${projectId}|${sepoliaRpc}`;
+}
+
+let cachedWagmiConfig: { key: string; config: Config } | undefined;
+
+function getCachedWagmiConfig(walletConnectProjectId?: string): Config {
+  const key = getWagmiConfigCacheKey(walletConnectProjectId);
+  if (cachedWagmiConfig?.key === key) {
+    return cachedWagmiConfig.config;
+  }
+  const config = createWagmiConfig(walletConnectProjectId);
+  cachedWagmiConfig = { key, config };
+  return config;
+}
 
 /**
  * Builds wagmi config from current {@link getPluginConfig} and optional WalletConnect project ID.
+ * Returns a stable instance for unchanged plugin settings (safe for `wagmiConfig` and render).
  * Prefer {@link WagmiRainbowKitProvider} in React apps; use this for non-React wagmi setup.
  */
 export function getWagmiConfig(walletConnectProjectId?: string) {
-  if (walletConnectProjectId !== undefined) {
-    return createWagmiConfig(walletConnectProjectId);
-  }
-  if (!cachedDefaultWagmiConfig) {
-    cachedDefaultWagmiConfig = createWagmiConfig();
-  }
-  return cachedDefaultWagmiConfig;
+  return getCachedWagmiConfig(walletConnectProjectId);
 }
 
 /**
  * Default wagmi config (backward-compatible export).
  * Lazily initialized on first property access — requires a configured WalletConnect project ID.
- * For config that reflects {@link configureCotiPlugin} after import, use {@link getWagmiConfig}
- * or {@link WagmiRainbowKitProvider}.
+ * Rebuilt when {@link configureCotiPlugin} changes wagmi-relevant settings.
  */
 export const wagmiConfig: Config = new Proxy({} as Config, {
   get(_target, prop, receiver) {
-    const config = getWagmiConfig();
+    const config = getCachedWagmiConfig();
     const value = Reflect.get(config as object, prop, receiver);
     return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(config) : value;
   },
