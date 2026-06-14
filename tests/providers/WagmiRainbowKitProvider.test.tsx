@@ -30,6 +30,7 @@ import { WagmiRainbowKitProvider, getWagmiConfig, wagmiConfig } from '../../src/
 import { configureCotiPlugin } from '../../src/config/plugin';
 import { resolveWalletConnectProjectId } from '../../src/config/walletConnect';
 import { CotiErrorCode, CotiPluginError, hasCotiErrorCode } from '../../src/errors';
+import { SEPOLIA_RPC } from '../../src/chains';
 import { createConfig, http } from 'wagmi';
 
 describe('WagmiRainbowKitProvider', () => {
@@ -99,6 +100,27 @@ describe('WagmiRainbowKitProvider', () => {
     configureCotiPlugin({ sepoliaRpcUrl: 'https://updated-sepolia.example/rpc' });
     const third = getWagmiConfig();
     expect(third).not.toBe(first);
+    configureCotiPlugin({ sepoliaRpcUrl: undefined });
+  });
+
+  it('getWagmiConfig uses SEPOLIA_RPC when plugin sepoliaRpcUrl is unset (WAG-02)', () => {
+    configureCotiPlugin({ sepoliaRpcUrl: undefined });
+    vi.mocked(http).mockClear();
+    getWagmiConfig('wag2-explicit-project-id');
+    expect(http).toHaveBeenCalledWith(SEPOLIA_RPC);
+  });
+
+  it('wagmiConfig proxy binds function properties to the cached config (WAG-03)', () => {
+    configureCotiPlugin({ sepoliaRpcUrl: 'https://wag3-bind.example/rpc' });
+    const reconnect = vi.fn(function (this: { tag: string }) {
+      return this.tag;
+    });
+    vi.mocked(createConfig).mockReturnValueOnce({ tag: 'cached-config', reconnect } as never);
+
+    const bound = (wagmiConfig as { reconnect: () => string }).reconnect;
+    expect(bound()).toBe('cached-config');
+    expect(reconnect).toHaveBeenCalled();
+
     configureCotiPlugin({ sepoliaRpcUrl: undefined });
   });
 

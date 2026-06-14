@@ -144,6 +144,7 @@ vi.mock('../../src/contracts/config', () => ({
 
 import { usePrivacyBridge, type Token } from '../../src/hooks/usePrivacyBridge';
 import { decryptUint256 } from '@coti-io/coti-sdk-typescript';
+import { logger } from '../../src/lib/logger';
 
 const WALLET = '0x' + '9'.repeat(40);
 
@@ -434,6 +435,32 @@ describe('usePrivacyBridge - executeTransaction (COTI bridge)', () => {
     expect(props.setPublicTokens).toHaveBeenCalled();
     expect(props.setPrivateTokens).toHaveBeenCalled();
     expect(props.refreshPrivateBalances).toHaveBeenCalled();
+  });
+
+  it('logs when immediate refreshPrivateBalances fails after successful deposit (EXE-02)', async () => {
+    sib.getPublicTokensForChain.mockReturnValue(ercPublicCfg('WETH'));
+    sib.getPrivateTokensForChain.mockReturnValue(ercPrivateCfg('WETH'));
+    eth.balanceOf.mockResolvedValue(10n ** 24n);
+    eth.allowance.mockResolvedValue(10n ** 24n);
+    routeRequest();
+    eth.waitForTransaction.mockResolvedValue({ status: 1 });
+    const refreshError = new Error('refresh failed');
+    const refreshPrivateBalances = vi.fn().mockRejectedValue(refreshError);
+    const loggerError = vi.spyOn(logger, 'error').mockImplementation(() => undefined);
+    const props = makeProps({ refreshPrivateBalances });
+    const { result } = renderHook(() => usePrivacyBridge(props));
+
+    await act(async () => {
+      await result.current.executeTransaction('1', 'to-private', 0);
+    });
+
+    await waitFor(() => {
+      expect(refreshPrivateBalances).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(loggerError).toHaveBeenCalledWith('Immediate balance refresh failed', refreshError);
+    });
+    loggerError.mockRestore();
   });
 
   it('throws on insufficient ERC20 balance', async () => {
