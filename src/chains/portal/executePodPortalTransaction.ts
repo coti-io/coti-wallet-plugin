@@ -3,9 +3,12 @@ import {
   COTI_TESTNET_DEFAULT_INBOX_ADDRESS,
   DataType,
   PodContract,
-  SEPOLIA_DEFAULT_INBOX_ADDRESS,
+  SEPOLIA_DEFAULT_INBOX_ADDRESS as _SDK_SEPOLIA_INBOX,
   type PodSdkConfig,
 } from "@coti/pod-sdk";
+
+/** Override: use the updated Sepolia inbox contract address for portal. */
+const SEPOLIA_DEFAULT_INBOX_ADDRESS = "0xB4A53FE02401fDFA8DAc00450dA3FfF8D01502F8";
 import { COTI_TESTNET_CHAIN_ID, PRIVACY_PORTAL_ABI, POD_PTOKEN_ABI, SEPOLIA_CHAIN_ID, type PodPortalRequest } from "../../contracts/pod";
 import type { SwapProgressStage } from "../../hooks/usePrivacyBridge";
 import { getPluginConfig } from "../../config/plugin";

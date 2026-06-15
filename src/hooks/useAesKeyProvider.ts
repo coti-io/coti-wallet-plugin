@@ -220,9 +220,11 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         logger.error('❌ Onboarding contract AES key retrieval failed:', error);
         return null;
       } finally {
-        // Always unmute (after a delay so the switch-back chainChanged event is ignored).
+        // Reduced delay: Components 1 & 2 now guard against stale chain-change events
+        // resetting private balances. 500ms is sufficient to absorb the immediate
+        // chainChanged event from the switch-back.
         if (isChainUpdatesMuted()) {
-          await new Promise(resolve => setTimeout(resolve, 1500));
+          await new Promise(resolve => setTimeout(resolve, 500));
           unmuteChainUpdates();
           logger.log('🔊 [AesKeyProvider] Chain updates unmuted');
         }

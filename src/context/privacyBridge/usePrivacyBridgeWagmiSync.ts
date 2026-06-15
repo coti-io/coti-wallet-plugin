@@ -123,6 +123,17 @@ export const usePrivacyBridgeWagmiSync = ({
           prevWagmiChainIdRef.current = wagmiChainId;
           return;
         }
+        // When a session AES key exists, private balances are already correct.
+        // Re-fetch with the key to avoid resetting private tokens to zero.
+        if (core.sessionAesKey) {
+          logger.log('[ChainChange] sessionAesKey present — refreshing with private balances', {
+            from: prevWagmiChainIdRef.current,
+            to: wagmiChainId,
+          });
+          prevWagmiChainIdRef.current = wagmiChainId;
+          updateAccountState(wagmiAddress, true, true, core.sessionAesKey, wagmiChainId);
+          return;
+        }
         logger.log('RainbowKit chain changed', {
           from: prevWagmiChainIdRef.current,
           to: wagmiChainId,
@@ -131,5 +142,5 @@ export const usePrivacyBridgeWagmiSync = ({
       }
       prevWagmiChainIdRef.current = wagmiChainId;
     }
-  }, [wagmiConnected, wagmiAddress, walletAddress, isConnected, wagmiChainId, updateAccountState]);
+  }, [wagmiConnected, wagmiAddress, walletAddress, isConnected, wagmiChainId, updateAccountState, core.sessionAesKey]);
 };

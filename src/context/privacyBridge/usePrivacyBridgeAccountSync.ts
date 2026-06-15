@@ -89,7 +89,7 @@ export const usePrivacyBridgeAccountSync = ({
       logger.log('Session AES Key set, refreshing account state...');
       if (!hasSnap) setHasSnap(true);
       const chainOverride = wagmiSyncRef.current ? wagmiChainId : undefined;
-      updateAccountState(walletAddress, true, false, undefined, chainOverride).then(() => {
+      updateAccountState(walletAddress, true, true, sessionAesKey, chainOverride).then(() => {
         setArePrivateBalancesHidden(false);
       });
     }

@@ -12,8 +12,8 @@ export const sepoliaChain: ChainConfig = {
   portalStrategy: "pod-privacy-portal",
   addresses: {
     MTT: "0xd3f5c63f4D87D2235b295FbA83351d31d0eD1BeE",
-    "p.MTT": "0xb681D264a250715977450212d370b05d98761422",
-    PrivacyPortalMTT: "0xF5Da19E1c8FB39Fdd11bB029882fc69E86650beB",
+    "p.MTT": "0x34727cc7233e6B20aE071Cd16A81027172b6bdbA",
+    PrivacyPortalMTT: "0xffb8770353AcCF2492F6e75f9B5610CE4af8fe89",
   },
   tokens: [
     {
