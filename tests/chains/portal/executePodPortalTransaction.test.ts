@@ -22,9 +22,12 @@ vi.mock('ethers', async (importOriginal) => {
   const actual = await importOriginal<typeof import('ethers')>();
   class MockContract {
     address: string;
-    constructor(address: string, _abi: unknown, _runner: unknown) {
+    runner: unknown;
+    constructor(address: string, _abi: unknown, runner: unknown) {
       this.address = address;
+      this.runner = runner;
     }
+    getAddress = async () => this.address;
     balanceWithState = (...a: unknown[]) => h.balanceWithState(...a);
     balanceOfWithStatus = (...a: unknown[]) => h.balanceOfWithStatus(...a);
     name = (...a: unknown[]) => h.name(...a);
@@ -129,9 +132,22 @@ describe('getPodSdkConfig', () => {
   it('uses plugin-config RPC overrides when present', () => {
     configureCotiPlugin({ sepoliaRpcUrl: 'https://sep.example', cotiTestnetRpcUrl: 'https://coti.example' });
     const cfg = getPodSdkConfig();
-    expect(cfg.chains[0].rpcUrl).toBe('https://sep.example');
-    expect(cfg.chains[1].rpcUrl).toBe('https://coti.example');
+    const sepolia = cfg.chains.find(c => c.chainId === SEPOLIA_CHAIN_ID);
+    const coti = cfg.chains.find(c => c.chainId === 7082400);
+    expect(sepolia?.rpcUrl).toBe('https://sep.example');
+    expect(coti?.rpcUrl).toBe('https://coti.example');
     configureCotiPlugin({ sepoliaRpcUrl: undefined, cotiTestnetRpcUrl: undefined });
+  });
+
+  it('reads inbox addresses from chain config', () => {
+    const cfg = getPodSdkConfig();
+    expect(cfg.chains.every(c => c.inboxAddress.startsWith('0x'))).toBe(true);
+    expect(cfg.chains.find(c => c.chainId === SEPOLIA_CHAIN_ID)?.inboxAddress).toBe(
+      '0xB4A53FE02401fDFA8DAc00450dA3FfF8D01502F8',
+    );
+    expect(cfg.chains.find(c => c.chainId === 7082400)?.inboxAddress).toBe(
+      '0xB4A53FE02401fDFA8DAc00450dA3FfF8D01502F8',
+    );
   });
 
   it('falls back to chain default RPC URLs when not configured', () => {
@@ -178,7 +194,7 @@ describe('executePodPortalTransaction - configuration guard', () => {
   it('throws when portal/underlying/pToken address is missing', async () => {
     await expect(
       executePodPortalTransaction({ ...baseParams(), txDirection: 'to-private', portalAddress: '' }),
-    ).rejects.toThrow('Sepolia PoD portal is not configured');
+    ).rejects.toThrow('PoD portal is not configured for this token');
   });
 });
 
@@ -218,14 +234,14 @@ describe('executePodPortalTransaction - deposit (to-private)', () => {
     h.deposit.mockResolvedValue({ hash: '0xdeposit', wait: async () => ({ status: 0, logs: [] }) });
     await expect(
       executePodPortalTransaction({ ...baseParams(), txDirection: 'to-private' }),
-    ).rejects.toThrow('Sepolia deposit transaction failed');
+    ).rejects.toThrow('PoD deposit transaction failed');
   });
 
   it('throws when the deposit receipt is null', async () => {
     h.deposit.mockResolvedValue({ hash: '0xdeposit', wait: async () => null });
     await expect(
       executePodPortalTransaction({ ...baseParams(), txDirection: 'to-private' }),
-    ).rejects.toThrow('Sepolia deposit transaction failed');
+    ).rejects.toThrow('PoD deposit transaction failed');
   });
 });
 
@@ -254,6 +270,20 @@ describe('executePodPortalTransaction - pToken readiness', () => {
     const result = await executePodPortalTransaction({ ...baseParams(), txDirection: 'to-private' });
     expect(result.txHash).toBe('0xdeposit');
     expect(h.balanceOfWithStatus).toHaveBeenCalled();
+  });
+
+  it('falls back to plain balanceOfWithStatus when encrypted status helpers fail', async () => {
+    h.balanceWithState.mockRejectedValue(new Error('no balanceWithState'));
+    h.balanceOfWithStatus
+      .mockRejectedValueOnce(new Error('could not decode result data'))
+      .mockResolvedValueOnce([0n, false]);
+    h.deposit.mockResolvedValue({
+      hash: '0xdeposit',
+      wait: async () => ({ status: 1, blockNumber: 1, logs: [depositLog()] }),
+    });
+    const result = await executePodPortalTransaction({ ...baseParams(), txDirection: 'to-private' });
+    expect(result.txHash).toBe('0xdeposit');
+    expect(h.balanceOfWithStatus).toHaveBeenCalledTimes(2);
   });
 
   it('wraps an unrecognized state error into a generic verify message', async () => {

@@ -37,6 +37,7 @@ vi.mock('ethers', () => {
 });
 
 const COTI_TESTNET = 7082400;
+const SEPOLIA = 11155111;
 const ACCOUNT = '0x1234567890abcdef1234567890abcdef12345678';
 
 function makeProps(overrides: Partial<Record<string, any>> = {}) {
@@ -177,16 +178,28 @@ describe('useBalanceUpdater', () => {
     expect(props.setPrivateTokens).not.toHaveBeenCalled();
   });
 
-  it('throws AES_KEY_MISMATCH when a private balance decrypt mismatches', async () => {
+  it('applies zero balances when a private balance decrypt mismatches instead of failing the refresh', async () => {
     const props = makeProps({
       sessionAesKey: 'd'.repeat(64),
       fetchPrivateBalance: vi.fn().mockRejectedValue(new Error('AES key mismatch')),
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    await expect(
-      result.current.updateAccountState(ACCOUNT, true, true, undefined, COTI_TESTNET),
-    ).rejects.toMatchObject({ code: CotiErrorCode.AES_KEY_MISMATCH });
+    const ok = await result.current.updateAccountState(ACCOUNT, true, true, undefined, COTI_TESTNET);
+    expect(ok).toBe(true);
+    expect(props.setPrivateTokens).toHaveBeenCalledTimes(1);
+  });
+
+  it('fetches private balances when fetchPrivate is true even if checkSnap is false', async () => {
+    const props = makeProps({
+      fetchPrivateBalance: vi.fn().mockResolvedValue('1.5'),
+    });
+    const { result } = renderHook(() => useBalanceUpdater(props));
+
+    const ok = await result.current.updateAccountState(ACCOUNT, false, true, undefined, SEPOLIA);
+    expect(ok).toBe(true);
+    expect(props.fetchPrivateBalance).toHaveBeenCalled();
+    expect(props.setPrivateTokens).toHaveBeenCalledTimes(1);
   });
 
   it('returns false (not throw) on a non-mismatch private fetch error', async () => {

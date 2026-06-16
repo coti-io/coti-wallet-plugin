@@ -7,6 +7,7 @@ import { executePodPortalTransaction } from '../../chains/portal/executePodPorta
 import { formatTokenBalanceDisplay } from '../../lib/utils';
 import { estimateBridgeFee } from '../useEstimateBridgeFees';
 import { getChainConfig, getPrivateTokensForChain, getPublicTokensForChain, getRpcUrlForChain } from '../../chains';
+import { isPodPortalPublicToken, podPortalNotConfiguredError, resolveConfiguredAddress, resolvePodPortalAddresses } from '../../chains/portal/helpers';
 import { logger } from '../../lib/logger';
 import { truncateAddress } from '../../lib/format';
 import { shortHash } from './utils';
@@ -93,17 +94,63 @@ export const usePrivacyBridgeExecutor = ({
             const privTokExec = getPrivateTokensForChain(currentChainId).find(
                 t => t.symbol === `p.${txPublicToken.symbol.replace(/^p\./, '')}`
             );
-
-            let bridgeAddress: string | undefined =
-                pubTokExec?.bridgeAddressKey != null
-                    ? addresses[pubTokExec.bridgeAddressKey as keyof typeof addresses]
-                    : undefined;
-            let tokenAddress: string | undefined =
-                pubTokExec?.addressKey != null
-                    ? addresses[pubTokExec.addressKey as keyof typeof addresses]
-                    : undefined;
             let publicDecimals = pubTokExec?.decimals ?? 18;
             let privateDecimals = privTokExec?.decimals ?? pubTokExec?.decimals ?? 18;
+            const decimals = txDirection === 'to-private' ? publicDecimals : privateDecimals;
+
+            if (chainCfgExec?.portalStrategy === 'pod-privacy-portal' && isPodPortalPublicToken(currentChainId, pubTokExec)) {
+                const resolved = pubTokExec
+                    ? resolvePodPortalAddresses({ addresses, pubCfg: pubTokExec, privCfg: privTokExec })
+                    : null;
+                if (!resolved) {
+                    throw new Error(podPortalNotConfiguredError(currentChainId, txPublicToken.symbol));
+                }
+
+                setToastState({
+                    visible: true,
+                    title: txDirection === 'to-private' ? 'Submit PoD Deposit' : 'Submit PoD Withdraw',
+                    message: `Please confirm the ${chainCfgExec.name} transaction in your wallet.`,
+                });
+
+                const result = await executePodPortalTransaction({
+                    txAmount,
+                    txDirection,
+                    signer,
+                    provider,
+                    portalAddress: resolved.portalAddress,
+                    underlyingAddress: resolved.underlyingAddress,
+                    pTokenAddress: resolved.pTokenAddress,
+                    tokenSymbol: txPublicToken.symbol,
+                    decimals,
+                    chainId: currentChainId,
+                    isNativeDeposit: !!pubTokExec?.isNative,
+                    withdrawPermit: txDirection === 'to-public' ? podWithdrawPermit ?? undefined : undefined,
+                    onProgress,
+                });
+
+                upsertPodRequest?.(result.request);
+                if (txDirection === 'to-public') setPodWithdrawPermit(null);
+                onProgress?.('transfer-complete', result.txHash);
+
+                setToastState({
+                    visible: true,
+                    title: 'PoD Request Submitted',
+                    message: txDirection === 'to-private'
+                        ? `Deposit submitted on ${chainCfgExec.name}. Private balance will update after the PoD callback succeeds.`
+                        : `Withdraw submitted on ${chainCfgExec.name}. Funds are released after the PoD callback succeeds.`,
+                });
+                logger.log('PoD portal request submitted', { txHash: shortHash(result.txHash) });
+                return;
+            }
+
+            let bridgeAddress: string | undefined = resolveConfiguredAddress(
+                addresses,
+                pubTokExec?.bridgeAddressKey,
+            );
+            let tokenAddress: string | undefined = resolveConfiguredAddress(
+                addresses,
+                pubTokExec?.addressKey,
+            );
 
             const isWeth = txPublicToken.symbol === 'WETH';
             const isWbtc = txPublicToken.symbol === 'WBTC';
@@ -158,64 +205,7 @@ export const usePrivacyBridgeExecutor = ({
 
             const bridge = new ethers.Contract(bridgeAddress, bridgeAbi, signer);
 
-            // Use correct decimals based on direction
-            const decimals = txDirection === 'to-private' ? publicDecimals : privateDecimals;
             const amountWei = ethers.parseUnits(txAmount, decimals);
-
-            if (chainCfgExec?.portalStrategy === 'pod-privacy-portal') {
-                if (txPublicToken?.symbol !== 'MTT') {
-                    throw new Error("Sepolia PoD portal supports MTT only");
-                }
-
-                const pTokenAddress = privTokExec?.addressKey
-                    ? addresses[privTokExec.addressKey as keyof typeof addresses]
-                    : undefined;
-
-                if (!bridgeAddress || !tokenAddress || !pTokenAddress) {
-                    logger.error('PoD portal config check failed', {
-                        token: privTokExec?.symbol,
-                        chainId: currentChainId,
-                        hasBridge: !!bridgeAddress,
-                        hasToken: !!tokenAddress,
-                        hasPToken: !!pTokenAddress,
-                    });
-                    throw new Error("Sepolia PoD portal is not configured");
-                }
-
-                setToastState({
-                    visible: true,
-                    title: txDirection === 'to-private' ? 'Submit PoD Deposit' : 'Submit PoD Withdraw',
-                    message: 'Please confirm the Sepolia transaction in your wallet.',
-                });
-
-                const result = await executePodPortalTransaction({
-                    txAmount,
-                    txDirection,
-                    signer,
-                    provider,
-                    portalAddress: bridgeAddress,
-                    underlyingAddress: tokenAddress,
-                    pTokenAddress,
-                    tokenSymbol: txPublicToken.symbol,
-                    decimals,
-                    withdrawPermit: txDirection === 'to-public' ? podWithdrawPermit ?? undefined : undefined,
-                    onProgress,
-                });
-
-                upsertPodRequest?.(result.request);
-                if (txDirection === 'to-public') setPodWithdrawPermit(null);
-                onProgress?.('transfer-complete', result.txHash);
-
-                setToastState({
-                    visible: true,
-                    title: 'PoD Request Submitted',
-                    message: txDirection === 'to-private'
-                        ? 'Deposit submitted on Sepolia. Private balance will update after the PoD callback succeeds.'
-                        : 'Withdraw submitted on Sepolia. Funds are released after the PoD callback succeeds.',
-                });
-                logger.log('Sepolia PoD request submitted', { txHash: shortHash(result.txHash) });
-                return;
-            }
 
             let tx;
 

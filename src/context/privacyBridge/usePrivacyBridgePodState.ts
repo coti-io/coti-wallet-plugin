@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { loadPodRequests, savePodRequests } from '../../pod/podPortalRequestsStorage';
-import { SEPOLIA_CHAIN_ID, type PodPortalRequest } from '../../contracts/pod';
+import { type PodPortalRequest } from '../../contracts/pod';
 import { resolvePodRequestStatus } from '../../chains/portal/podRequestStatus';
+import { CHAIN_CONFIGS } from '../../chains/index';
 import { logger } from '../../lib/logger';
 import type { PrivacyBridgePodContextValue } from './types';
+
+const POD_PORTAL_CHAIN_IDS = new Set(
+  Object.values(CHAIN_CONFIGS)
+    .filter(c => c.portalStrategy === 'pod-privacy-portal')
+    .map(c => c.id),
+);
 
 interface UsePrivacyBridgePodOptions {
   walletAddress: string;
@@ -114,7 +121,7 @@ export const usePrivacyBridgePodState = ({
     if (!walletAddress) return;
     const active = podRequests.filter(
       r =>
-        r.chainId === SEPOLIA_CHAIN_ID &&
+        POD_PORTAL_CHAIN_IDS.has(r.chainId) &&
         r.wallet.toLowerCase() === walletAddress.toLowerCase() &&
         !['succeeded', 'failed', 'callback-errored', 'burn-debt'].includes(r.status),
     );

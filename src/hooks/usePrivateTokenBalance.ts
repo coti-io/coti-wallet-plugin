@@ -1,9 +1,17 @@
 import { useCallback } from 'react';
 import { ethers } from 'ethers';
 import { decryptCtUint64, decryptCtUint256 } from '../crypto/decryption';
+import { getRpcUrlForChainId } from '../config/chains';
 import { getPluginConfig } from '../config/plugin';
 import { CotiPluginError, CotiErrorCode } from '../errors';
 import { logger } from '../lib/logger';
+
+/**
+ * ABI for native PoD pTokens (p.ETH, p.AVAX): balance is a plain uint256 on-chain.
+ */
+const PLAIN_BALANCE_ABI = [
+    "function balanceOf(address account) view returns (uint256)",
+];
 
 /**
  * ABI for the nested 4-part ciphertext format used by PoD pTokens (e.g., Sepolia p.MTT).
@@ -73,33 +81,52 @@ export const usePrivateTokenBalance = () => {
         aesKey: string,
         contractAddress: string,
         version: 64 | 256,
-        decimals: number = 18
+        decimals: number = 18,
+        _readChainId?: number,
+        isPlainBalance: boolean = false,
     ): Promise<string> => {
-        if (!window.ethereum || !aesKey || !contractAddress) {
+        if (!contractAddress) {
+            return '0.00';
+        }
+        if (!isPlainBalance && !aesKey) {
+            return '0.00';
+        }
+        if (_readChainId == null && !window.ethereum) {
             return '0.00';
         }
 
         try {
-            const provider = new ethers.BrowserProvider(window.ethereum);
-            
-            // Optional strict network check
-            const envDefaultNetwork = getPluginConfig().defaultNetworkId;
-            if (envDefaultNetwork) {
-                const network = await provider.getNetwork();
-                if (Number(network.chainId) !== Number(envDefaultNetwork)) {
-                    logger.warn(`[FetchPrivate] Skipping: Wrong Network`);
-                    return '0.00';
-                }
+            const useRpcRead = _readChainId != null;
+            const runner = useRpcRead
+                ? new ethers.JsonRpcProvider(getRpcUrlForChainId(_readChainId), _readChainId)
+                : await (async () => {
+                    const browserProvider = new ethers.BrowserProvider(window.ethereum!);
+                    const envDefaultNetwork = getPluginConfig().defaultNetworkId;
+                    if (envDefaultNetwork) {
+                        const network = await browserProvider.getNetwork();
+                        if (Number(network.chainId) !== Number(envDefaultNetwork)) {
+                            logger.warn(`[FetchPrivate] Skipping: Wrong Network`);
+                            return null;
+                        }
+                    }
+                    return browserProvider.getSigner();
+                })();
+
+            if (!runner) {
+                return '0.00';
             }
 
-            // Using signer so proxy contracts (msg.sender) route correctly
-            const signer = await provider.getSigner();
+            if (isPlainBalance) {
+                const plainContract = new ethers.Contract(contractAddress, PLAIN_BALANCE_ABI, runner);
+                const balance = await plainContract.balanceOf(userAddress);
+                return ethers.formatUnits(balance, decimals);
+            }
 
             if (version === 64) {
                  // 64-bit Native token legacy ABI return
                  const contract = new ethers.Contract(contractAddress, [
                      "function balanceOf(address) view returns (uint256)"
-                 ], signer);
+                 ], runner);
 
                  const encryptedBalance = await contract['balanceOf(address)'](userAddress);
                  
@@ -116,7 +143,7 @@ export const usePrivateTokenBalance = () => {
                  let isNested = false;
 
                  try {
-                     const nestedContract = new ethers.Contract(contractAddress, NESTED_BALANCE_ABI, signer);
+                     const nestedContract = new ethers.Contract(contractAddress, NESTED_BALANCE_ABI, runner);
                      encryptedBalance = await nestedContract.balanceOf(userAddress);
 
                      // Validate that we got a nested structure (has .high.high or [0][0])
@@ -133,7 +160,7 @@ export const usePrivateTokenBalance = () => {
                      }
                  } catch {
                      // Nested ABI failed or didn't match — try flat 2-part ABI
-                     const flatContract = new ethers.Contract(contractAddress, FLAT_BALANCE_ABI, signer);
+                     const flatContract = new ethers.Contract(contractAddress, FLAT_BALANCE_ABI, runner);
                      encryptedBalance = await flatContract.balanceOf(userAddress);
                      isNested = false;
                  }
@@ -152,9 +179,11 @@ export const usePrivateTokenBalance = () => {
                      return ethers.formatUnits(decryptedVal, decimals);
                  } else {
                      // Flat 2-part format: { ciphertextHigh, ciphertextLow }
-                     if (encryptedBalance.ciphertextHigh === 0n && encryptedBalance.ciphertextLow === 0n) return '0.00';
+                     const high = encryptedBalance.ciphertextHigh ?? encryptedBalance[0] ?? 0n;
+                     const low = encryptedBalance.ciphertextLow ?? encryptedBalance[1] ?? 0n;
+                     if (high === 0n && low === 0n) return '0.00';
 
-                     const decryptedVal = decryptCtUint256(encryptedBalance, aesKey, { decimals });
+                     const decryptedVal = decryptCtUint256({ ciphertextHigh: high, ciphertextLow: low }, aesKey, { decimals });
                      if (decryptedVal === null) {
                          throw new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch: Error decrypting. Re-onboarding required.');
                      }

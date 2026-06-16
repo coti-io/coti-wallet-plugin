@@ -1,8 +1,8 @@
 import { ethers } from "ethers";
 import { PodRequest, type RequestTrackingResponse } from "@coti/pod-sdk";
-import { getPrivateTokensForChain, getRpcUrlForChain } from "../index";
+import { getPrivateTokensForChain, getPublicTokensForChain, getRpcUrlForChain } from "../index";
 import { CONTRACT_ADDRESSES } from "../../contracts/config";
-import { POD_PTOKEN_ABI, PRIVACY_PORTAL_ABI, SEPOLIA_CHAIN_ID, type PodPortalRequest } from "../../contracts/pod";
+import { POD_PTOKEN_ABI, PRIVACY_PORTAL_ABI, type PodPortalRequest } from "../../contracts/pod";
 import { getPodSdkConfig } from "./executePodPortalTransaction";
 
 const hasPodExecutionError = (execution: RequestTrackingResponse["execution"]) => {
@@ -27,17 +27,19 @@ const getFailedRequestHex = async (
 };
 
 export async function resolvePodRequestStatus(request: PodPortalRequest) {
-  if (!request.requestId || request.chainId !== SEPOLIA_CHAIN_ID) return null;
+  if (!request.requestId) return null;
 
-  const addresses = CONTRACT_ADDRESSES[SEPOLIA_CHAIN_ID];
+  const chainId = request.chainId;
+  const addresses = CONTRACT_ADDRESSES[chainId];
   if (!addresses) return null;
 
-  const rpcUrl = getRpcUrlForChain(SEPOLIA_CHAIN_ID);
+  const rpcUrl = getRpcUrlForChain(chainId);
   const provider = new ethers.JsonRpcProvider(rpcUrl);
   const sym = request.token.replace(/^p\./, "");
-  const privCfg = getPrivateTokensForChain(SEPOLIA_CHAIN_ID).find(t => t.symbol === `p.${sym}`);
+  const pubCfg = getPublicTokensForChain(chainId).find(t => t.symbol === sym && !t.isPrivate);
+  const privCfg = getPrivateTokensForChain(chainId).find(t => t.symbol === `p.${sym}`);
   const pTokenAddress = privCfg?.addressKey ? addresses[privCfg.addressKey] : undefined;
-  const portalAddress = addresses.PrivacyPortalMTT;
+  const portalAddress = pubCfg?.bridgeAddressKey ? addresses[pubCfg.bridgeAddressKey] : undefined;
   if (!pTokenAddress || !portalAddress) return null;
 
   const failedHex = await getFailedRequestHex(provider, request, pTokenAddress);
@@ -50,7 +52,7 @@ export async function resolvePodRequestStatus(request: PodPortalRequest) {
   }
 
   const tracker = new PodRequest(getPodSdkConfig());
-  const tracking = await tracker.trackRequest(SEPOLIA_CHAIN_ID, request.requestId);
+  const tracking = await tracker.trackRequest(chainId, request.requestId);
 
   if (hasPodExecutionError(tracking.execution)) {
     return {

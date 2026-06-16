@@ -1,37 +1,42 @@
 import type { ChainConfig } from "./types";
 
-export const SEPOLIA_CHAIN_ID = 11155111;
+export const AVALANCHE_FUJI_CHAIN_ID = 43113;
 
-/** Underlying ERC-20s from PrivacyPortalConfig.json (Sepolia). */
-const WETH = "0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9";
-const USDC = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238";
-const MTT = "0xd3f5c63f4D87D2235b295FbA83351d31d0eD1BeE";
+const AVALANCHE_FUJI_RPC_URL =
+  "https://api.avax-test.network/ext/bc/C/rpc";
 
-/** Deployed PoD portal pairs from pod-mpc-lib deployConfig.json (Sepolia). */
-const P_ETH = "0x4667DFcbCd354c2719E129A9FcC2Bb3a98456b91";
-const P_USDC = "0x4926c63B42ab17Bb72C6F8b3818A3A947C2aE2f9";
-const PORTAL_ETH = "0xF0b8d0A7bd03157D72c3364BC6d30d8F061DBD44";
-const PORTAL_USDC = "0x75E7D308b11066d6C5F5d65a94F562ce18a5976C";
+const AVALANCHE_FUJI_INBOX = "0xB4A53FE02401fDFA8DAc00450dA3FfF8D01502F8";
 
-export const sepoliaChain: ChainConfig = {
-  id: SEPOLIA_CHAIN_ID,
-  hexId: "0xaa36a7",
-  name: "Sepolia",
-  rpcUrl: "https://ethereum-sepolia-rpc.publicnode.com",
-  explorerBaseUrl: "https://sepolia.etherscan.io",
+/** Underlying ERC-20s from PrivacyPortalConfig.json (Avalanche Fuji). */
+const MTT = "0x328e70e1c52662cd5f19f824fcb8b463d77a6686";
+const USDC = "0x5425890298aed601595a70AB815c96711a31Bc65";
+const WAVAX = "0xd00ae08403B9bbb9124bB305C09058E32C39A48c";
+
+/** Deployed PoD portal pairs from pod-mpc-lib deployConfig.json (Fuji). */
+const P_AVAX = "0x69dF41ebdd5D5e0017c1965bd480843857158324";
+const P_USDC = "0x0291d4DCE114161bfE692AB31A479AF533630f28";
+const PORTAL_AVAX = "0xdaa65aB142Fb148e210103649536FcD29Ed8025f";
+const PORTAL_USDC = "0xe191FdfbA64c99C489D9846f2C0cEa495eA35974";
+
+export const avalancheFujiChain: ChainConfig = {
+  id: AVALANCHE_FUJI_CHAIN_ID,
+  hexId: "0xa869",
+  name: "Avalanche Fuji",
+  rpcUrl: AVALANCHE_FUJI_RPC_URL,
+  explorerBaseUrl: "https://testnet.snowtrace.io",
+  podInboxAddress: AVALANCHE_FUJI_INBOX,
   unlockStrategy: "manual-aes-key",
   portalStrategy: "pod-privacy-portal",
-  podInboxAddress: "0xB4A53FE02401fDFA8DAc00450dA3FfF8D01502F8",
   addresses: {
     MTT,
-    WETH,
     USDC,
-    "p.MTT": "0x34727cc7233e6B20aE071Cd16A81027172b6bdbA",
+    WAVAX,
+    "p.MTT": "0x53a5A16f3BC408CB808B442fA69481386945f5cf",
     "p.USDC": P_USDC,
-    "p.ETH": P_ETH,
-    PrivacyPortalMTT: "0xffb8770353AcCF2492F6e75f9B5610CE4af8fe89",
+    "p.AVAX": P_AVAX,
+    PrivacyPortalMTT: "0x248DF7c9f68c6d8aEFa88Ec218c53f0E6Da6dC81",
     PrivacyPortalUSDC: PORTAL_USDC,
-    PrivacyPortalETH: PORTAL_ETH,
+    PrivacyPortalAVAX: PORTAL_AVAX,
   },
   tokens: [
     {
@@ -42,7 +47,7 @@ export const sepoliaChain: ChainConfig = {
       isPrivate: false,
       addressKey: "MTT",
       bridgeAddressKey: "PrivacyPortalMTT",
-      supportedChainIds: [SEPOLIA_CHAIN_ID],
+      supportedChainIds: [AVALANCHE_FUJI_CHAIN_ID],
     },
     {
       symbol: "p.MTT",
@@ -52,7 +57,7 @@ export const sepoliaChain: ChainConfig = {
       isPrivate: true,
       addressKey: "p.MTT",
       bridgeAddressKey: "PrivacyPortalMTT",
-      supportedChainIds: [SEPOLIA_CHAIN_ID],
+      supportedChainIds: [AVALANCHE_FUJI_CHAIN_ID],
     },
     {
       symbol: "USDC",
@@ -62,7 +67,7 @@ export const sepoliaChain: ChainConfig = {
       isPrivate: false,
       addressKey: "USDC",
       bridgeAddressKey: "PrivacyPortalUSDC",
-      supportedChainIds: [SEPOLIA_CHAIN_ID],
+      supportedChainIds: [AVALANCHE_FUJI_CHAIN_ID],
     },
     {
       symbol: "p.USDC",
@@ -72,36 +77,36 @@ export const sepoliaChain: ChainConfig = {
       isPrivate: true,
       addressKey: "p.USDC",
       bridgeAddressKey: "PrivacyPortalUSDC",
-      supportedChainIds: [SEPOLIA_CHAIN_ID],
+      supportedChainIds: [AVALANCHE_FUJI_CHAIN_ID],
     },
     {
-      symbol: "ETH",
-      name: "Ether",
-      icon: "/icons/wETH.svg",
+      symbol: "AVAX",
+      name: "Avalanche",
+      icon: "/icons/avalanche.svg",
       decimals: 18,
       isPrivate: false,
       isNative: true,
-      addressKey: "WETH",
-      bridgeAddressKey: "PrivacyPortalETH",
-      supportedChainIds: [SEPOLIA_CHAIN_ID],
+      addressKey: "WAVAX",
+      bridgeAddressKey: "PrivacyPortalAVAX",
+      supportedChainIds: [AVALANCHE_FUJI_CHAIN_ID],
     },
     {
-      symbol: "p.ETH",
-      name: "Private WETH",
-      icon: "/icons/wETH.svg",
+      symbol: "p.AVAX",
+      name: "Private WAVAX",
+      icon: "/icons/avalanche.svg",
       decimals: 18,
       isPrivate: true,
-      addressKey: "p.ETH",
-      bridgeAddressKey: "PrivacyPortalETH",
-      supportedChainIds: [SEPOLIA_CHAIN_ID],
+      addressKey: "p.AVAX",
+      bridgeAddressKey: "PrivacyPortalAVAX",
+      supportedChainIds: [AVALANCHE_FUJI_CHAIN_ID],
     },
   ],
   walletNetwork: {
-    chainId: "0xaa36a7",
-    chainName: "Sepolia",
-    rpcUrls: ["https://ethereum-sepolia-rpc.publicnode.com"],
-    nativeCurrency: { name: "Sepolia Ether", symbol: "ETH", decimals: 18 },
-    blockExplorerUrls: ["https://sepolia.etherscan.io"],
+    chainId: "0xa869",
+    chainName: "Avalanche Fuji Testnet",
+    rpcUrls: [AVALANCHE_FUJI_RPC_URL],
+    nativeCurrency: { name: "Avalanche", symbol: "AVAX", decimals: 18 },
+    blockExplorerUrls: ["https://testnet.snowtrace.io"],
   },
   getBridgeDataOverride: addresses => [
     {
@@ -157,12 +162,12 @@ export const sepoliaChain: ChainConfig = {
       error: null,
     },
     {
-      bridgeName: "ETH PoD Portal",
-      bridgeAddress: addresses.PrivacyPortalETH,
-      publicToken: "ETH",
-      publicTokenIcon: "/icons/wETH.svg",
-      privateToken: "p.ETH",
-      privateTokenIcon: "/icons/wETH.svg",
+      bridgeName: "AVAX PoD Portal",
+      bridgeAddress: addresses.PrivacyPortalAVAX,
+      publicToken: "AVAX",
+      publicTokenIcon: "/icons/avalanche.svg",
+      privateToken: "p.AVAX",
+      privateTokenIcon: "/icons/avalanche.svg",
       depositFixedFee: "0",
       depositPercentageBps: "0",
       depositMaxFee: "0",

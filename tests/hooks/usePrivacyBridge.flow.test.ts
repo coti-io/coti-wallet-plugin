@@ -656,17 +656,19 @@ describe('usePrivacyBridge - executeTransaction (PoD portal)', () => {
     expect(props.upsertPodRequest).toHaveBeenCalled();
   });
 
-  it('rejects a non-MTT token on the PoD portal', async () => {
+  it('does not route legacy bridge tokens through the PoD portal executor', async () => {
     sib.getPublicTokensForChain.mockReturnValue([
-      { symbol: 'WETH', isPrivate: false, addressKey: 'MTT', bridgeAddressKey: 'PrivacyPortalMTT', decimals: 18 },
+      { symbol: 'WETH', isPrivate: false, addressKey: 'WETH', bridgeAddressKey: 'PrivacyBridgeWETH', decimals: 18 },
     ]);
-    const props = makeProps();
+    const props = makeProps({
+      publicTokens: [{ symbol: 'WETH', name: 'WETH', balance: '5', isPrivate: false }],
+    });
     const { result } = renderHook(() => usePrivacyBridge(props));
     await expect(
       act(async () => {
         await result.current.executeTransaction('1', 'to-private', 0);
       }),
-    ).rejects.toThrow(/PoD portal supports MTT only/);
+    ).rejects.toThrow(/Bridge address not found|not configured/);
   });
 
   it('rejects when the PoD portal is not fully configured', async () => {

@@ -9,8 +9,14 @@ export interface TokenConfig {
   icon: string;
   decimals: number;
   isPrivate: boolean;
+  /** Wrapped ERC-20 used by the portal contract as underlying collateral. */
   addressKey?: string;
   bridgeAddressKey?: string;
+  /**
+   * When true, Portal In sends native coin (no ERC-20 approve) via `depositNative`.
+   * Balances use the chain native asset; `addressKey` still points at the wrapped token.
+   */
+  isNative?: boolean;
   timeout?: number;
   supportedChainIds?: number[];
 }
@@ -42,6 +48,8 @@ export interface ChainConfig {
   name: string;
   rpcUrl: string;
   explorerBaseUrl: string;
+  /** PoD inbox on this host chain (for fee quotes and request tracking). */
+  podInboxAddress?: string;
   addresses: Record<string, string>;
   tokens: TokenConfig[];
   unlockStrategy: UnlockStrategy;

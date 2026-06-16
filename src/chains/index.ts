@@ -1,5 +1,6 @@
 import { cotiMainnetChain, cotiTestnetChain, COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID } from "./coti";
 import { sepoliaChain, SEPOLIA_CHAIN_ID } from "./sepolia";
+import { avalancheFujiChain, AVALANCHE_FUJI_CHAIN_ID } from "./avalancheFuji";
 import type {
   ChainConfig,
   ResolvedIndexPageUi,
@@ -9,10 +10,11 @@ import type {
 } from "./types";
 
 export type { ChainConfig, ResolvedIndexPageUi, TokenConfig, UnlockStrategy, WalletNetworkConfig };
-export { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID, SEPOLIA_CHAIN_ID };
+export { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID, SEPOLIA_CHAIN_ID, AVALANCHE_FUJI_CHAIN_ID };
 
 export const CHAIN_CONFIGS: Record<number, ChainConfig> = {
   [sepoliaChain.id]: sepoliaChain,
+  [avalancheFujiChain.id]: avalancheFujiChain,
   [cotiTestnetChain.id]: cotiTestnetChain,
   [cotiMainnetChain.id]: cotiMainnetChain,
 };

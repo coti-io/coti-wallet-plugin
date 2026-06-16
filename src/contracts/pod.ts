@@ -42,7 +42,7 @@ export type PodPortalRequestStatus =
 export interface PodPortalRequest {
   id: string;
   kind: "deposit" | "withdraw";
-  chainId: typeof SEPOLIA_CHAIN_ID;
+  chainId: number;
   sourceTxHash: string;
   requestId?: string;
   withdrawalId?: string;
@@ -63,6 +63,8 @@ export const PRIVACY_PORTAL_ABI = [
   "function decimals() view returns (uint8)",
   "function withdrawals(bytes32) view returns (address,address,uint256,uint256,uint256,bytes32,bytes32,uint8)",
   "function deposit(address recipient,uint256 amount,uint256 mintCallbackFee) payable returns (bytes32)",
+  "function depositNative(address recipient,uint256 amount,uint256 mintCallbackFee) payable returns (bytes32)",
+  "function nativeWrappedUnderlying() view returns (bool)",
   "function requestWithdrawWithPermit(address recipient,uint256 amount,uint256 transferFee,uint256 transferCallbackFee,uint256 burnFee,uint256 burnCallbackFee,uint256 permitDeadline,uint8 v,bytes32 r,bytes32 s) payable returns (bytes32,bytes32)",
   "event DepositRequested(address indexed user,address indexed recipient,uint256 amount,bytes32 indexed mintRequestId)",
   "event WithdrawalRequested(bytes32 indexed withdrawalId,address indexed user,address indexed recipient,uint256 amount,bytes32 transferRequestId)",

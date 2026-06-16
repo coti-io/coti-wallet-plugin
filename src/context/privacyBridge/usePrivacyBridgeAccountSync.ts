@@ -79,10 +79,8 @@ export const usePrivacyBridgeAccountSync = ({
     if (!isConnected) {
       setPublicTokens(getInitialPublicTokens(currentChainId));
       setPrivateTokens(getInitialPrivateTokens(currentChainId));
-    } else if (!hasSnap) {
-      setPrivateTokens(getInitialPrivateTokens(currentChainId));
     }
-  }, [isConnected, hasSnap, currentChainId, setPublicTokens, setPrivateTokens]);
+  }, [isConnected, currentChainId, setPublicTokens, setPrivateTokens]);
 
   useEffect(() => {
     if (sessionAesKey && walletAddress) {

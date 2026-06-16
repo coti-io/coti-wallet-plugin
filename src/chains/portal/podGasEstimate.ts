@@ -34,20 +34,30 @@ export async function estimatePodPortalGasFeeDisplay(params: {
     let gasLimit: bigint;
     let podValueWei: bigint;
     if (direction === "to-private") {
+      const isNativeDeposit = !!pubTok?.isNative;
+      const depositMethod = isNativeDeposit ? "depositNative" : "deposit";
       const podFees = await quotePortalPodRequest(
         await provider.getSigner(),
         bridgeAddress,
-        "deposit",
+        depositMethod,
         [
           { value: walletAddr },
           { value: amountWei.toString() },
           { value: "0", isCallBackFee: true },
         ],
         gasPrice,
+        params.currentChainId,
       );
-      podValueWei = podFees.totalFeeWei;
-      const iface = new ethers.Interface(["function deposit(address recipient,uint256 amount,uint256 mintCallbackFee) payable"]);
-      const calldataPod = iface.encodeFunctionData("deposit", [walletAddr, amountWei, podFees.callbackFeeWei]);
+      podValueWei = isNativeDeposit ? amountWei + podFees.totalFeeWei : podFees.totalFeeWei;
+      const depositSig = isNativeDeposit
+        ? "function depositNative(address recipient,uint256 amount,uint256 mintCallbackFee) payable"
+        : "function deposit(address recipient,uint256 amount,uint256 mintCallbackFee) payable";
+      const iface = new ethers.Interface([depositSig]);
+      const calldataPod = iface.encodeFunctionData(isNativeDeposit ? "depositNative" : "deposit", [
+        walletAddr,
+        amountWei,
+        podFees.callbackFeeWei,
+      ]);
       try {
         const gasEstimateHex = await (window.ethereum as EthereumRequest).request({
           method: "eth_estimateGas",
@@ -83,6 +93,7 @@ export async function estimatePodPortalGasFeeDisplay(params: {
           { value: ethers.ZeroHash },
         ],
         gasPrice,
+        params.currentChainId,
       );
       const burnQuote = await quotePortalPodRequest(
         await provider.getSigner(),
@@ -101,6 +112,7 @@ export async function estimatePodPortalGasFeeDisplay(params: {
           { value: ethers.ZeroHash },
         ],
         gasPrice,
+        params.currentChainId,
       );
       podValueWei = transferQuote.totalFeeWei + burnQuote.totalFeeWei;
       gasLimit = 900000n;

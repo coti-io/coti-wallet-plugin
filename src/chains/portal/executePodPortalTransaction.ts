@@ -1,18 +1,16 @@
 import { ethers } from "ethers";
-import {
-  COTI_TESTNET_DEFAULT_INBOX_ADDRESS,
-  DataType,
-  PodContract,
-  SEPOLIA_DEFAULT_INBOX_ADDRESS as _SDK_SEPOLIA_INBOX,
-  type PodSdkConfig,
-} from "@coti/pod-sdk";
-
-/** Override: use the updated Sepolia inbox contract address for portal. */
-const SEPOLIA_DEFAULT_INBOX_ADDRESS = "0xB4A53FE02401fDFA8DAc00450dA3FfF8D01502F8";
+import { DataType, PodContract, type PodSdkConfig } from "@coti/pod-sdk";
 import { COTI_TESTNET_CHAIN_ID, PRIVACY_PORTAL_ABI, POD_PTOKEN_ABI, SEPOLIA_CHAIN_ID, type PodPortalRequest } from "../../contracts/pod";
 import type { SwapProgressStage } from "../../hooks/usePrivacyBridge";
-import { getPluginConfig } from "../../config/plugin";
-import { getRpcUrlForChain } from "../index";
+import { getPluginConfig, type CotiPluginConfig } from "../../config/plugin";
+import { AVALANCHE_FUJI_CHAIN_ID, getChainConfig, getRpcUrlForChain } from "../index";
+
+/** Source/target chains registered for PoD portal cross-chain tracking. */
+const POD_TRACKING_CHAIN_ORDER = [
+  SEPOLIA_CHAIN_ID,
+  AVALANCHE_FUJI_CHAIN_ID,
+  COTI_TESTNET_CHAIN_ID,
+] as const;
 
 const POD_CALLBACK_GAS_LIMIT = 1_000_000n;
 const POD_CALLBACK_DATA_SIZE = 1_024n;
@@ -20,22 +18,33 @@ const POD_FORWARD_GAS_LIMIT = 8_000_000n;
 const POD_FORWARD_DATA_SIZE = 4_096n;
 const POD_REMOTE_FEE_BUFFER_BPS = 20_000n;
 
+export const getPodInboxAddress = (chainId: number): string => {
+  const inbox = getChainConfig(chainId)?.podInboxAddress?.trim();
+  if (!inbox) {
+    throw new Error(`PoD inbox address is not configured for chain ${chainId}`);
+  }
+  return inbox;
+};
+
+const resolvePodChainRpcUrl = (chainId: number, pluginConfig: CotiPluginConfig): string => {
+  if (chainId === SEPOLIA_CHAIN_ID && pluginConfig.sepoliaRpcUrl) {
+    return pluginConfig.sepoliaRpcUrl;
+  }
+  if (chainId === COTI_TESTNET_CHAIN_ID && pluginConfig.cotiTestnetRpcUrl) {
+    return pluginConfig.cotiTestnetRpcUrl;
+  }
+  return getRpcUrlForChain(chainId);
+};
+
 export const getPodSdkConfig = (): PodSdkConfig => {
   const pluginConfig = getPluginConfig();
   return {
     encryptionNetwork: "testnet",
-    chains: [
-      {
-        chainId: SEPOLIA_CHAIN_ID,
-        inboxAddress: SEPOLIA_DEFAULT_INBOX_ADDRESS,
-        rpcUrl: pluginConfig.sepoliaRpcUrl ?? getRpcUrlForChain(SEPOLIA_CHAIN_ID),
-      },
-      {
-        chainId: COTI_TESTNET_CHAIN_ID,
-        inboxAddress: COTI_TESTNET_DEFAULT_INBOX_ADDRESS,
-        rpcUrl: pluginConfig.cotiTestnetRpcUrl ?? getRpcUrlForChain(COTI_TESTNET_CHAIN_ID),
-      },
-    ],
+    chains: POD_TRACKING_CHAIN_ORDER.map(chainId => ({
+      chainId,
+      inboxAddress: getPodInboxAddress(chainId),
+      rpcUrl: resolvePodChainRpcUrl(chainId, pluginConfig),
+    })),
   };
 };
 
@@ -83,9 +92,10 @@ export const getSepoliaGasPrice = async (provider: ethers.BrowserProvider | ethe
 export const quotePortalPodRequest = async (
   runner: ethers.ContractRunner,
   portalAddress: string,
-  method: "deposit" | "requestWithdrawWithPermit",
+  method: "deposit" | "depositNative" | "requestWithdrawWithPermit",
   args: Array<{ value: string; isCallBackFee?: boolean }>,
   gasPrice?: bigint,
+  chainId = SEPOLIA_CHAIN_ID,
 ) => {
   const provider = "provider" in runner && runner.provider
     ? runner.provider as ethers.BrowserProvider
@@ -93,7 +103,7 @@ export const quotePortalPodRequest = async (
   const resolvedGasPrice = gasPrice ?? await getSepoliaGasPrice(provider);
   const podContract = new PodContract(portalAddress, PRIVACY_PORTAL_ABI, runner, {
     config: getPodSdkConfig(),
-    inboxAddress: SEPOLIA_DEFAULT_INBOX_ADDRESS,
+    inboxAddress: getPodInboxAddress(chainId),
     encryptionNetwork: "testnet",
   });
   const fee = await podContract.estimateFee(
@@ -122,22 +132,45 @@ export const quotePortalPodRequest = async (
   };
 };
 
+/** Native / WETH-style pTokens expose plain uint256 balances in status helpers. */
+const POD_PTOKEN_PLAIN_STATUS_ABI = [
+  "function balanceOfWithStatus(address account) view returns (uint256,bool)",
+] as const;
+
+const readPodPTokenPendingState = async (
+  pToken: ethers.Contract,
+  account: string,
+): Promise<{ pending: boolean; callbackErrored: boolean }> => {
+  try {
+    const [, pending, callbackErrored] = await pToken.balanceWithState(account);
+    return { pending: Boolean(pending), callbackErrored: Boolean(callbackErrored) };
+  } catch {
+    /* fall through to balanceOfWithStatus variants */
+  }
+
+  try {
+    const [, pending] = await pToken.balanceOfWithStatus(account);
+    return { pending: Boolean(pending), callbackErrored: false };
+  } catch {
+    /* fall through to plain pToken ABI */
+  }
+
+  const plainToken = new ethers.Contract(
+    await pToken.getAddress(),
+    POD_PTOKEN_PLAIN_STATUS_ABI,
+    pToken.runner as ethers.ContractRunner,
+  );
+  const [, pending] = await plainToken.balanceOfWithStatus(account);
+  return { pending: Boolean(pending), callbackErrored: false };
+};
+
 const assertPodPTokenReady = async (
   pToken: ethers.Contract,
   account: string,
   action: "deposit" | "withdraw",
 ) => {
   try {
-    let pending = false;
-    let callbackErrored = false;
-    try {
-      const [, balanceWithStatePending, balanceWithStateCallbackErrored] = await pToken.balanceWithState(account);
-      pending = balanceWithStatePending;
-      callbackErrored = balanceWithStateCallbackErrored;
-    } catch {
-      const [, balanceOfWithStatusPending] = await pToken.balanceOfWithStatus(account);
-      pending = balanceOfWithStatusPending;
-    }
+    const { pending, callbackErrored } = await readPodPTokenPendingState(pToken, account);
 
     if (callbackErrored) {
       throw new Error("This pToken balance is untrusted because a previous PoD callback failed. Replay the callback before using this token.");
@@ -160,10 +193,12 @@ export async function signPodWithdrawPermit(params: {
   portalAddress: string;
   amountWei: bigint;
   deadline?: bigint;
+  chainId?: number;
 }): Promise<PodWithdrawPermit> {
   const { signer, pTokenAddress, portalAddress, amountWei } = params;
   const wallet = await signer.getAddress();
   const pToken = new ethers.Contract(pTokenAddress, POD_PTOKEN_ABI, signer);
+  const signingChainId = params.chainId ?? Number((await signer.provider!.getNetwork()).chainId);
 
   await assertPodPTokenReady(pToken, wallet, "withdraw");
 
@@ -174,7 +209,7 @@ export async function signPodWithdrawPermit(params: {
     {
       name,
       version: "1",
-      chainId: SEPOLIA_CHAIN_ID,
+      chainId: signingChainId,
       verifyingContract: pTokenAddress,
     },
     {
@@ -220,6 +255,8 @@ export async function executePodPortalTransaction(params: {
   pTokenAddress: string;
   tokenSymbol: string;
   decimals: number;
+  chainId?: number;
+  isNativeDeposit?: boolean;
   withdrawPermit?: PodWithdrawPermit;
   onProgress?: (stage: SwapProgressStage, txHash?: string) => void;
 }): Promise<{ txHash: string; request: PodPortalRequest; receipt: ethers.TransactionReceipt }> {
@@ -233,12 +270,14 @@ export async function executePodPortalTransaction(params: {
     pTokenAddress,
     tokenSymbol,
     decimals,
+    chainId = SEPOLIA_CHAIN_ID,
+    isNativeDeposit = false,
     withdrawPermit,
     onProgress,
   } = params;
 
   if (!portalAddress || !underlyingAddress || !pTokenAddress) {
-    throw new Error("Sepolia PoD portal is not configured");
+    throw new Error("PoD portal is not configured for this token");
   }
 
   const wallet = await signer.getAddress();
@@ -250,26 +289,35 @@ export async function executePodPortalTransaction(params: {
   if (txDirection === "to-private") {
     await assertPodPTokenReady(pToken, wallet, "deposit");
 
+    const depositMethod = isNativeDeposit ? "depositNative" : "deposit";
     const quote = await quotePortalPodRequest(
       signer,
       portalAddress,
-      "deposit",
+      depositMethod,
       [
         { value: wallet },
         { value: amountWei.toString() },
         { value: "0", isCallBackFee: true },
       ],
+      undefined,
+      chainId,
     );
     onProgress?.("transfer-start");
 
-    const tx = await portal.deposit(wallet, amountWei, quote.callbackFeeWei, {
-      value: quote.totalFeeWei,
-      gasPrice: quote.gasPrice,
-    });
+    const depositValue = isNativeDeposit ? amountWei + quote.totalFeeWei : quote.totalFeeWei;
+    const tx = isNativeDeposit
+      ? await portal.depositNative(wallet, amountWei, quote.callbackFeeWei, {
+          value: depositValue,
+          gasPrice: quote.gasPrice,
+        })
+      : await portal.deposit(wallet, amountWei, quote.callbackFeeWei, {
+          value: quote.totalFeeWei,
+          gasPrice: quote.gasPrice,
+        });
 
     const receipt = await tx.wait();
     if (!receipt || receipt.status !== 1) {
-      throw new Error("Sepolia deposit transaction failed");
+      throw new Error("PoD deposit transaction failed");
     }
 
     const event = findParsedEvent(receipt, portalIface, "DepositRequested");
@@ -281,7 +329,7 @@ export async function executePodPortalTransaction(params: {
       request: {
         id: tx.hash,
         kind: "deposit",
-        chainId: SEPOLIA_CHAIN_ID,
+        chainId,
         sourceTxHash: tx.hash,
         requestId,
         wallet,
@@ -326,6 +374,7 @@ export async function executePodPortalTransaction(params: {
       { value: ethers.ZeroHash },
     ],
     sharedGasPrice,
+    chainId,
   );
   const burnQuote = await quotePortalPodRequest(
     signer,
@@ -344,6 +393,7 @@ export async function executePodPortalTransaction(params: {
       { value: ethers.ZeroHash },
     ],
     sharedGasPrice,
+    chainId,
   );
   onProgress?.("transfer-start");
   const totalValue = transferQuote.totalFeeWei + burnQuote.totalFeeWei;
@@ -373,7 +423,7 @@ export async function executePodPortalTransaction(params: {
     request: {
       id: tx.hash,
       kind: "withdraw",
-      chainId: SEPOLIA_CHAIN_ID,
+      chainId,
       sourceTxHash: tx.hash,
       requestId: event?.args?.transferRequestId as string | undefined,
       withdrawalId: event?.args?.withdrawalId as string | undefined,
