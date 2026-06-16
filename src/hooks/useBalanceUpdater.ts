@@ -110,8 +110,8 @@ export const useBalanceUpdater = ({
                     icon: token.icon,
                     addressKey: token.addressKey,
                     bridgeAddressKey: token.bridgeAddressKey,
+                    supportedChainIds: token.supportedChainIds,
                 })));
-
                 // ─── Private Balances (dynamic) ─────────────────────────────────
                 if (addresses && checkSnap && fetchPrivate) {
                     try {
@@ -182,6 +182,7 @@ export const useBalanceUpdater = ({
                                     icon: token.icon,
                                     addressKey: token.addressKey,
                                     bridgeAddressKey: token.bridgeAddressKey,
+                                    supportedChainIds: token.supportedChainIds,
                                 };
                             }));
                             return true;

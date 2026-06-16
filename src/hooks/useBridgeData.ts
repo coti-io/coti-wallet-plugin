@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { ethers } from 'ethers';
 import { CONTRACT_ADDRESSES, BRIDGE_ABI, BRIDGE_ERC20_ABI, ERC20_ABI, SUPPORTED_TOKENS } from '../contracts/config';
 import { fetchBridgeFees, BridgeFees } from './useBridgeFees';
+import { getRpcUrlForChainId } from '../config/chains';
 import { logger } from '../lib/logger';
 
 export interface BridgeData extends BridgeFees {
@@ -49,9 +50,7 @@ export const useBridgeData = (chainId: number) => {
           return;
         }
 
-        const rpcUrl = chainId === 7082400
-          ? 'https://testnet.coti.io/rpc'
-          : 'https://mainnet.coti.io/rpc';
+        const rpcUrl = getRpcUrlForChainId(chainId);
 
         const provider = new ethers.JsonRpcProvider(rpcUrl);
 
@@ -73,7 +72,8 @@ export const useBridgeData = (chainId: number) => {
           }
 
           try {
-            const isNative = token.symbol === 'COTI';
+            // Native token: no addressKey (e.g. COTI on COTI chain, ETH on Sepolia)
+            const isNative = !token.addressKey;
             const abi = isNative ? BRIDGE_ABI : BRIDGE_ERC20_ABI;
             const contract = new ethers.Contract(bridgeAddress, abi, provider);
 
