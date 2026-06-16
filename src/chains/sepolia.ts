@@ -51,7 +51,7 @@ export const sepoliaChain: ChainConfig = {
     {
       symbol: "p.ETH",
       name: "p.ETH",
-      icon: "/icons/wETHp.png",
+      icon: "/icons/wETH.svg",
       decimals: 18,
       isPrivate: true,
       addressKey: "p.ETH",
@@ -100,7 +100,7 @@ export const sepoliaChain: ChainConfig = {
       publicToken: "ETH",
       publicTokenIcon: "/icons/wETH.svg",
       privateToken: "p.ETH",
-      privateTokenIcon: "/icons/wETHp.png",
+      privateTokenIcon: "/icons/wETH.svg",
       depositFixedFee: "0",
       depositPercentageBps: "0",
       depositMaxFee: "0",
