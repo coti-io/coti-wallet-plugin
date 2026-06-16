@@ -6,6 +6,8 @@ export interface Token {
   icon?: string;
   addressKey?: string;
   bridgeAddressKey?: string;
+  decimals?: number;
+  isNative?: boolean;
   supportedChainIds?: number[];
 }
 

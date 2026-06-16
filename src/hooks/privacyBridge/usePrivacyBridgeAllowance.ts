@@ -4,6 +4,14 @@ import { CONTRACT_ADDRESSES, ERC20_ABI } from '../../contracts/config';
 import type { PodWithdrawPermit } from '../../chains/portal/executePodPortalTransaction';
 import { signPodWithdrawPermit } from '../../chains/portal/executePodPortalTransaction';
 import { getPrivateTokensForChain, getPublicTokensForChain } from '../../chains';
+import {
+  findPublicTokenConfig,
+  isPodPortalPublicToken,
+  podPortalNotConfiguredError,
+  resolveConfiguredAddress,
+  resolvePodPortalAddresses,
+  skipsPublicDepositApproval,
+} from '../../chains/portal/helpers';
 import { logger } from '../../lib/logger';
 import { encryptValue256 } from './encryptValue256';
 import { shortHash } from './utils';
@@ -41,14 +49,17 @@ export const usePrivacyBridgeAllowance = ({
         if (!isConnected || !window.ethereum || !walletAddress) return;
 
         const token = publicTokens[selectedTokenIndex];
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const network = await provider.getNetwork();
+        const currentChainId = Number(network.chainId);
+        const pubCfgEarly = findPublicTokenConfig(currentChainId, token?.symbol ?? "");
 
-        // Native COTI doesn't need allowance for deposit (to-private).
-        // For withdrawal (to-public), PrivateCoti still requires an encrypted approval.
-        if (token?.symbol === 'COTI' && direction === 'to-private') {
+        // Native deposits skip ERC-20 approve; PoD withdraw uses a typed permit instead of allowance.
+        if (skipsPublicDepositApproval(pubCfgEarly, direction)) {
             setAllowance('999999999999999999');
             return;
         }
-        if (token?.symbol === 'MTT' && direction === 'to-public') {
+        if (direction === 'to-public' && isPodPortalPublicToken(currentChainId, pubCfgEarly)) {
             setAllowance('999999999999999999');
             return;
         }
@@ -57,9 +68,6 @@ export const usePrivacyBridgeAllowance = ({
         setAllowance('0');
 
         try {
-            const provider = new ethers.BrowserProvider(window.ethereum);
-            const network = await provider.getNetwork();
-            const currentChainId = Number(network.chainId);
             const addresses = CONTRACT_ADDRESSES[currentChainId];
 
             let tokenAddress: string | undefined;
@@ -70,10 +78,10 @@ export const usePrivacyBridgeAllowance = ({
                 t => t.symbol === token.symbol && !t.isPrivate
             );
             if (pubCfg?.bridgeAddressKey && addresses) {
-                bridgeAddress = addresses[pubCfg.bridgeAddressKey as keyof typeof addresses];
+                bridgeAddress = resolveConfiguredAddress(addresses, pubCfg.bridgeAddressKey);
             }
             if (pubCfg?.addressKey && addresses) {
-                tokenAddress = addresses[pubCfg.addressKey as keyof typeof addresses];
+                tokenAddress = resolveConfiguredAddress(addresses, pubCfg.addressKey);
             }
             if (pubCfg) {
                 decimals = pubCfg.decimals;
@@ -110,9 +118,10 @@ export const usePrivacyBridgeAllowance = ({
             }
             }
 
-            // For to-public (withdraw), only bridgeAddress is required — tokenAddress is the private token
-            // resolved below. For to-private (deposit), both are needed.
-            if (direction === 'to-private' && (!tokenAddress || !bridgeAddress)) return;
+            // For to-private (deposit), ERC-20 needs token + bridge; native portal tokens only need bridge.
+            const isNativeDeposit = !!pubCfg?.isNative;
+            if (direction === 'to-private' && !isNativeDeposit && (!tokenAddress || !bridgeAddress)) return;
+            if (direction === 'to-private' && isNativeDeposit && !bridgeAddress) return;
             if (!bridgeAddress) return;
 
             let currentAllowance = 0n;
@@ -225,9 +234,7 @@ export const usePrivacyBridgeAllowance = ({
         if (!isConnected || !window.ethereum) return;
 
         const token = publicTokens[selectedTokenIndex];
-        // Only approve ERC20 tokens (Everything except Native COTI - actually, Private COTI needs approval too for withdraw!)
-        // If direction is to-public (Withdraw), even COTI (PrivateCoti) needs approval.
-        if (direction === 'to-private' && token?.symbol === 'COTI') return;
+        if (direction === 'to-private' && (token?.isNative || (token?.symbol === 'COTI' && !token.addressKey))) return;
 
         try {
             const provider = new ethers.BrowserProvider(window.ethereum);
@@ -244,10 +251,10 @@ export const usePrivacyBridgeAllowance = ({
                 t => t.symbol === token.symbol && !t.isPrivate
             );
             if (pubCfgApprove?.bridgeAddressKey && addresses) {
-                bridgeAddress = addresses[pubCfgApprove.bridgeAddressKey as keyof typeof addresses];
+                bridgeAddress = resolveConfiguredAddress(addresses, pubCfgApprove.bridgeAddressKey);
             }
             if (pubCfgApprove?.addressKey && addresses) {
-                tokenAddress = addresses[pubCfgApprove.addressKey as keyof typeof addresses];
+                tokenAddress = resolveConfiguredAddress(addresses, pubCfgApprove.addressKey);
             }
             if (pubCfgApprove) {
                 decimals = pubCfgApprove.decimals;
@@ -288,38 +295,46 @@ export const usePrivacyBridgeAllowance = ({
             }
             }
 
-            // For to-public (withdraw), only bridgeAddress is required — tokenAddress is the private token
-            if (direction === 'to-private' && (!tokenAddress || !bridgeAddress)) return;
-            if (!bridgeAddress) return;
-
-            if (direction === 'to-public' && token.symbol === 'MTT') {
+            if (isPodPortalPublicToken(currentChainId, pubCfgApprove)) {
                 const privTokCfgApprove = getPrivateTokensForChain(currentChainId).find(
-                    pt => pt.symbol === 'p.MTT'
+                    pt => pt.symbol === `p.${token.symbol.replace(/^p\./, '')}`
                 );
-                const pTokenAddress = privTokCfgApprove?.addressKey
-                    ? addresses[privTokCfgApprove.addressKey as keyof typeof addresses]
-                    : undefined;
-                if (!pTokenAddress) throw new Error("p.MTT address not found");
+                const resolved = pubCfgApprove
+                    ? resolvePodPortalAddresses({ addresses, pubCfg: pubCfgApprove, privCfg: privTokCfgApprove })
+                    : null;
+                if (!resolved) {
+                    throw new Error(podPortalNotConfiguredError(currentChainId, token.symbol));
+                }
 
-                const amountWei = ethers.parseUnits(amount || '0', pubCfgApprove?.decimals ?? 18); /* v8 ignore branch */
-                setIsApproving(true);
-                setToastState({
-                    visible: true,
-                    title: 'Approve PoD Withdraw',
-                    message: 'Please sign the permit to allow the PoD portal to withdraw your private MTT.',
-                });
+                if (direction === 'to-public') {
+                    const amountWei = ethers.parseUnits(amount || '0', pubCfgApprove?.decimals ?? 18); /* v8 ignore branch */
+                    setIsApproving(true);
+                    setToastState({
+                        visible: true,
+                        title: 'Approve PoD Withdraw',
+                        message: `Please sign the permit to allow the PoD portal to withdraw your private ${token.symbol}.`,
+                    });
 
-                const permit = await signPodWithdrawPermit({
-                    signer,
-                    pTokenAddress,
-                    portalAddress: bridgeAddress,
-                    amountWei,
-                });
-                setPodWithdrawPermit(permit);
-                setIsApproving(false);
-                setToastState(prev => ({ ...prev, visible: false }));
+                    const permit = await signPodWithdrawPermit({
+                        signer,
+                        pTokenAddress: resolved.pTokenAddress,
+                        portalAddress: resolved.portalAddress,
+                        amountWei,
+                        chainId: currentChainId,
+                    });
+                    setPodWithdrawPermit(permit);
+                    setIsApproving(false);
+                    setToastState(prev => ({ ...prev, visible: false }));
+                    return;
+                }
+
+                bridgeAddress = resolved.portalAddress;
+                tokenAddress = resolved.underlyingAddress;
+            } else if (direction === 'to-private' && (!tokenAddress || !bridgeAddress)) {
                 return;
             }
+
+            if (!bridgeAddress) return;
 
             const amountToApprove = amount ? ethers.parseUnits(amount, decimals) : ethers.MaxUint256;
 
@@ -450,12 +465,16 @@ export const usePrivacyBridgeAllowance = ({
      */
     const isApprovalNeeded = (() => {
         const token = publicTokens[selectedTokenIndex];
-        // For Native COTI in to-private (Deposit), no approval needed.
-        if (direction === 'to-private' && token?.symbol === 'COTI') return false;
-        if (direction === 'to-public' && token?.symbol === 'MTT') {
-            if (!podWithdrawPermit || !walletAddress || !window.ethereum) return true;
+
+        if (direction === 'to-private' && (token?.isNative || (token?.symbol === 'COTI' && !token.addressKey))) {
+            return false;
+        }
+
+        if (direction === 'to-public' && token?.bridgeAddressKey?.startsWith('PrivacyPortal')) {
+            if (!podWithdrawPermit || !walletAddress) return true;
             try {
-                const amountWei = ethers.parseUnits(amount || '0', 18).toString();
+                const decimals = token.decimals ?? 18;
+                const amountWei = ethers.parseUnits(amount || '0', decimals).toString();
                 return (
                     podWithdrawPermit.wallet.toLowerCase() !== walletAddress.toLowerCase() ||
                     podWithdrawPermit.amountWei !== amountWei

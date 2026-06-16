@@ -5,6 +5,7 @@ import { estimatePodPortalGasFeeDisplay } from '../../chains/portal/podGasEstima
 import { estimateCotiBridgeGasFeeDisplay } from '../../chains/cotiBridgeGasEstimate';
 import { estimateBridgeFee } from '../useEstimateBridgeFees';
 import { getChainConfig, getPublicTokensForChain, getRpcUrlForChain } from '../../chains';
+import { resolveConfiguredAddress } from '../../chains/portal/helpers';
 import { logger } from '../../lib/logger';
 import type { Token } from './types';
 
@@ -59,10 +60,10 @@ export const usePrivacyBridgeGas = ({
                 t => t.symbol === symbol && !t.isPrivate
             );
 
-            let bridgeAddress: string | undefined =
-                pubTok?.bridgeAddressKey != null
-                    ? addresses[pubTok.bridgeAddressKey as keyof typeof addresses]
-                    : undefined;
+            let bridgeAddress: string | undefined = resolveConfiguredAddress(
+                addresses,
+                pubTok?.bridgeAddressKey,
+            );
 
             if (!bridgeAddress) {
                 const isWeth = symbol === 'WETH';

@@ -18,13 +18,16 @@ vi.mock('ethers', () => {
     getNetwork = h.getNetwork;
     getSigner = h.getSigner;
   }
+  class JsonRpcProvider {
+    constructor(_url: unknown, _chainId?: unknown) {}
+  }
   class Contract {
     balanceOf = h.balanceOf;
     'balanceOf(address)' = h.balanceOf64;
     constructor(_address: unknown, _abi: unknown, _runner: unknown) {}
   }
   return {
-    ethers: { BrowserProvider, Contract, formatUnits: h.formatUnits },
+    ethers: { BrowserProvider, JsonRpcProvider, Contract, formatUnits: h.formatUnits },
   };
 });
 
@@ -78,6 +81,24 @@ describe('usePrivateTokenBalance (contract paths)', () => {
     ).rejects.toMatchObject({ code: CotiErrorCode.AES_KEY_MISMATCH });
   });
 
+  it('returns a plain uint256 balance for native PoD pTokens', async () => {
+    h.balanceOf.mockResolvedValueOnce(2500000000000000000n);
+
+    const { result } = renderHook(() => usePrivateTokenBalance());
+    const bal = await result.current.fetchPrivateBalance(
+      USER,
+      '',
+      CONTRACT,
+      256,
+      18,
+      undefined,
+      true,
+    );
+
+    expect(bal).toBe('formatted:2500000000000000000');
+    expect(decryptCtUint256).not.toHaveBeenCalled();
+  });
+
   it('decrypts a 256-bit nested ciphertext', async () => {
     h.balanceOf.mockResolvedValue({ high: { high: 1n, low: 2n }, low: { high: 3n, low: 4n } });
     (decryptCtUint256 as any).mockReturnValue(1000000000000000000n);
@@ -129,6 +150,25 @@ describe('usePrivateTokenBalance (contract paths)', () => {
     await expect(
       result.current.fetchPrivateBalance(USER, 'a'.repeat(64), CONTRACT, 256, 18),
     ).rejects.toMatchObject({ code: CotiErrorCode.AES_KEY_MISMATCH });
+  });
+
+  it('reads a plain balance via RPC when readChainId is provided', async () => {
+    h.balanceOf.mockResolvedValueOnce(1000000000000000000n);
+    (window as any).ethereum = undefined;
+
+    const { result } = renderHook(() => usePrivateTokenBalance());
+    const bal = await result.current.fetchPrivateBalance(
+      USER,
+      '',
+      CONTRACT,
+      256,
+      18,
+      11155111,
+      true,
+    );
+
+    expect(bal).toBe('formatted:1000000000000000000');
+    expect(h.getSigner).not.toHaveBeenCalled();
   });
 
   it('skips and returns "0.00" when connected to the wrong enforced network', async () => {

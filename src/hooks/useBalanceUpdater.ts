@@ -15,7 +15,7 @@ interface UseBalanceUpdaterProps {
     setPrivateTokens: React.Dispatch<React.SetStateAction<Token[]>>;
     checkNetwork: (provider: ethers.BrowserProvider) => Promise<void>;
     getAESKeyFromSnap: (accountAddress: string) => Promise<string | null>;
-    fetchPrivateBalance: (userAddress: string, aesKey: string, contractAddress: string, version: 64 | 256, decimals?: number, readChainId?: number) => Promise<string>;
+    fetchPrivateBalance: (userAddress: string, aesKey: string, contractAddress: string, version: 64 | 256, decimals?: number, readChainId?: number, isPlainBalance?: boolean) => Promise<string>;
     sessionAesKey?: string | null;
     setSessionAesKey: (key: string | null, keyWallet?: string) => void;
 }
@@ -84,8 +84,8 @@ export const useBalanceUpdater = ({
 
                 // Fetch all ERC20 public balances in parallel
                 const publicBalances = await Promise.all(publicTokenConfigs.map(async token => {
-                    // Native token (no addressKey) — use native balance
-                    if (!token.addressKey) {
+                    // Native token — show chain coin balance (wrapped address is only for the portal contract).
+                    if (!token.addressKey || token.isNative) {
                         return nativeBalance;
                     }
                     const tokenAddress = addresses?.[token.addressKey];
@@ -110,41 +110,66 @@ export const useBalanceUpdater = ({
                     icon: token.icon,
                     addressKey: token.addressKey,
                     bridgeAddressKey: token.bridgeAddressKey,
+                    decimals: token.decimals,
+                    isNative: token.isNative,
                     supportedChainIds: token.supportedChainIds,
                 })));
                 // ─── Private Balances (dynamic) ─────────────────────────────────
-                if (addresses && checkSnap && fetchPrivate) {
+                if (addresses && fetchPrivate) {
                     try {
                         let aesKey = aesKeyOverride ?? sessionAesKey;
-                        // Only fetch from Snap if no session key is provided
-                        if (!aesKey) {
+                        if (checkSnap && !aesKey) {
                             aesKey = await getAESKeyFromSnap(account);
                             if (isStale()) return false;
                             if (aesKey) {
                                 setSessionAesKey(aesKey, account);
                             }
-                        } else {
+                        } else if (aesKey) {
                             if (isStale()) return false;
                             setHasSnap(true);
                         }
 
-                        if (aesKey) {
-                            if (!sessionAesKey) {
+                        const privateTokenConfigs = getPrivateTokensForChain(currentChainId);
+                        const publicTokenConfigs = getPublicTokensForChain(currentChainId);
+                        const hasPlainPrivateTokens = privateTokenConfigs.some(token => {
+                            const publicSymbol = token.symbol.replace(/^p\./, '');
+                            return !!publicTokenConfigs.find(t => t.symbol === publicSymbol)?.isNative;
+                        });
+
+                        if (!aesKey && !hasPlainPrivateTokens) {
+                            logger.log('ℹ️ Snap available but keys missing/rejected.');
+                            return false;
+                        }
+
+                        if (aesKey || hasPlainPrivateTokens) {
+                            if (aesKey && !sessionAesKey) {
                                 if (isStale()) return false;
                                 setHasSnap(true);
                             }
 
                             logger.log('🔄 Fetching private balances...');
 
-                            const privateTokenConfigs = getPrivateTokensForChain(currentChainId);
-
                             const privateFetches = await Promise.all(privateTokenConfigs.map(async token => {
                                 const tokenAddress = token.addressKey ? addresses[token.addressKey] : undefined;
                                 if (!tokenAddress) {
                                     return { symbol: token.symbol, value: '0', isMismatch: false };
                                 }
+                                const publicSymbol = token.symbol.replace(/^p\./, '');
+                                const pubCfg = publicTokenConfigs.find(t => t.symbol === publicSymbol);
+                                const isPlainBalance = !!pubCfg?.isNative;
+                                if (!aesKey && !isPlainBalance) {
+                                    return { symbol: token.symbol, value: '0', isMismatch: false };
+                                }
                                 try {
-                                    const value = await fetchPrivateBalance(account, aesKey, tokenAddress, 256, token.decimals, currentChainId);
+                                    const value = await fetchPrivateBalance(
+                                        account,
+                                        aesKey ?? '',
+                                        tokenAddress,
+                                        256,
+                                        token.decimals,
+                                        currentChainId,
+                                        isPlainBalance,
+                                    );
                                     return { symbol: token.symbol, value, isMismatch: false };
                                 } catch (e: any) {
                                     const msg = e?.message || '';
@@ -165,10 +190,10 @@ export const useBalanceUpdater = ({
 
                             const mismatchCount = privateFetches.filter(r => r.isMismatch).length;
 
-                            // Any AES key mismatch means the key is wrong for this account.
                             if (mismatchCount > 0) {
-                                if (isStale()) return false;
-                                throw new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch: Error decrypting. Re-onboarding required.');
+                                logger.warn(
+                                    `⚠️ AES key mismatch for ${mismatchCount} private token(s); showing 0 for those tokens.`,
+                                );
                             }
 
                             logger.log('🔐 Updating private tokens list');
@@ -182,13 +207,11 @@ export const useBalanceUpdater = ({
                                     icon: token.icon,
                                     addressKey: token.addressKey,
                                     bridgeAddressKey: token.bridgeAddressKey,
+                                    decimals: token.decimals,
                                     supportedChainIds: token.supportedChainIds,
                                 };
                             }));
                             return true;
-                        } else {
-                            logger.log('ℹ️ Snap available but keys missing/rejected.');
-                            return false;
                         }
                     } catch (privateError: any) {
                         if (isStale()) return false;
