@@ -51,7 +51,6 @@ export interface PrivacyBridgeSessionCore {
     version: 64 | 256,
     decimals?: number,
     readChainId?: number,
-    isPlainBalance?: boolean,
   ) => Promise<string>;
   getAesKeyFromProvider: (accountAddress: string) => Promise<string | null>;
 }

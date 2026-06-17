@@ -15,7 +15,7 @@ interface UseBalanceUpdaterProps {
     setPrivateTokens: React.Dispatch<React.SetStateAction<Token[]>>;
     checkNetwork: (provider: ethers.BrowserProvider) => Promise<void>;
     getAESKeyFromSnap: (accountAddress: string) => Promise<string | null>;
-    fetchPrivateBalance: (userAddress: string, aesKey: string, contractAddress: string, version: 64 | 256, decimals?: number, readChainId?: number, isPlainBalance?: boolean) => Promise<string>;
+    fetchPrivateBalance: (userAddress: string, aesKey: string, contractAddress: string, version: 64 | 256, decimals?: number, readChainId?: number) => Promise<string>;
     sessionAesKey?: string | null;
     setSessionAesKey: (key: string | null, keyWallet?: string) => void;
 }
@@ -59,8 +59,8 @@ export const useBalanceUpdater = ({
             if (window.ethereum || hasChainOverride) {
                 const browserProvider = window.ethereum ? new ethers.BrowserProvider(window.ethereum) : null;
 
-                // Ensure network name is updated immediately when MetaMask is available.
-                if (browserProvider) {
+                // Wallet network check is only needed when reads go through the browser provider.
+                if (browserProvider && !hasChainOverride) {
                     await checkNetwork(browserProvider);
                     if (isStale()) return false;
                 }
@@ -130,19 +130,10 @@ export const useBalanceUpdater = ({
                         }
 
                         const privateTokenConfigs = getPrivateTokensForChain(currentChainId);
-                        const publicTokenConfigs = getPublicTokensForChain(currentChainId);
-                        const hasPlainPrivateTokens = privateTokenConfigs.some(token => {
-                            const publicSymbol = token.symbol.replace(/^p\./, '');
-                            return !!publicTokenConfigs.find(t => t.symbol === publicSymbol)?.isNative;
-                        });
-
-                        if (!aesKey && !hasPlainPrivateTokens) {
-                            logger.log('ℹ️ Snap available but keys missing/rejected.');
-                            return false;
-                        }
-
-                        if (aesKey || hasPlainPrivateTokens) {
-                            if (aesKey && !sessionAesKey) {
+                        if (!aesKey) {
+                            logger.log('ℹ️ Private balances require an AES key — public balances updated.');
+                        } else {
+                            if (!sessionAesKey) {
                                 if (isStale()) return false;
                                 setHasSnap(true);
                             }
@@ -154,21 +145,14 @@ export const useBalanceUpdater = ({
                                 if (!tokenAddress) {
                                     return { symbol: token.symbol, value: '0', isMismatch: false };
                                 }
-                                const publicSymbol = token.symbol.replace(/^p\./, '');
-                                const pubCfg = publicTokenConfigs.find(t => t.symbol === publicSymbol);
-                                const isPlainBalance = !!pubCfg?.isNative;
-                                if (!aesKey && !isPlainBalance) {
-                                    return { symbol: token.symbol, value: '0', isMismatch: false };
-                                }
                                 try {
                                     const value = await fetchPrivateBalance(
                                         account,
-                                        aesKey ?? '',
+                                        aesKey,
                                         tokenAddress,
                                         256,
                                         token.decimals,
                                         currentChainId,
-                                        isPlainBalance,
                                     );
                                     return { symbol: token.symbol, value, isMismatch: false };
                                 } catch (e: any) {
@@ -211,7 +195,6 @@ export const useBalanceUpdater = ({
                                     supportedChainIds: token.supportedChainIds,
                                 };
                             }));
-                            return true;
                         }
                     } catch (privateError: any) {
                         if (isStale()) return false;

@@ -81,22 +81,23 @@ describe('usePrivateTokenBalance (contract paths)', () => {
     ).rejects.toMatchObject({ code: CotiErrorCode.AES_KEY_MISMATCH });
   });
 
-  it('returns a plain uint256 balance for native PoD pTokens', async () => {
-    h.balanceOf.mockResolvedValueOnce(2500000000000000000n);
+  it('decrypts a flat ctUint256 balance when nested shape is unavailable', async () => {
+    h.balanceOf
+      .mockRejectedValueOnce(new Error('Not nested format'))
+      .mockResolvedValueOnce({ ciphertextHigh: 5n, ciphertextLow: 6n });
+    (decryptCtUint256 as any).mockReturnValue(2500000000000000000n);
 
     const { result } = renderHook(() => usePrivateTokenBalance());
     const bal = await result.current.fetchPrivateBalance(
       USER,
-      '',
+      'a'.repeat(64),
       CONTRACT,
       256,
       18,
-      undefined,
-      true,
     );
 
     expect(bal).toBe('formatted:2500000000000000000');
-    expect(decryptCtUint256).not.toHaveBeenCalled();
+    expect(decryptCtUint256).toHaveBeenCalled();
   });
 
   it('decrypts a 256-bit nested ciphertext', async () => {
@@ -152,22 +153,23 @@ describe('usePrivateTokenBalance (contract paths)', () => {
     ).rejects.toMatchObject({ code: CotiErrorCode.AES_KEY_MISMATCH });
   });
 
-  it('reads a plain balance via RPC when readChainId is provided', async () => {
-    h.balanceOf.mockResolvedValueOnce(1000000000000000000n);
+  it('reads a flat balance via RPC when readChainId is provided', async () => {
+    h.balanceOf
+      .mockRejectedValueOnce(new Error('Not nested format'))
+      .mockResolvedValueOnce({ ciphertextHigh: 0n, ciphertextLow: 0n });
     (window as any).ethereum = undefined;
 
     const { result } = renderHook(() => usePrivateTokenBalance());
     const bal = await result.current.fetchPrivateBalance(
       USER,
-      '',
+      'a'.repeat(64),
       CONTRACT,
       256,
       18,
       11155111,
-      true,
     );
 
-    expect(bal).toBe('formatted:1000000000000000000');
+    expect(bal).toBe('0.00');
     expect(h.getSigner).not.toHaveBeenCalled();
   });
 

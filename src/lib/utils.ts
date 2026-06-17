@@ -1,6 +1,10 @@
 export const TOKEN_BALANCE_DISPLAY_DECIMALS: Record<string, number> = {
   COTI: 4,
   "p.COTI": 4,
+  ETH: 6,
+  "p.ETH": 6,
+  AVAX: 6,
+  "p.AVAX": 6,
   WETH: 6,
   "p.WETH": 6,
   USDC: 4,

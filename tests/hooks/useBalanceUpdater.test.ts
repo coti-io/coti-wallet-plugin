@@ -166,7 +166,7 @@ describe('useBalanceUpdater', () => {
     expect(props.setPrivateTokens).toHaveBeenCalledTimes(1);
   });
 
-  it('returns false when no AES key can be obtained for private balances', async () => {
+  it('returns true with public balances when no AES key is available for private fetch', async () => {
     const props = makeProps({
       getAESKeyFromSnap: vi.fn().mockResolvedValue(null),
     });
@@ -174,7 +174,8 @@ describe('useBalanceUpdater', () => {
 
     const ok = await result.current.updateAccountState(ACCOUNT, true, true, undefined, COTI_TESTNET);
 
-    expect(ok).toBe(false);
+    expect(ok).toBe(true);
+    expect(props.setPublicTokens).toHaveBeenCalledTimes(1);
     expect(props.setPrivateTokens).not.toHaveBeenCalled();
   });
 
@@ -192,11 +193,12 @@ describe('useBalanceUpdater', () => {
 
   it('fetches private balances when fetchPrivate is true even if checkSnap is false', async () => {
     const props = makeProps({
+      sessionAesKey: 'a'.repeat(64),
       fetchPrivateBalance: vi.fn().mockResolvedValue('1.5'),
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.updateAccountState(ACCOUNT, false, true, undefined, SEPOLIA);
+    const ok = await result.current.updateAccountState(ACCOUNT, false, true, 'a'.repeat(64), SEPOLIA);
     expect(ok).toBe(true);
     expect(props.fetchPrivateBalance).toHaveBeenCalled();
     expect(props.setPrivateTokens).toHaveBeenCalledTimes(1);

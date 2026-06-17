@@ -1,0 +1,633 @@
+{
+  "chains": [
+    {
+      "id": 11155111,
+      "hexId": "0xaa36a7",
+      "name": "Sepolia",
+      "rpcUrl": "https://ethereum-sepolia-rpc.publicnode.com",
+      "explorerBaseUrl": "https://sepolia.etherscan.io",
+      "unlockStrategy": "manual-aes-key",
+      "portalStrategy": "pod-privacy-portal",
+      "podInboxAddress": "0xB4A53FE02401fDFA8DAc00450dA3FfF8D01502F8",
+      "addresses": {
+        "MTT": "0xd3f5c63f4D87D2235b295FbA83351d31d0eD1BeE",
+        "WETH": "0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9",
+        "USDC": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+        "p.MTT": "0x34727cc7233e6B20aE071Cd16A81027172b6bdbA",
+        "p.USDC": "0x4926c63B42ab17Bb72C6F8b3818A3A947C2aE2f9",
+        "p.ETH": "0x4667DFcbCd354c2719E129A9FcC2Bb3a98456b91",
+        "PrivacyPortalMTT": "0xffb8770353AcCF2492F6e75f9B5610CE4af8fe89",
+        "PrivacyPortalUSDC": "0x75E7D308b11066d6C5F5d65a94F562ce18a5976C",
+        "PrivacyPortalETH": "0xF0b8d0A7bd03157D72c3364BC6d30d8F061DBD44"
+      },
+      "tokens": [
+        {
+          "symbol": "MTT",
+          "name": "MyTestToken",
+          "icon": "/icons/coti.svg",
+          "decimals": 18,
+          "isPrivate": false,
+          "addressKey": "MTT",
+          "bridgeAddressKey": "PrivacyPortalMTT"
+        },
+        {
+          "symbol": "p.MTT",
+          "name": "Private MyTestToken",
+          "icon": "/icons/coti.svg",
+          "decimals": 18,
+          "isPrivate": true,
+          "addressKey": "p.MTT",
+          "bridgeAddressKey": "PrivacyPortalMTT"
+        },
+        {
+          "symbol": "USDC",
+          "name": "USD Coin",
+          "icon": "/icons/USDC.svg",
+          "decimals": 6,
+          "isPrivate": false,
+          "addressKey": "USDC",
+          "bridgeAddressKey": "PrivacyPortalUSDC"
+        },
+        {
+          "symbol": "p.USDC",
+          "name": "Private USDC",
+          "icon": "/icons/USDC.svg",
+          "decimals": 6,
+          "isPrivate": true,
+          "addressKey": "p.USDC",
+          "bridgeAddressKey": "PrivacyPortalUSDC"
+        },
+        {
+          "symbol": "ETH",
+          "name": "Ether",
+          "icon": "/icons/wETH.svg",
+          "decimals": 18,
+          "isPrivate": false,
+          "isNative": true,
+          "addressKey": "WETH",
+          "bridgeAddressKey": "PrivacyPortalETH"
+        },
+        {
+          "symbol": "p.ETH",
+          "name": "Private WETH",
+          "icon": "/icons/wETH.svg",
+          "decimals": 18,
+          "isPrivate": true,
+          "addressKey": "p.ETH",
+          "bridgeAddressKey": "PrivacyPortalETH"
+        }
+      ],
+      "walletNetwork": {
+        "chainId": "0xaa36a7",
+        "chainName": "Sepolia",
+        "rpcUrls": ["https://ethereum-sepolia-rpc.publicnode.com"],
+        "nativeCurrency": { "name": "Sepolia Ether", "symbol": "ETH", "decimals": 18 },
+        "blockExplorerUrls": ["https://sepolia.etherscan.io"]
+      },
+      "indexPage": {
+        "showPodRequestTracker": true,
+        "amountModalGasLabel": "Estimated Gas and PoD fee",
+        "amountModalGasSymbol": "native"
+      }
+    },
+    {
+      "id": 43113,
+      "hexId": "0xa869",
+      "name": "Avalanche Fuji",
+      "rpcUrl": "https://api.avax-test.network/ext/bc/C/rpc",
+      "explorerBaseUrl": "https://testnet.snowtrace.io",
+      "unlockStrategy": "manual-aes-key",
+      "portalStrategy": "pod-privacy-portal",
+      "podInboxAddress": "0xB4A53FE02401fDFA8DAc00450dA3FfF8D01502F8",
+      "addresses": {
+        "MTT": "0x328e70e1c52662cd5f19f824fcb8b463d77a6686",
+        "USDC": "0x5425890298aed601595a70AB815c96711a31Bc65",
+        "WAVAX": "0xd00ae08403B9bbb9124bB305C09058E32C39A48c",
+        "p.MTT": "0x53a5A16f3BC408CB808B442fA69481386945f5cf",
+        "p.USDC": "0x0291d4DCE114161bfE692AB31A479AF533630f28",
+        "p.AVAX": "0x69dF41ebdd5D5e0017c1965bd480843857158324",
+        "PrivacyPortalMTT": "0x248DF7c9f68c6d8aEFa88Ec218c53f0E6Da6dC81",
+        "PrivacyPortalUSDC": "0xe191FdfbA64c99C489D9846f2C0cEa495eA35974",
+        "PrivacyPortalAVAX": "0xdaa65aB142Fb148e210103649536FcD29Ed8025f"
+      },
+      "tokens": [
+        {
+          "symbol": "MTT",
+          "name": "MyTestToken",
+          "icon": "/icons/coti.svg",
+          "decimals": 18,
+          "isPrivate": false,
+          "addressKey": "MTT",
+          "bridgeAddressKey": "PrivacyPortalMTT"
+        },
+        {
+          "symbol": "p.MTT",
+          "name": "Private MyTestToken",
+          "icon": "/icons/coti.svg",
+          "decimals": 18,
+          "isPrivate": true,
+          "addressKey": "p.MTT",
+          "bridgeAddressKey": "PrivacyPortalMTT"
+        },
+        {
+          "symbol": "USDC",
+          "name": "USD Coin",
+          "icon": "/icons/USDC.svg",
+          "decimals": 6,
+          "isPrivate": false,
+          "addressKey": "USDC",
+          "bridgeAddressKey": "PrivacyPortalUSDC"
+        },
+        {
+          "symbol": "p.USDC",
+          "name": "Private USDC",
+          "icon": "/icons/USDC.svg",
+          "decimals": 6,
+          "isPrivate": true,
+          "addressKey": "p.USDC",
+          "bridgeAddressKey": "PrivacyPortalUSDC"
+        },
+        {
+          "symbol": "AVAX",
+          "name": "Avalanche",
+          "icon": "/icons/avalanche.svg",
+          "decimals": 18,
+          "isPrivate": false,
+          "isNative": true,
+          "addressKey": "WAVAX",
+          "bridgeAddressKey": "PrivacyPortalAVAX"
+        },
+        {
+          "symbol": "p.AVAX",
+          "name": "Private WAVAX",
+          "icon": "/icons/avalanche.svg",
+          "decimals": 18,
+          "isPrivate": true,
+          "addressKey": "p.AVAX",
+          "bridgeAddressKey": "PrivacyPortalAVAX"
+        }
+      ],
+      "walletNetwork": {
+        "chainId": "0xa869",
+        "chainName": "Avalanche Fuji Testnet",
+        "rpcUrls": ["https://api.avax-test.network/ext/bc/C/rpc"],
+        "nativeCurrency": { "name": "Avalanche", "symbol": "AVAX", "decimals": 18 },
+        "blockExplorerUrls": ["https://testnet.snowtrace.io"]
+      },
+      "indexPage": {
+        "showPodRequestTracker": true,
+        "amountModalGasLabel": "Estimated Gas and PoD fee",
+        "amountModalGasSymbol": "native"
+      }
+    },
+    {
+      "id": 7082400,
+      "hexId": "0x6c11a0",
+      "name": "COTI Testnet",
+      "rpcUrl": "https://testnet.coti.io/rpc",
+      "explorerBaseUrl": "https://testnet.cotiscan.io",
+      "unlockStrategy": "snap",
+      "portalStrategy": "coti-bridge",
+      "podInboxAddress": "0xB4A53FE02401fDFA8DAc00450dA3FfF8D01502F8",
+      "addresses": {
+        "PrivateCoti": "0x6cE8907414986E73De9e7D28d62Ea2080F8E88E1",
+        "PrivacyBridgeCotiNative": "0x96117882328407B13A5f378de25764C4eD8477eA",
+        "CotiPriceConsumer": "0xD5EeD24e909AdE249b688671e32dcc013B236B74",
+        "WETH": "0x8bca4e6bbE402DB4aD189A316137aD08206154FB",
+        "WBTC": "0x5dBDb2E5D51c3FFab5D6B862Caa11FCe1D83F492",
+        "USDT": "0x9e961430053cd5AbB3b060544cEcCec848693Cf0",
+        "USDC_E": "0x63f3D2Cc8F5608F57ce6E5Aa3590A2Beb428D19C",
+        "WADA": "0xe3E2cd3Abf412c73a404b9b8227B71dE3CfE829D",
+        "gCOTI": "0x878a42D3cB737DEC9E6c7e7774d973F46fd8ed4C",
+        "MTT": "",
+        "PrivacyPortalMTT": "0xF5Da19E1c8FB39Fdd11bB029882fc69E86650beB",
+        "p.WETH": "0xF009BADb181d471995a1CFF406C3Db7B180F64eA",
+        "p.WBTC": "0xB50F1680a4C69145ABc09A2A71c8D5b8051578cF",
+        "p.USDT": "0xcEF137E96eDF68EE99D4CdEa7085f154d74895cD",
+        "p.USDC_E": "0x37f78dcCd15876F74391EF1F01b76557D9FF1dea",
+        "p.WADA": "0x1245f50a3E9129A219b4bf66D10fEaEA47467B69",
+        "p.gCOTI": "0x1503b02a4Aa27812306c65116FD23b733603F142",
+        "p.MTT": "0xb681D264a250715977450212d370b05d98761422",
+        "PrivacyBridgeWETH": "0x6f1628D7F1D5d5aDF39b924a28acb10B5C9df283",
+        "PrivacyBridgeWBTC": "0x9EBEbC8F5Cff021459a56A681719dF1C0A7435cc",
+        "PrivacyBridgeUSDT": "0x549634daBE8237EBda7473d7aA2bB17459826781",
+        "PrivacyBridgeUSDCe": "0xaa63D41890D576F93d79272988e212d8B46CdD26",
+        "PrivacyBridgeWADA": "0x4AFe67D4aD7AF0a70ACe6f79FbfAB66C72211c9F",
+        "PrivacyBridgegCOTI": "0xDB54B4B1B8F9614567bd673A17a5cD31A3DD6033"
+      },
+      "tokens": [
+        {
+          "symbol": "COTI",
+          "name": "COTI",
+          "icon": "/icons/coti.svg",
+          "decimals": 18,
+          "isPrivate": false,
+          "bridgeAddressKey": "PrivacyBridgeCotiNative",
+          "timeout": 1800,
+          "supportedChainIds": [7082400, 2632500]
+        },
+        {
+          "symbol": "WETH",
+          "name": "Wrapped Ether",
+          "icon": "/icons/wETH.svg",
+          "decimals": 18,
+          "isPrivate": false,
+          "addressKey": "WETH",
+          "bridgeAddressKey": "PrivacyBridgeWETH",
+          "timeout": 1800,
+          "supportedChainIds": [7082400, 2632500]
+        },
+        {
+          "symbol": "WBTC",
+          "name": "Wrapped BTC",
+          "icon": "/icons/wBTC.svg",
+          "decimals": 8,
+          "isPrivate": false,
+          "addressKey": "WBTC",
+          "bridgeAddressKey": "PrivacyBridgeWBTC",
+          "timeout": 1800,
+          "supportedChainIds": [7082400, 2632500]
+        },
+        {
+          "symbol": "USDT",
+          "name": "Tether USD",
+          "icon": "/icons/usdt.svg",
+          "decimals": 6,
+          "isPrivate": false,
+          "addressKey": "USDT",
+          "bridgeAddressKey": "PrivacyBridgeUSDT",
+          "timeout": 1800,
+          "supportedChainIds": [7082400, 2632500]
+        },
+        {
+          "symbol": "USDC.e",
+          "name": "Bridged USDC",
+          "icon": "/icons/USDC.svg",
+          "decimals": 6,
+          "isPrivate": false,
+          "addressKey": "USDC_E",
+          "bridgeAddressKey": "PrivacyBridgeUSDCe",
+          "timeout": 1800,
+          "supportedChainIds": [7082400, 2632500]
+        },
+        {
+          "symbol": "WADA",
+          "name": "Wrapped ADA",
+          "icon": "/icons/wADA.svg",
+          "decimals": 6,
+          "isPrivate": false,
+          "addressKey": "WADA",
+          "bridgeAddressKey": "PrivacyBridgeWADA",
+          "timeout": 1800,
+          "supportedChainIds": [7082400, 2632500]
+        },
+        {
+          "symbol": "gCOTI",
+          "name": "gCOTI",
+          "icon": "/icons/gcoti.svg",
+          "decimals": 18,
+          "isPrivate": false,
+          "addressKey": "gCOTI",
+          "bridgeAddressKey": "PrivacyBridgegCOTI",
+          "timeout": 1800,
+          "supportedChainIds": [7082400, 2632500]
+        },
+        {
+          "symbol": "MTT",
+          "name": "MTT",
+          "icon": "/icons/coti.svg",
+          "decimals": 18,
+          "isPrivate": false,
+          "addressKey": "MTT",
+          "bridgeAddressKey": "PrivacyPortalMTT",
+          "timeout": 1800,
+          "supportedChainIds": [7082400, 2632500]
+        },
+        {
+          "symbol": "p.COTI",
+          "name": "p.COTI",
+          "icon": "/icons/coti.svg",
+          "decimals": 18,
+          "isPrivate": true,
+          "addressKey": "PrivateCoti",
+          "bridgeAddressKey": "PrivacyBridgeCotiNative",
+          "timeout": 1800,
+          "supportedChainIds": [7082400, 2632500]
+        },
+        {
+          "symbol": "p.WETH",
+          "name": "p.WETH",
+          "icon": "/icons/wETH.svg",
+          "decimals": 18,
+          "isPrivate": true,
+          "addressKey": "p.WETH",
+          "bridgeAddressKey": "PrivacyBridgeWETH",
+          "timeout": 1800,
+          "supportedChainIds": [7082400, 2632500]
+        },
+        {
+          "symbol": "p.WBTC",
+          "name": "p.WBTC",
+          "icon": "/icons/wBTC.svg",
+          "decimals": 8,
+          "isPrivate": true,
+          "addressKey": "p.WBTC",
+          "bridgeAddressKey": "PrivacyBridgeWBTC",
+          "timeout": 1800,
+          "supportedChainIds": [7082400, 2632500]
+        },
+        {
+          "symbol": "p.USDT",
+          "name": "p.USDT",
+          "icon": "/icons/usdt.svg",
+          "decimals": 6,
+          "isPrivate": true,
+          "addressKey": "p.USDT",
+          "bridgeAddressKey": "PrivacyBridgeUSDT",
+          "timeout": 1800,
+          "supportedChainIds": [7082400, 2632500]
+        },
+        {
+          "symbol": "p.USDC.e",
+          "name": "p.USDC.e",
+          "icon": "/icons/USDC.svg",
+          "decimals": 6,
+          "isPrivate": true,
+          "addressKey": "p.USDC_E",
+          "bridgeAddressKey": "PrivacyBridgeUSDCe",
+          "timeout": 1800,
+          "supportedChainIds": [7082400, 2632500]
+        },
+        {
+          "symbol": "p.WADA",
+          "name": "p.WADA",
+          "icon": "/icons/wADA.svg",
+          "decimals": 6,
+          "isPrivate": true,
+          "addressKey": "p.WADA",
+          "bridgeAddressKey": "PrivacyBridgeWADA",
+          "timeout": 1800,
+          "supportedChainIds": [7082400, 2632500]
+        },
+        {
+          "symbol": "p.gCOTI",
+          "name": "p.gCOTI",
+          "icon": "/icons/gcoti.svg",
+          "decimals": 18,
+          "isPrivate": true,
+          "addressKey": "p.gCOTI",
+          "bridgeAddressKey": "PrivacyBridgegCOTI",
+          "timeout": 1800,
+          "supportedChainIds": [7082400, 2632500]
+        },
+        {
+          "symbol": "p.MTT",
+          "name": "p.MTT",
+          "icon": "/icons/coti.svg",
+          "decimals": 18,
+          "isPrivate": true,
+          "addressKey": "p.MTT",
+          "bridgeAddressKey": "PrivacyPortalMTT",
+          "timeout": 1800,
+          "supportedChainIds": [7082400, 2632500]
+        }
+      ],
+      "walletNetwork": {
+        "chainId": "0x6c11a0",
+        "chainName": "COTI Testnet",
+        "rpcUrls": ["https://testnet.coti.io/rpc"],
+        "nativeCurrency": { "name": "COTI", "symbol": "COTI", "decimals": 18 },
+        "blockExplorerUrls": ["https://testnet.cotiscan.io"]
+      },
+      "indexPage": {
+        "showPodRequestTracker": false,
+        "amountModalGasLabel": "Estimated Gas Fee",
+        "amountModalGasSymbol": "COTI"
+      }
+    },
+    {
+      "id": 2632500,
+      "hexId": "0x282b34",
+      "name": "COTI Mainnet",
+      "rpcUrl": "https://mainnet.coti.io/rpc",
+      "explorerBaseUrl": "https://mainnet.cotiscan.io",
+      "unlockStrategy": "snap",
+      "portalStrategy": "coti-bridge",
+      "addresses": {
+        "PrivateCoti": "",
+        "PrivacyBridgeCotiNative": "",
+        "CotiPriceConsumer": "0x830c5112E677459648C1aa7Bc5Dd65A36d71Aa4D",
+        "WETH": "0x639aCc80569c5FC83c6FBf2319A6Cc38bBfe26d1",
+        "WBTC": "0x8C39B1fD0e6260fdf20652Fc436d25026832bfEA",
+        "USDT": "0xfA6f73446b17A97a56e464256DA54AD43c2Cbc3E",
+        "USDC_E": "0xf1Feebc4376c68B7003450ae66343Ae59AB37D3C",
+        "WADA": "0xe757Ca19d2c237AA52eBb1d2E8E4368eeA3eb331",
+        "gCOTI": "0x7637C7838EC4Ec6b85080F28A678F8E234bB83D1",
+        "MTT": "",
+        "PrivacyPortalMTT": "",
+        "p.WETH": "",
+        "p.WBTC": "",
+        "p.USDT": "",
+        "p.USDC_E": "",
+        "p.WADA": "",
+        "p.gCOTI": "",
+        "p.MTT": "",
+        "PrivacyBridgeWETH": "",
+        "PrivacyBridgeWBTC": "",
+        "PrivacyBridgeUSDT": "",
+        "PrivacyBridgeUSDCe": "",
+        "PrivacyBridgeWADA": "",
+        "PrivacyBridgegCOTI": ""
+      },
+      "tokens": [
+        {
+          "symbol": "COTI",
+          "name": "COTI",
+          "icon": "/icons/coti.svg",
+          "decimals": 18,
+          "isPrivate": false,
+          "bridgeAddressKey": "PrivacyBridgeCotiNative",
+          "timeout": 1800,
+          "supportedChainIds": [7082400, 2632500]
+        },
+        {
+          "symbol": "WETH",
+          "name": "Wrapped Ether",
+          "icon": "/icons/wETH.svg",
+          "decimals": 18,
+          "isPrivate": false,
+          "addressKey": "WETH",
+          "bridgeAddressKey": "PrivacyBridgeWETH",
+          "timeout": 1800,
+          "supportedChainIds": [7082400, 2632500]
+        },
+        {
+          "symbol": "WBTC",
+          "name": "Wrapped BTC",
+          "icon": "/icons/wBTC.svg",
+          "decimals": 8,
+          "isPrivate": false,
+          "addressKey": "WBTC",
+          "bridgeAddressKey": "PrivacyBridgeWBTC",
+          "timeout": 1800,
+          "supportedChainIds": [7082400, 2632500]
+        },
+        {
+          "symbol": "USDT",
+          "name": "Tether USD",
+          "icon": "/icons/usdt.svg",
+          "decimals": 6,
+          "isPrivate": false,
+          "addressKey": "USDT",
+          "bridgeAddressKey": "PrivacyBridgeUSDT",
+          "timeout": 1800,
+          "supportedChainIds": [7082400, 2632500]
+        },
+        {
+          "symbol": "USDC.e",
+          "name": "Bridged USDC",
+          "icon": "/icons/USDC.svg",
+          "decimals": 6,
+          "isPrivate": false,
+          "addressKey": "USDC_E",
+          "bridgeAddressKey": "PrivacyBridgeUSDCe",
+          "timeout": 1800,
+          "supportedChainIds": [7082400, 2632500]
+        },
+        {
+          "symbol": "WADA",
+          "name": "Wrapped ADA",
+          "icon": "/icons/wADA.svg",
+          "decimals": 6,
+          "isPrivate": false,
+          "addressKey": "WADA",
+          "bridgeAddressKey": "PrivacyBridgeWADA",
+          "timeout": 1800,
+          "supportedChainIds": [7082400, 2632500]
+        },
+        {
+          "symbol": "gCOTI",
+          "name": "gCOTI",
+          "icon": "/icons/gcoti.svg",
+          "decimals": 18,
+          "isPrivate": false,
+          "addressKey": "gCOTI",
+          "bridgeAddressKey": "PrivacyBridgegCOTI",
+          "timeout": 1800,
+          "supportedChainIds": [7082400, 2632500]
+        },
+        {
+          "symbol": "MTT",
+          "name": "MTT",
+          "icon": "/icons/coti.svg",
+          "decimals": 18,
+          "isPrivate": false,
+          "addressKey": "MTT",
+          "bridgeAddressKey": "PrivacyPortalMTT",
+          "timeout": 1800,
+          "supportedChainIds": [7082400, 2632500]
+        },
+        {
+          "symbol": "p.COTI",
+          "name": "p.COTI",
+          "icon": "/icons/coti.svg",
+          "decimals": 18,
+          "isPrivate": true,
+          "addressKey": "PrivateCoti",
+          "bridgeAddressKey": "PrivacyBridgeCotiNative",
+          "timeout": 1800,
+          "supportedChainIds": [7082400, 2632500]
+        },
+        {
+          "symbol": "p.WETH",
+          "name": "p.WETH",
+          "icon": "/icons/wETH.svg",
+          "decimals": 18,
+          "isPrivate": true,
+          "addressKey": "p.WETH",
+          "bridgeAddressKey": "PrivacyBridgeWETH",
+          "timeout": 1800,
+          "supportedChainIds": [7082400, 2632500]
+        },
+        {
+          "symbol": "p.WBTC",
+          "name": "p.WBTC",
+          "icon": "/icons/wBTC.svg",
+          "decimals": 8,
+          "isPrivate": true,
+          "addressKey": "p.WBTC",
+          "bridgeAddressKey": "PrivacyBridgeWBTC",
+          "timeout": 1800,
+          "supportedChainIds": [7082400, 2632500]
+        },
+        {
+          "symbol": "p.USDT",
+          "name": "p.USDT",
+          "icon": "/icons/usdt.svg",
+          "decimals": 6,
+          "isPrivate": true,
+          "addressKey": "p.USDT",
+          "bridgeAddressKey": "PrivacyBridgeUSDT",
+          "timeout": 1800,
+          "supportedChainIds": [7082400, 2632500]
+        },
+        {
+          "symbol": "p.USDC.e",
+          "name": "p.USDC.e",
+          "icon": "/icons/USDC.svg",
+          "decimals": 6,
+          "isPrivate": true,
+          "addressKey": "p.USDC_E",
+          "bridgeAddressKey": "PrivacyBridgeUSDCe",
+          "timeout": 1800,
+          "supportedChainIds": [7082400, 2632500]
+        },
+        {
+          "symbol": "p.WADA",
+          "name": "p.WADA",
+          "icon": "/icons/wADA.svg",
+          "decimals": 6,
+          "isPrivate": true,
+          "addressKey": "p.WADA",
+          "bridgeAddressKey": "PrivacyBridgeWADA",
+          "timeout": 1800,
+          "supportedChainIds": [7082400, 2632500]
+        },
+        {
+          "symbol": "p.gCOTI",
+          "name": "p.gCOTI",
+          "icon": "/icons/gcoti.svg",
+          "decimals": 18,
+          "isPrivate": true,
+          "addressKey": "p.gCOTI",
+          "bridgeAddressKey": "PrivacyBridgegCOTI",
+          "timeout": 1800,
+          "supportedChainIds": [7082400, 2632500]
+        },
+        {
+          "symbol": "p.MTT",
+          "name": "p.MTT",
+          "icon": "/icons/coti.svg",
+          "decimals": 18,
+          "isPrivate": true,
+          "addressKey": "p.MTT",
+          "bridgeAddressKey": "PrivacyPortalMTT",
+          "timeout": 1800,
+          "supportedChainIds": [7082400, 2632500]
+        }
+      ],
+      "walletNetwork": {
+        "chainId": "0x282b34",
+        "chainName": "COTI Mainnet",
+        "rpcUrls": ["https://mainnet.coti.io/rpc"],
+        "nativeCurrency": { "name": "COTI", "symbol": "COTI", "decimals": 18 },
+        "blockExplorerUrls": ["https://mainnet.cotiscan.io"]
+      },
+      "indexPage": {
+        "showPodRequestTracker": false,
+        "amountModalGasLabel": "Estimated Gas Fee",
+        "amountModalGasSymbol": "COTI"
+      }
+    }
+  ]
+}

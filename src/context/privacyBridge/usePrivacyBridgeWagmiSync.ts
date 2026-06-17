@@ -50,7 +50,7 @@ export const usePrivacyBridgeWagmiSync = ({
         chainId: wagmiChainId,
       });
       wagmiSyncRef.current = true;
-      updateAccountState(wagmiAddress, false, true, undefined, wagmiChainId);
+      updateAccountState(wagmiAddress, false, false, undefined, wagmiChainId);
 
       const isMetaMask = mapConnectorIdToWalletType(wagmiConnector?.id) === 'metamask';
       if (isMetaMask) {
@@ -80,7 +80,7 @@ export const usePrivacyBridgeWagmiSync = ({
       logger.log('RainbowKit account switched', truncateAddress(wagmiAddress));
       setSessionAesKey(null);
       clearSnapCache();
-      updateAccountState(wagmiAddress, false, true, undefined, wagmiChainId);
+      updateAccountState(wagmiAddress, false, false, undefined, wagmiChainId);
     }
   }, [
     wagmiConnected,
@@ -138,7 +138,7 @@ export const usePrivacyBridgeWagmiSync = ({
           from: prevWagmiChainIdRef.current,
           to: wagmiChainId,
         });
-        updateAccountState(wagmiAddress, false, true, undefined, wagmiChainId);
+        updateAccountState(wagmiAddress, false, false, undefined, wagmiChainId);
       }
       prevWagmiChainIdRef.current = wagmiChainId;
     }

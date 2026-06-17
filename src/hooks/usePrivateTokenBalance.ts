@@ -7,23 +7,14 @@ import { CotiPluginError, CotiErrorCode } from '../errors';
 import { logger } from '../lib/logger';
 
 /**
- * ABI for native PoD pTokens (p.ETH, p.AVAX): balance is a plain uint256 on-chain.
- */
-const PLAIN_BALANCE_ABI = [
-    "function balanceOf(address account) view returns (uint256)",
-];
-
-/**
- * ABI for the nested 4-part ciphertext format used by PoD pTokens (e.g., Sepolia p.MTT).
- * Returns: tuple(tuple(uint256 high, uint256 low) high, tuple(uint256 high, uint256 low) low)
+ * ABI for PoD pTokens (PodERC20): ctUint256 is a nested tuple in the contract ABI.
  */
 const NESTED_BALANCE_ABI = [
     "function balanceOf(address account) view returns (tuple(tuple(uint256 high, uint256 low) high, tuple(uint256 high, uint256 low) low))"
 ];
 
 /**
- * ABI for the flat 2-part ciphertext format used by COTI native privacy tokens.
- * Returns: tuple(uint256 ciphertextHigh, uint256 ciphertextLow)
+ * ABI for ctUint256 as flat ciphertextHigh/ciphertextLow (zero balances and some native pTokens).
  */
 const FLAT_BALANCE_ABI = [
     "function balanceOf(address) view returns (tuple(uint256 ciphertextHigh, uint256 ciphertextLow))"
@@ -83,12 +74,8 @@ export const usePrivateTokenBalance = () => {
         version: 64 | 256,
         decimals: number = 18,
         _readChainId?: number,
-        isPlainBalance: boolean = false,
     ): Promise<string> => {
-        if (!contractAddress) {
-            return '0.00';
-        }
-        if (!isPlainBalance && !aesKey) {
+        if (!contractAddress || !aesKey) {
             return '0.00';
         }
         if (_readChainId == null && !window.ethereum) {
@@ -114,12 +101,6 @@ export const usePrivateTokenBalance = () => {
 
             if (!runner) {
                 return '0.00';
-            }
-
-            if (isPlainBalance) {
-                const plainContract = new ethers.Contract(contractAddress, PLAIN_BALANCE_ABI, runner);
-                const balance = await plainContract.balanceOf(userAddress);
-                return ethers.formatUnits(balance, decimals);
             }
 
             if (version === 64) {
