@@ -1,5 +1,9 @@
 import { useCallback } from 'react';
-import { saveAesKeyLocally, unlockCachedAesKey as unlockCachedAesKeyFromVault } from '../../crypto/localAesKeyVault';
+import {
+  clearCachedAesKey,
+  saveAesKeyLocally,
+  unlockCachedAesKey as unlockCachedAesKeyFromVault,
+} from '../../crypto/localAesKeyVault';
 import { logger } from '../../lib/logger';
 import {
   getInitialPrivateTokens,
@@ -52,8 +56,14 @@ export const usePrivacyBridgeUnlockSession = ({
     setSnapError(null);
 
     const chainOverride = wagmiSyncRef.current ? wagmiChainId : undefined;
-    const success = await updateAccountState(walletAddress, true, true, key, chainOverride);
-    if (success) setArePrivateBalancesHidden(false);
+    try {
+      const success = await updateAccountState(walletAddress, true, true, key, chainOverride);
+      if (success) setArePrivateBalancesHidden(false);
+    } catch (err) {
+      setSessionAesKey(null);
+      clearCachedAesKey(walletAddress);
+      throw err;
+    }
   };
 
   const unlockCachedAesKey = async () => {
@@ -117,6 +127,7 @@ export const usePrivacyBridgeUnlockSession = ({
 
       if (err.message?.includes('AES key') || err.message?.includes('onboarding')) {
         setSessionAesKey(null);
+        clearCachedAesKey(walletAddress);
         clearSnapCache();
         setArePrivateBalancesHidden(true);
         const mismatchError = new Error('AES_KEY_MISMATCH');

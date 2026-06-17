@@ -176,7 +176,11 @@ export const useBalanceUpdater = ({
 
                             if (mismatchCount > 0) {
                                 logger.warn(
-                                    `⚠️ AES key mismatch for ${mismatchCount} private token(s); showing 0 for those tokens.`,
+                                    `⚠️ AES key mismatch for ${mismatchCount} private token(s); locking private balances.`,
+                                );
+                                throw new CotiPluginError(
+                                    CotiErrorCode.AES_KEY_MISMATCH,
+                                    'AES key mismatch: unable to decrypt one or more non-zero private token balances.',
                                 );
                             }
 

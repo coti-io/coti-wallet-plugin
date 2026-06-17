@@ -132,7 +132,16 @@ export const quotePortalPodRequest = async (
   };
 };
 
-/** Native / WETH-style pTokens expose plain uint256 balances in status helpers. */
+/** Newer MpcCore pTokens expose flat ctUint256 balances in status helpers. */
+const POD_PTOKEN_FLAT_STATE_ABI = [
+  "function balanceWithState(address account) view returns (tuple(uint256 ciphertextHigh,uint256 ciphertextLow) balance,bool pending,bool callbackErrored)",
+] as const;
+
+const POD_PTOKEN_FLAT_STATUS_ABI = [
+  "function balanceOfWithStatus(address account) view returns (tuple(uint256 ciphertextHigh,uint256 ciphertextLow),bool)",
+] as const;
+
+/** Native / WETH-style pTokens may expose plain uint256 balances in status helpers. */
 const POD_PTOKEN_PLAIN_STATUS_ABI = [
   "function balanceOfWithStatus(address account) view returns (uint256,bool)",
 ] as const;
@@ -145,6 +154,17 @@ const readPodPTokenPendingState = async (
     const [, pending, callbackErrored] = await pToken.balanceWithState(account);
     return { pending: Boolean(pending), callbackErrored: Boolean(callbackErrored) };
   } catch {
+    /* fall through to flat balanceWithState */
+  }
+
+  const pTokenAddress = await pToken.getAddress();
+  const runner = pToken.runner as ethers.ContractRunner;
+
+  try {
+    const flatStateToken = new ethers.Contract(pTokenAddress, POD_PTOKEN_FLAT_STATE_ABI, runner);
+    const [, pending, callbackErrored] = await flatStateToken.balanceWithState(account);
+    return { pending: Boolean(pending), callbackErrored: Boolean(callbackErrored) };
+  } catch {
     /* fall through to balanceOfWithStatus variants */
   }
 
@@ -152,14 +172,18 @@ const readPodPTokenPendingState = async (
     const [, pending] = await pToken.balanceOfWithStatus(account);
     return { pending: Boolean(pending), callbackErrored: false };
   } catch {
+    /* fall through to flat status ABI */
+  }
+
+  try {
+    const flatStatusToken = new ethers.Contract(pTokenAddress, POD_PTOKEN_FLAT_STATUS_ABI, runner);
+    const [, pending] = await flatStatusToken.balanceOfWithStatus(account);
+    return { pending: Boolean(pending), callbackErrored: false };
+  } catch {
     /* fall through to plain pToken ABI */
   }
 
-  const plainToken = new ethers.Contract(
-    await pToken.getAddress(),
-    POD_PTOKEN_PLAIN_STATUS_ABI,
-    pToken.runner as ethers.ContractRunner,
-  );
+  const plainToken = new ethers.Contract(pTokenAddress, POD_PTOKEN_PLAIN_STATUS_ABI, runner);
   const [, pending] = await plainToken.balanceOfWithStatus(account);
   return { pending: Boolean(pending), callbackErrored: false };
 };

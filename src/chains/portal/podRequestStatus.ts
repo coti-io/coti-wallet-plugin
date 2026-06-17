@@ -12,22 +12,22 @@ const hasPodExecutionError = (execution: RequestTrackingResponse["execution"]) =
   return BigInt(errorCode) !== 0n;
 };
 
+const normalizeRequestId = (requestId: string) =>
+  requestId.startsWith("0x") ? requestId : `0x${requestId}`;
+
 const getFailedRequestHex = async (
   provider: ethers.Provider,
-  request: PodPortalRequest,
+  requestId: string,
   pTokenAddress: string,
 ) => {
-  if (!request.requestId) {
-    /* v8 ignore next -- unreachable: resolvePodRequestStatus guards requestId before calling */
-    return "0x";
-  }
   const pToken = new ethers.Contract(pTokenAddress, POD_PTOKEN_ABI, provider);
-  const failedRaw = await pToken.failedRequests(request.requestId).catch(() => "0x");
+  const failedRaw = await pToken.failedRequests(requestId).catch(() => "0x");
   return typeof failedRaw === "string" ? failedRaw : ethers.hexlify(failedRaw);
 };
 
 export async function resolvePodRequestStatus(request: PodPortalRequest) {
   if (!request.requestId) return null;
+  const requestId = normalizeRequestId(request.requestId);
 
   const chainId = request.chainId;
   const addresses = CONTRACT_ADDRESSES[chainId];
@@ -42,7 +42,7 @@ export async function resolvePodRequestStatus(request: PodPortalRequest) {
   const portalAddress = pubCfg?.bridgeAddressKey ? addresses[pubCfg.bridgeAddressKey] : undefined;
   if (!pTokenAddress || !portalAddress) return null;
 
-  const failedHex = await getFailedRequestHex(provider, request, pTokenAddress);
+  const failedHex = await getFailedRequestHex(provider, requestId, pTokenAddress);
   if (failedHex !== "0x") {
     return {
       status: "callback-errored" as const,
@@ -52,7 +52,7 @@ export async function resolvePodRequestStatus(request: PodPortalRequest) {
   }
 
   const tracker = new PodRequest(getPodSdkConfig());
-  const tracking = await tracker.trackRequest(chainId, request.requestId);
+  const tracking = await tracker.trackRequest(chainId, requestId);
 
   if (hasPodExecutionError(tracking.execution)) {
     return {

@@ -8,17 +8,17 @@
       "explorerBaseUrl": "https://sepolia.etherscan.io",
       "unlockStrategy": "manual-aes-key",
       "portalStrategy": "pod-privacy-portal",
-      "podInboxAddress": "0xB4A53FE02401fDFA8DAc00450dA3FfF8D01502F8",
+      "podInboxAddress": "0xAb625bE229F603f6BBF964474AFf6d5487e364De",
       "addresses": {
         "MTT": "0xd3f5c63f4D87D2235b295FbA83351d31d0eD1BeE",
         "WETH": "0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9",
         "USDC": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
-        "p.MTT": "0x34727cc7233e6B20aE071Cd16A81027172b6bdbA",
-        "p.USDC": "0x4926c63B42ab17Bb72C6F8b3818A3A947C2aE2f9",
-        "p.ETH": "0x4667DFcbCd354c2719E129A9FcC2Bb3a98456b91",
-        "PrivacyPortalMTT": "0xffb8770353AcCF2492F6e75f9B5610CE4af8fe89",
-        "PrivacyPortalUSDC": "0x75E7D308b11066d6C5F5d65a94F562ce18a5976C",
-        "PrivacyPortalETH": "0xF0b8d0A7bd03157D72c3364BC6d30d8F061DBD44"
+        "p.MTT": "0xeA8DaEbfFAA7AcC5121b27eBd1aeDb309A92D24d",
+        "p.USDC": "0x81bF0837b6A80e7432919Cde3AA9334b1345cDc4",
+        "p.ETH": "0x2AD91b05f7d4b1eF471Fe79343d45bCFDd6a209e",
+        "PrivacyPortalMTT": "0x9b0abd7CB33F7B851179AEa39Cc4Ab077d924FC7",
+        "PrivacyPortalUSDC": "0x87d26C89DA25Df89B1549EF03FC04816825F6830",
+        "PrivacyPortalETH": "0x83d7Eb9E7a7D27d3bEf6Df16F9553704983b689A"
       },
       "tokens": [
         {
@@ -98,17 +98,17 @@
       "explorerBaseUrl": "https://testnet.snowtrace.io",
       "unlockStrategy": "manual-aes-key",
       "portalStrategy": "pod-privacy-portal",
-      "podInboxAddress": "0xB4A53FE02401fDFA8DAc00450dA3FfF8D01502F8",
+      "podInboxAddress": "0xAb625bE229F603f6BBF964474AFf6d5487e364De",
       "addresses": {
         "MTT": "0x328e70e1c52662cd5f19f824fcb8b463d77a6686",
         "USDC": "0x5425890298aed601595a70AB815c96711a31Bc65",
         "WAVAX": "0xd00ae08403B9bbb9124bB305C09058E32C39A48c",
-        "p.MTT": "0x53a5A16f3BC408CB808B442fA69481386945f5cf",
-        "p.USDC": "0x0291d4DCE114161bfE692AB31A479AF533630f28",
-        "p.AVAX": "0x69dF41ebdd5D5e0017c1965bd480843857158324",
-        "PrivacyPortalMTT": "0x248DF7c9f68c6d8aEFa88Ec218c53f0E6Da6dC81",
-        "PrivacyPortalUSDC": "0xe191FdfbA64c99C489D9846f2C0cEa495eA35974",
-        "PrivacyPortalAVAX": "0xdaa65aB142Fb148e210103649536FcD29Ed8025f"
+        "p.MTT": "0x648C730B59efc6ebde56B112EaB995385d6Dd949",
+        "p.USDC": "0xe1Db680bd93B5f3c161CB85646FbCb57C3E7046a",
+        "p.AVAX": "0x04e9a58eFb8B8198b4c9F55ec4AaD87073FcF801",
+        "PrivacyPortalMTT": "0x93BbcAD50D3fA5Ae85ac92F091EC82998f33eB0B",
+        "PrivacyPortalUSDC": "0x1bB80107989Aec9f6c574AaAfAe39AdBEc144a70",
+        "PrivacyPortalAVAX": "0xbF1c1272edFcb686b395eAdBfcb26156Aea5cB7b"
       },
       "tokens": [
         {
@@ -188,7 +188,7 @@
       "explorerBaseUrl": "https://testnet.cotiscan.io",
       "unlockStrategy": "snap",
       "portalStrategy": "coti-bridge",
-      "podInboxAddress": "0xB4A53FE02401fDFA8DAc00450dA3FfF8D01502F8",
+      "podInboxAddress": "0xAb625bE229F603f6BBF964474AFf6d5487e364De",
       "addresses": {
         "PrivateCoti": "0x6cE8907414986E73De9e7D28d62Ea2080F8E88E1",
         "PrivacyBridgeCotiNative": "0x96117882328407B13A5f378de25764C4eD8477eA",
