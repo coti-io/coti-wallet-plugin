@@ -229,6 +229,14 @@ export const useMetamask = ({
                     logger.log('🔇 [useMetamask] chainChanged ignored (muted for onboarding)');
                     return;
                 }
+                // Prefer a soft resync via the callback instead of a full page reload.
+                // A hard reload drops wagmi/RainbowKit connections (reconnectOnMount: false),
+                // which forced users to reconnect after every network switch. Only fall back
+                // to a reload when no handler is wired (legacy injected-only integrations).
+                if (onNetworkChanged) {
+                    void onNetworkChanged();
+                    return;
+                }
                 window.location.reload();
             };
 

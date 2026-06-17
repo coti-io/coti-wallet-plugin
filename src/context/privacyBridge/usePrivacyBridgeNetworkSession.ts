@@ -93,6 +93,21 @@ export const usePrivacyBridgeNetworkSession = ({
     chainId: metamaskChainId,
     registerEthereumInitializedListener,
   } = useMetamask({
+    onNetworkChanged: async () => {
+      // wagmi/RainbowKit already reacts to chain changes (wagmiChainId updates
+      // and usePrivacyBridgeWagmiSync resyncs account state). A full page reload
+      // here would drop the wagmi connection (reconnectOnMount: false), forcing
+      // the user to reconnect after every network switch.
+      if (wagmiSyncRef.current || wagmiConnected) {
+        logger.log('Ignoring MetaMask chainChanged — wagmi is managing connection');
+        return;
+      }
+      // Non-wagmi (injected MetaMask) path: soft-resync account/network state
+      // instead of reloading the page.
+      if (walletAddress) {
+        await updateAccountStateRef.current?.(walletAddress, hasSnap, false);
+      }
+    },
     onAccountChanged: async account => {
       if (wagmiSyncRef.current || wagmiConnected) {
         logger.log('Ignoring MetaMask accountsChanged — wagmi is managing connection');
