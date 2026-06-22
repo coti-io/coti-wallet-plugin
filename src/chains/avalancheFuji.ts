@@ -3,7 +3,7 @@ import type { ChainConfig } from "./types";
 export const AVALANCHE_FUJI_CHAIN_ID = 43113;
 
 const AVALANCHE_FUJI_RPC_URL =
-  "https://api.avax-test.network/ext/bc/C/rpc";
+  "https://avalanche-fuji-c-chain-rpc.publicnode.com";
 
 const AVALANCHE_FUJI_INBOX = "0xB4A53FE02401fDFA8DAc00450dA3FfF8D01502F8";
 
