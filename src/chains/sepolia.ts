@@ -18,7 +18,7 @@ export const sepoliaChain: ChainConfig = {
   hexId: "0xaa36a7",
   name: "Sepolia",
   rpcUrl: "https://ethereum-sepolia-rpc.publicnode.com",
-  explorerBaseUrl: "https://sepolia.etherscan.io",
+  explorerBaseUrl: "https://eth-sepolia.blockscout.com",
   unlockStrategy: "manual-aes-key",
   portalStrategy: "pod-privacy-portal",
   podInboxAddress: "0xAb625bE229F603f6BBF964474AFf6d5487e364De",
@@ -101,7 +101,7 @@ export const sepoliaChain: ChainConfig = {
     chainName: "Sepolia",
     rpcUrls: ["https://ethereum-sepolia-rpc.publicnode.com"],
     nativeCurrency: { name: "Sepolia Ether", symbol: "ETH", decimals: 18 },
-    blockExplorerUrls: ["https://sepolia.etherscan.io"],
+    blockExplorerUrls: ["https://eth-sepolia.blockscout.com"],
   },
   getBridgeDataOverride: addresses => [
     {
