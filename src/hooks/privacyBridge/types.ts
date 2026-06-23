@@ -44,4 +44,6 @@ export interface UsePrivacyBridgeProps {
   getAESKeyFromSnap: (accountAddress: string) => Promise<string | null>;
   handleOnboard: () => Promise<string | null>;
   upsertPodRequest?: (request: import('../../contracts/pod').PodPortalRequest) => void;
+  /** When set, the Snap gate is bypassed — no Snap interaction needed for bridging. */
+  sessionAesKey?: string | null;
 }

@@ -33,6 +33,7 @@ export const usePrivacyBridge = ({
   handleOnboard,
   refreshPrivateBalances,
   upsertPodRequest,
+  sessionAesKey,
 }: UsePrivacyBridgeProps) => {
   const allowance = usePrivacyBridgeAllowance({
     isConnected,
@@ -94,6 +95,12 @@ export const usePrivacyBridge = ({
       const snapRequired = !isPodPortalToken && (currentDirection === 'to-public' || !isErc20Token);
 
       if (snapRequired && !hasSnap) {
+        // If session AES key is already available (manual entry or local vault),
+        // bypass the Snap interaction entirely.
+        if (sessionAesKey) {
+          logger.log('Session AES key available — bypassing Snap gate');
+          setHasSnap(true);
+        } else {
         try {
           const aesKey = await getAESKeyFromSnap(walletAddress);
           if (aesKey) {
@@ -124,6 +131,7 @@ export const usePrivacyBridge = ({
           } else {
             throw snapErr;
           }
+        }
         }
       }
 

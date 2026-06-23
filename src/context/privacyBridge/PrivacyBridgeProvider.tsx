@@ -65,6 +65,7 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
     handleOnboard: session.handleOnboard,
     refreshPrivateBalances: session.refreshPrivateBalances,
     upsertPodRequest: podState.upsertPodRequest,
+    sessionAesKey: session.sessionAesKey,
   });
 
   const slices = useMemo((): PrivacyBridgeContextSlices => {
