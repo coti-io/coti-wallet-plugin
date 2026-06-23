@@ -10,7 +10,12 @@ const AES_KEY = 'a'.repeat(64);
 type ReqArgs = { method: string; params?: unknown };
 
 /** Builds a fully-successful snap mock with a configurable chainId and overrides. */
-function fullSuccess(opts: { chainId?: string; getKey?: () => Promise<unknown>; setEnv?: () => Promise<unknown> } = {}) {
+function fullSuccess(opts: {
+  chainId?: string;
+  hasKey?: boolean;
+  getKey?: () => Promise<unknown>;
+  setEnv?: () => Promise<unknown>;
+} = {}) {
   const chainId = opts.chainId ?? '0x6c11a0';
   return (args: ReqArgs) => {
     switch (args.method) {
@@ -25,7 +30,13 @@ function fullSuccess(opts: { chainId?: string; getKey?: () => Promise<unknown>; 
       case 'wallet_invokeSnap': {
         const method = (args.params as { request?: { method?: string } })?.request?.method;
         if (method === 'set-environment') return opts.setEnv ? opts.setEnv() : Promise.resolve(undefined);
-        return opts.getKey ? opts.getKey() : Promise.resolve(AES_KEY);
+        if (method === 'has-aes-key') {
+          return Promise.resolve(opts.hasKey !== false);
+        }
+        if (method === 'get-aes-key') {
+          return opts.getKey ? opts.getKey() : Promise.resolve(AES_KEY);
+        }
+        return Promise.resolve(undefined);
       }
       default:
         return Promise.resolve(undefined);
@@ -162,6 +173,16 @@ describe('useSnap (branch coverage)', () => {
     });
     const { result } = renderHook(() => useSnap());
     await expect(result.current.executeSnapCheck(vi.fn())).resolves.toBeUndefined();
+  });
+
+  it('throws AES_KEY_MISSING when has-aes-key is false', async () => {
+    mockRequest.mockImplementation(fullSuccess({ hasKey: false }));
+    const { result } = renderHook(() => useSnap());
+
+    const promise = result.current.getAESKeyFromSnap(ACCOUNT);
+    const assertion = expect(promise).rejects.toMatchObject({ code: CotiErrorCode.AES_KEY_MISSING });
+    await vi.advanceTimersByTimeAsync(500);
+    await assertion;
   });
 
   // ─── getAESKeyFromSnap ──────────────────────────────────────────────────

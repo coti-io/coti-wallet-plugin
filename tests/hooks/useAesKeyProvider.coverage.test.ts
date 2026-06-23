@@ -17,9 +17,13 @@ const VALID_KEY = 'a'.repeat(64);
 
 const snapState = vi.hoisted(() => ({
   getAESKeyFromSnap: vi.fn(),
+  saveAESKeyToSnap: vi.fn().mockResolvedValue(true),
 }));
 vi.mock('../../src/hooks/useSnap', () => ({
-  useSnap: () => ({ getAESKeyFromSnap: snapState.getAESKeyFromSnap }),
+  useSnap: () => ({
+    getAESKeyFromSnap: snapState.getAESKeyFromSnap,
+    saveAESKeyToSnap: snapState.saveAESKeyToSnap,
+  }),
 }));
 
 const wagmiState = vi.hoisted(() => ({
@@ -163,6 +167,36 @@ describe('useAesKeyProvider (full branch coverage)', () => {
         key = await result.current.getAesKey(ADDR);
       });
       expect(key).toBe(VALID_KEY);
+      expect(snapState.saveAESKeyToSnap).toHaveBeenCalledWith(VALID_KEY, ADDR);
+    });
+
+    it('falls through to the contract route when Snap has no AES key', async () => {
+      snapState.getAESKeyFromSnap.mockRejectedValue(
+        new CotiPluginError(CotiErrorCode.AES_KEY_MISSING, 'empty snap'),
+      );
+      wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
+      wagmiState.chainId = COTI_TESTNET;
+
+      const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'metamask' })));
+
+      let key: string | null = null;
+      await act(async () => {
+        key = await result.current.getAesKey(ADDR);
+      });
+      expect(key).toBe(VALID_KEY);
+      expect(snapState.saveAESKeyToSnap).toHaveBeenCalledWith(VALID_KEY, ADDR);
+    });
+
+    it('does not persist to Snap for non-MetaMask contract onboarding', async () => {
+      wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
+      wagmiState.chainId = COTI_TESTNET;
+
+      const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'rabby' })));
+
+      await act(async () => {
+        await result.current.getAesKey(ADDR);
+      });
+      expect(snapState.saveAESKeyToSnap).not.toHaveBeenCalled();
     });
   });
 

@@ -12,7 +12,7 @@ const ACCOUNT = '0x1234567890abcdef1234567890abcdef12345678';
 const AES_KEY = 'a'.repeat(64);
 
 function snapInstalledMocks() {
-  return (args: { method: string }) => {
+  return (args: { method: string; params?: unknown }) => {
     switch (args.method) {
       case 'web3_clientVersion':
         return Promise.resolve('MetaMask/v11.0.0');
@@ -22,8 +22,14 @@ function snapInstalledMocks() {
         return Promise.resolve(undefined);
       case 'eth_chainId':
         return Promise.resolve('0x6c11a0'); // COTI testnet
-      case 'wallet_invokeSnap':
-        return Promise.resolve(AES_KEY);
+      case 'wallet_invokeSnap': {
+        const snapMethod = (args.params as { request?: { method?: string } })?.request?.method;
+        if (snapMethod === 'set-environment') return Promise.resolve(undefined);
+        if (snapMethod === 'has-aes-key') return Promise.resolve(true);
+        if (snapMethod === 'get-aes-key') return Promise.resolve(AES_KEY);
+        if (snapMethod === 'set-aes-key') return Promise.resolve(undefined);
+        return Promise.resolve(undefined);
+      }
       default:
         return Promise.resolve(undefined);
     }
@@ -194,6 +200,31 @@ describe('useSnap (success & lifecycle paths)', () => {
       });
     });
 
+    it('throws AES_KEY_MISSING when snap is installed but has no stored key', async () => {
+      vi.useRealTimers();
+      mockRequest.mockImplementation((args: { method: string; params?: unknown }) => {
+        switch (args.method) {
+          case 'web3_clientVersion': return Promise.resolve('MetaMask/v11.0.0');
+          case 'wallet_getSnaps': return Promise.resolve({ [SNAP_ID]: {} });
+          case 'wallet_requestSnaps': return Promise.resolve(undefined);
+          case 'eth_chainId': return Promise.resolve('0x6c11a0');
+          case 'wallet_invokeSnap': {
+            const snapMethod = (args.params as { request?: { method?: string } })?.request?.method;
+            if (snapMethod === 'set-environment') return Promise.resolve(undefined);
+            if (snapMethod === 'has-aes-key') return Promise.resolve(false);
+            return Promise.resolve(null);
+          }
+          default: return Promise.resolve(undefined);
+        }
+      });
+      const { result } = renderHook(() => useSnap());
+
+      await expect(result.current.getAESKeyFromSnap(ACCOUNT)).rejects.toMatchObject({
+        code: CotiErrorCode.AES_KEY_MISSING,
+      });
+      vi.useFakeTimers();
+    });
+
     it('throws SNAP_DIALOG_REJECTED when snap returns null key', async () => {
       vi.useRealTimers();
       mockRequest.mockImplementation((args: { method: string; params?: unknown }) => {
@@ -202,11 +233,13 @@ describe('useSnap (success & lifecycle paths)', () => {
           case 'wallet_getSnaps': return Promise.resolve({ [SNAP_ID]: {} });
           case 'wallet_requestSnaps': return Promise.resolve(undefined);
           case 'eth_chainId': return Promise.resolve('0x6c11a0');
-          case 'wallet_invokeSnap':
-            if ((args.params as any)?.request?.method === 'set-environment') {
-              return Promise.resolve(undefined);
-            }
-            return Promise.resolve(null);
+          case 'wallet_invokeSnap': {
+            const snapMethod = (args.params as { request?: { method?: string } })?.request?.method;
+            if (snapMethod === 'set-environment') return Promise.resolve(undefined);
+            if (snapMethod === 'has-aes-key') return Promise.resolve(true);
+            if (snapMethod === 'get-aes-key') return Promise.resolve(null);
+            return Promise.resolve(undefined);
+          }
           default: return Promise.resolve(undefined);
         }
       });
@@ -226,15 +259,16 @@ describe('useSnap (success & lifecycle paths)', () => {
           case 'wallet_getSnaps': return Promise.resolve({ [SNAP_ID]: {} });
           case 'wallet_requestSnaps': return Promise.resolve(undefined);
           case 'eth_chainId': return Promise.resolve('0x6c11a0');
-          case 'wallet_invokeSnap':
-            if ((args.params as any)?.request?.method === 'set-environment') {
-              return Promise.resolve(undefined);
-            }
+          case 'wallet_invokeSnap': {
+            const snapMethod = (args.params as { request?: { method?: string } })?.request?.method;
+            if (snapMethod === 'set-environment') return Promise.resolve(undefined);
+            if (snapMethod === 'has-aes-key') return Promise.resolve(true);
             getKeyCalls++;
             if (getKeyCalls === 1) {
               return Promise.reject(new Error('No account connected'));
             }
             return Promise.resolve(AES_KEY);
+          }
           default: return Promise.resolve(undefined);
         }
       });
@@ -255,11 +289,12 @@ describe('useSnap (success & lifecycle paths)', () => {
           case 'wallet_getSnaps': return Promise.resolve({ [SNAP_ID]: {} });
           case 'wallet_requestSnaps': return Promise.resolve(undefined);
           case 'eth_chainId': return Promise.resolve('0x6c11a0');
-          case 'wallet_invokeSnap':
-            if ((args.params as any)?.request?.method === 'set-environment') {
-              return Promise.resolve(undefined);
-            }
+          case 'wallet_invokeSnap': {
+            const snapMethod = (args.params as { request?: { method?: string } })?.request?.method;
+            if (snapMethod === 'set-environment') return Promise.resolve(undefined);
+            if (snapMethod === 'has-aes-key') return Promise.resolve(true);
             return new Promise(() => {}); // hang on get-aes-key
+          }
           default: return Promise.resolve(undefined);
         }
       });

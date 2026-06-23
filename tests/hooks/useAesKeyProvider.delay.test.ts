@@ -18,7 +18,10 @@ const snapState = vi.hoisted(() => ({
   getAESKeyFromSnap: vi.fn(),
 }));
 vi.mock('../../src/hooks/useSnap', () => ({
-  useSnap: () => ({ getAESKeyFromSnap: snapState.getAESKeyFromSnap }),
+  useSnap: () => ({
+    getAESKeyFromSnap: snapState.getAESKeyFromSnap,
+    saveAESKeyToSnap: vi.fn().mockResolvedValue(true),
+  }),
 }));
 
 const wagmiState = vi.hoisted(() => ({

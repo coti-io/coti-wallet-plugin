@@ -71,7 +71,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
   const [isOnboarding, setIsOnboarding] = useState(false);
   const [onboardingError, setOnboardingError] = useState<string | null>(null);
 
-  const { getAESKeyFromSnap } = useSnap();
+  const { getAESKeyFromSnap, saveAESKeyToSnap } = useSnap();
   const { connector, chainId: connectedChainId } = useAccount();
   const { data: connectorClient } = useConnectorClient();
 
@@ -95,9 +95,13 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           if (isUserRejection(error)) {
             return null;
           }
-          // SNAP_CONNECT_FAILED means snap is not available — fall through to contract onboarding
-          if (error instanceof CotiPluginError && error.code === CotiErrorCode.SNAP_CONNECT_FAILED) {
-            logger.log('ℹ️ Snap not available, falling back to onboard contract');
+          // Snap missing or empty — fall through to contract onboarding (mirrors companion site)
+          if (
+            error instanceof CotiPluginError &&
+            (error.code === CotiErrorCode.SNAP_CONNECT_FAILED ||
+              error.code === CotiErrorCode.AES_KEY_MISSING)
+          ) {
+            logger.log('ℹ️ Snap unavailable or empty, falling back to onboard contract');
             // Fall through to Route 2
           } else {
             throw error;
@@ -105,7 +109,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         }
       }
 
-      // Route 2: Non-MetaMask wallet (or MetaMask without snap) — use onboarding contract flow
+      // Route 2: Non-MetaMask wallet (or MetaMask without snap / empty snap) — contract onboarding
       if (!connector) {
         setOnboardingError('No wallet provider available. Please connect your wallet.');
         return null;
@@ -193,6 +197,13 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           }
         }
 
+        if (aesKey && walletTypeInfo.walletType === 'metamask') {
+          const saved = await saveAESKeyToSnap(aesKey, address);
+          if (!saved) {
+            logger.warn('⚠️ AES key retrieved but could not persist to Snap');
+          }
+        }
+
         return aesKey;
       } catch (error: unknown) {
         // On error, attempt to switch wallet back to the original chain
@@ -231,7 +242,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         setIsOnboarding(false);
       }
     },
-    [walletTypeInfo.isMetaMaskWithSnap, getAESKeyFromSnap, connector, connectedChainId]
+    [walletTypeInfo.walletType, getAESKeyFromSnap, saveAESKeyToSnap, connector, connectedChainId]
   );
 
   return {

@@ -259,9 +259,30 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
             isSnapRequestPending.current = true;
             logger.log('🔑 Requesting AES key from COTI Snap...');
 
-            // Fetch ChainID for explicit context
-            const chainIdHex = await provider.request({ method: 'eth_chainId' }) as string;
-            const chainId = parseInt(chainIdHex, 16);
+            const COTI_MAINNET_ID = 2632500;
+            const COTI_TESTNET_ID = 7082400;
+            const rawChainIdHex = await provider.request({ method: 'eth_chainId' }) as string;
+            const rawChainId = parseInt(rawChainIdHex, 16);
+            const cotiChainId = rawChainId === COTI_MAINNET_ID ? COTI_MAINNET_ID : COTI_TESTNET_ID;
+
+            const hasKey = await provider.request({
+                method: 'wallet_invokeSnap',
+                params: {
+                    snapId,
+                    request: {
+                        method: 'has-aes-key',
+                        params: { chainId: cotiChainId },
+                    },
+                },
+            });
+
+            if (!hasKey) {
+                logger.log('ℹ️ Snap installed but has no AES key — contract onboarding required');
+                throw new CotiPluginError(
+                    CotiErrorCode.AES_KEY_MISSING,
+                    'COTI Snap has no AES key stored for this account',
+                );
+            }
 
             // Retry logic for robustness
             let retries = 3;
@@ -269,16 +290,6 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
 
             while (retries > 0) {
                 try {
-                    // Resolve to the correct COTI chainId regardless of which chain
-                    // the wallet is currently connected to.
-                    // Sepolia (and other non-COTI chains) → COTI testnet (7082400)
-                    // COTI mainnet (2632500) → COTI mainnet
-                    const COTI_MAINNET_ID = 2632500;
-                    const COTI_TESTNET_ID = 7082400;
-                    const rawChainIdHex = await provider.request({ method: 'eth_chainId' }) as string;
-                    const rawChainId = parseInt(rawChainIdHex, 16);
-                    const cotiChainId = rawChainId === COTI_MAINNET_ID ? COTI_MAINNET_ID : COTI_TESTNET_ID;
-
                     logger.log(`🔑 Requesting AES key for COTI chainId: ${cotiChainId} (wallet chainId: ${rawChainId})`);
 
                     // Directly request the key (User preference to force fetch)
@@ -346,6 +357,12 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
         const provider = getProvider();
         if (!provider) return false;
         try {
+            const COTI_MAINNET_ID = 2632500;
+            const COTI_TESTNET_ID = 7082400;
+            const rawChainIdHex = await provider.request({ method: 'eth_chainId' }) as string;
+            const rawChainId = parseInt(rawChainIdHex, 16);
+            const cotiChainId = rawChainId === COTI_MAINNET_ID ? COTI_MAINNET_ID : COTI_TESTNET_ID;
+
             logger.log('💾 Saving AES key to Snap...');
             await provider.request({
                 method: 'wallet_invokeSnap',
@@ -353,9 +370,9 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
                     snapId,
                     request: {
                         method: 'set-aes-key',
-                        params: { newUserAesKey: key }
-                    }
-                }
+                        params: { newUserAesKey: key, chainId: cotiChainId },
+                    },
+                },
             });
             logger.log('✅ AES key saved to Snap successfully');
             globalAESKeyCache[accountAddress.toLowerCase()] = key; // Update Cache
