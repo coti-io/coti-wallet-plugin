@@ -90,6 +90,18 @@ export { estimateBridgeFee } from './hooks/useEstimateBridgeFees';
 export type { FeeEstimate } from './hooks/useEstimateBridgeFees';
 export { fetchBridgeFees, fetchTokenUsdPrice, computeCotiFee, computeErc20Fee, simulateFeeOnChain, getTokenSimulationMeta } from './hooks/useBridgeFees';
 export type { BridgeFees, SimulationResult } from './hooks/useBridgeFees';
+export {
+  executePrivateTokenTransfer,
+  resolvePrivateTokenContractAddress,
+  resolvePrivateTokenTransferTarget,
+  normalizeAesKeyHex,
+  encryptValue256,
+  PRIVATE_ERC20_TRANSFER_256_SIG,
+} from './hooks/privacyBridge';
+export type {
+  ExecutePrivateTokenTransferParams,
+  ExecutePrivateTokenTransferResult,
+} from './hooks/privacyBridge';
 
 // Hooks — Network
 export { useNetworkEnforcer } from './hooks/useNetworkEnforcer';
