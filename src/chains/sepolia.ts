@@ -8,28 +8,28 @@ const USDC = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238";
 const MTT = "0xd3f5c63f4D87D2235b295FbA83351d31d0eD1BeE";
 
 /** Deployed PoD portal pairs from pod-mpc-lib deployConfig.json (Sepolia). */
-const P_ETH = "0x4667DFcbCd354c2719E129A9FcC2Bb3a98456b91";
-const P_USDC = "0x4926c63B42ab17Bb72C6F8b3818A3A947C2aE2f9";
-const PORTAL_ETH = "0xF0b8d0A7bd03157D72c3364BC6d30d8F061DBD44";
-const PORTAL_USDC = "0x75E7D308b11066d6C5F5d65a94F562ce18a5976C";
+const P_ETH = "0xDEA0e780134d15F51aC36B644F41d3dFD104E80A";
+const P_USDC = "0x2749FE484a0E9555715e66638baF1e9a9e799E37";
+const PORTAL_ETH = "0xfFbF6F92d51F8a0f86Cd367e9C7a974221dD38F2";
+const PORTAL_USDC = "0xFA32bB6399cbC60A9A8d1535745dd063571a79Ed";
 
 export const sepoliaChain: ChainConfig = {
   id: SEPOLIA_CHAIN_ID,
   hexId: "0xaa36a7",
   name: "Sepolia",
   rpcUrl: "https://ethereum-sepolia-rpc.publicnode.com",
-  explorerBaseUrl: "https://sepolia.etherscan.io",
+  explorerBaseUrl: "https://eth-sepolia.blockscout.com",
   unlockStrategy: "manual-aes-key",
   portalStrategy: "pod-privacy-portal",
-  podInboxAddress: "0xB4A53FE02401fDFA8DAc00450dA3FfF8D01502F8",
+  podInboxAddress: "0xAb625bE229F603f6BBF964474AFf6d5487e364De",
   addresses: {
     MTT,
     WETH,
     USDC,
-    "p.MTT": "0x34727cc7233e6B20aE071Cd16A81027172b6bdbA",
+    "p.MTT": "0xb4AbD430486fBc50580354c10e3959BC7fE5E6e3",
     "p.USDC": P_USDC,
     "p.ETH": P_ETH,
-    PrivacyPortalMTT: "0xffb8770353AcCF2492F6e75f9B5610CE4af8fe89",
+    PrivacyPortalMTT: "0xDb71e6a73DA10Efc648C261E8B1f9d5babd25B08",
     PrivacyPortalUSDC: PORTAL_USDC,
     PrivacyPortalETH: PORTAL_ETH,
   },
@@ -101,7 +101,7 @@ export const sepoliaChain: ChainConfig = {
     chainName: "Sepolia",
     rpcUrls: ["https://ethereum-sepolia-rpc.publicnode.com"],
     nativeCurrency: { name: "Sepolia Ether", symbol: "ETH", decimals: 18 },
-    blockExplorerUrls: ["https://sepolia.etherscan.io"],
+    blockExplorerUrls: ["https://eth-sepolia.blockscout.com"],
   },
   getBridgeDataOverride: addresses => [
     {
