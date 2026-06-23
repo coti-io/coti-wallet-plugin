@@ -5,7 +5,7 @@ export const AVALANCHE_FUJI_CHAIN_ID = 43113;
 const AVALANCHE_FUJI_RPC_URL =
   "https://avalanche-fuji-c-chain-rpc.publicnode.com";
 
-const AVALANCHE_FUJI_INBOX = "0xB4A53FE02401fDFA8DAc00450dA3FfF8D01502F8";
+const AVALANCHE_FUJI_INBOX = "0xAb625bE229F603f6BBF964474AFf6d5487e364De";
 
 /** Underlying ERC-20s from PrivacyPortalConfig.json (Avalanche Fuji). */
 const MTT = "0x328e70e1c52662cd5f19f824fcb8b463d77a6686";
@@ -13,10 +13,10 @@ const USDC = "0x5425890298aed601595a70AB815c96711a31Bc65";
 const WAVAX = "0xd00ae08403B9bbb9124bB305C09058E32C39A48c";
 
 /** Deployed PoD portal pairs from pod-mpc-lib deployConfig.json (Fuji). */
-const P_AVAX = "0x69dF41ebdd5D5e0017c1965bd480843857158324";
-const P_USDC = "0x0291d4DCE114161bfE692AB31A479AF533630f28";
-const PORTAL_AVAX = "0xdaa65aB142Fb148e210103649536FcD29Ed8025f";
-const PORTAL_USDC = "0xe191FdfbA64c99C489D9846f2C0cEa495eA35974";
+const P_AVAX = "0x44392E67f6Fc5179BD25302519b1B85B87afc5D8";
+const P_USDC = "0xAd40C2E98ef9d37827F5206D0a6641c29f2247c5";
+const PORTAL_AVAX = "0xdf75091D4AF11b94FA318eeBC6CEBC106899E25C";
+const PORTAL_USDC = "0x32146Ce8a96F2b0102c5C0f27e45E53eA30ef18B";
 
 export const avalancheFujiChain: ChainConfig = {
   id: AVALANCHE_FUJI_CHAIN_ID,
@@ -31,10 +31,10 @@ export const avalancheFujiChain: ChainConfig = {
     MTT,
     USDC,
     WAVAX,
-    "p.MTT": "0x53a5A16f3BC408CB808B442fA69481386945f5cf",
+    "p.MTT": "0xc1258E5C04A6933940105FE94cC9A4C2439d3402",
     "p.USDC": P_USDC,
     "p.AVAX": P_AVAX,
-    PrivacyPortalMTT: "0x248DF7c9f68c6d8aEFa88Ec218c53f0E6Da6dC81",
+    PrivacyPortalMTT: "0x9a82B356c9f7F59aE2c04200358122eb99aE6364",
     PrivacyPortalUSDC: PORTAL_USDC,
     PrivacyPortalAVAX: PORTAL_AVAX,
   },
