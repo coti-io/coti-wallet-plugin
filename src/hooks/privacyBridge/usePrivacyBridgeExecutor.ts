@@ -525,19 +525,19 @@ export const usePrivacyBridgeExecutor = ({
                 // Try to extract revert reason by replaying the tx via eth_call
                 let revertReason = '';
                 try {
-                    // Use direct COTI RPC (not MetaMask) — MetaMask returns -32603 for
-                    // historical eth_call on COTI testnet, preventing revert decoding.
+                    // Use direct COTI RPC (not MetaMask) for the replay.
+                    // Use "latest" block — COTI testnet doesn't support historical eth_call.
+                    // The revert reason should be the same at current state for most errors
+                    // (InsufficientBridgeLiquidity, BridgePaused, etc.)
                     const network = await provider.getNetwork();
                     const replayProvider = new ethers.JsonRpcProvider(
                         getRpcUrlForChain(Number(network.chainId))
                     );
-                    // Replay the failed tx to get the revert data
                     await replayProvider.call({
                         to: receipt.to,
                         from: receipt.from,
                         data: receipt.data || undefined,
                         value: receipt.value || undefined,
-                        blockTag: receipt.blockNumber,
                     });
                 } catch (replayErr: any) {
                     // The replay should fail with the revert reason
