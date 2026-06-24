@@ -56,18 +56,17 @@ export async function estimateCotiBridgeGasFeeDisplay(params: {
   let gasLimit: bigint;
   try {
     const walletAddr = await provider.getSigner().then(s => s.getAddress());
-    const gasEstimateHex = await (window.ethereum as any).request({
-      method: "eth_estimateGas",
-      params: [
-        {
-          from: walletAddr,
-          to: bridgeAddress,
-          data: calldata,
-          value: "0x" + msgValue.toString(16),
-        },
-      ],
+    // Use a direct COTI JsonRpcProvider for the display estimate rather than
+    // window.ethereum. Routing through MetaMask makes it log every rejected RPC
+    // (-32603) to the console even though we catch the error and fall back here.
+    // ethers' JsonRpcProvider surfaces the same error quietly via our try/catch.
+    const rpcProvider = new ethers.JsonRpcProvider(getRpcUrlForChain(currentChainId));
+    gasLimit = await rpcProvider.estimateGas({
+      from: walletAddr,
+      to: bridgeAddress,
+      data: calldata,
+      value: msgValue,
     });
-    gasLimit = BigInt(gasEstimateHex);
     logger.log('eth_estimateGas succeeded', { gasLimit: gasLimit.toString() });
   } catch (estimateErr: any) {
     const isNativeCotiDeposit = !isErc20Token && direction === "to-private";

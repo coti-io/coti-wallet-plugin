@@ -525,9 +525,14 @@ export const usePrivacyBridgeExecutor = ({
                 // Try to extract revert reason by replaying the tx via eth_call
                 let revertReason = '';
                 try {
-                    const provider = new ethers.BrowserProvider(window.ethereum);
+                    // Use direct COTI RPC (not MetaMask) — MetaMask returns -32603 for
+                    // historical eth_call on COTI testnet, preventing revert decoding.
+                    const network = await provider.getNetwork();
+                    const replayProvider = new ethers.JsonRpcProvider(
+                        getRpcUrlForChain(Number(network.chainId))
+                    );
                     // Replay the failed tx to get the revert data
-                    await provider.call({
+                    await replayProvider.call({
                         to: receipt.to,
                         from: receipt.from,
                         data: receipt.data || undefined,

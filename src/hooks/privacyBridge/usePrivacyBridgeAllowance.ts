@@ -381,8 +381,13 @@ export const usePrivacyBridgeAllowance = ({
 
                 // 2. Get AES key for encrypted approval
                 // Prefer session AES key to avoid Snap interaction on non-MetaMask wallets.
+                logger.log('🔐 [Approve] Resolving AES key', {
+                    hasSessionKey: !!sessionAesKey,
+                    willCallSnap: !sessionAesKey,
+                });
                 const aesKey = sessionAesKey || await getAESKeyFromSnap(walletAddress);
                 if (!aesKey) throw new Error("AES key required for private token approval. Please unlock your wallet first.");
+                logger.log('🔐 [Approve] AES key resolved', { keyLength: aesKey.length });
 
                 // 3. Create itValue with 256-bit encryption
                 setIsApproving(true);
@@ -396,6 +401,7 @@ export const usePrivacyBridgeAllowance = ({
 
                 // approve(address,itUint256) — Encrypted approval using manual 256-bit encryption.
                 const approveSig = ethers.id('approve(address,((uint256,uint256),bytes))').slice(0, 10);
+                logger.log('🔐 [Approve] Encrypting value + requesting signature (MetaMask popup expected)...');
                 const itValue = await encryptValue256(
                     amountToApprove,
                     aesKey,
@@ -404,8 +410,7 @@ export const usePrivacyBridgeAllowance = ({
                     walletAddress,
                     signer
                 );
-
-                logger.log("🔄 Approving private token for bridge (256-bit)...");
+                logger.log('🔐 [Approve] Signature obtained, encoding calldata...');
 
                 // Manually encode the calldata
                 const approveInterface = new ethers.Interface([
@@ -416,6 +421,7 @@ export const usePrivacyBridgeAllowance = ({
                     [[itValue.ciphertext.ciphertextHigh, itValue.ciphertext.ciphertextLow], itValue.signature]
                 ]);
 
+                logger.log('🔐 [Approve] Sending approve tx (MetaMask confirmation expected)...');
                 // Bypassing Coti provider
                 const rawTxHash = await (window.ethereum as any).request({
                     method: 'eth_sendTransaction',
@@ -427,12 +433,14 @@ export const usePrivacyBridgeAllowance = ({
                     }]
                 });
 
-                logger.log('Waiting for approve tx', { txHash: shortHash(rawTxHash) });
+                logger.log('🔐 [Approve] Tx submitted, waiting for confirmation', { txHash: shortHash(rawTxHash) });
                 await provider.waitForTransaction(rawTxHash);
-                
+                logger.log('🔐 [Approve] Tx confirmed, refreshing allowance...');
+
                 setIsApproving(false);
                 setToastState(prev => ({ ...prev, visible: false }));
                 await checkAllowance();
+                logger.log('✅ [Approve] Complete');
                 return;
 
             } else {
