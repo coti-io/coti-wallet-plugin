@@ -459,8 +459,39 @@ export const usePrivacyBridgeExecutor = ({
                         safeGasLimit = (BigInt(gasEstimateHex) * 130n) / 100n;
                         logger.log(`🔍 Withdraw gas estimation successful: ${BigInt(gasEstimateHex).toString()} → with 30% buffer: ${safeGasLimit.toString()}`);
                     } catch (estimateErr: any) {
-                        logger.warn("⚠️ Withdraw gas estimation failed, falling back to 12M:", estimateErr);
-                        if (estimateErr.message) logger.warn("   Reason:", estimateErr.message);
+                        // The estimate reverted — decode the error and abort rather than
+                        // submitting a tx that will certainly fail on-chain.
+                        logger.warn("⚠️ Withdraw gas estimation failed (tx will revert):", estimateErr);
+
+                        const knownSelectors: Record<string, string> = {
+                            '0xaae25839': 'Insufficient bridge liquidity. Please try a smaller amount.',
+                            '0x83b5f08b': 'Not enough COTI to pay the portal fee.',
+                            '0xb6d6e7d6': 'Not enough COTI balance to pay gas fees.',
+                            '0x0fdbcf37': 'Withdrawal amount is below the minimum allowed.',
+                            '0x9aae5367': 'Withdrawal amount exceeds the maximum allowed.',
+                            '0xfb291504': 'Deposits are currently disabled for this bridge.',
+                            '0xcbca5aa2': 'Amount cannot be zero.',
+                            '0x045c4b02': 'Token transfer failed. Please check your balance and approval.',
+                        };
+
+                        // Try to extract the 4-byte selector from error data
+                        const errData = estimateErr?.data?.data || estimateErr?.data?.originalError?.data || '';
+                        const selector = typeof errData === 'string' && errData.length >= 10
+                            ? errData.slice(0, 10)
+                            : '';
+
+                        if (selector && knownSelectors[selector]) {
+                            throw new Error(knownSelectors[selector]);
+                        }
+
+                        // Check if the error message contains "execution reverted"
+                        const msg = estimateErr?.message || estimateErr?.shortMessage || '';
+                        if (msg.includes('execution reverted') || msg.includes('revert')) {
+                            throw new Error('Transaction would fail on-chain. The bridge may have insufficient liquidity or your balance is too low.');
+                        }
+
+                        // For non-revert errors (network timeout, etc.), fall back to 12M and try anyway
+                        logger.warn("   Non-revert estimation error, proceeding with 12M gas limit");
                     }
 
                     const rawWithdrawTxHash = await (window.ethereum as any).request({
