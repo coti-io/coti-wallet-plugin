@@ -27,6 +27,8 @@ export interface UsePrivacyBridgeAllowanceOptions {
   hasSnap: boolean;
   getAESKeyFromSnap: (accountAddress: string) => Promise<string | null>;
   setToastState: React.Dispatch<React.SetStateAction<ToastState>>;
+  /** In-memory session AES key — avoids Snap/provider calls when available. */
+  sessionAesKey?: string | null;
 }
 
 /** ERC20 / encrypted private token allowance checks and approvals. */
@@ -40,6 +42,7 @@ export const usePrivacyBridgeAllowance = ({
   hasSnap,
   getAESKeyFromSnap,
   setToastState,
+  sessionAesKey,
 }: UsePrivacyBridgeAllowanceOptions) => {
   const [allowance, setAllowance] = useState<string>('0');
   const [isApproving, setIsApproving] = useState(false);
@@ -170,10 +173,12 @@ export const usePrivacyBridgeAllowance = ({
                         return;
                     }
 
-                    // Attempt dynamic decryption if we have a snap connection to avoid prompting the user unexpectedly
-                    if (hasSnap) {
+                    // Attempt dynamic decryption if we have an AES key available.
+                    // Prefer sessionAesKey (in-memory) to avoid calling getAESKeyFromSnap
+                    // which triggers Snap dialogs that don't work for non-MetaMask wallets.
+                    if (hasSnap || sessionAesKey) {
                         try {
-                            const aesKey = await getAESKeyFromSnap(walletAddress);
+                            const aesKey = sessionAesKey || await getAESKeyFromSnap(walletAddress);
                             if (aesKey) {
                                 // Dynamically import CotiSDK
                                 const CotiSDK = await import('@coti-io/coti-sdk-typescript');
@@ -219,7 +224,7 @@ export const usePrivacyBridgeAllowance = ({
             logger.error("Failed to check allowance", err);
             setAllowance('0');
         }
-    }, [isConnected, walletAddress, selectedTokenIndex, publicTokens, hasSnap, getAESKeyFromSnap, direction]);
+    }, [isConnected, walletAddress, selectedTokenIndex, publicTokens, hasSnap, getAESKeyFromSnap, direction, sessionAesKey]);
 
     // Auto-check allowance on dependencies change
     useEffect(() => {
@@ -375,8 +380,9 @@ export const usePrivacyBridgeAllowance = ({
                 if (privTokCfgApprove) privateDecimals = privTokCfgApprove.decimals;
 
                 // 2. Get AES key for encrypted approval
-                const aesKey = await getAESKeyFromSnap(walletAddress);
-                if (!aesKey) throw new Error("AES key required for private token approval. Please connect your Snap.");
+                // Prefer session AES key to avoid Snap interaction on non-MetaMask wallets.
+                const aesKey = sessionAesKey || await getAESKeyFromSnap(walletAddress);
+                if (!aesKey) throw new Error("AES key required for private token approval. Please unlock your wallet first.");
 
                 // 3. Create itValue with 256-bit encryption
                 setIsApproving(true);

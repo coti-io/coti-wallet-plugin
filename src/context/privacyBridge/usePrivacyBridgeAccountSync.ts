@@ -1,7 +1,5 @@
 import { useCallback, useEffect } from 'react';
 import { useBalanceUpdater } from '../../hooks/useBalanceUpdater';
-import { unlockCachedAesKey as unlockCachedAesKeyFromVault } from '../../crypto/localAesKeyVault';
-import { getUnlockStrategyForChain } from '../../chains';
 import { isChainUpdatesMuted } from '../../lib/chainMute';
 import { logger } from '../../lib/logger';
 import {
@@ -33,7 +31,6 @@ export const usePrivacyBridgeAccountSync = ({
     setSessionAesKey,
     setArePrivateBalancesHidden,
     fetchPrivateBalance,
-    getAesKeyFromProvider,
     isConnected,
     hasSnap,
     walletAddress,
@@ -42,20 +39,23 @@ export const usePrivacyBridgeAccountSync = ({
 
   const { checkNetwork, currentChainId, wagmiChainId } = network;
 
-  const usesManualAesKey = getUnlockStrategyForChain(currentChainId) === 'manual-aes-key';
-
   const getAESKeyForCurrentNetwork = useCallback(
     async (accountAddress: string) => {
+      // Always prioritize the in-memory session key — this avoids any interactive
+      // wallet prompts (personal_sign, Snap dialogs, onboarding) during automatic
+      // balance refreshes. The session key is set once during explicit user unlock
+      // and reused for the entire session.
       if (sessionAesKey) return sessionAesKey;
 
-      if (usesManualAesKey) {
-        const cachedKey = await unlockCachedAesKeyFromVault(accountAddress);
-        if (cachedKey) return cachedKey;
-      }
-
-      return getAesKeyFromProvider(accountAddress);
+      // If no session key is available, do NOT trigger interactive flows here.
+      // This function is called from automatic balance refreshes — prompting the user
+      // for a signature or launching contract onboarding would cause repeated,
+      // unexpected popups. Return null to signal "key unavailable" and let the UI
+      // show locked/zero private balances until the user explicitly unlocks again.
+      logger.log('ℹ️ [getAESKeyForCurrentNetwork] No session AES key — skipping interactive retrieval');
+      return null;
     },
-    [getAesKeyFromProvider, usesManualAesKey, sessionAesKey],
+    [sessionAesKey],
   );
 
   const { updateAccountState } = useBalanceUpdater({

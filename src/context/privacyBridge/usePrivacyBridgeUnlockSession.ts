@@ -1,5 +1,4 @@
 import { useCallback } from 'react';
-import { saveAesKeyLocally, unlockCachedAesKey as unlockCachedAesKeyFromVault } from '../../crypto/localAesKeyVault';
 import { logger } from '../../lib/logger';
 import {
   getInitialPrivateTokens,
@@ -46,7 +45,17 @@ export const usePrivacyBridgeUnlockSession = ({
 
   const saveManualAesKey = async (aesKey: string) => {
     if (!walletAddress) throw new Error('Connect your wallet first.');
-    const key = await saveAesKeyLocally(walletAddress, aesKey);
+
+    // Normalize and validate in-memory only — no localStorage persistence.
+    // The key lives in React state for this session and is lost on page refresh by design.
+    const trimmedKey = aesKey.trim();
+    if (!trimmedKey) throw new Error('AES key is required.');
+    // Accept both 32-char (128-bit from onboard contract) and 64-char (256-bit from Snap) keys
+    if (!/^[0-9a-fA-F]{32}$|^[0-9a-fA-F]{64}$/.test(trimmedKey)) {
+      throw new Error('AES key must be 32 or 64 hexadecimal characters (no 0x prefix).');
+    }
+    const key = trimmedKey.toLowerCase();
+
     setSessionAesKey(key, walletAddress);
     setHasSnap(true);
     setSnapError(null);
@@ -57,16 +66,9 @@ export const usePrivacyBridgeUnlockSession = ({
   };
 
   const unlockCachedAesKey = async () => {
-    if (!walletAddress) throw new Error('Connect your wallet first.');
-    const key = await unlockCachedAesKeyFromVault(walletAddress);
-    if (!key) throw new Error('No cached AES key found for this wallet.');
-    setSessionAesKey(key, walletAddress);
-    setHasSnap(true);
-    setSnapError(null);
-
-    const chainOverride = wagmiSyncRef.current ? wagmiChainId : undefined;
-    const success = await updateAccountState(walletAddress, true, true, key, chainOverride);
-    if (success) setArePrivateBalancesHidden(false);
+    // localStorage persistence has been removed — AES keys are session-only.
+    // This function is kept for interface compatibility but always reports no cached key.
+    throw new Error('No cached AES key. Keys are session-only and lost on page refresh.');
   };
 
   const refreshPrivateBalances = useCallback(async () => {

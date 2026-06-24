@@ -45,6 +45,7 @@ export const usePrivacyBridge = ({
     hasSnap,
     getAESKeyFromSnap,
     setToastState,
+    sessionAesKey,
   });
 
   const { executeTransaction, isBridgingLoading } = usePrivacyBridgeExecutor({
@@ -80,6 +81,17 @@ export const usePrivacyBridge = ({
 
       const currentAmountNum = parseFloat(currentAmount);
 
+      logger.log('🚀 [handleSwap] Entry:', {
+        currentAmount,
+        currentDirection,
+        currentIndex,
+        hasSnap,
+        sessionAesKeyAvailable: !!sessionAesKey,
+        sessionAesKeyLength: sessionAesKey?.length,
+        isBridgingLoading,
+        error: !!error,
+      });
+
       if (!currentAmount || !!error || currentAmountNum <= 0) return;
 
       if (isBridgingLoading) {
@@ -92,48 +104,33 @@ export const usePrivacyBridge = ({
         ['WETH', 'WBTC', 'USDT', 'USDC.e', 'WADA', 'gCOTI'].includes(currentPub?.symbol ?? '') ||
         !!currentPub?.addressKey;
       const isPodPortalToken = currentPub?.symbol === 'MTT';
-      const snapRequired = !isPodPortalToken && (currentDirection === 'to-public' || !isErc20Token);
+      const aesKeyRequired = !isPodPortalToken && (currentDirection === 'to-public' || !isErc20Token);
 
-      if (snapRequired && !hasSnap) {
-        // If session AES key is already available (manual entry or local vault),
-        // bypass the Snap interaction entirely.
+      logger.log('🔑 [handleSwap] AES key gate check:', {
+        tokenSymbol: currentPub?.symbol,
+        isErc20Token,
+        isPodPortalToken,
+        aesKeyRequired,
+        hasSnap,
+        sessionAesKeyAvailable: !!sessionAesKey,
+      });
+
+      if (aesKeyRequired && !hasSnap) {
+        // If session AES key is already available (manual entry or contract onboarding),
+        // bypass any interactive flow entirely.
         if (sessionAesKey) {
-          logger.log('Session AES key available — bypassing Snap gate');
+          logger.log('🔑 [handleSwap] Session AES key available — bypassing key gate');
           setHasSnap(true);
         } else {
-        try {
-          const aesKey = await getAESKeyFromSnap(walletAddress);
-          if (aesKey) {
-            setHasSnap(true);
-          } else {
-            logger.log('Snap connection failed or rejected in handleSwap');
-            throw new Error('Snap connection failed or rejected');
-          }
-        } catch (snapErr: any) {
-          if (
-            snapErr.message &&
-            (snapErr.message.includes('AES key not found') || snapErr.message.includes('onboarding'))
-          ) {
-            logger.log('Missing AES Key detected. Triggering onboarding...');
-            setToastState({
-              visible: true,
-              title: 'Missing AES Key',
-              message: 'For your security, you need to generate an AES key. Triggering onboarding...',
-            });
-
-            await handleOnboard();
-            const retryKey = await getAESKeyFromSnap(walletAddress);
-            if (retryKey) {
-              setHasSnap(true);
-            } else {
-              throw new Error('Onboarding incomplete or key retrieval failed after onboarding.');
-            }
-          } else {
-            throw snapErr;
-          }
-        }
+          // No session key available. The user must unlock via the appropriate modal.
+          // Do NOT call getAESKeyFromSnap here — it only works for MetaMask wallets
+          // and will fail with "COTI Snap is not installed" for Rabby/Phantom/Trust.
+          logger.log('⚠️ [handleSwap] No AES key in session — requesting unlock');
+          throw new Error('AES key not available. Please unlock your private tokens first.');
         }
       }
+
+      logger.log('✅ [handleSwap] Gate passed, executing transaction...');
 
       if (overrideAmount !== undefined) setAmount(overrideAmount);
       if (overrideDirection !== undefined) setDirection(overrideDirection);
@@ -152,12 +149,9 @@ export const usePrivacyBridge = ({
       setDirection,
       setSelectedTokenIndex,
       setHasSnap,
-      getAESKeyFromSnap,
       executeTransaction,
-      handleOnboard,
-      walletAddress,
       publicTokens,
-      setToastState,
+      sessionAesKey,
     ],
   );
 
