@@ -445,23 +445,28 @@ export const usePrivacyBridgeExecutor = ({
 
                     try {
                         logger.log("🔍 Attempting eth_estimateGas for withdraw...");
-                        const gasEstimateHex = await (window.ethereum as any).request({
-                            method: 'eth_estimateGas',
-                            params: [{
-                                from: walletAddress,
-                                to: bridgeAddress,
-                                data: withdrawCalldata,
-                                value: '0x' + nativeFee.toString(16),
-                            }]
+                        // Use direct COTI RPC for the estimate — wallet providers (Rabby/MetaMask)
+                        // strip revert data from -32603 errors, making it impossible to decode
+                        // custom errors like InsufficientBridgeLiquidity. The direct RPC returns
+                        // the full revert data in the error response.
+                        const network = await provider.getNetwork();
+                        const estimateProvider = new ethers.JsonRpcProvider(
+                            getRpcUrlForChain(Number(network.chainId))
+                        );
+                        const gasEstimate = await estimateProvider.estimateGas({
+                            from: walletAddress,
+                            to: bridgeAddress,
+                            data: withdrawCalldata,
+                            value: nativeFee,
                         });
                         // Add 30% buffer — MPC operations have significant gas variance between
                         // estimation and execution, 10% is not enough and causes silent reverts.
-                        safeGasLimit = (BigInt(gasEstimateHex) * 130n) / 100n;
-                        logger.log(`🔍 Withdraw gas estimation successful: ${BigInt(gasEstimateHex).toString()} → with 30% buffer: ${safeGasLimit.toString()}`);
+                        safeGasLimit = (gasEstimate * 130n) / 100n;
+                        logger.log(`🔍 Withdraw gas estimation successful: ${gasEstimate.toString()} → with 30% buffer: ${safeGasLimit.toString()}`);
                     } catch (estimateErr: any) {
                         // The estimate reverted — decode the error and abort rather than
                         // submitting a tx that will certainly fail on-chain.
-                        logger.warn("⚠️ Withdraw gas estimation failed (tx will revert):", estimateErr);
+                        logger.warn("⚠️ Withdraw gas estimation failed:", estimateErr?.shortMessage || estimateErr?.message);
 
                         const knownSelectors: Record<string, string> = {
                             '0xaae25839': 'Insufficient bridge liquidity. Please try a smaller amount.',
@@ -474,8 +479,11 @@ export const usePrivacyBridgeExecutor = ({
                             '0x045c4b02': 'Token transfer failed. Please check your balance and approval.',
                         };
 
-                        // Try to extract the 4-byte selector from error data
-                        const errData = estimateErr?.data?.data || estimateErr?.data?.originalError?.data || '';
+                        // ethers v6 JsonRpcProvider puts revert data in error.data or error.info.error.data
+                        const errData = estimateErr?.data
+                            || estimateErr?.info?.error?.data
+                            || estimateErr?.error?.data
+                            || '';
                         const selector = typeof errData === 'string' && errData.length >= 10
                             ? errData.slice(0, 10)
                             : '';
