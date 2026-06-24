@@ -31,6 +31,7 @@ export const usePrivacyBridgeAccountSync = ({
     setSessionAesKey,
     setArePrivateBalancesHidden,
     fetchPrivateBalance,
+    getAesKeyFromProvider,
     isConnected,
     hasSnap,
     walletAddress,
@@ -41,21 +42,17 @@ export const usePrivacyBridgeAccountSync = ({
 
   const getAESKeyForCurrentNetwork = useCallback(
     async (accountAddress: string) => {
-      // Always prioritize the in-memory session key — this avoids any interactive
-      // wallet prompts (personal_sign, Snap dialogs, onboarding) during automatic
-      // balance refreshes. The session key is set once during explicit user unlock
-      // and reused for the entire session.
+      // Always prioritize the in-memory session key — avoids any interactive prompts
+      // during automatic balance refreshes.
       if (sessionAesKey) return sessionAesKey;
 
-      // If no session key is available, do NOT trigger interactive flows here.
-      // This function is called from automatic balance refreshes — prompting the user
-      // for a signature or launching contract onboarding would cause repeated,
-      // unexpected popups. Return null to signal "key unavailable" and let the UI
-      // show locked/zero private balances until the user explicitly unlocks again.
-      logger.log('ℹ️ [getAESKeyForCurrentNetwork] No session AES key — skipping interactive retrieval');
-      return null;
+      // Fall through to the wallet-type-aware provider (useAesKeyProvider).
+      // For MetaMask: tries Snap (non-interactive if already connected)
+      // For non-MetaMask: triggers contract onboarding (interactive — but only called
+      // when checkSnap=true, i.e. explicit user-initiated unlock flows).
+      return getAesKeyFromProvider(accountAddress);
     },
-    [sessionAesKey],
+    [sessionAesKey, getAesKeyFromProvider],
   );
 
   const { updateAccountState } = useBalanceUpdater({
