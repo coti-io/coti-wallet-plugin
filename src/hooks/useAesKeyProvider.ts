@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useConnectorClient, useAccount } from 'wagmi';
 import { BrowserProvider } from '@coti-io/coti-ethers';
 import { useSnap } from './useSnap';
@@ -7,6 +7,7 @@ import { CotiPluginError, CotiErrorCode } from '../errors';
 import { logger } from '../lib/logger';
 import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID } from '../config/chains';
 import { muteChainUpdates, unmuteChainUpdates, isChainUpdatesMuted } from '../lib/chainMute';
+import { canPersistAesKeyToSnap } from '../lib/snapOrigins';
 
 /**
  * Regex pattern for validating AES key format: 32 or 64 hexadecimal characters.
@@ -22,15 +23,59 @@ const AES_KEY_PATTERN = /^[0-9a-fA-F]{32}$|^[0-9a-fA-F]{64}$/;
 const EIP_1193_USER_REJECTED = 4001;
 
 /**
+ * Onboarding step identifiers matching the contract onboarding flow (steps 3-9).
+ */
+export type OnboardingStep =
+  | 'idle'
+  | 'switching-network'
+  | 'creating-provider'
+  | 'signing-transaction'
+  | 'retrieving-key'
+  | 'validating-key'
+  | 'restoring-network'
+  | 'persisting-key'
+  | 'complete'
+  | 'error';
+
+/**
+ * Metadata for each onboarding step (for progress display).
+ */
+export interface OnboardingStepInfo {
+  id: OnboardingStep;
+  label: string;
+  description: string;
+}
+
+/**
+ * Ordered list of steps shown in the progress UI (steps 3–9 from the onboarding flow doc).
+ */
+export const ONBOARDING_STEPS: OnboardingStepInfo[] = [
+  { id: 'switching-network', label: 'Switch Network', description: 'Switching to COTI Network for onboarding' },
+  { id: 'creating-provider', label: 'Connect Provider', description: 'Creating secure connection to COTI Network' },
+  { id: 'signing-transaction', label: 'Sign Transaction', description: 'Please sign the transaction in your wallet' },
+  { id: 'retrieving-key', label: 'Retrieve Key', description: 'Retrieving your AES encryption key from the contract' },
+  { id: 'validating-key', label: 'Validate Key', description: 'Validating AES key format' },
+  { id: 'restoring-network', label: 'Restore Network', description: 'Switching back to your original network' },
+  { id: 'persisting-key', label: 'Finalize', description: 'Completing onboarding' },
+];
+
+/**
+ * Callback type for receiving onboarding step progress updates.
+ */
+export type OnboardingProgressCallback = (step: OnboardingStep) => void;
+
+/**
  * Result interface for the useAesKeyProvider hook.
  */
 export interface AesKeyProviderResult {
   /** Retrieves AES key — routes to Snap or onboard contract based on wallet type */
-  getAesKey: (address: string) => Promise<string | null>;
+  getAesKey: (address: string, onProgress?: OnboardingProgressCallback) => Promise<string | null>;
   /** True during the async generateOrRecoverAes() call */
   isOnboarding: boolean;
   /** Error message from failed onboarding attempts; cleared on next call */
   onboardingError: string | null;
+  /** Current onboarding step (for progress UI) */
+  currentStep: OnboardingStep;
 }
 
 /**
@@ -70,15 +115,25 @@ export function isValidAesKey(key: string): boolean {
 export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProviderResult {
   const [isOnboarding, setIsOnboarding] = useState(false);
   const [onboardingError, setOnboardingError] = useState<string | null>(null);
+  const [currentStep, setCurrentStep] = useState<OnboardingStep>('idle');
+  const progressCallbackRef = useRef<OnboardingProgressCallback | undefined>();
 
   const { getAESKeyFromSnap, saveAESKeyToSnap } = useSnap();
   const { connector, chainId: connectedChainId } = useAccount();
   const { data: connectorClient } = useConnectorClient();
 
+  const emitStep = useCallback((step: OnboardingStep) => {
+    setCurrentStep(step);
+    progressCallbackRef.current?.(step);
+  }, []);
+
   const getAesKey = useCallback(
-    async (address: string): Promise<string | null> => {
+    async (address: string, onProgress?: OnboardingProgressCallback): Promise<string | null> => {
+      // Store progress callback for use within the flow
+      progressCallbackRef.current = onProgress;
       // Clear previous error on each new retrieval attempt
       setOnboardingError(null);
+      emitStep('idle');
 
       // Route 1: MetaMask — try Snap path first (handles snap connection on demand)
       if (walletTypeInfo.walletType === 'metamask') {
@@ -103,6 +158,13 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           ) {
             logger.log('ℹ️ Snap unavailable or empty, falling back to onboard contract');
             // Fall through to Route 2
+          } else if (
+            error instanceof Error &&
+            (error.message.includes('No account connected') ||
+              error.message.includes('Extension context invalidated'))
+          ) {
+            logger.log('ℹ️ Snap wallet not ready, falling back to onboard contract');
+            // Fall through to Route 2
           } else {
             throw error;
           }
@@ -112,6 +174,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
       // Route 2: Non-MetaMask wallet (or MetaMask without snap / empty snap) — contract onboarding
       if (!connector) {
         setOnboardingError('No wallet provider available. Please connect your wallet.');
+        emitStep('error');
         return null;
       }
 
@@ -122,8 +185,12 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         const walletProvider = await connector.getProvider() as any;
         if (!walletProvider) {
           setOnboardingError('Could not get provider from wallet connector.');
+          emitStep('error');
           return null;
         }
+
+        // Step: Switch network to COTI Testnet
+        emitStep('switching-network');
 
         // Determine if we need to switch to a COTI chain for onboarding
         const isCotiChain = connectedChainId === COTI_MAINNET_CHAIN_ID || connectedChainId === COTI_TESTNET_CHAIN_ID;
@@ -155,36 +222,53 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
               } catch {
                 unmuteChainUpdates();
                 setOnboardingError('Failed to add COTI Testnet to wallet.');
+                emitStep('error');
                 return null;
               }
             } else {
               unmuteChainUpdates();
-              if (switchErr?.code === 4001) return null; // user rejected
+              if (switchErr?.code === 4001) { emitStep('idle'); return null; } // user rejected
               setOnboardingError('Failed to switch to COTI Testnet for onboarding.');
+              emitStep('error');
               return null;
             }
           }
         }
 
+        // Step: Create provider and signer
+        emitStep('creating-provider');
+
         // Create a @coti-io/coti-ethers BrowserProvider (now on COTI Testnet)
         const provider = new BrowserProvider(walletProvider);
         const signer = await provider.getSigner(address);
 
+        // Step: Execute onboarding (wallet signature required)
+        emitStep('signing-transaction');
+
         // Execute onboarding on COTI Testnet
         await signer.generateOrRecoverAes();
+
+        // Step: Retrieve key from signer info
+        emitStep('retrieving-key');
 
         const onboardInfo = signer.getUserOnboardInfo();
         const aesKey = onboardInfo?.aesKey ?? null;
 
+        // Step: Validate key format
+        emitStep('validating-key');
+
         if (aesKey && !isValidAesKey(aesKey)) {
           logger.warn('⚠️ AES key from onboard contract failed format validation');
           setOnboardingError('Retrieved AES key has invalid format');
+          emitStep('error');
           // Still switch back before returning
         } else {
           logger.log('✅ AES key retrieved successfully:', aesKey?.length, 'characters');
         }
 
-        // Switch wallet back to original chain (unmute happens in finally)
+        // Step: Switch wallet back to original chain
+        emitStep('restoring-network');
+
         if (!isCotiChain && originalChainHex) {
           logger.log('🔇 [AesKeyProvider] Switching back to:', originalChainHex);
           try {
@@ -197,11 +281,24 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           }
         }
 
-        if (aesKey && walletTypeInfo.walletType === 'metamask') {
+        // Step: Persist key (MetaMask Snap) or finalize
+        emitStep('persisting-key');
+
+        if (aesKey && walletTypeInfo.walletType === 'metamask' && canPersistAesKeyToSnap()) {
           const saved = await saveAESKeyToSnap(aesKey, address);
           if (!saved) {
             logger.warn('⚠️ AES key retrieved but could not persist to Snap');
           }
+        } else if (aesKey && walletTypeInfo.walletType === 'metamask') {
+          logger.log(
+            'ℹ️ Skipping Snap AES persist — origin not authorized for set-aes-key:',
+            typeof window !== 'undefined' ? window.location.origin : 'unknown',
+          );
+        }
+
+        // Step: Complete
+        if (aesKey && isValidAesKey(aesKey)) {
+          emitStep('complete');
         }
 
         return aesKey;
@@ -221,6 +318,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
 
         // EIP-1193 error code 4001: user rejected the signature request
         if (isUserRejection(error)) {
+          emitStep('idle');
           return null;
         }
 
@@ -228,6 +326,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         const errorMessage =
           error instanceof Error ? error.message : 'Failed to retrieve AES key from onboarding contract';
         setOnboardingError(errorMessage);
+        emitStep('error');
         logger.error('❌ Onboarding contract AES key retrieval failed:', error);
         return null;
       } finally {
@@ -240,14 +339,16 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           logger.log('🔊 [AesKeyProvider] Chain updates unmuted');
         }
         setIsOnboarding(false);
+        progressCallbackRef.current = undefined;
       }
     },
-    [walletTypeInfo.walletType, getAESKeyFromSnap, saveAESKeyToSnap, connector, connectedChainId]
+    [walletTypeInfo.walletType, getAESKeyFromSnap, saveAESKeyToSnap, connector, connectedChainId, emitStep]
   );
 
   return {
     getAesKey,
     isOnboarding,
     onboardingError,
+    currentStep,
   };
 }

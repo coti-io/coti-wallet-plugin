@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
+
+vi.mock('wagmi', () => ({
+  useAccount: vi.fn(() => ({ connector: undefined })),
+}));
+
 import {
   useSnap,
   signIT256ViaSnap,
@@ -105,7 +110,7 @@ describe('useSnap (success & lifecycle paths)', () => {
 
       const ok = await result.current.requestSnapConnection();
       expect(ok).toBe(false);
-      expect(setSnapError).toHaveBeenCalledWith('Snap is only available with MetaMask.');
+      expect(setSnapError).toHaveBeenCalledWith('Snap requires MetaMask. Disable other wallet extensions and retry.');
     });
 
     it('requestSnapConnection throws SNAP_CONNECT_FAILED for other errors', async () => {

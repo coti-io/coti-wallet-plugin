@@ -6,7 +6,9 @@ import {
   useWalletType,
   useAesKeyProvider,
   usePrivateTokenBalance,
+  OnboardModal,
   ERC20_ABI,
+  type OnboardingStep,
 } from '@coti-io/coti-wallet-plugin';
 
 // --- Types ---
@@ -57,29 +59,57 @@ export default function App() {
 
   // Wallet type detection & AES key provider (routes Snap vs onboard contract)
   const walletTypeInfo = useWalletType();
-  const { getAesKey, isOnboarding, onboardingError } = useAesKeyProvider(walletTypeInfo);
+  const { getAesKey, isOnboarding, onboardingError, currentStep } = useAesKeyProvider(walletTypeInfo);
   const { fetchPrivateBalance } = usePrivateTokenBalance();
 
   // Session AES key state
   const [sessionAesKey, setSessionAesKey] = useState<string | null>(null);
   const isPrivateUnlocked = sessionAesKey !== null;
 
-  // Unlock: fetch AES key via Snap (MetaMask) or onboard contract (Rabby, etc.)
+  // Modal state
+  const [showOnboardModal, setShowOnboardModal] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState<OnboardingStep>('idle');
+  const [retrievedAesKey, setRetrievedAesKey] = useState<string | null>(null);
+
+  // Unlock: show modal first (intro screen)
   const unlockPrivateBalances = useCallback(async () => {
     if (!address) return;
-    try {
-      // Ensure wallet is on COTI Testnet before onboarding
-      if (chainId !== COTI_TESTNET_CHAIN_ID) {
+    // Ensure wallet is on COTI Testnet before showing modal
+    if (chainId !== COTI_TESTNET_CHAIN_ID) {
+      try {
         await switchChainAsync({ chainId: COTI_TESTNET_CHAIN_ID });
+      } catch (err) {
+        console.error('Failed to switch to COTI Testnet:', err);
+        return;
       }
-      const key = await getAesKey(address);
+    }
+    setShowOnboardModal(true);
+  }, [address, chainId, switchChainAsync]);
+
+  // Begin onboarding (called from modal's "Begin Onboarding" button)
+  const beginOnboarding = useCallback(async () => {
+    if (!address) return;
+    try {
+      const key = await getAesKey(address, setOnboardingStep);
       if (key) {
-        setSessionAesKey(key);
+        setRetrievedAesKey(key);
+        // Don't set sessionAesKey yet — let user see success screen and copy key
       }
     } catch (err) {
-      console.error('Failed to unlock private balances:', err);
+      console.error('Failed to retrieve AES key:', err);
     }
-  }, [address, chainId, switchChainAsync, getAesKey]);
+  }, [address, getAesKey]);
+
+  // Close modal and finalize (called from success screen's "Done" button)
+  const closeModal = useCallback(() => {
+    setShowOnboardModal(false);
+    if (retrievedAesKey) {
+      setSessionAesKey(retrievedAesKey);
+    }
+    // Reset modal state
+    setOnboardingStep('idle');
+    setRetrievedAesKey(null);
+  }, [retrievedAesKey]);
 
   // Lock: clear session key
   const lockPrivateBalances = useCallback(() => {
@@ -170,6 +200,11 @@ export default function App() {
       setPrivateBalances({});
     }
   }, [isPrivateUnlocked, fetchAllPrivateBalances]);
+
+  // Sync onboarding step from hook to local state
+  useEffect(() => {
+    setOnboardingStep(currentStep);
+  }, [currentStep]);
 
   // --- Render ---
   return (
@@ -294,6 +329,18 @@ export default function App() {
           )}
         </>
       )}
+
+      {/* Onboarding Modal */}
+      <OnboardModal
+        isOpen={showOnboardModal}
+        onClose={closeModal}
+        onConfirm={beginOnboarding}
+        isLoading={isOnboarding}
+        error={onboardingError}
+        walletType={walletTypeInfo.walletType}
+        currentStep={onboardingStep}
+        aesKey={retrievedAesKey}
+      />
     </div>
   );
 }

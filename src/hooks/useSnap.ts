@@ -3,8 +3,9 @@ import { ethers } from 'ethers';
 import * as CotiSDK from '@coti-io/coti-sdk-typescript';
 const { generateRSAKeyPair, decryptRSA } = CotiSDK;
 import { MetaMaskInpageProvider } from '@metamask/providers';
+import { useAccount } from 'wagmi';
 import { getPluginConfig } from '../config/plugin';
-import { getEthereumProvider } from '../lib/ethereum';
+import { getMetaMaskProvider } from '../lib/ethereum';
 import { CotiPluginError, CotiErrorCode } from '../errors';
 import { logger } from '../lib/logger';
 
@@ -46,25 +47,82 @@ const snapId = getPluginConfig().snapId;
  */
 let globalAESKeyCache: Record<string, string> = {};
 
+function getErrorMessage(error: unknown): string {
+    if (error && typeof error === 'object') {
+        const err = error as {
+            message?: string;
+            data?: { originalError?: { message?: string } };
+        };
+        return err.data?.originalError?.message ?? err.message ?? '';
+    }
+    return '';
+}
+
+function isSnapAccountNotReadyError(error: unknown): boolean {
+    const message = getErrorMessage(error);
+    return (
+        message.includes('No account connected') ||
+        message.includes('Extension context invalidated')
+    );
+}
+
+async function ensureSnapWalletAccounts(provider: MetaMaskInpageProvider): Promise<void> {
+    try {
+        await provider.request({ method: 'eth_requestAccounts' });
+    } catch (error) {
+        logger.warn('⚠️ eth_requestAccounts before Snap RPC failed:', getErrorMessage(error));
+    }
+}
+
+async function prepareSnapForKeyAccess(
+    provider: MetaMaskInpageProvider,
+    snapIdValue: string,
+): Promise<void> {
+    await ensureSnapWalletAccounts(provider);
+    try {
+        await provider.request({
+            method: 'wallet_invokeSnap',
+            params: {
+                snapId: snapIdValue,
+                request: { method: 'connect-to-wallet' },
+            },
+        });
+    } catch (error) {
+        logger.warn('⚠️ Snap connect-to-wallet failed (non-fatal):', getErrorMessage(error));
+    }
+}
+
 export const useSnap = (setSnapError?: (error: string | null) => void) => {
     const isSnapRequestPending = useRef(false);
+    const { connector } = useAccount();
 
     /**
-     * Helper to get the MetaMask provider with types.
-     * Handles the case where window.ethereum may be in a broken state
-     * due to property redefinition conflicts between extensions.
+     * Resolves the MetaMask provider for Snap RPCs.
+     * Prefers the wagmi connector (EIP-6963 when connected via MetaMask), then
+     * EIP-6963 discovery, then window.ethereum fallbacks.
      */
-    const getProvider = (): MetaMaskInpageProvider | null => {
-        try {
-            if (typeof window.ethereum !== 'undefined') {
-                return window.ethereum as unknown as MetaMaskInpageProvider;
+    const resolveProvider = useCallback(async (): Promise<MetaMaskInpageProvider | null> => {
+        if (connector) {
+            try {
+                const connectorProvider = await connector.getProvider();
+                if (connectorProvider) {
+                    logger.log('🔗 Snap provider: wagmi connector');
+                    return connectorProvider as MetaMaskInpageProvider;
+                }
+            } catch (error) {
+                logger.warn('⚠️ connector.getProvider() failed for Snap', error);
             }
-        } catch {
-            // window.ethereum access can throw if property is in a broken state
-            logger.warn('⚠️ window.ethereum access failed');
         }
+
+        const metaMaskProvider = getMetaMaskProvider();
+        if (metaMaskProvider) {
+            logger.log('🔗 Snap provider: EIP-6963 / MetaMask fallback');
+            return metaMaskProvider as MetaMaskInpageProvider;
+        }
+
+        logger.log('❌ No MetaMask provider available for Snap');
         return null;
-    };
+    }, [connector]);
 
     // Flag to check if environment is Flask
     const isFlask = useRef<boolean>(false);
@@ -73,7 +131,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
      * Detects if the user is running MetaMask Flask.
      */
     const detectFlask = useCallback(async (): Promise<boolean> => {
-        const provider = getProvider();
+        const provider = await resolveProvider();
         /* v8 ignore next -- unreachable: isSnapInstalled guards provider before calling detectFlask */
         if (!provider) return false;
         try {
@@ -86,7 +144,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
             logger.warn('⚠️ Failed to check client version', e);
             return false;
         }
-    }, []);
+    }, [resolveProvider]);
 
     /**
      * Checks if the Coti Snap is currently installed AND connected to this origin.
@@ -95,9 +153,9 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
      * Also returns false for non-MetaMask wallets that don't support wallet_getSnaps.
      */
     const isSnapInstalled = useCallback(async (): Promise<boolean> => {
-        const provider = getProvider();
+        const provider = await resolveProvider();
         if (!provider) {
-            logger.log('❌ isSnapInstalled: No window.ethereum');
+            logger.log('❌ isSnapInstalled: No MetaMask provider');
             return false;
         }
 
@@ -131,7 +189,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
             logger.error('❌ Error checking snap connection:', error);
             return false;
         }
-    }, [snapId, detectFlask]);
+    }, [snapId, detectFlask, resolveProvider]);
 
 
     /**
@@ -139,9 +197,12 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
      * Returns false immediately for wallets that don't support snaps.
      */
     const connectToSnap = useCallback(async (): Promise<boolean> => {
-        const provider = getProvider();
+        const provider = await resolveProvider();
         if (!provider) {
-            logger.log('❌ No window.ethereum available');
+            logger.log('❌ No MetaMask provider available for Snap install');
+            if (setSnapError) {
+                setSnapError('No MetaMask provider found. Disable other wallet extensions and retry.');
+            }
             return false;
         }
 
@@ -160,7 +221,9 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
             // Non-MetaMask wallets don't support wallet_requestSnaps
             if (error?.code === -32601) {
                 logger.log('ℹ️ Wallet does not support wallet_requestSnaps (non-MetaMask wallet).');
-                if (setSnapError) setSnapError('Snap is only available with MetaMask.');
+                if (setSnapError) {
+                    setSnapError('Snap requires MetaMask. Disable other wallet extensions and retry.');
+                }
                 return false;
             }
             logger.error('❌ Failed to connect to snap:', error.message);
@@ -174,7 +237,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
             // Propagate error for context handling
             throw new CotiPluginError(CotiErrorCode.SNAP_CONNECT_FAILED, 'Failed to connect to COTI Snap');
         }
-    }, [snapId, setSnapError]);
+    }, [snapId, setSnapError, resolveProvider]);
 
 
     /**
@@ -209,6 +272,47 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
     }, [isSnapInstalled, setSnapError]);
 
     /**
+     * Syncs the environment (testnet/mainnet) with the Snap.
+     * This ensures the Snap uses the correct config for the current network.
+     */
+    const syncEnvironment = useCallback(async (): Promise<void> => {
+        const provider = await resolveProvider();
+        if (!provider) return;
+
+        try {
+            await ensureSnapWalletAccounts(provider);
+
+            const chainIdHex = await provider.request({ method: 'eth_chainId' }) as string;
+            const chainId = parseInt(chainIdHex, 16);
+
+            // Map the current chain to the correct COTI environment.
+            // Non-COTI chains (e.g. Sepolia) default to testnet since that is
+            // where the user's AES key is stored during testnet workflows.
+            const COTI_MAINNET_ID = 2632500;
+            const COTI_TESTNET_ID = 7082400;
+            const environment = chainId === COTI_MAINNET_ID ? 'mainnet' : 'testnet';
+            const cotiChainId = chainId === COTI_MAINNET_ID ? COTI_MAINNET_ID : COTI_TESTNET_ID;
+
+            logger.log(`🌍 Syncing Snap Environment to: ${environment} (requested ChainID: ${chainId} → COTI ChainID: ${cotiChainId})`);
+
+            await provider.request({
+                method: 'wallet_invokeSnap',
+                params: {
+                    snapId,
+                    request: {
+                        method: 'set-environment',
+                        params: { environment }
+                    }
+                }
+            });
+            logger.log('✅ Snap Environment Synced');
+        } catch (error) {
+            logger.warn('⚠️ Failed to sync Snap environment:', error);
+            // Non-critical, but good to know
+        }
+    }, [snapId, resolveProvider]);
+
+    /**
      * Get AES key from COTI Snap.
      * Includes retry logic.
      */
@@ -226,28 +330,33 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
             return null;
         }
 
-        const provider = getProvider();
+        const provider = await resolveProvider();
         if (!provider) {
-            logger.log('❌ No window.ethereum available');
+            logger.log('❌ No MetaMask provider available');
             return null;
         }
 
-        // isSnapInstalled() uses only wallet_getSnaps (no dialogs).
-        // If snap is not visible, show snap_missing modal immediately.
-        const installed = await isSnapInstalled();
-        if (!installed) {
-            logger.log('❌ Snap not visible via wallet_getSnaps. Showing snap_missing modal.');
-            throw new CotiPluginError(CotiErrorCode.SNAP_CONNECT_FAILED, 'COTI Snap is not installed or not connected to this origin');
-        }
-
-        // Snap is confirmed visible — call wallet_requestSnaps to ensure permission.
-        // Since snap is already installed, this will NOT show an install dialog.
+        // Ensure snap permission for this origin before checking visibility.
         const connected = await connectToSnap();
         if (!connected) {
             logger.log('❌ Could not connect to snap');
             if (setSnapError) setSnapError('Failed to connect to Snap');
-            return null;
+            throw new CotiPluginError(
+                CotiErrorCode.SNAP_CONNECT_FAILED,
+                'COTI Snap is not installed or not connected to this origin',
+            );
         }
+
+        const installed = await isSnapInstalled();
+        if (!installed) {
+            logger.log('❌ Snap not visible via wallet_getSnaps after connect attempt.');
+            throw new CotiPluginError(
+                CotiErrorCode.SNAP_CONNECT_FAILED,
+                'COTI Snap is not installed or not connected to this origin',
+            );
+        }
+
+        await prepareSnapForKeyAccess(provider, snapId);
 
         // Sync Environment explicitly before requesting key
         await syncEnvironment();
@@ -265,16 +374,28 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
             const rawChainId = parseInt(rawChainIdHex, 16);
             const cotiChainId = rawChainId === COTI_MAINNET_ID ? COTI_MAINNET_ID : COTI_TESTNET_ID;
 
-            const hasKey = await provider.request({
-                method: 'wallet_invokeSnap',
-                params: {
-                    snapId,
-                    request: {
-                        method: 'has-aes-key',
-                        params: { chainId: cotiChainId },
+            let hasKey: boolean;
+            try {
+                hasKey = await provider.request({
+                    method: 'wallet_invokeSnap',
+                    params: {
+                        snapId,
+                        request: {
+                            method: 'has-aes-key',
+                            params: { chainId: cotiChainId },
+                        },
                     },
-                },
-            });
+                }) as boolean;
+            } catch (error: unknown) {
+                if (isSnapAccountNotReadyError(error)) {
+                    logger.log('ℹ️ Snap account not ready during has-aes-key — contract onboarding required');
+                    throw new CotiPluginError(
+                        CotiErrorCode.AES_KEY_MISSING,
+                        'COTI Snap has no AES key stored for this account',
+                    );
+                }
+                throw error;
+            }
 
             if (!hasKey) {
                 logger.log('ℹ️ Snap installed but has no AES key — contract onboarding required');
@@ -337,10 +458,15 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
         } catch (error: any) {
             logger.error('❌ Failed to get AES key from snap:', error.message);
 
-            // RETHROW if it's the specific missing key error so upstream can handle onboarding
-            // Also rethrow SNAP_DIALOG_REJECTED so Index.tsx can show the AES Key Missing modal
             if (error instanceof CotiPluginError) {
                 throw error;
+            }
+
+            if (isSnapAccountNotReadyError(error)) {
+                throw new CotiPluginError(
+                    CotiErrorCode.AES_KEY_MISSING,
+                    'COTI Snap has no AES key stored for this account',
+                );
             }
 
             if (setSnapError) setSnapError(error.message || 'Failed to connect to Snap');
@@ -348,13 +474,13 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
         } finally {
             isSnapRequestPending.current = false;
         }
-    }, [connectToSnap, setSnapError, snapId]);
+    }, [connectToSnap, isSnapInstalled, setSnapError, snapId, resolveProvider, syncEnvironment]);
 
     /**
      * Save AES key to Snap (persist it for future sessions)
      */
     const saveAESKeyToSnap = useCallback(async (key: string, accountAddress: string = ''): Promise<boolean> => {
-        const provider = getProvider();
+        const provider = await resolveProvider();
         if (!provider) return false;
         try {
             const COTI_MAINNET_ID = 2632500;
@@ -382,7 +508,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
             logger.error('❌ Failed to save AES key to Snap:', err);
             return false;
         }
-    }, [setSnapError, snapId]);
+    }, [setSnapError, snapId, resolveProvider]);
 
     const resetError = useCallback(() => {
         if (setSnapError) setSnapError(null);
@@ -396,45 +522,6 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
         logger.log('🧹 Clearing global AES key cache');
         globalAESKeyCache = {};
     }, []);
-
-    /**
-     * Syncs the environment (testnet/mainnet) with the Snap.
-     * This ensures the Snap uses the correct config for the current network.
-     */
-    const syncEnvironment = useCallback(async (): Promise<void> => {
-        const provider = getProvider();
-        if (!provider) return;
-
-        try {
-            const chainIdHex = await provider.request({ method: 'eth_chainId' }) as string;
-            const chainId = parseInt(chainIdHex, 16);
-
-            // Map the current chain to the correct COTI environment.
-            // Non-COTI chains (e.g. Sepolia) default to testnet since that is
-            // where the user's AES key is stored during testnet workflows.
-            const COTI_MAINNET_ID = 2632500;
-            const COTI_TESTNET_ID = 7082400;
-            const environment = chainId === COTI_MAINNET_ID ? 'mainnet' : 'testnet';
-            const cotiChainId = chainId === COTI_MAINNET_ID ? COTI_MAINNET_ID : COTI_TESTNET_ID;
-
-            logger.log(`🌍 Syncing Snap Environment to: ${environment} (requested ChainID: ${chainId} → COTI ChainID: ${cotiChainId})`);
-
-            await provider.request({
-                method: 'wallet_invokeSnap',
-                params: {
-                    snapId,
-                    request: {
-                        method: 'set-environment',
-                        params: { environment }
-                    }
-                }
-            });
-            logger.log('✅ Snap Environment Synced');
-        } catch (error) {
-            logger.warn('⚠️ Failed to sync Snap environment:', error);
-            // Non-critical, but good to know
-        }
-    }, [snapId]);
 
     // Helper to expose sync
     const connectAndSync = useCallback(async () => {
@@ -539,7 +626,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
  */
 export const signIT256ViaSnap = async (msgHash: string): Promise<Uint8Array | null> => {
     const currentSnapId = getPluginConfig().snapId;
-    const provider = getEthereumProvider();
+    const provider = getMetaMaskProvider();
     if (!provider) throw new CotiPluginError(CotiErrorCode.NO_PROVIDER, 'No wallet provider found');
 
     const result = await provider.request({

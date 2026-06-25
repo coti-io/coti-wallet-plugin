@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
+
+vi.mock('wagmi', () => ({
+  useAccount: vi.fn(() => ({ connector: undefined })),
+}));
+
 import { useSnap } from '../../src/hooks/useSnap';
 import { CotiErrorCode } from '../../src/errors';
 

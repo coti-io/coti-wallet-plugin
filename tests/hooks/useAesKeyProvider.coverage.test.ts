@@ -26,6 +26,10 @@ vi.mock('../../src/hooks/useSnap', () => ({
   }),
 }));
 
+vi.mock('../../src/lib/snapOrigins', () => ({
+  canPersistAesKeyToSnap: vi.fn(() => true),
+}));
+
 const wagmiState = vi.hoisted(() => ({
   connector: undefined as any,
   chainId: undefined as number | undefined,

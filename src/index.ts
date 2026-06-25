@@ -138,8 +138,8 @@ export { useWalletType } from './hooks/useWalletType';
 export type { WalletTypeInfo, WalletType } from './hooks/useWalletType';
 
 // Hooks — AES Key Provider Abstraction
-export { useAesKeyProvider } from './hooks/useAesKeyProvider';
-export type { AesKeyProviderResult } from './hooks/useAesKeyProvider';
+export { useAesKeyProvider, ONBOARDING_STEPS, isValidAesKey } from './hooks/useAesKeyProvider';
+export type { AesKeyProviderResult, OnboardingStep, OnboardingStepInfo, OnboardingProgressCallback } from './hooks/useAesKeyProvider';
 
 // Components — Onboarding
 export { OnboardModal } from './components/OnboardModal';
