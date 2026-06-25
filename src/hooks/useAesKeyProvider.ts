@@ -50,13 +50,9 @@ export interface OnboardingStepInfo {
  * Ordered list of steps shown in the progress UI (steps 3–9 from the onboarding flow doc).
  */
 export const ONBOARDING_STEPS: OnboardingStepInfo[] = [
-  { id: 'switching-network', label: 'Switch Network', description: 'Switching to COTI Network for onboarding' },
-  { id: 'creating-provider', label: 'Connect Provider', description: 'Creating secure connection to COTI Network' },
   { id: 'signing-transaction', label: 'Sign Transaction', description: 'Please sign the transaction in your wallet' },
-  { id: 'retrieving-key', label: 'Retrieve Key', description: 'Retrieving your AES encryption key from the contract' },
+  { id: 'retrieving-key', label: 'Execute Transaction', description: 'Please execute the next transaction in your wallet to generate or retrieve your AES Key' },
   { id: 'validating-key', label: 'Validate Key', description: 'Validating AES key format' },
-  { id: 'restoring-network', label: 'Restore Network', description: 'Switching back to your original network' },
-  { id: 'persisting-key', label: 'Finalize', description: 'Completing onboarding' },
 ];
 
 /**
@@ -238,17 +234,54 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         // Step: Create provider and signer
         emitStep('creating-provider');
 
+        // Instrument the wallet provider's `request` method so we can detect when
+        // the SDK moves from the message signature to the on-chain onboarding
+        // transaction. `generateOrRecoverAes()` performs TWO wallet interactions
+        // inside a single call:
+        //   1. a message signature   → "Sign Transaction" step (already active)
+        //   2. an eth_sendTransaction → "Execute Transaction" step
+        // Without this hook the UI cannot advance between the two wallet prompts
+        // and appears stuck on step 1.
+        let executeStepEmitted = false;
+        const hadOwnRequest = Object.prototype.hasOwnProperty.call(walletProvider, 'request');
+        const originalRequest = walletProvider.request;
+        walletProvider.request = function instrumentedRequest(args: any) {
+          if (args?.method === 'eth_sendTransaction' && !executeStepEmitted) {
+            executeStepEmitted = true;
+            // Mark "Sign Transaction" complete and activate "Execute Transaction"
+            emitStep('retrieving-key');
+          }
+          return originalRequest.call(walletProvider, args);
+        };
+        const restoreRequest = () => {
+          if (hadOwnRequest) {
+            walletProvider.request = originalRequest;
+          } else {
+            try {
+              delete walletProvider.request;
+            } catch {
+              walletProvider.request = originalRequest;
+            }
+          }
+        };
+
         // Create a @coti-io/coti-ethers BrowserProvider (now on COTI Testnet)
         const provider = new BrowserProvider(walletProvider);
         const signer = await provider.getSigner(address);
 
-        // Step: Execute onboarding (wallet signature required)
+        // Step: Execute onboarding — first wallet interaction is the message signature
         emitStep('signing-transaction');
 
-        // Execute onboarding on COTI Testnet
-        await signer.generateOrRecoverAes();
+        // Execute onboarding on COTI Testnet. The instrumented request hook above
+        // advances the UI to "Execute Transaction" when the on-chain tx is sent.
+        try {
+          await signer.generateOrRecoverAes();
+        } finally {
+          restoreRequest();
+        }
 
-        // Step: Retrieve key from signer info
+        // Ensure the UI advances past signing even on recover-only paths that
+        // never issue an eth_sendTransaction (idempotent if already emitted).
         emitStep('retrieving-key');
 
         const onboardInfo = signer.getUserOnboardInfo();

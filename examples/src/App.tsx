@@ -340,6 +340,7 @@ export default function App() {
         walletType={walletTypeInfo.walletType}
         currentStep={onboardingStep}
         aesKey={retrievedAesKey}
+        hasSnap={walletTypeInfo.isMetaMaskWithSnap}
       />
     </div>
   );

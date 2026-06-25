@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { WalletType } from '../hooks/useWalletType';
 import type { OnboardingStep } from '../hooks/useAesKeyProvider';
 import { ONBOARDING_STEPS } from '../hooks/useAesKeyProvider';
@@ -23,10 +23,23 @@ export interface OnboardModalProps {
   currentStep?: OnboardingStep;
   /** Retrieved AES key (shown on success screen) */
   aesKey?: string | null;
+  /** Whether MetaMask Snap is available for direct AES key retrieval */
+  hasSnap?: boolean;
+  /** Optional theme overrides for customizing the modal appearance */
+  theme?: OnboardModalTheme;
 }
 
+/**
+ * Theme override for the OnboardModal.
+ * Each key corresponds to a style target. Provide a partial CSSProperties object
+ * to override specific CSS properties while keeping the rest as defaults.
+ */
+export type OnboardModalTheme = {
+  [K in keyof typeof defaultStyles]?: React.CSSProperties;
+};
+
 /** Inline styles for the modal — keeps the component self-contained without external UI deps */
-const styles = {
+const defaultStyles = {
   backdrop: {
     position: 'fixed' as const,
     inset: 0,
@@ -40,9 +53,9 @@ const styles = {
   },
   modal: {
     backgroundColor: '#04133D',
-    borderRadius: '24px',
-    padding: '48px',
-    width: '510px',
+    borderRadius: '16px',
+    padding: '28px',
+    width: '360px',
     maxWidth: '100%',
     position: 'relative' as const,
     display: 'flex',
@@ -53,53 +66,53 @@ const styles = {
   },
   closeButton: {
     position: 'absolute' as const,
-    top: '20px',
-    right: '20px',
+    top: '12px',
+    right: '12px',
     padding: '8px',
     background: 'none',
     border: 'none',
     color: 'rgba(255, 255, 255, 0.3)',
     cursor: 'pointer',
     borderRadius: '50%',
-    fontSize: '18px',
+    fontSize: '14px',
     lineHeight: 1,
     transition: 'color 0.2s',
   },
   iconContainer: {
-    width: '80px',
-    height: '80px',
-    borderRadius: '16px',
+    width: '48px',
+    height: '48px',
+    borderRadius: '12px',
     backgroundColor: 'rgba(30, 41, 246, 0.1)',
     border: '1px solid rgba(30, 41, 246, 0.2)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: '32px',
+    marginBottom: '16px',
   },
   title: {
-    fontSize: '28px',
+    fontSize: '20px',
     fontWeight: 700,
     lineHeight: 1.2,
-    marginBottom: '16px',
+    marginBottom: '10px',
     color: '#ffffff',
   },
   description: {
     color: 'rgba(255, 255, 255, 0.6)',
-    fontSize: '15px',
+    fontSize: '13px',
     lineHeight: 1.6,
-    marginBottom: '32px',
+    marginBottom: '16px',
     maxWidth: '90%',
   },
   infoBox: {
     width: '100%',
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
     border: '1px solid rgba(255, 255, 255, 0.1)',
-    borderRadius: '12px',
-    padding: '16px',
-    marginBottom: '32px',
+    borderRadius: '8px',
+    padding: '12px',
+    marginBottom: '16px',
   },
   infoText: {
-    fontSize: '12px',
+    fontSize: '11px',
     color: 'rgba(255, 255, 255, 0.8)',
     lineHeight: 1.6,
     margin: 0,
@@ -108,45 +121,45 @@ const styles = {
     width: '100%',
     backgroundColor: 'rgba(239, 68, 68, 0.1)',
     border: '1px solid rgba(239, 68, 68, 0.3)',
-    borderRadius: '12px',
-    padding: '16px',
-    marginBottom: '32px',
+    borderRadius: '8px',
+    padding: '12px',
+    marginBottom: '16px',
   },
   errorText: {
-    fontSize: '13px',
+    fontSize: '12px',
     color: '#f87171',
     lineHeight: 1.5,
     margin: 0,
   },
   primaryButton: {
     width: '100%',
-    padding: '14px 24px',
+    padding: '10px 16px',
     backgroundColor: '#1E29F6',
     color: '#ffffff',
     border: 'none',
-    borderRadius: '12px',
-    fontSize: '18px',
+    borderRadius: '8px',
+    fontSize: '14px',
     fontWeight: 500,
     cursor: 'pointer',
-    marginBottom: '16px',
+    marginBottom: '10px',
     transition: 'background-color 0.2s',
   },
   primaryButtonDisabled: {
     width: '100%',
-    padding: '14px 24px',
+    padding: '10px 16px',
     backgroundColor: 'rgba(30, 41, 246, 0.5)',
     color: 'rgba(255, 255, 255, 0.6)',
     border: 'none',
-    borderRadius: '12px',
-    fontSize: '18px',
+    borderRadius: '8px',
+    fontSize: '14px',
     fontWeight: 500,
     cursor: 'not-allowed',
-    marginBottom: '16px',
+    marginBottom: '10px',
   },
   cancelButton: {
     background: 'none',
     border: 'none',
-    fontSize: '14px',
+    fontSize: '12px',
     color: 'rgba(255, 255, 255, 0.4)',
     cursor: 'pointer',
     fontWeight: 500,
@@ -163,18 +176,18 @@ const styles = {
   },
   stepperContainer: {
     width: '100%',
-    marginBottom: '32px',
+    marginBottom: '16px',
   },
   stepItem: {
     display: 'flex',
     alignItems: 'flex-start',
-    gap: '16px',
-    marginBottom: '20px',
+    gap: '10px',
+    marginBottom: '12px',
     textAlign: 'left' as const,
   },
   stepIconContainer: {
-    width: '32px',
-    height: '32px',
+    width: '24px',
+    height: '24px',
     borderRadius: '50%',
     display: 'flex',
     alignItems: 'center',
@@ -201,13 +214,13 @@ const styles = {
     flex: 1,
   },
   stepLabel: {
-    fontSize: '14px',
+    fontSize: '12px',
     fontWeight: 600,
     color: '#ffffff',
     marginBottom: '4px',
   },
   stepDescription: {
-    fontSize: '12px',
+    fontSize: '11px',
     color: 'rgba(255, 255, 255, 0.5)',
     lineHeight: 1.4,
   },
@@ -215,38 +228,38 @@ const styles = {
     width: '100%',
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
     border: '1px solid rgba(255, 255, 255, 0.1)',
-    borderRadius: '12px',
-    padding: '16px',
+    borderRadius: '8px',
+    padding: '12px',
     marginBottom: '16px',
     fontFamily: 'monospace',
-    fontSize: '13px',
+    fontSize: '11px',
     color: '#00E5FF',
     wordBreak: 'break-all' as const,
     textAlign: 'left' as const,
   },
   copyButton: {
     width: '100%',
-    padding: '12px 24px',
+    padding: '8px 16px',
     backgroundColor: 'rgba(0, 229, 255, 0.1)',
     color: '#00E5FF',
     border: '1px solid rgba(0, 229, 255, 0.3)',
-    borderRadius: '12px',
-    fontSize: '14px',
+    borderRadius: '8px',
+    fontSize: '12px',
     fontWeight: 500,
     cursor: 'pointer',
-    marginBottom: '16px',
+    marginBottom: '10px',
     transition: 'all 0.2s',
   },
   warningBox: {
     width: '100%',
     backgroundColor: 'rgba(251, 191, 36, 0.1)',
     border: '1px solid rgba(251, 191, 36, 0.3)',
-    borderRadius: '12px',
-    padding: '12px',
-    marginBottom: '24px',
+    borderRadius: '8px',
+    padding: '8px',
+    marginBottom: '12px',
   },
   warningText: {
-    fontSize: '12px',
+    fontSize: '11px',
     color: '#fbbf24',
     lineHeight: 1.5,
     margin: 0,
@@ -255,21 +268,33 @@ const styles = {
     width: '100%',
     backgroundColor: 'rgba(0, 229, 255, 0.1)',
     border: '1px solid rgba(0, 229, 255, 0.3)',
-    borderRadius: '12px',
-    padding: '12px 16px',
-    marginTop: '16px',
+    borderRadius: '8px',
+    padding: '8px 12px',
+    marginTop: '10px',
     display: 'flex',
     alignItems: 'center',
-    gap: '12px',
+    gap: '8px',
   },
   calloutText: {
-    fontSize: '13px',
+    fontSize: '11px',
     color: '#00E5FF',
     lineHeight: 1.4,
     margin: 0,
     textAlign: 'left' as const,
   },
 } as const;
+
+/** Merges default styles with optional theme overrides */
+function mergeTheme(theme?: OnboardModalTheme) {
+  if (!theme) return defaultStyles;
+  const merged = { ...defaultStyles } as Record<string, React.CSSProperties>;
+  for (const key of Object.keys(theme) as Array<keyof typeof defaultStyles>) {
+    if (theme[key]) {
+      merged[key] = { ...defaultStyles[key], ...theme[key] } as any;
+    }
+  }
+  return merged as typeof defaultStyles;
+}
 
 /** CSS keyframes for the spinner animation, injected once */
 const SPINNER_KEYFRAMES = `
@@ -297,6 +322,25 @@ function getWalletDisplayName(walletType: WalletType): string {
 }
 
 /**
+ * Maps internal step IDs (including hidden ones) to the nearest visible step
+ * for UI progress display purposes.
+ */
+function mapToVisibleStep(stepId: OnboardingStep): OnboardingStep {
+  switch (stepId) {
+    // Hidden steps that happen BEFORE signing-transaction
+    case 'switching-network':
+    case 'creating-provider':
+      return 'signing-transaction';
+    // Hidden steps that happen AFTER validating-key
+    case 'restoring-network':
+    case 'persisting-key':
+      return 'validating-key';
+    default:
+      return stepId;
+  }
+}
+
+/**
  * Determines the status of a step based on current progress.
  */
 function getStepStatus(
@@ -304,18 +348,20 @@ function getStepStatus(
   currentStep: OnboardingStep,
   hasError: boolean
 ): 'pending' | 'active' | 'complete' | 'error' {
-  if (hasError && currentStep === 'error') {
-    // Find the index of the current step in the ordered list
-    const currentIndex = ONBOARDING_STEPS.findIndex(s => s.id === stepId);
-    const errorIndex = ONBOARDING_STEPS.findIndex(s => s.id === currentStep);
-    if (currentIndex <= errorIndex) return 'error';
-    return 'pending';
+  // Map the current step to its visible equivalent
+  const visibleCurrentStep = mapToVisibleStep(currentStep);
+
+  if (hasError && (currentStep === 'error' || visibleCurrentStep === 'error')) {
+    return 'error';
   }
 
   const stepIndex = ONBOARDING_STEPS.findIndex(s => s.id === stepId);
-  const currentIndex = ONBOARDING_STEPS.findIndex(s => s.id === currentStep);
+  const currentIndex = ONBOARDING_STEPS.findIndex(s => s.id === visibleCurrentStep);
 
-  if (currentStep === 'complete') return 'complete';
+  // If current step maps to something not in the visible list, treat all as pending
+  if (currentIndex === -1) return 'pending';
+
+  if (visibleCurrentStep === 'complete') return 'complete';
   if (stepIndex < currentIndex) return 'complete';
   if (stepIndex === currentIndex) return 'active';
   return 'pending';
@@ -339,8 +385,32 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
   walletType,
   currentStep = 'idle',
   aesKey,
+  hasSnap,
+  theme,
 }) => {
+  // MetaMask + Snap bypass: skip modal entirely and trigger snap flow
+  const snapBypassTriggered = useRef(false);
   const [copied, setCopied] = useState(false);
+  const styles = mergeTheme(theme);
+
+  useEffect(() => {
+    if (isOpen && walletType === 'metamask' && hasSnap && !snapBypassTriggered.current) {
+      snapBypassTriggered.current = true;
+      onConfirm();
+    }
+  }, [isOpen, walletType, hasSnap, onConfirm]);
+
+  // Reset the bypass flag and copied state when the modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      snapBypassTriggered.current = false;
+      setCopied(false);
+    }
+  }, [isOpen]);
+
+  if (isOpen && walletType === 'metamask' && hasSnap) {
+    return null;
+  }
 
   // Determine which screen to show
   const showIntro = currentStep === 'idle' && !error && !aesKey;
@@ -361,13 +431,6 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
       console.error('Failed to copy:', err);
     }
   };
-
-  // Reset copied state when modal closes
-  useEffect(() => {
-    if (!isOpen) {
-      setCopied(false);
-    }
-  }, [isOpen]);
 
   if (!isOpen) {
     return null;
@@ -413,8 +476,8 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
               {/* Icon */}
               <div style={styles.iconContainer}>
                 <svg
-                  width="40"
-                  height="40"
+                  width="24"
+                  height="24"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="#00E5FF"
@@ -428,26 +491,12 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
               </div>
 
               <h2 id="onboard-modal-title" style={styles.title}>
-                AES Key Retrieval
+                Onboard User
               </h2>
 
               <p id="onboard-modal-description" style={styles.description}>
                 This will execute a transaction on the COTI Network to retrieve your AES encryption key.
               </p>
-
-              <div style={styles.infoBox}>
-                <p style={styles.infoText}>
-                  <strong>What happens next:</strong>
-                  <br /><br />
-                  1. Your wallet will switch to COTI Network temporarily
-                  <br />
-                  2. You'll be asked to sign a transaction — this proves wallet ownership and lets the contract generate or recover your unique encryption key
-                  <br />
-                  3. Your AES key will be retrieved and displayed for you to copy and store safely
-                  <br />
-                  4. Your wallet will switch back to the original network
-                </p>
-              </div>
 
               <button
                 onClick={onConfirm}
@@ -498,13 +547,13 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
                     <div key={step.id} style={styles.stepItem}>
                       <div style={iconStyle}>
                         {isComplete && (
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="3">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="3">
                             <polyline points="20 6 9 17 4 12" />
                           </svg>
                         )}
-                        {isActive && <div style={{ ...styles.spinner, width: '16px', height: '16px' }} />}
+                        {isActive && <div style={{ ...styles.spinner, width: '12px', height: '12px' }} />}
                         {isError && (
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="3">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="3">
                             <line x1="18" y1="6" x2="6" y2="18" />
                             <line x1="6" y1="6" x2="18" y2="18" />
                           </svg>
@@ -522,7 +571,7 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
               {/* Callout for signing step */}
               {currentStep === 'signing-transaction' && (
                 <div style={styles.calloutBox}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00E5FF" strokeWidth="2">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00E5FF" strokeWidth="2">
                     <circle cx="12" cy="12" r="10" />
                     <line x1="12" y1="16" x2="12" y2="12" />
                     <line x1="12" y1="8" x2="12.01" y2="8" />
@@ -541,8 +590,8 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
               {/* Icon */}
               <div style={styles.iconContainer}>
                 <svg
-                  width="40"
-                  height="40"
+                  width="24"
+                  height="24"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="#22c55e"
@@ -595,8 +644,8 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
               {/* Icon */}
               <div style={styles.iconContainer}>
                 <svg
-                  width="40"
-                  height="40"
+                  width="24"
+                  height="24"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="#f87171"
@@ -642,5 +691,8 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
     </>
   );
 };
+
+/** Default styles exported for reference when building custom themes */
+export { defaultStyles as onboardModalDefaultStyles };
 
 export default OnboardModal;

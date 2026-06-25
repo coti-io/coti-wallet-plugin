@@ -142,8 +142,8 @@ export { useAesKeyProvider, ONBOARDING_STEPS, isValidAesKey } from './hooks/useA
 export type { AesKeyProviderResult, OnboardingStep, OnboardingStepInfo, OnboardingProgressCallback } from './hooks/useAesKeyProvider';
 
 // Components — Onboarding
-export { OnboardModal } from './components/OnboardModal';
-export type { OnboardModalProps } from './components/OnboardModal';
+export { OnboardModal, onboardModalDefaultStyles } from './components/OnboardModal';
+export type { OnboardModalProps, OnboardModalTheme } from './components/OnboardModal';
 
 // Components — Network
 export { NetworkGuard } from './components/NetworkGuard';
