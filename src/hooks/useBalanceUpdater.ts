@@ -1,6 +1,7 @@
 import { useCallback, useRef } from 'react';
 import { ethers } from 'ethers';
 import { CONTRACT_ADDRESSES, ERC20_ABI, getPublicTokensForChain, getPrivateTokensForChain } from '../contracts/config';
+import { getChainConfig } from '../chains';
 import { getRpcUrlForChainId } from '../config/chains';
 import type { Token } from './usePrivacyBridge';
 import { formatTokenBalanceDisplay } from '../lib/utils';
@@ -131,7 +132,13 @@ export const useBalanceUpdater = ({
 
                         const privateTokenConfigs = getPrivateTokensForChain(currentChainId);
                         const publicTokenConfigs = getPublicTokensForChain(currentChainId);
-                        const hasPlainPrivateTokens = privateTokenConfigs.some(token => {
+                        // On PoD portal chains (e.g. Sepolia), private tokens always store
+                        // encrypted ciphertexts even when the public counterpart is native.
+                        // Only on coti-bridge chains can a native public token imply a plain
+                        // (unencrypted) private balance (e.g. p.COTI on COTI chain).
+                        const chainCfg = getChainConfig(currentChainId);
+                        const isPodChain = chainCfg?.portalStrategy === 'pod-privacy-portal';
+                        const hasPlainPrivateTokens = !isPodChain && privateTokenConfigs.some(token => {
                             const publicSymbol = token.symbol.replace(/^p\./, '');
                             return !!publicTokenConfigs.find(t => t.symbol === publicSymbol)?.isNative;
                         });
@@ -156,7 +163,7 @@ export const useBalanceUpdater = ({
                                 }
                                 const publicSymbol = token.symbol.replace(/^p\./, '');
                                 const pubCfg = publicTokenConfigs.find(t => t.symbol === publicSymbol);
-                                const isPlainBalance = !!pubCfg?.isNative;
+                                const isPlainBalance = !isPodChain && !!pubCfg?.isNative;
                                 if (!aesKey && !isPlainBalance) {
                                     return { symbol: token.symbol, value: '0', isMismatch: false };
                                 }
