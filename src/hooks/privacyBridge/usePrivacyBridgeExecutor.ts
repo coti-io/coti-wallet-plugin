@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useAccount } from 'wagmi';
 import { ethers } from 'ethers';
 import { CONTRACT_ADDRESSES, BRIDGE_ABI, BRIDGE_ERC20_ABI, ERC20_ABI } from '../../contracts/config';
 import type { PodPortalRequest } from '../../contracts/pod';
@@ -39,6 +40,23 @@ export const usePrivacyBridgeExecutor = ({
 }: UsePrivacyBridgeExecutorOptions) => {
   const [isBridgingLoading, setIsBridgingLoading] = useState(false);
 
+  // Connector for the wallet the user selected via RainbowKit/wagmi.
+  // We resolve the EIP-1193 provider from it rather than window.ethereum,
+  // which is unreliable when multiple wallet extensions are installed.
+  const { connector } = useAccount();
+
+  const resolveInjectedProvider = useCallback(async (): Promise<any> => {
+    if (connector?.getProvider) {
+      try {
+        const connectorProvider = await connector.getProvider();
+        if (connectorProvider) return connectorProvider;
+      } catch (e) {
+        logger.warn('[Executor] connector.getProvider() failed, falling back to window.ethereum', e);
+      }
+    }
+    return window.ethereum;
+  }, [connector]);
+
     const calculateGasMargin = async (
         contract: ethers.Contract,
         methodName: string,
@@ -75,9 +93,13 @@ export const usePrivacyBridgeExecutor = ({
         try {
             if (!window.ethereum) throw new Error("No wallet found");
 
-            // Initialize Ethers
-            const provider = new ethers.BrowserProvider(window.ethereum);
-            const signer = await provider.getSigner();
+            // Initialize Ethers using the connected wallet's provider (via wagmi connector),
+            // NOT window.ethereum which is unreliable with multiple wallets installed.
+            const injectedProvider = await resolveInjectedProvider();
+            const provider = new ethers.BrowserProvider(injectedProvider);
+            // Pass walletAddress to getSigner so ethers targets the connected account
+            // instead of triggering popups from competing wallet extensions.
+            const signer = await provider.getSigner(walletAddress);
 
             const network = await provider.getNetwork();
             const currentChainId = Number(network.chainId);
@@ -282,7 +304,7 @@ export const usePrivacyBridgeExecutor = ({
 
                         let depositGasLimit = 12000000n;
                         try {
-                            const depositGasHex = await (window.ethereum as any).request({
+                            const depositGasHex = await (injectedProvider as any).request({
                                 method: 'eth_estimateGas',
                                 params: [{
                                     from: walletAddress,
@@ -297,7 +319,7 @@ export const usePrivacyBridgeExecutor = ({
                             logger.warn("⚠️ ERC20 deposit gas estimation failed, falling back to 12M:", estErr?.message);
                         }
 
-                        const rawDepositTxHash = await (window.ethereum as any).request({
+                        const rawDepositTxHash = await (injectedProvider as any).request({
                             method: 'eth_sendTransaction',
                             params: [{
                                 from: walletAddress,
@@ -502,7 +524,7 @@ export const usePrivacyBridgeExecutor = ({
                         logger.warn("   Non-revert estimation error, proceeding with 12M gas limit");
                     }
 
-                    const rawWithdrawTxHash = await (window.ethereum as any).request({
+                    const rawWithdrawTxHash = await (injectedProvider as any).request({
                         method: 'eth_sendTransaction',
                         params: [{
                             from: walletAddress,
@@ -742,6 +764,7 @@ export const usePrivacyBridgeExecutor = ({
         upsertPodRequest,
         podWithdrawPermit,
         setPodWithdrawPermit,
+        resolveInjectedProvider,
     ]);
   return { executeTransaction, isBridgingLoading };
 };

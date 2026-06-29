@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { useAccount } from 'wagmi';
 import { ethers } from 'ethers';
 import { CONTRACT_ADDRESSES, ERC20_ABI } from '../../contracts/config';
 import type { PodWithdrawPermit } from '../../chains/portal/executePodPortalTransaction';
@@ -48,11 +49,34 @@ export const usePrivacyBridgeAllowance = ({
   const [isApproving, setIsApproving] = useState(false);
   const [podWithdrawPermit, setPodWithdrawPermit] = useState<PodWithdrawPermit | null>(null);
 
+  // The wagmi connector for the wallet the user actually selected (Rabby, MetaMask, etc.).
+  // We resolve the EIP-1193 provider from this connector instead of reading window.ethereum,
+  // which is unreliable when multiple wallet extensions compete for the global.
+  const { connector } = useAccount();
+
+  /**
+   * Resolves the EIP-1193 provider for the connected wallet.
+   * Prefers the wagmi connector's provider (the exact wallet the user chose),
+   * falling back to window.ethereum only if the connector can't supply one.
+   */
+  const resolveInjectedProvider = useCallback(async (): Promise<any> => {
+    if (connector?.getProvider) {
+      try {
+        const connectorProvider = await connector.getProvider();
+        if (connectorProvider) return connectorProvider;
+      } catch (e) {
+        logger.warn('[Approve] connector.getProvider() failed, falling back to window.ethereum', e);
+      }
+    }
+    return window.ethereum;
+  }, [connector]);
+
     const checkAllowance = useCallback(async () => {
         if (!isConnected || !window.ethereum || !walletAddress) return;
 
         const token = publicTokens[selectedTokenIndex];
-        const provider = new ethers.BrowserProvider(window.ethereum);
+        const injectedProvider = await resolveInjectedProvider();
+        const provider = new ethers.BrowserProvider(injectedProvider);
         const network = await provider.getNetwork();
         const currentChainId = Number(network.chainId);
         const pubCfgEarly = findPublicTokenConfig(currentChainId, token?.symbol ?? "");
@@ -224,7 +248,7 @@ export const usePrivacyBridgeAllowance = ({
             logger.error("Failed to check allowance", err);
             setAllowance('0');
         }
-    }, [isConnected, walletAddress, selectedTokenIndex, publicTokens, hasSnap, getAESKeyFromSnap, direction, sessionAesKey]);
+    }, [isConnected, walletAddress, selectedTokenIndex, publicTokens, hasSnap, getAESKeyFromSnap, direction, sessionAesKey, resolveInjectedProvider]);
 
     // Auto-check allowance on dependencies change
     useEffect(() => {
@@ -242,8 +266,19 @@ export const usePrivacyBridgeAllowance = ({
         if (direction === 'to-private' && (token?.isNative || (token?.symbol === 'COTI' && !token.addressKey))) return;
 
         try {
-            const provider = new ethers.BrowserProvider(window.ethereum);
-            const signer = await provider.getSigner();
+            // Resolve the provider from the connected wallet's wagmi connector,
+            // NOT window.ethereum, which is unreliable with multiple wallets installed.
+            const injectedProvider = await resolveInjectedProvider();
+            const provider = new ethers.BrowserProvider(injectedProvider);
+
+            // Guardrail: request only the connected account from the provider.
+            // Using getSigner() without an address argument can trigger popups from
+            // other installed wallets (MetaMask, Rabby, Trust, etc.) when they compete
+            // for window.ethereum. By passing the known walletAddress, ethers will call
+            // eth_requestAccounts only if needed and validate the returned address,
+            // preventing a different wallet from hijacking the signing request.
+            logger.log('[Approve] Requesting signer for connected address', { walletAddress, connectorId: connector?.id });
+            const signer = await provider.getSigner(walletAddress);
             const network = await provider.getNetwork();
             const currentChainId = Number(network.chainId);
             const addresses = CONTRACT_ADDRESSES[currentChainId];
@@ -421,9 +456,9 @@ export const usePrivacyBridgeAllowance = ({
                     [[itValue.ciphertext.ciphertextHigh, itValue.ciphertext.ciphertextLow], itValue.signature]
                 ]);
 
-                logger.log('🔐 [Approve] Sending approve tx (MetaMask confirmation expected)...');
-                // Bypassing Coti provider
-                const rawTxHash = await (window.ethereum as any).request({
+                logger.log('🔐 [Approve] Sending approve tx (wallet confirmation expected)...');
+                // Bypassing Coti provider — use the connected wallet's provider directly.
+                const rawTxHash = await (injectedProvider as any).request({
                     method: 'eth_sendTransaction',
                     params: [{
                         from: walletAddress,
