@@ -37,11 +37,11 @@ function createWagmiConfig(walletConnectProjectId?: string) {
     [
       {
         groupName: 'Recommended',
-        wallets: [metaMaskWallet, rabbyWallet, rainbowWallet, walletConnectWallet],
+        wallets: [metaMaskWallet, rabbyWallet, rainbowWallet, oneKeyWallet, walletConnectWallet],
       },
       {
         groupName: 'Other',
-        wallets: [coinbaseWallet, trustWallet, oneKeyWallet, ledgerWallet],
+        wallets: [coinbaseWallet, trustWallet, ledgerWallet],
       },
     ],
     {
