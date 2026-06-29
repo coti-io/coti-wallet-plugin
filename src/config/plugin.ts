@@ -1,3 +1,42 @@
+import type { BigNumberish } from 'ethers';
+
+export interface EncryptedAesBackup {
+  version: 1;
+  address: string;
+  chainId: number;
+  signatureKind: 'eip712';
+  iv: string;
+  ciphertext: string;
+  createdAt: string;
+}
+
+export interface GrantResult {
+  txHash?: string;
+  amountWei?: string;
+  status?: 'submitted' | 'funded' | 'skipped';
+}
+
+export interface OnboardingServiceRequest {
+  address: string;
+  chainId: number;
+}
+
+export interface SaveEncryptedAesBackupRequest extends OnboardingServiceRequest {
+  backup: EncryptedAesBackup;
+}
+
+export interface OnboardingServices {
+  /**
+   * Disabled: no grant/backup features. Custom: use provided callbacks.
+   * Official is reserved for stable COTI-hosted APIs.
+   */
+  mode?: 'disabled' | 'custom' | 'official';
+  grantNativeCoti?: (request: OnboardingServiceRequest) => Promise<GrantResult>;
+  fetchEncryptedAesBackup?: (request: OnboardingServiceRequest) => Promise<EncryptedAesBackup | null>;
+  saveEncryptedAesBackup?: (request: SaveEncryptedAesBackupRequest) => Promise<void>;
+  replaceEncryptedAesBackup?: (request: SaveEncryptedAesBackupRequest) => Promise<void>;
+}
+
 /**
  * Plugin configuration — replaces Vite environment variables.
  * Consumers can override these via `configureCotiPlugin()` before using hooks.
@@ -25,6 +64,14 @@ export interface CotiPluginConfig {
    * the same wallet can skip Snap re-fetch; use true for stricter shared-browser security.
    */
   clearSessionKeyOnWagmiDisconnect?: boolean;
+  /** Optional onboarding service hooks for grant and encrypted AES backup flows. */
+  onboardingServices?: OnboardingServices;
+  /** Native COTI threshold required before contract onboarding. Defaults to 0. */
+  onboardingGrantMinBalanceWei?: BigNumberish;
+  /** Polling interval after grant callback. Defaults to 2000ms. */
+  onboardingGrantPollIntervalMs?: number;
+  /** Max time to wait after grant callback. Defaults to 30000ms. */
+  onboardingGrantTimeoutMs?: number;
 }
 
 let _config: CotiPluginConfig = {
@@ -32,6 +79,10 @@ let _config: CotiPluginConfig = {
   defaultNetworkId: undefined,
   debug: false,
   clearSessionKeyOnWagmiDisconnect: false,
+  onboardingServices: { mode: 'disabled' },
+  onboardingGrantMinBalanceWei: 0,
+  onboardingGrantPollIntervalMs: 2000,
+  onboardingGrantTimeoutMs: 30000,
 };
 
 /**
@@ -39,7 +90,14 @@ let _config: CotiPluginConfig = {
  * Call this before rendering any hooks.
  */
 export function configureCotiPlugin(config: Partial<CotiPluginConfig>): void {
-  _config = { ..._config, ...config };
+  _config = {
+    ..._config,
+    ...config,
+    onboardingServices: {
+      ..._config.onboardingServices,
+      ...config.onboardingServices,
+    },
+  };
 }
 
 /**

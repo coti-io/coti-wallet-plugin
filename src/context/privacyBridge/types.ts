@@ -1,4 +1,5 @@
 import type { SwapProgressStage, Token } from '../../hooks/usePrivacyBridge';
+import type { AesKeyProviderOptions } from '../../hooks/useAesKeyProvider';
 import type { PodPortalRequest } from '../../contracts/pod';
 
 /** Wallet connection slice — connect/disconnect and address. */
@@ -34,7 +35,7 @@ export interface PrivacyBridgeUnlockContextValue {
   requestSnapConnection: () => Promise<boolean>;
   sessionAesKey: string | null;
   isPrivateUnlocked: boolean;
-  refreshPrivateBalances: () => Promise<boolean>;
+  refreshPrivateBalances: (options?: AesKeyProviderOptions) => Promise<boolean>;
   lockPrivateBalances: () => void;
   handleOnboard: () => Promise<string | null>;
   saveManualAesKey: (aesKey: string) => Promise<void>;

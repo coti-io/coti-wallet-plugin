@@ -4,6 +4,7 @@ import { CONTRACT_ADDRESSES, ERC20_ABI, getPublicTokensForChain, getPrivateToken
 import { getChainConfig } from '../chains';
 import { getRpcUrlForChainId } from '../config/chains';
 import type { Token } from './usePrivacyBridge';
+import type { AesKeyProviderOptions } from './useAesKeyProvider';
 import { formatTokenBalanceDisplay } from '../lib/utils';
 import { CotiPluginError, CotiErrorCode } from '../errors';
 import { logger } from '../lib/logger';
@@ -20,7 +21,10 @@ interface UseBalanceUpdaterProps {
     setPublicTokens: React.Dispatch<React.SetStateAction<Token[]>>;
     setPrivateTokens: React.Dispatch<React.SetStateAction<Token[]>>;
     checkNetwork: (provider: ethers.BrowserProvider) => Promise<void>;
-    getAESKeyFromSnap: (accountAddress: string, options?: { skipCache?: boolean }) => Promise<string | null>;
+    getAESKeyFromSnap: (
+        accountAddress: string,
+        options?: { skipCache?: boolean } & AesKeyProviderOptions,
+    ) => Promise<string | null>;
     fetchPrivateBalance: (userAddress: string, aesKey: string, contractAddress: string, version: 64 | 256, decimals?: number, readChainId?: number, isPlainBalance?: boolean) => Promise<string>;
     sessionAesKey?: string | null;
     setSessionAesKey: (key: string | null, keyWallet?: string) => void;
@@ -60,7 +64,7 @@ export const useBalanceUpdater = ({
         fetchPrivate = false,
         aesKeyOverride?: string | null,
         chainOverride?: number,
-        options?: UpdateAccountStateOptions,
+        options?: UpdateAccountStateOptions & AesKeyProviderOptions,
     ) => {
         const generation = ++updateGenerationRef.current;
         const isStale = () => generation !== updateGenerationRef.current;
@@ -135,9 +139,16 @@ export const useBalanceUpdater = ({
                         let aesKey: string | null = aesKeyOverride ?? sessionAesKey ?? null;
 
                         if (checkSnap && !aesKey) {
-                            aesKey = validateOnUnlock
-                                ? await getAESKeyFromSnap(account, { skipCache: true })
-                                : await getAESKeyFromSnap(account);
+                            const { validateOnUnlock: _validateOnUnlock, ...aesKeyOptions } = options ?? {};
+                            if (validateOnUnlock) {
+                                aesKey = Object.keys(aesKeyOptions).length === 0
+                                    ? await getAESKeyFromSnap(account, { skipCache: true })
+                                    : await getAESKeyFromSnap(account, { skipCache: true, ...aesKeyOptions });
+                            } else {
+                                aesKey = options === undefined
+                                    ? await getAESKeyFromSnap(account)
+                                    : await getAESKeyFromSnap(account, aesKeyOptions);
+                            }
                             if (isStale()) return false;
                         }
 

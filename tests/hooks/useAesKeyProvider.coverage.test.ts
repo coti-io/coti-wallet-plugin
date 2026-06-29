@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { CotiPluginError, CotiErrorCode } from '../../src/errors';
+import { configureCotiPlugin } from '../../src/config/plugin';
+import { encryptAesKeyBackup } from '../../src/crypto/aesKeyBackupVault';
 import {
   unmuteChainUpdates,
   isChainUpdatesMuted,
@@ -44,12 +46,14 @@ vi.mock('wagmi', () => ({
 
 const ethersState = vi.hoisted(() => ({
   getSigner: vi.fn(),
+  getBalance: vi.fn(),
 }));
 vi.mock('@coti-io/coti-ethers', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   class BrowserProvider {
     constructor(_p: unknown) {}
     getSigner = ethersState.getSigner;
+    getBalance = ethersState.getBalance;
   }
   return { ...actual, BrowserProvider };
 });
@@ -73,6 +77,7 @@ function makeSigner(aesKey: string | null | undefined, opts: { generateThrows?: 
     getUserOnboardInfo: vi.fn().mockReturnValue(
       aesKey === undefined ? undefined : { aesKey },
     ),
+    signTypedData: vi.fn().mockResolvedValue('0xbackup-signature'),
   };
 }
 
@@ -84,6 +89,16 @@ describe('useAesKeyProvider (full branch coverage)', () => {
     wagmiState.chainId = undefined;
     wagmiState.connectorClient = undefined;
     ethersState.getSigner.mockResolvedValue(makeSigner(VALID_KEY));
+    ethersState.getBalance.mockResolvedValue(1n);
+    configureCotiPlugin({
+      onboardingServices: {
+        mode: 'disabled',
+        grantNativeCoti: undefined,
+        fetchEncryptedAesBackup: undefined,
+        saveEncryptedAesBackup: undefined,
+        replaceEncryptedAesBackup: undefined,
+      },
+    });
   });
 
   afterEach(() => {
@@ -269,6 +284,123 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       });
       expect(key).toBe(VALID_KEY);
       expect(isChainUpdatesMuted()).toBe(false);
+    });
+
+    it('restores an encrypted backup before contract onboarding', async () => {
+      const signer = makeSigner(VALID_KEY);
+      const backup = await encryptAesKeyBackup(VALID_KEY, signer, {
+        address: ADDR,
+        chainId: COTI_TESTNET,
+      });
+      ethersState.getSigner.mockResolvedValue(signer);
+      wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
+      wagmiState.chainId = COTI_TESTNET;
+      const fetchEncryptedAesBackup = vi.fn().mockResolvedValue(backup);
+      configureCotiPlugin({
+        onboardingServices: {
+          mode: 'custom',
+          fetchEncryptedAesBackup,
+        },
+      });
+
+      const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'rabby' })));
+
+      let key: string | null = null;
+      await act(async () => {
+        key = await result.current.getAesKey(ADDR);
+      });
+
+      expect(key).toBe(VALID_KEY);
+      expect(fetchEncryptedAesBackup).toHaveBeenCalledWith({ address: ADDR, chainId: COTI_TESTNET });
+      expect(signer.generateOrRecoverAes).not.toHaveBeenCalled();
+    });
+
+    it('falls back to onboarding when backup restore fails', async () => {
+      const signer = makeSigner(VALID_KEY);
+      ethersState.getSigner.mockResolvedValue(signer);
+      wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
+      wagmiState.chainId = COTI_TESTNET;
+      configureCotiPlugin({
+        onboardingServices: {
+          mode: 'custom',
+          fetchEncryptedAesBackup: vi.fn().mockResolvedValue({
+            version: 1,
+            address: ADDR,
+            chainId: COTI_TESTNET,
+            signatureKind: 'eip712',
+            iv: 'bad',
+            ciphertext: 'bad',
+            createdAt: new Date().toISOString(),
+          }),
+        },
+      });
+
+      const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'rabby' })));
+
+      let key: string | null = null;
+      await act(async () => {
+        key = await result.current.getAesKey(ADDR);
+      });
+
+      expect(key).toBe(VALID_KEY);
+      expect(signer.generateOrRecoverAes).toHaveBeenCalled();
+      expect(result.current.onboardingWarning).toContain('Encrypted backup could not be restored');
+    });
+
+    it('calls grant and waits for balance when native COTI is below threshold', async () => {
+      wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
+      wagmiState.chainId = COTI_TESTNET;
+      ethersState.getBalance
+        .mockResolvedValueOnce(0n)
+        .mockResolvedValueOnce(10n);
+      const grantNativeCoti = vi.fn().mockResolvedValue({ status: 'submitted' });
+      configureCotiPlugin({
+        onboardingServices: {
+          mode: 'custom',
+          grantNativeCoti,
+        },
+        onboardingGrantMinBalanceWei: 10,
+        onboardingGrantPollIntervalMs: 0,
+        onboardingGrantTimeoutMs: 50,
+      });
+
+      const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'rabby' })));
+
+      let key: string | null = null;
+      await act(async () => {
+        key = await result.current.getAesKey(ADDR);
+      });
+
+      expect(key).toBe(VALID_KEY);
+      expect(grantNativeCoti).toHaveBeenCalledWith({ address: ADDR, chainId: COTI_TESTNET });
+    });
+
+    it('saves an encrypted backup after onboarding when requested', async () => {
+      wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
+      wagmiState.chainId = COTI_TESTNET;
+      const saveEncryptedAesBackup = vi.fn().mockResolvedValue(undefined);
+      configureCotiPlugin({
+        onboardingServices: {
+          mode: 'custom',
+          saveEncryptedAesBackup,
+        },
+      });
+
+      const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'rabby' })));
+
+      let key: string | null = null;
+      await act(async () => {
+        key = await result.current.getAesKey(ADDR, undefined, { saveBackup: true });
+      });
+
+      expect(key).toBe(VALID_KEY);
+      expect(saveEncryptedAesBackup).toHaveBeenCalledWith(
+        expect.objectContaining({
+          address: ADDR,
+          chainId: COTI_TESTNET,
+          backup: expect.objectContaining({ signatureKind: 'eip712' }),
+        }),
+      );
     });
 
     it('returns the AES key when already on COTI mainnet', async () => {

@@ -1,11 +1,14 @@
 import { useState, useCallback, useRef } from 'react';
-import { useConnectorClient, useAccount } from 'wagmi';
+import { useAccount } from 'wagmi';
 import { BrowserProvider } from '@coti-io/coti-ethers';
+import { getBigInt, type BigNumberish } from 'ethers';
 import { useSnap } from './useSnap';
 import type { WalletTypeInfo } from './useWalletType';
 import { CotiPluginError, CotiErrorCode } from '../errors';
 import { logger } from '../lib/logger';
 import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID } from '../config/chains';
+import { getPluginConfig } from '../config/plugin';
+import { decryptAesKeyBackup, encryptAesKeyBackup } from '../crypto/aesKeyBackupVault';
 import { muteChainUpdates, unmuteChainUpdates, isChainUpdatesMuted } from '../lib/chainMute';
 import { canPersistAesKeyToSnap } from '../lib/snapOrigins';
 
@@ -34,6 +37,10 @@ export type OnboardingStep =
   | 'validating-key'
   | 'restoring-network'
   | 'persisting-key'
+  | 'restoring-backup'
+  | 'granting-funds'
+  | 'waiting-for-funds'
+  | 'saving-backup'
   | 'complete'
   | 'error';
 
@@ -60,16 +67,22 @@ export const ONBOARDING_STEPS: OnboardingStepInfo[] = [
  */
 export type OnboardingProgressCallback = (step: OnboardingStep) => void;
 
-/**
- * Options for {@link AesKeyProviderResult.getAesKey}.
- */
-export interface GetAesKeyOptions {
+export interface AesKeyProviderOptions {
   /**
    * Skip Snap retrieval and use the AccountOnboard contract path.
    * Required when Snap holds a key for the wrong MetaMask profile.
    */
   forceContractOnboarding?: boolean;
+  /** Whether contract-onboarding should save a client-encrypted AES backup. */
+  saveBackup?: boolean;
+  /** Only try existing key sources; do not start contract onboarding. */
+  restoreOnly?: boolean;
+  /** Called when backup restore is cancelled by the user. */
+  onRestoreCancelled?: () => void;
 }
+
+/** @deprecated Use {@link AesKeyProviderOptions} instead. */
+export type GetAesKeyOptions = Pick<AesKeyProviderOptions, 'forceContractOnboarding'>;
 
 /**
  * Result interface for the useAesKeyProvider hook.
@@ -79,12 +92,16 @@ export interface AesKeyProviderResult {
   getAesKey: (
     address: string,
     onProgress?: OnboardingProgressCallback,
-    options?: GetAesKeyOptions,
+    options?: AesKeyProviderOptions,
   ) => Promise<string | null>;
   /** True during the async generateOrRecoverAes() call */
   isOnboarding: boolean;
   /** Error message from failed onboarding attempts; cleared on next call */
   onboardingError: string | null;
+  /** Non-blocking warning from restore/backup flows; cleared on next call */
+  onboardingWarning: string | null;
+  /** True when the user cancelled the latest backup restore signature. */
+  wasRestoreCancelled: boolean;
   /** Current onboarding step (for progress UI) */
   currentStep: OnboardingStep;
 }
@@ -94,8 +111,9 @@ export interface AesKeyProviderResult {
  */
 function isUserRejection(error: unknown): boolean {
   if (error && typeof error === 'object') {
-    const err = error as { code?: number; message?: string };
+    const err = error as { code?: number | string; message?: string; reason?: string };
     if (err.code === EIP_1193_USER_REJECTED) return true;
+    if (err.code === 'ACTION_REJECTED' || err.reason === 'rejected') return true;
     if (err.message?.includes('User rejected') || err.message?.includes('rejected the request')) {
       return true;
     }
@@ -110,6 +128,17 @@ function isUserRejection(error: unknown): boolean {
 export function isValidAesKey(key: string): boolean {
   return AES_KEY_PATTERN.test(key);
 }
+
+function isServiceEnabled(mode?: 'disabled' | 'custom' | 'official'): boolean {
+  return mode === 'custom' || mode === 'official';
+}
+
+function toBigInt(value: BigNumberish | undefined, fallback: bigint): bigint {
+  if (value === undefined) return fallback;
+  return getBigInt(value);
+}
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
  * Single abstraction for AES key retrieval. Routes to Snap or onboarding contract
@@ -126,12 +155,13 @@ export function isValidAesKey(key: string): boolean {
 export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProviderResult {
   const [isOnboarding, setIsOnboarding] = useState(false);
   const [onboardingError, setOnboardingError] = useState<string | null>(null);
+  const [onboardingWarning, setOnboardingWarning] = useState<string | null>(null);
+  const [wasRestoreCancelled, setWasRestoreCancelled] = useState(false);
   const [currentStep, setCurrentStep] = useState<OnboardingStep>('idle');
   const progressCallbackRef = useRef<OnboardingProgressCallback | undefined>();
 
   const { getAESKeyFromSnap, saveAESKeyToSnap, clearSnapCache } = useSnap();
   const { connector, chainId: connectedChainId } = useAccount();
-  const { data: connectorClient } = useConnectorClient();
 
   const emitStep = useCallback((step: OnboardingStep) => {
     setCurrentStep(step);
@@ -142,13 +172,16 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
     async (
       address: string,
       onProgress?: OnboardingProgressCallback,
-      options?: GetAesKeyOptions,
+      options: AesKeyProviderOptions = {},
     ): Promise<string | null> => {
       // Store progress callback for use within the flow
       progressCallbackRef.current = onProgress;
       // Clear previous error on each new retrieval attempt
       setOnboardingError(null);
+      setOnboardingWarning(null);
+      setWasRestoreCancelled(false);
       emitStep('idle');
+      let restoreBackupFailed = false;
 
       const forceContractOnboarding = options?.forceContractOnboarding === true;
 
@@ -214,16 +247,56 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           return null;
         }
 
+        const config = getPluginConfig();
+        const services = config.onboardingServices;
+        const servicesEnabled = isServiceEnabled(services?.mode);
+        const isConnectedCotiChain = connectedChainId === COTI_MAINNET_CHAIN_ID || connectedChainId === COTI_TESTNET_CHAIN_ID;
+        const targetCotiChainId = isConnectedCotiChain && connectedChainId ? connectedChainId : COTI_TESTNET_CHAIN_ID;
+        const backupContext = { address, chainId: targetCotiChainId };
+
+        if (servicesEnabled && services?.fetchEncryptedAesBackup) {
+          try {
+            emitStep('restoring-backup');
+            const backup = await services.fetchEncryptedAesBackup(backupContext);
+            if (backup) {
+              const provider = new BrowserProvider(walletProvider);
+              const signer = await provider.getSigner(address);
+              const restoredKey = await decryptAesKeyBackup(backup, signer, backupContext);
+              logger.log('✅ AES key restored from encrypted backup');
+              emitStep('complete');
+              return restoredKey;
+            }
+          } catch (restoreError) {
+            if (isUserRejection(restoreError)) {
+              setOnboardingWarning('Backup restore was cancelled. Approve the wallet signature to unlock from your encrypted backup.');
+              setWasRestoreCancelled(true);
+              options.onRestoreCancelled?.();
+              emitStep('idle');
+              return null;
+            }
+            const message = restoreError instanceof Error
+              ? restoreError.message
+              : 'Encrypted AES backup could not be restored.';
+            logger.warn('⚠️ AES backup restore failed, falling back to contract onboarding:', restoreError);
+            restoreBackupFailed = true;
+            setOnboardingWarning(`Encrypted backup could not be restored. Continuing with onboarding. ${message}`);
+          }
+        }
+
+        if (options.restoreOnly) {
+          emitStep('idle');
+          return null;
+        }
+
         // Step: Switch network to COTI Testnet
         emitStep('switching-network');
 
         // Determine if we need to switch to a COTI chain for onboarding
-        const isCotiChain = connectedChainId === COTI_MAINNET_CHAIN_ID || connectedChainId === COTI_TESTNET_CHAIN_ID;
-        const targetCotiChainHex = '0x' + COTI_TESTNET_CHAIN_ID.toString(16);
+        const targetCotiChainHex = '0x' + targetCotiChainId.toString(16);
         const originalChainHex = connectedChainId ? '0x' + connectedChainId.toString(16) : null;
 
         // If not on COTI, mute UI chain reactions and switch provider-level
-        if (!isCotiChain) {
+        if (!isConnectedCotiChain) {
           logger.log('🔇 [AesKeyProvider] Muting chain updates, switching to COTI Testnet for onboarding...');
           muteChainUpdates();
           try {
@@ -298,6 +371,46 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         const provider = new BrowserProvider(walletProvider);
         const signer = await provider.getSigner(address);
 
+        const configuredMinBalanceWei = toBigInt(config.onboardingGrantMinBalanceWei, 0n);
+        if (servicesEnabled && services?.grantNativeCoti) {
+          let nativeBalance = await provider.getBalance(address);
+          const requiredBalanceWei = configuredMinBalanceWei > 0n ? configuredMinBalanceWei : 1n;
+          logger.log('[AesKeyProvider] Native COTI balance before onboarding', {
+            address,
+            chainId: targetCotiChainId,
+            nativeBalanceWei: nativeBalance.toString(),
+            requiredBalanceWei: requiredBalanceWei.toString(),
+          });
+          if (nativeBalance < requiredBalanceWei) {
+            emitStep('granting-funds');
+            const grantResult = await services.grantNativeCoti({ address, chainId: targetCotiChainId });
+            logger.log('[AesKeyProvider] Native COTI grant requested', grantResult);
+
+            emitStep('waiting-for-funds');
+            const pollIntervalMs = config.onboardingGrantPollIntervalMs ?? 2000;
+            const timeoutMs = config.onboardingGrantTimeoutMs ?? 30000;
+            const startedAt = Date.now();
+
+            while (nativeBalance < requiredBalanceWei && Date.now() - startedAt < timeoutMs) {
+              await sleep(pollIntervalMs);
+              nativeBalance = await provider.getBalance(address);
+              logger.log('[AesKeyProvider] Native COTI balance while waiting for grant', {
+                address,
+                chainId: targetCotiChainId,
+                nativeBalanceWei: nativeBalance.toString(),
+                requiredBalanceWei: requiredBalanceWei.toString(),
+              });
+            }
+
+            if (nativeBalance < requiredBalanceWei) {
+              throw new CotiPluginError(
+                CotiErrorCode.API_ERROR,
+                'Native COTI grant did not fund the wallet before timeout.',
+              );
+            }
+          }
+        }
+
         // Step: Execute onboarding — first wallet interaction is the message signature
         emitStep('signing-transaction');
 
@@ -331,7 +444,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         // Step: Switch wallet back to original chain
         emitStep('restoring-network');
 
-        if (!isCotiChain && originalChainHex) {
+        if (!isConnectedCotiChain && originalChainHex) {
           logger.log('🔇 [AesKeyProvider] Switching back to:', originalChainHex);
           try {
             await walletProvider.request({
@@ -356,6 +469,29 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
             'ℹ️ Skipping Snap AES persist — origin not authorized for set-aes-key:',
             typeof window !== 'undefined' ? window.location.origin : 'unknown',
           );
+        }
+
+        if (
+          aesKey &&
+          isValidAesKey(aesKey) &&
+          options.saveBackup &&
+          servicesEnabled &&
+          (services?.saveEncryptedAesBackup || services?.replaceEncryptedAesBackup)
+        ) {
+          try {
+            emitStep('saving-backup');
+            const backup = await encryptAesKeyBackup(aesKey, signer, backupContext);
+            const saveBackup = restoreBackupFailed && services.replaceEncryptedAesBackup
+              ? services.replaceEncryptedAesBackup
+              : services.saveEncryptedAesBackup;
+            await saveBackup?.({ ...backupContext, backup });
+          } catch (backupError) {
+            const message = backupError instanceof Error
+              ? backupError.message
+              : 'Encrypted AES backup could not be saved.';
+            logger.warn('⚠️ AES key retrieved but encrypted backup save failed:', backupError);
+            setOnboardingWarning(`Onboarding succeeded, but encrypted backup was not saved. ${message}`);
+          }
         }
 
         // Step: Complete
@@ -411,6 +547,8 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
     getAesKey,
     isOnboarding,
     onboardingError,
+    onboardingWarning,
+    wasRestoreCancelled,
     currentStep,
   };
 }
