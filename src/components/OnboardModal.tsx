@@ -25,6 +25,12 @@ export interface OnboardModalProps {
   aesKey?: string | null;
   /** Whether MetaMask Snap is available for direct AES key retrieval */
   hasSnap?: boolean;
+  /** Whether encrypted AES backup should be saved after contract onboarding */
+  saveBackup?: boolean;
+  /** Called when the encrypted-backup checkbox changes */
+  onSaveBackupChange?: (saveBackup: boolean) => void;
+  /** Non-blocking warning from restore/backup flows */
+  warning?: string | null;
   /** Optional theme overrides for customizing the modal appearance */
   theme?: OnboardModalTheme;
 }
@@ -133,6 +139,7 @@ const defaultStyles = {
   },
   primaryButton: {
     width: '100%',
+    boxSizing: 'border-box' as const,
     padding: '10px 16px',
     backgroundColor: '#1E29F6',
     color: '#ffffff',
@@ -146,6 +153,7 @@ const defaultStyles = {
   },
   primaryButtonDisabled: {
     width: '100%',
+    boxSizing: 'border-box' as const,
     padding: '10px 16px',
     backgroundColor: 'rgba(30, 41, 246, 0.5)',
     color: 'rgba(255, 255, 255, 0.6)',
@@ -164,6 +172,23 @@ const defaultStyles = {
     cursor: 'pointer',
     fontWeight: 500,
     transition: 'color 0.2s',
+  },
+  checkboxRow: {
+    width: '100%',
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '8px',
+    marginBottom: '14px',
+    textAlign: 'left' as const,
+  },
+  checkbox: {
+    marginTop: '2px',
+    accentColor: '#1E29F6',
+  },
+  checkboxText: {
+    fontSize: '11px',
+    color: 'rgba(255, 255, 255, 0.75)',
+    lineHeight: 1.5,
   },
   spinner: {
     display: 'inline-block',
@@ -226,6 +251,7 @@ const defaultStyles = {
   },
   aesKeyBox: {
     width: '100%',
+    boxSizing: 'border-box' as const,
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
     border: '1px solid rgba(255, 255, 255, 0.1)',
     borderRadius: '8px',
@@ -239,6 +265,7 @@ const defaultStyles = {
   },
   copyButton: {
     width: '100%',
+    boxSizing: 'border-box' as const,
     padding: '8px 16px',
     backgroundColor: 'rgba(0, 229, 255, 0.1)',
     color: '#00E5FF',
@@ -252,7 +279,11 @@ const defaultStyles = {
   },
   warningBox: {
     width: '100%',
-    padding: '0',
+    boxSizing: 'border-box' as const,
+    backgroundColor: 'rgba(251, 191, 36, 0.1)',
+    border: '1px solid rgba(251, 191, 36, 0.3)',
+    borderRadius: '8px',
+    padding: '8px',
     marginBottom: '12px',
   },
   warningText: {
@@ -264,6 +295,7 @@ const defaultStyles = {
   },
   calloutBox: {
     width: '100%',
+    boxSizing: 'border-box' as const,
     backgroundColor: 'rgba(0, 229, 255, 0.1)',
     border: '1px solid rgba(0, 229, 255, 0.3)',
     borderRadius: '8px',
@@ -324,12 +356,16 @@ function getWalletDisplayName(walletType: WalletType): string {
 function mapToVisibleStep(stepId: OnboardingStep): OnboardingStep {
   switch (stepId) {
     // Hidden steps that happen BEFORE signing-transaction
+    case 'restoring-backup':
+    case 'granting-funds':
+    case 'waiting-for-funds':
     case 'switching-network':
     case 'creating-provider':
       return 'signing-transaction';
     // Hidden steps that happen AFTER validating-key
     case 'restoring-network':
     case 'persisting-key':
+    case 'saving-backup':
       return 'validating-key';
     default:
       return stepId;
@@ -382,11 +418,15 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
   currentStep = 'idle',
   aesKey,
   hasSnap,
+  saveBackup = true,
+  onSaveBackupChange,
+  warning,
   theme,
 }) => {
   // MetaMask + Snap bypass: skip modal entirely and trigger snap flow
   const snapBypassTriggered = useRef(false);
   const [copied, setCopied] = useState(false);
+  const [isAesVisible, setIsAesVisible] = useState(false);
   const styles = mergeTheme(theme);
 
   useEffect(() => {
@@ -401,6 +441,7 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
     if (!isOpen) {
       snapBypassTriggered.current = false;
       setCopied(false);
+      setIsAesVisible(false);
     }
   }, [isOpen]);
 
@@ -494,6 +535,24 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
                 This will execute a transaction on the COTI Network to retrieve your AES encryption key.
               </p>
 
+              <label style={styles.checkboxRow}>
+                <input
+                  type="checkbox"
+                  checked={saveBackup}
+                  onChange={(event) => onSaveBackupChange?.(event.target.checked)}
+                  style={styles.checkbox}
+                />
+                <span style={styles.checkboxText}>
+                  Save an encrypted backup of my AES key. Only the encrypted blob is stored; restoring it requires a wallet signature.
+                </span>
+              </label>
+
+              {warning && (
+                <div style={styles.warningBox}>
+                  <p style={styles.warningText}>{warning}</p>
+                </div>
+              )}
+
               <button
                 onClick={onConfirm}
                 style={styles.primaryButton}
@@ -525,6 +584,12 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
               <p id="onboard-modal-description" style={styles.description}>
                 Please wait while we retrieve your AES encryption key...
               </p>
+
+              {warning && (
+                <div style={styles.warningBox}>
+                  <p style={styles.warningText}>{warning}</p>
+                </div>
+              )}
 
               {/* Step Progress */}
               <div style={styles.stepperContainer}>
@@ -605,11 +670,11 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
               </h2>
 
               <p id="onboard-modal-description" style={styles.description}>
-                Your AES encryption key has been successfully retrieved. Copy and store it safely.
+                Your AES encryption key has been successfully retrieved.
               </p>
 
               <div style={styles.aesKeyBox}>
-                {aesKey}
+                {isAesVisible ? aesKey : '•'.repeat(Math.min(aesKey.length, 64))}
               </div>
 
               <button
@@ -619,11 +684,24 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
                 {copied ? '✓ Copied!' : 'Copy AES Key'}
               </button>
 
+              <button
+                onClick={() => setIsAesVisible((visible) => !visible)}
+                style={styles.copyButton}
+              >
+                {isAesVisible ? 'Hide AES Key' : 'Show AES Key'}
+              </button>
+
               <div style={styles.warningBox}>
                 <p style={styles.warningText}>
-                  ⚠️ <strong>Important:</strong> This key will be lost when you refresh the page. Store it in a secure location.
+                  <strong>Important:</strong> {saveBackup ? 'An encrypted backup can help restore this key later, but you should still store it safely.' : 'This key will be lost when you refresh the page. Store it in a secure location.'}
                 </p>
               </div>
+
+              {warning && (
+                <div style={styles.warningBox}>
+                  <p style={styles.warningText}>{warning}</p>
+                </div>
+              )}
 
               <button
                 onClick={onClose}

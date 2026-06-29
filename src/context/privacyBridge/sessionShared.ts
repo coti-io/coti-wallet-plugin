@@ -1,4 +1,5 @@
 import type { MutableRefObject, Dispatch, SetStateAction } from 'react';
+import type { AesKeyProviderOptions, OnboardingProgressCallback } from '../../hooks/useAesKeyProvider';
 import type { Token } from '../../hooks/usePrivacyBridge';
 import type { PrivacyBridgeModalsContextValue } from './types';
 
@@ -13,7 +14,7 @@ export type UpdateAccountStateFn = (
   fetchPrivate?: boolean,
   aesKeyOverride?: string | null,
   chainOverride?: number,
-  options?: UpdateAccountStateOptions,
+  options?: UpdateAccountStateOptions & AesKeyProviderOptions,
 ) => Promise<boolean>;
 
 export interface PrivacyBridgeSessionCore {
@@ -59,7 +60,11 @@ export interface PrivacyBridgeSessionCore {
     readChainId?: number,
     isPlainBalance?: boolean,
   ) => Promise<string>;
-  getAesKeyFromProvider: (accountAddress: string) => Promise<string | null>;
+  getAesKeyFromProvider: (
+    accountAddress: string,
+    onProgress?: OnboardingProgressCallback,
+    options?: AesKeyProviderOptions,
+  ) => Promise<string | null>;
 }
 
 export type UpdateAccountStateRef = MutableRefObject<UpdateAccountStateFn | null>;
