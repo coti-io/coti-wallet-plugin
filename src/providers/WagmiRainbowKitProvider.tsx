@@ -8,7 +8,7 @@ import {
   rainbowWallet,
   rabbyWallet,
   ledgerWallet,
-  phantomWallet,
+  oneKeyWallet,
   trustWallet,
 } from '@rainbow-me/rainbowkit/wallets';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -41,7 +41,7 @@ function createWagmiConfig(walletConnectProjectId?: string) {
       },
       {
         groupName: 'Other',
-        wallets: [coinbaseWallet, trustWallet, phantomWallet, ledgerWallet],
+        wallets: [coinbaseWallet, trustWallet, oneKeyWallet, ledgerWallet],
       },
     ],
     {

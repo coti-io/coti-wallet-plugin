@@ -257,9 +257,10 @@ const defaultStyles = {
   },
   warningText: {
     color: 'rgba(255, 255, 255, 0.6)',
-    fontSize: '13px',
+    fontSize: '12px',
     lineHeight: 1.6,
     margin: 0,
+    fontFamily: 'inherit',
   },
   calloutBox: {
     width: '100%',
