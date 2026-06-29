@@ -310,8 +310,6 @@ function getWalletDisplayName(walletType: WalletType): string {
       return 'Coinbase Wallet';
     case 'walletconnect':
       return 'WalletConnect';
-    case 'rainbow':
-      return 'Rainbow';
     case 'metamask':
       return 'MetaMask';
     default:

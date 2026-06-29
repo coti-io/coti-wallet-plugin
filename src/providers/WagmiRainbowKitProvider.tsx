@@ -5,7 +5,6 @@ import {
   metaMaskWallet,
   coinbaseWallet,
   walletConnectWallet,
-  rainbowWallet,
   rabbyWallet,
   ledgerWallet,
   oneKeyWallet,
@@ -37,7 +36,7 @@ function createWagmiConfig(walletConnectProjectId?: string) {
     [
       {
         groupName: 'Recommended',
-        wallets: [metaMaskWallet, rabbyWallet, rainbowWallet, oneKeyWallet, walletConnectWallet],
+        wallets: [metaMaskWallet, rabbyWallet, oneKeyWallet, walletConnectWallet],
       },
       {
         groupName: 'Other',
