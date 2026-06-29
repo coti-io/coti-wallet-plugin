@@ -48,7 +48,13 @@ export async function estimatePodPortalGasFeeDisplay(params: {
         gasPrice,
         params.currentChainId,
       );
-      podValueWei = isNativeDeposit ? amountWei + podFees.totalFeeWei : podFees.totalFeeWei;
+      // For native deposits the msg.value sent to the contract is amountWei + podFees,
+      // but only the PoD fees are the actual *cost* to the user — the deposit amount is
+      // not a fee. We track both: the full value for accurate gas simulation, and just the
+      // fee portion for the displayed cost.
+      podValueWei = podFees.totalFeeWei;
+      // The actual msg.value the real tx will send (needed for accurate gas estimation)
+      const simulationValue = isNativeDeposit ? amountWei + podFees.totalFeeWei : podFees.totalFeeWei;
       const depositSig = isNativeDeposit
         ? "function depositNative(address recipient,uint256 amount,uint256 mintCallbackFee) payable"
         : "function deposit(address recipient,uint256 amount,uint256 mintCallbackFee) payable";
@@ -66,7 +72,7 @@ export async function estimatePodPortalGasFeeDisplay(params: {
               from: walletAddr,
               to: bridgeAddress,
               data: calldataPod,
-              value: "0x" + podValueWei.toString(16),
+              value: "0x" + simulationValue.toString(16),
             },
           ],
         });
