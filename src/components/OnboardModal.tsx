@@ -252,16 +252,13 @@ const defaultStyles = {
   },
   warningBox: {
     width: '100%',
-    backgroundColor: 'rgba(251, 191, 36, 0.1)',
-    border: '1px solid rgba(251, 191, 36, 0.3)',
-    borderRadius: '8px',
-    padding: '8px',
+    padding: '0',
     marginBottom: '12px',
   },
   warningText: {
-    fontSize: '11px',
-    color: '#fbbf24',
-    lineHeight: 1.5,
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: '13px',
+    lineHeight: 1.6,
     margin: 0,
   },
   calloutBox: {
