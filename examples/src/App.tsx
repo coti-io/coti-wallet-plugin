@@ -3,11 +3,13 @@ import { useAccount, useBalance, useReadContracts, useDisconnect, useSwitchChain
 import { formatUnits } from 'viem';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import {
+  configureCotiPlugin,
   useWalletType,
   useAesKeyProvider,
   usePrivateTokenBalance,
   OnboardModal,
   ERC20_ABI,
+  type EncryptedAesBackup,
   type OnboardingStep,
 } from '@coti-io/coti-wallet-plugin';
 
@@ -37,6 +39,39 @@ const COTI_TESTNET_CHAIN_ID = 7082400;
 
 // p.COTI legacy contract uses version 64; all other private tokens use 256
 const PCOTI_ADDRESS = '0x6cE8907414986E73De9e7D28d62Ea2080F8E88E1';
+const MOCK_GRANT_URL = 'http://localhost:8787';
+
+const backupKey = (address: string, chainId: number) =>
+  `coti-example:aes-backup:${chainId}:${address.toLowerCase()}`;
+
+configureCotiPlugin({
+  debug: true,
+  // Local example only: wait until the wallet has enough testnet COTI to pay
+  // the onboarding transaction gas before calling generateOrRecoverAes().
+  onboardingGrantMinBalanceWei: '1000000000000000000',
+  onboardingServices: {
+    mode: 'custom',
+    fetchEncryptedAesBackup: async ({ address, chainId }) => {
+      const raw = window.localStorage.getItem(backupKey(address, chainId));
+      return raw ? JSON.parse(raw) as EncryptedAesBackup : null;
+    },
+    saveEncryptedAesBackup: async ({ address, chainId, backup }) => {
+      window.localStorage.setItem(backupKey(address, chainId), JSON.stringify(backup));
+    },
+    replaceEncryptedAesBackup: async ({ address, chainId, backup }) => {
+      window.localStorage.setItem(backupKey(address, chainId), JSON.stringify(backup));
+    },
+    grantNativeCoti: async ({ address, chainId }) => {
+      const response = await fetch(MOCK_GRANT_URL, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ address, chainId }),
+      });
+      if (!response.ok) throw new Error(`Mock grant failed: ${response.status}`);
+      return response.json();
+    },
+  },
+});
 
 // Minimal ERC20 balanceOf ABI for wagmi useReadContracts
 const erc20BalanceOfAbi = [
@@ -58,8 +93,7 @@ export default function App() {
   const { switchChainAsync } = useSwitchChain();
 
   // Wallet type detection & AES key provider (routes Snap vs onboard contract)
-  const walletTypeInfo = useWalletType();
-  const { getAesKey, isOnboarding, onboardingError, currentStep, onboardingDebugTrace } = useAesKeyProvider(walletTypeInfo);
+  const { getAesKey, isOnboarding, onboardingError, onboardingWarning, currentStep, onboardingDebugTrace } = useAesKeyProvider(walletTypeInfo);
   const { fetchPrivateBalance } = usePrivateTokenBalance();
 
   // Session AES key state
@@ -70,8 +104,9 @@ export default function App() {
   const [showOnboardModal, setShowOnboardModal] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState<OnboardingStep>('idle');
   const [retrievedAesKey, setRetrievedAesKey] = useState<string | null>(null);
+  const [saveAesBackup, setSaveAesBackup] = useState(true);
 
-  // Unlock: show modal first (intro screen)
+  // Unlock: restore backup first; show onboarding only when no saved key exists.
   const unlockPrivateBalances = useCallback(async () => {
     if (!address) return;
     // Ensure wallet is on COTI Testnet before showing modal
@@ -83,14 +118,31 @@ export default function App() {
         return;
       }
     }
+    let restoreCancelled = false;
+    const restoredKey = await getAesKey(address, setOnboardingStep, {
+      restoreOnly: true,
+      onRestoreCancelled: () => {
+        restoreCancelled = true;
+      },
+    });
+    if (restoredKey) {
+      setSessionAesKey(restoredKey);
+      setOnboardingStep('idle');
+      return;
+    }
+    if (restoreCancelled) {
+      setOnboardingStep('idle');
+      return;
+    }
+    setOnboardingStep('idle');
     setShowOnboardModal(true);
-  }, [address, chainId, switchChainAsync]);
+  }, [address, chainId, getAesKey, switchChainAsync]);
 
   // Begin onboarding (called from modal's "Begin Onboarding" button)
   const beginOnboarding = useCallback(async () => {
     if (!address) return;
     try {
-      const key = await getAesKey(address, setOnboardingStep);
+      const key = await getAesKey(address, setOnboardingStep, { saveBackup: saveAesBackup });
       if (key) {
         setRetrievedAesKey(key);
         // Don't set sessionAesKey yet — let user see success screen and copy key
@@ -98,7 +150,7 @@ export default function App() {
     } catch (err) {
       console.error('Failed to retrieve AES key:', err);
     }
-  }, [address, getAesKey]);
+  }, [address, getAesKey, saveAesBackup]);
 
   // Close modal and finalize (called from success screen's "Done" button)
   const closeModal = useCallback(() => {
@@ -342,6 +394,9 @@ export default function App() {
         aesKey={retrievedAesKey}
         hasSnap={walletTypeInfo.isMetaMaskWithSnap}
         debugTrace={onboardingDebugTrace}
+        saveBackup={saveAesBackup}
+        onSaveBackupChange={setSaveAesBackup}
+        warning={onboardingWarning}
       />
     </div>
   );

@@ -12,6 +12,7 @@ import {
 } from '../../hooks/usePrivacyBridge';
 import type { PrivacyBridgeNetworkSession } from './usePrivacyBridgeNetworkSession';
 import type { PrivacyBridgeSessionCore, UpdateAccountStateRef } from './sessionShared';
+import type { AesKeyProviderOptions } from '../../hooks/useAesKeyProvider';
 
 interface UsePrivacyBridgeAccountSyncOptions {
   core: PrivacyBridgeSessionCore;
@@ -68,7 +69,10 @@ export const usePrivacyBridgeAccountSync = ({
   );
 
   const getAESKeyForCurrentNetwork = useCallback(
-    async (accountAddress: string, options?: { skipCache?: boolean }) => {
+    async (
+      accountAddress: string,
+      options?: { skipCache?: boolean } & AesKeyProviderOptions,
+    ) => {
       if (options?.skipCache) {
         return getAESKeyFromSnap(accountAddress, { skipCache: true });
       }
@@ -81,7 +85,9 @@ export const usePrivacyBridgeAccountSync = ({
       // For MetaMask: tries Snap (non-interactive if already connected)
       // For non-MetaMask: triggers contract onboarding (interactive — but only called
       // when checkSnap=true, i.e. explicit user-initiated unlock flows).
-      return getAesKeyFromProvider(accountAddress);
+      return options === undefined
+        ? getAesKeyFromProvider(accountAddress)
+        : getAesKeyFromProvider(accountAddress, undefined, options);
     },
     [sessionAesKey, getAesKeyFromProvider, getAESKeyFromSnap],
   );

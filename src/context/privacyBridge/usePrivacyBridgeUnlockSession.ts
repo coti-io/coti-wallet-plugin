@@ -8,6 +8,7 @@ import {
 import type { PrivacyBridgeAccountSync } from './usePrivacyBridgeAccountSync';
 import type { PrivacyBridgeNetworkSession } from './usePrivacyBridgeNetworkSession';
 import type { PrivacyBridgeSessionCore } from './sessionShared';
+import type { AesKeyProviderOptions } from '../../hooks/useAesKeyProvider';
 
 interface UsePrivacyBridgeUnlockSessionOptions {
   core: PrivacyBridgeSessionCore;
@@ -96,13 +97,13 @@ export const usePrivacyBridgeUnlockSession = ({
     }
   }, [walletAddress, updateAccountState, wagmiChainId, wagmiSyncRef]);
 
-  const refreshPrivateBalances = useCallback(async () => {
+  const refreshPrivateBalances = useCallback(async (aesKeyOptions?: AesKeyProviderOptions) => {
     if (!walletAddress) return false;
 
     logger.log('Triggering private balance fetch...');
     try {
       const chainOverride = wagmiSyncRef.current ? wagmiChainId : undefined;
-      const unlockOptions = { validateOnUnlock: true as const };
+      const unlockOptions = { validateOnUnlock: true as const, ...aesKeyOptions };
       let keyForUnlock =
         sessionAesKey ?? getValidatedAesKeyForUnlock(walletAddress) ?? undefined;
       let success = await updateAccountState(

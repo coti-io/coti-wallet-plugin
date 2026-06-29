@@ -1,6 +1,13 @@
 // Configuration
 export { configureCotiPlugin, getPluginConfig } from './config/plugin';
-export type { CotiPluginConfig } from './config/plugin';
+export type {
+  CotiPluginConfig,
+  EncryptedAesBackup,
+  GrantResult,
+  OnboardingServiceRequest,
+  OnboardingServices,
+  SaveEncryptedAesBackupRequest,
+} from './config/plugin';
 
 // Logging — silent by default, opt in via configureCotiPlugin({ debug: true })
 export { logger, setDebugLogging } from './lib/logger';
@@ -70,6 +77,8 @@ export {
 } from './crypto/aesKeyValidation';
 export { normalizeAesKey, validateAesKey } from './crypto/aesKey';
 export { saveAesKeyLocally, unlockCachedAesKey, hasCachedAesKey, clearCachedAesKey } from './crypto/localAesKeyVault';
+export { encryptAesKeyBackup, decryptAesKeyBackup } from './crypto/aesKeyBackupVault';
+export type { AesBackupSigner, AesBackupVaultContext } from './crypto/aesKeyBackupVault';
 export { estimateCotiBridgeGasFeeDisplay } from './chains/cotiBridgeGasEstimate';
 export { estimatePodPortalGasFeeDisplay } from './chains/portal/podGasEstimate';
 export { resolvePodRequestStatus } from './chains/portal/podRequestStatus';
@@ -153,6 +162,7 @@ export type { WalletTypeInfo, WalletType } from './hooks/useWalletType';
 // Hooks — AES Key Provider Abstraction
 export { useAesKeyProvider, ONBOARDING_STEPS, isValidAesKey } from './hooks/useAesKeyProvider';
 export type {
+  AesKeyProviderOptions,
   AesKeyProviderResult,
   GetAesKeyOptions,
   OnboardingStep,
