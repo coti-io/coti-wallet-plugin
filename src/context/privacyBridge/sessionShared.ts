@@ -2,12 +2,18 @@ import type { MutableRefObject, Dispatch, SetStateAction } from 'react';
 import type { Token } from '../../hooks/usePrivacyBridge';
 import type { PrivacyBridgeModalsContextValue } from './types';
 
+export type UpdateAccountStateOptions = {
+    /** When true, validate MetaMask Snap keys on unlock (reuses session key when present). */
+    validateOnUnlock?: boolean;
+};
+
 export type UpdateAccountStateFn = (
   account: string,
   checkSnap?: boolean,
   fetchPrivate?: boolean,
   aesKeyOverride?: string | null,
   chainOverride?: number,
+  options?: UpdateAccountStateOptions,
 ) => Promise<boolean>;
 
 export interface PrivacyBridgeSessionCore {
@@ -38,7 +44,7 @@ export interface PrivacyBridgeSessionCore {
   arePrivateBalancesHidden: boolean;
   setArePrivateBalancesHidden: Dispatch<SetStateAction<boolean>>;
   executeSnapCheck: (onSnapFound: () => Promise<boolean>) => Promise<void>;
-  getAESKeyFromSnap: (accountAddress: string) => Promise<string | null>;
+  getAESKeyFromSnap: (accountAddress: string, options?: { skipCache?: boolean }) => Promise<string | null>;
   connectToSnap: () => Promise<boolean>;
   requestSnapConnection: () => Promise<boolean>;
   handleManualOnboarding: () => Promise<string | null>;

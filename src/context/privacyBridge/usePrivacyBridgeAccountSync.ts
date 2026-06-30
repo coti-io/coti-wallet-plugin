@@ -1,7 +1,11 @@
 import { useCallback, useEffect } from 'react';
+import { useAccount } from 'wagmi';
 import { useBalanceUpdater } from '../../hooks/useBalanceUpdater';
 import { isChainUpdatesMuted } from '../../lib/chainMute';
 import { logger } from '../../lib/logger';
+import { getMetaMaskProvider } from '../../lib/ethereum';
+import { validateMetaMaskAesKeyOnUnlock as validateMetaMaskAesKeyOnUnlockFn } from '../../crypto/aesKeyValidation';
+import { useWalletType } from '../../hooks/useWalletType';
 import {
   getInitialPublicTokens,
   getInitialPrivateTokens,
@@ -29,9 +33,11 @@ export const usePrivacyBridgeAccountSync = ({
     setPrivateTokens,
     sessionAesKey,
     setSessionAesKey,
+    arePrivateBalancesHidden,
     setArePrivateBalancesHidden,
     fetchPrivateBalance,
     getAesKeyFromProvider,
+    getAESKeyFromSnap,
     isConnected,
     hasSnap,
     walletAddress,
@@ -39,9 +45,34 @@ export const usePrivacyBridgeAccountSync = ({
   } = core;
 
   const { checkNetwork, currentChainId, wagmiChainId } = network;
+  const { chainId: connectedChainId } = useAccount();
+  const walletTypeInfo = useWalletType();
+
+  const validateMetaMaskAesKeyOnUnlock = useCallback(
+    async (snapKey: string, accountAddress: string, chainIdOverride?: number | null) => {
+      if (walletTypeInfo.walletType !== 'metamask') return;
+
+      const provider = getMetaMaskProvider();
+      if (!provider) {
+        throw new Error('MetaMask provider not available for AES key validation.');
+      }
+
+      await validateMetaMaskAesKeyOnUnlockFn(
+        snapKey,
+        accountAddress,
+        provider,
+        chainIdOverride ?? connectedChainId ?? null,
+      );
+    },
+    [walletTypeInfo.walletType, connectedChainId],
+  );
 
   const getAESKeyForCurrentNetwork = useCallback(
-    async (accountAddress: string) => {
+    async (accountAddress: string, options?: { skipCache?: boolean }) => {
+      if (options?.skipCache) {
+        return getAESKeyFromSnap(accountAddress, { skipCache: true });
+      }
+
       // Always prioritize the in-memory session key — avoids any interactive prompts
       // during automatic balance refreshes.
       if (sessionAesKey) return sessionAesKey;
@@ -52,7 +83,7 @@ export const usePrivacyBridgeAccountSync = ({
       // when checkSnap=true, i.e. explicit user-initiated unlock flows).
       return getAesKeyFromProvider(accountAddress);
     },
-    [sessionAesKey, getAesKeyFromProvider],
+    [sessionAesKey, getAesKeyFromProvider, getAESKeyFromSnap],
   );
 
   const { updateAccountState } = useBalanceUpdater({
@@ -66,6 +97,7 @@ export const usePrivacyBridgeAccountSync = ({
     fetchPrivateBalance,
     sessionAesKey,
     setSessionAesKey,
+    validateMetaMaskAesKeyOnUnlock,
   });
 
   updateAccountStateRef.current = updateAccountState;
@@ -80,17 +112,18 @@ export const usePrivacyBridgeAccountSync = ({
   }, [isConnected, currentChainId, setPublicTokens, setPrivateTokens]);
 
   useEffect(() => {
-    if (sessionAesKey && walletAddress) {
+    if (sessionAesKey && walletAddress && arePrivateBalancesHidden) {
       logger.log('Session AES Key set, refreshing account state...');
       if (!hasSnap) setHasSnap(true);
       const chainOverride = wagmiSyncRef.current ? wagmiChainId : undefined;
-      updateAccountState(walletAddress, true, true, sessionAesKey, chainOverride).then(() => {
+      updateAccountState(walletAddress, false, true, sessionAesKey, chainOverride).then(() => {
         setArePrivateBalancesHidden(false);
       });
     }
   }, [
     sessionAesKey,
     walletAddress,
+    arePrivateBalancesHidden,
     updateAccountState,
     hasSnap,
     setHasSnap,

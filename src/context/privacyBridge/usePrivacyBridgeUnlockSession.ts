@@ -1,5 +1,7 @@
 import { useCallback } from 'react';
 import { logger } from '../../lib/logger';
+import { CotiPluginError, CotiErrorCode } from '../../errors';
+import { clearAesKeyValidatedForUnlock, getValidatedAesKeyForUnlock } from '../../crypto/aesKeyValidation';
 import {
   getInitialPrivateTokens,
 } from '../../hooks/usePrivacyBridge';
@@ -21,6 +23,7 @@ export const usePrivacyBridgeUnlockSession = ({
 }: UsePrivacyBridgeUnlockSessionOptions) => {
   const {
     walletAddress,
+    sessionAesKey,
     setHasSnap,
     snapError,
     setSnapError,
@@ -89,16 +92,43 @@ export const usePrivacyBridgeUnlockSession = ({
 
     logger.log('Triggering private balance fetch...');
     try {
-      await new Promise(resolve => setTimeout(resolve, 800));
       const chainOverride = wagmiSyncRef.current ? wagmiChainId : undefined;
-      let success = await updateAccountState(walletAddress, true, true, undefined, chainOverride);
+      const unlockOptions = { validateOnUnlock: true as const };
+      let keyForUnlock =
+        sessionAesKey ?? getValidatedAesKeyForUnlock(walletAddress) ?? undefined;
+      let success = await updateAccountState(
+        walletAddress,
+        !keyForUnlock,
+        true,
+        keyForUnlock,
+        chainOverride,
+        unlockOptions,
+      );
       logger.log('Private balance fetch completed', { success });
 
       if (!success) {
+        keyForUnlock =
+          keyForUnlock ?? getValidatedAesKeyForUnlock(walletAddress) ?? undefined;
         logger.log('First private balance fetch failed, retrying after 1.5s');
         await new Promise(resolve => setTimeout(resolve, 1500));
-        success = await updateAccountState(walletAddress, true, true, undefined, chainOverride);
+        success = await updateAccountState(
+          walletAddress,
+          false,
+          true,
+          keyForUnlock,
+          chainOverride,
+          unlockOptions,
+        );
         logger.log('Retry private balance fetch completed', { success });
+      }
+
+      const validatedKey = getValidatedAesKeyForUnlock(walletAddress);
+      if (!success && validatedKey) {
+        logger.log('Unlock validated AES key present — treating unlock as successful');
+        setSessionAesKey(validatedKey, walletAddress);
+        setArePrivateBalancesHidden(false);
+        setSnapError(null);
+        return true;
       }
 
       if (success) {
@@ -125,13 +155,27 @@ export const usePrivacyBridgeUnlockSession = ({
 
       if (err.message?.includes('ACCOUNT_NOT_ONBOARDED')) {
         setSessionAesKey(null);
+        clearAesKeyValidatedForUnlock(walletAddress);
         clearSnapCache();
         setArePrivateBalancesHidden(true);
         throw new Error('SNAP_REQUIRED');
       }
 
+      if (
+        err instanceof CotiPluginError && err.code === CotiErrorCode.AES_KEY_MISMATCH
+      ) {
+        setSessionAesKey(null);
+        clearAesKeyValidatedForUnlock(walletAddress);
+        clearSnapCache();
+        setArePrivateBalancesHidden(true);
+        const mismatchError = new Error('AES_KEY_MISMATCH');
+        (mismatchError as any).detail = err.message;
+        throw mismatchError;
+      }
+
       if (err.message?.includes('AES key') || err.message?.includes('onboarding')) {
         setSessionAesKey(null);
+        clearAesKeyValidatedForUnlock(walletAddress);
         clearSnapCache();
         setArePrivateBalancesHidden(true);
         const mismatchError = new Error('AES_KEY_MISMATCH');
@@ -142,6 +186,7 @@ export const usePrivacyBridgeUnlockSession = ({
     }
   }, [
     walletAddress,
+    sessionAesKey,
     updateAccountState,
     wagmiChainId,
     clearSnapCache,
@@ -154,6 +199,7 @@ export const usePrivacyBridgeUnlockSession = ({
   const lockPrivateBalances = () => {
     logger.log('Hard locking private balances and clearing caches');
     setArePrivateBalancesHidden(true);
+    if (walletAddress) clearAesKeyValidatedForUnlock(walletAddress);
     setSessionAesKey(null);
     clearSnapCache();
     setPrivateTokens(getInitialPrivateTokens(currentChainId));

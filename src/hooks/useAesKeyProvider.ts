@@ -61,11 +61,26 @@ export const ONBOARDING_STEPS: OnboardingStepInfo[] = [
 export type OnboardingProgressCallback = (step: OnboardingStep) => void;
 
 /**
+ * Options for {@link AesKeyProviderResult.getAesKey}.
+ */
+export interface GetAesKeyOptions {
+  /**
+   * Skip Snap retrieval and use the AccountOnboard contract path.
+   * Required when Snap holds a key for the wrong MetaMask profile.
+   */
+  forceContractOnboarding?: boolean;
+}
+
+/**
  * Result interface for the useAesKeyProvider hook.
  */
 export interface AesKeyProviderResult {
   /** Retrieves AES key — routes to Snap or onboard contract based on wallet type */
-  getAesKey: (address: string, onProgress?: OnboardingProgressCallback) => Promise<string | null>;
+  getAesKey: (
+    address: string,
+    onProgress?: OnboardingProgressCallback,
+    options?: GetAesKeyOptions,
+  ) => Promise<string | null>;
   /** True during the async generateOrRecoverAes() call */
   isOnboarding: boolean;
   /** Error message from failed onboarding attempts; cleared on next call */
@@ -114,7 +129,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
   const [currentStep, setCurrentStep] = useState<OnboardingStep>('idle');
   const progressCallbackRef = useRef<OnboardingProgressCallback | undefined>();
 
-  const { getAESKeyFromSnap, saveAESKeyToSnap } = useSnap();
+  const { getAESKeyFromSnap, saveAESKeyToSnap, clearSnapCache } = useSnap();
   const { connector, chainId: connectedChainId } = useAccount();
   const { data: connectorClient } = useConnectorClient();
 
@@ -124,17 +139,28 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
   }, []);
 
   const getAesKey = useCallback(
-    async (address: string, onProgress?: OnboardingProgressCallback): Promise<string | null> => {
+    async (
+      address: string,
+      onProgress?: OnboardingProgressCallback,
+      options?: GetAesKeyOptions,
+    ): Promise<string | null> => {
       // Store progress callback for use within the flow
       progressCallbackRef.current = onProgress;
       // Clear previous error on each new retrieval attempt
       setOnboardingError(null);
       emitStep('idle');
 
-      // Route 1: MetaMask — try Snap path first (handles snap connection on demand)
-      if (walletTypeInfo.walletType === 'metamask') {
+      const forceContractOnboarding = options?.forceContractOnboarding === true;
+
+      if (forceContractOnboarding) {
+        logger.log('ℹ️ Forcing AccountOnboard contract path (skipping Snap read)');
+        clearSnapCache();
+      }
+
+      // Route 1: MetaMask — try Snap path first unless contract onboarding was forced
+      if (walletTypeInfo.walletType === 'metamask' && !forceContractOnboarding) {
         try {
-          const key = await getAESKeyFromSnap(address);
+          const key = await getAESKeyFromSnap(address, { skipCache: true });
           if (key && !isValidAesKey(key)) {
             logger.warn('⚠️ AES key from Snap failed format validation');
             return null;
@@ -146,13 +172,15 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           if (isUserRejection(error)) {
             return null;
           }
-          // Snap missing or empty — fall through to contract onboarding (mirrors companion site)
+          // Snap missing, empty, or mismatched — fall through to contract onboarding
           if (
             error instanceof CotiPluginError &&
             (error.code === CotiErrorCode.SNAP_CONNECT_FAILED ||
-              error.code === CotiErrorCode.AES_KEY_MISSING)
+              error.code === CotiErrorCode.AES_KEY_MISSING ||
+              error.code === CotiErrorCode.AES_KEY_MISMATCH)
           ) {
-            logger.log('ℹ️ Snap unavailable or empty, falling back to onboard contract');
+            logger.log('ℹ️ Snap unavailable, empty, or mismatched — falling back to onboard contract');
+            clearSnapCache();
             // Fall through to Route 2
           } else if (
             error instanceof Error &&
@@ -160,6 +188,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
               error.message.includes('Extension context invalidated'))
           ) {
             logger.log('ℹ️ Snap wallet not ready, falling back to onboard contract');
+            clearSnapCache();
             // Fall through to Route 2
           } else {
             throw error;
@@ -375,7 +404,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         progressCallbackRef.current = undefined;
       }
     },
-    [walletTypeInfo.walletType, getAESKeyFromSnap, saveAESKeyToSnap, connector, connectedChainId, emitStep]
+    [walletTypeInfo.walletType, getAESKeyFromSnap, saveAESKeyToSnap, clearSnapCache, connector, connectedChainId, emitStep]
   );
 
   return {

@@ -4,6 +4,7 @@ import { mapConnectorIdToWalletType } from '../../hooks/useWalletType';
 import { isChainUpdatesMuted } from '../../lib/chainMute';
 import { logger } from '../../lib/logger';
 import { truncateAddress } from '../../lib/format';
+import { clearAesKeyValidatedForUnlock } from '../../crypto/aesKeyValidation';
 import type { PrivacyBridgeAccountSync } from './usePrivacyBridgeAccountSync';
 import type { PrivacyBridgeNetworkSession } from './usePrivacyBridgeNetworkSession';
 import type { PrivacyBridgeSessionCore } from './sessionShared';
@@ -78,6 +79,7 @@ export const usePrivacyBridgeWagmiSync = ({
 
     if (wagmiConnected && wagmiAddress && isConnected && wagmiAddress !== walletAddress) {
       logger.log('RainbowKit account switched', truncateAddress(wagmiAddress));
+      if (walletAddress) clearAesKeyValidatedForUnlock(walletAddress);
       setSessionAesKey(null);
       clearSnapCache();
       updateAccountState(wagmiAddress, false, true, undefined, wagmiChainId);

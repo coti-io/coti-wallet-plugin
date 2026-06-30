@@ -904,6 +904,7 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
         true,
         undefined,
         11155111,
+        { validateOnUnlock: true },
       );
     });
   });
@@ -1054,9 +1055,9 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
     });
 
     it('refreshBalancesAfterPodCompletion swallows refreshPrivateBalances errors', async () => {
+      await connectWagmi();
       vi.useFakeTimers();
       try {
-        await connectWagmi();
         const req = makePodRequest({ id: 'catch-refresh', requestId: '0x' + 'f'.repeat(64) });
         act(() => {
           h.privacyBridge.upsertPodRequest?.(req);
@@ -1066,20 +1067,17 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
           message: 'ok',
           refreshPrivateBalances: true,
         });
-        h.balanceUpdater.updateAccountState.mockRejectedValue(new Error('SNAP_CONNECT_FAILED'));
+        h.balanceUpdater.updateAccountState.mockResolvedValue(false);
         const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
-        await act(async () => {
+        const refreshPromise = act(async () => {
           await latest!.refreshPodRequest(req);
         });
-        await act(async () => {
-          await vi.advanceTimersByTimeAsync(800);
-        });
-        await vi.waitFor(() => {
-          expect(warnSpy).toHaveBeenCalledWith(
-            'refreshBalancesAfterPodCompletion',
-            expect.any(Error),
-          );
-        });
+        await vi.advanceTimersByTimeAsync(10000);
+        await refreshPromise;
+        expect(warnSpy).toHaveBeenCalledWith(
+          'PoD completion balance refresh failed — will retry on next poll',
+          expect.objectContaining({ requestId: 'catch-refresh' }),
+        );
         warnSpy.mockRestore();
       } finally {
         vi.useRealTimers();

@@ -57,6 +57,15 @@ export {
 } from './contracts/pod';
 export type { PodPortalRequest, PodPortalRequestStatus, PodBalanceState, PodBalanceTrustState } from './contracts/pod';
 export { loadPodRequests, savePodRequests, podRequestsStorageKey } from './pod/podPortalRequestsStorage';
+export {
+  validateAesKeyRoundTrip,
+  aesKeysEquivalent,
+  getSdkAesKeyHex,
+  assertMetaMaskActiveAccount,
+  validateAesKeyAgainstOnChainCiphertext,
+  validateMetaMaskAesKeyOnUnlock,
+} from './crypto/aesKeyValidation';
+export { normalizeAesKey, validateAesKey } from './crypto/aesKey';
 export { saveAesKeyLocally, unlockCachedAesKey, hasCachedAesKey, clearCachedAesKey } from './crypto/localAesKeyVault';
 export { estimateCotiBridgeGasFeeDisplay } from './chains/cotiBridgeGasEstimate';
 export { estimatePodPortalGasFeeDisplay } from './chains/portal/podGasEstimate';
@@ -72,6 +81,7 @@ export { LIMITS } from './contracts/limits';
 
 // Hooks — Key & Onboarding Manager
 export { useSnap, signIT256ViaSnap, onboardUser } from './hooks/useSnap';
+export type { GetAESKeyFromSnapOptions } from './hooks/useSnap';
 export { useMetamask } from './hooks/useMetamask';
 
 // Hooks — Balance Manager
@@ -139,7 +149,13 @@ export type { WalletTypeInfo, WalletType } from './hooks/useWalletType';
 
 // Hooks — AES Key Provider Abstraction
 export { useAesKeyProvider, ONBOARDING_STEPS, isValidAesKey } from './hooks/useAesKeyProvider';
-export type { AesKeyProviderResult, OnboardingStep, OnboardingStepInfo, OnboardingProgressCallback } from './hooks/useAesKeyProvider';
+export type {
+  AesKeyProviderResult,
+  GetAesKeyOptions,
+  OnboardingStep,
+  OnboardingStepInfo,
+  OnboardingProgressCallback,
+} from './hooks/useAesKeyProvider';
 
 // Components — Onboarding
 export { OnboardModal, onboardModalDefaultStyles } from './components/OnboardModal';

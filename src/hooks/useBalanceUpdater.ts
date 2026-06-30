@@ -7,6 +7,11 @@ import type { Token } from './usePrivacyBridge';
 import { formatTokenBalanceDisplay } from '../lib/utils';
 import { CotiPluginError, CotiErrorCode } from '../errors';
 import { logger } from '../lib/logger';
+import type { UpdateAccountStateOptions } from '../context/privacyBridge/sessionShared';
+import {
+    isAesKeyValidatedForUnlock,
+    markAesKeyValidatedForUnlock,
+} from '../crypto/aesKeyValidation';
 
 interface UseBalanceUpdaterProps {
     setWalletAddress: (address: string) => void;
@@ -15,10 +20,16 @@ interface UseBalanceUpdaterProps {
     setPublicTokens: React.Dispatch<React.SetStateAction<Token[]>>;
     setPrivateTokens: React.Dispatch<React.SetStateAction<Token[]>>;
     checkNetwork: (provider: ethers.BrowserProvider) => Promise<void>;
-    getAESKeyFromSnap: (accountAddress: string) => Promise<string | null>;
+    getAESKeyFromSnap: (accountAddress: string, options?: { skipCache?: boolean }) => Promise<string | null>;
     fetchPrivateBalance: (userAddress: string, aesKey: string, contractAddress: string, version: 64 | 256, decimals?: number, readChainId?: number, isPlainBalance?: boolean) => Promise<string>;
     sessionAesKey?: string | null;
     setSessionAesKey: (key: string | null, keyWallet?: string) => void;
+    /** MetaMask-only: read-only Snap key validation on explicit unlock. */
+    validateMetaMaskAesKeyOnUnlock?: (
+        snapKey: string,
+        accountAddress: string,
+        connectedChainId?: number | null,
+    ) => Promise<void>;
 }
 
 /**
@@ -38,7 +49,8 @@ export const useBalanceUpdater = ({
     getAESKeyFromSnap,
     fetchPrivateBalance,
     sessionAesKey,
-    setSessionAesKey
+    setSessionAesKey,
+    validateMetaMaskAesKeyOnUnlock,
 }: UseBalanceUpdaterProps) => {
     const updateGenerationRef = useRef(0);
 
@@ -47,10 +59,12 @@ export const useBalanceUpdater = ({
         checkSnap = false,
         fetchPrivate = false,
         aesKeyOverride?: string | null,
-        chainOverride?: number
+        chainOverride?: number,
+        options?: UpdateAccountStateOptions,
     ) => {
         const generation = ++updateGenerationRef.current;
         const isStale = () => generation !== updateGenerationRef.current;
+        const validateOnUnlock = options?.validateOnUnlock === true;
 
         try {
             setWalletAddress(account);
@@ -118,14 +132,27 @@ export const useBalanceUpdater = ({
                 // ─── Private Balances (dynamic) ─────────────────────────────────
                 if (addresses && fetchPrivate) {
                     try {
-                        let aesKey = aesKeyOverride ?? sessionAesKey;
+                        let aesKey: string | null = aesKeyOverride ?? sessionAesKey ?? null;
+
                         if (checkSnap && !aesKey) {
-                            aesKey = await getAESKeyFromSnap(account);
+                            aesKey = validateOnUnlock
+                                ? await getAESKeyFromSnap(account, { skipCache: true })
+                                : await getAESKeyFromSnap(account);
                             if (isStale()) return false;
-                            if (aesKey) {
-                                setSessionAesKey(aesKey, account);
-                            }
-                        } else if (aesKey) {
+                        }
+
+                        if (
+                            aesKey
+                            && validateOnUnlock
+                            && validateMetaMaskAesKeyOnUnlock
+                            && !isAesKeyValidatedForUnlock(account, aesKey)
+                        ) {
+                            await validateMetaMaskAesKeyOnUnlock(aesKey, account, currentChainId);
+                            if (isStale()) return false;
+                            markAesKeyValidatedForUnlock(account, aesKey);
+                        }
+
+                        if (aesKey) {
                             if (isStale()) return false;
                             setHasSnap(true);
                         }
@@ -198,8 +225,9 @@ export const useBalanceUpdater = ({
                             const mismatchCount = privateFetches.filter(r => r.isMismatch).length;
 
                             if (mismatchCount > 0) {
-                                logger.warn(
-                                    `⚠️ AES key mismatch for ${mismatchCount} private token(s); showing 0 for those tokens.`,
+                                throw new CotiPluginError(
+                                    CotiErrorCode.AES_KEY_MISMATCH,
+                                    `AES key mismatch for ${mismatchCount} private token(s). Re-onboarding required.`,
                                 );
                             }
 
@@ -218,6 +246,10 @@ export const useBalanceUpdater = ({
                                     supportedChainIds: token.supportedChainIds,
                                 };
                             }));
+                            if (aesKey) {
+                                if (isStale()) return false;
+                                setSessionAesKey(aesKey, account);
+                            }
                             return true;
                         }
                     } catch (privateError: any) {
@@ -239,7 +271,7 @@ export const useBalanceUpdater = ({
             }
             return false;
         }
-    }, [setWalletAddress, setHasSnap, setIsConnected, setPublicTokens, checkNetwork, getAESKeyFromSnap, fetchPrivateBalance, setPrivateTokens, sessionAesKey, setSessionAesKey]);
+    }, [setWalletAddress, setHasSnap, setIsConnected, setPublicTokens, checkNetwork, getAESKeyFromSnap, fetchPrivateBalance, setPrivateTokens, sessionAesKey, setSessionAesKey, validateMetaMaskAesKeyOnUnlock]);
 
     return { updateAccountState };
 };

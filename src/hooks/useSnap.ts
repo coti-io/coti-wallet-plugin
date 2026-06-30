@@ -8,6 +8,15 @@ import { getPluginConfig } from '../config/plugin';
 import { getMetaMaskProvider } from '../lib/ethereum';
 import { CotiPluginError, CotiErrorCode } from '../errors';
 import { logger } from '../lib/logger';
+import {
+    assertMetaMaskActiveAccount,
+    validateAesKeyRoundTrip,
+} from '../crypto/aesKeyValidation';
+
+export interface GetAESKeyFromSnapOptions {
+    /** Bypass the in-memory cache and fetch a fresh key from the Snap. */
+    skipCache?: boolean;
+}
 
 /**
  * Custom hook that manages the entire lifecycle of the Coti Snap integration.
@@ -316,11 +325,16 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
      * Get AES key from COTI Snap.
      * Includes retry logic.
      */
-    const getAESKeyFromSnap = useCallback(async (accountAddress: string): Promise<string | null> => {
+    const getAESKeyFromSnap = useCallback(async (
+        accountAddress: string,
+        options?: GetAESKeyFromSnapOptions,
+    ): Promise<string | null> => {
         if (setSnapError) setSnapError(null);
 
-        // Return cached key if available
-        if (globalAESKeyCache[accountAddress.toLowerCase()]) {
+        const skipCache = options?.skipCache === true;
+
+        // Return cached key if available (unless a fresh fetch was requested)
+        if (!skipCache && globalAESKeyCache[accountAddress.toLowerCase()]) {
             logger.log('🔑 Returning globally cached AES key');
             return globalAESKeyCache[accountAddress.toLowerCase()];
         }
@@ -363,6 +377,10 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
 
         // Add a small delay to ensure account is fully connected
         await new Promise(resolve => setTimeout(resolve, 500));
+
+        if (accountAddress) {
+            await assertMetaMaskActiveAccount(provider, accountAddress);
+        }
 
         try {
             isSnapRequestPending.current = true;
@@ -434,10 +452,24 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
                         throw new CotiPluginError(CotiErrorCode.SNAP_DIALOG_REJECTED, 'User rejected Snap dialog');
                     }
 
-                    logger.log('✅ AES key received from snap');
-                    
-                    globalAESKeyCache[accountAddress.toLowerCase()] = key as string; // Update Cache
-                    return key as string;
+                    const snapKey = key as string;
+
+                    if (!validateAesKeyRoundTrip(snapKey)) {
+                        logger.error('❌ Snap AES key failed encrypt/decrypt round-trip validation');
+                        throw new CotiPluginError(
+                            CotiErrorCode.AES_KEY_MISMATCH,
+                            'AES key failed encrypt/decrypt validation. Re-onboarding required.',
+                        );
+                    }
+
+                    if (accountAddress) {
+                        await assertMetaMaskActiveAccount(provider, accountAddress);
+                    }
+
+                    logger.log('✅ AES key received from snap and passed round-trip validation');
+
+                    globalAESKeyCache[accountAddress.toLowerCase()] = snapKey;
+                    return snapKey;
 
                 } catch (error: any) {
                     lastError = error;

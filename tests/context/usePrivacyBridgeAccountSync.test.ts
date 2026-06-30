@@ -34,6 +34,22 @@ vi.mock('../../src/hooks/usePrivacyBridge', () => ({
   getInitialPrivateTokens: vi.fn().mockReturnValue([]),
 }));
 
+vi.mock('wagmi', () => ({
+  useAccount: () => ({ chainId: 7082400 }),
+}));
+
+vi.mock('../../src/hooks/useWalletType', () => ({
+  useWalletType: () => ({ walletType: 'metamask', isMetaMaskWithSnap: true }),
+}));
+
+vi.mock('../../src/lib/ethereum', () => ({
+  getMetaMaskProvider: vi.fn().mockReturnValue(null),
+}));
+
+vi.mock('../../src/crypto/aesKeyValidation', () => ({
+  validateMetaMaskAesKeyOnUnlock: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { usePrivacyBridgeAccountSync } from '../../src/context/privacyBridge/usePrivacyBridgeAccountSync';
 import type { PrivacyBridgeSessionCore, UpdateAccountStateRef } from '../../src/context/privacyBridge/sessionShared';
 import { createRef } from 'react';
@@ -143,7 +159,7 @@ describe('usePrivacyBridgeAccountSync — sessionAesKey effect', () => {
 
     expect(h.updateAccountState).toHaveBeenCalledWith(
       '0xabc123',
-      true,
+      false,
       true,
       'a'.repeat(64),
       11155111,
@@ -171,6 +187,20 @@ describe('usePrivacyBridgeAccountSync — sessionAesKey effect', () => {
     expect(h.updateAccountState).not.toHaveBeenCalled();
   });
 
+  it('does NOT call updateAccountState when private balances are already visible', () => {
+    const core = makeCore({
+      sessionAesKey: 'a'.repeat(64),
+      walletAddress: '0xabc123',
+      arePrivateBalancesHidden: false,
+    });
+    const network = makeNetwork();
+    const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
+
+    renderHook(() => usePrivacyBridgeAccountSync({ core, network, updateAccountStateRef }));
+
+    expect(h.updateAccountState).not.toHaveBeenCalled();
+  });
+
   it('passes undefined chainOverride when wagmiSyncRef is false', async () => {
     const core = makeCore({
       sessionAesKey: 'b'.repeat(64),
@@ -188,7 +218,7 @@ describe('usePrivacyBridgeAccountSync — sessionAesKey effect', () => {
 
     expect(h.updateAccountState).toHaveBeenCalledWith(
       '0xdef456',
-      true,
+      false,
       true,
       'b'.repeat(64),
       undefined, // wagmiSyncRef.current is false, so chainOverride = undefined

@@ -178,20 +178,22 @@ describe('useBalanceUpdater', () => {
     expect(props.setPrivateTokens).not.toHaveBeenCalled();
   });
 
-  it('applies zero balances when a private balance decrypt mismatches instead of failing the refresh', async () => {
+  it('throws AES_KEY_MISMATCH when a private balance decrypt mismatches', async () => {
     const props = makeProps({
       sessionAesKey: 'd'.repeat(64),
       fetchPrivateBalance: vi.fn().mockRejectedValue(new Error('AES key mismatch')),
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.updateAccountState(ACCOUNT, true, true, undefined, COTI_TESTNET);
-    expect(ok).toBe(true);
-    expect(props.setPrivateTokens).toHaveBeenCalledTimes(1);
+    await expect(
+      result.current.updateAccountState(ACCOUNT, true, true, undefined, COTI_TESTNET),
+    ).rejects.toMatchObject({ code: CotiErrorCode.AES_KEY_MISMATCH });
+    expect(props.setPrivateTokens).not.toHaveBeenCalled();
   });
 
   it('fetches private balances when fetchPrivate is true even if checkSnap is false', async () => {
     const props = makeProps({
+      sessionAesKey: 'f'.repeat(64),
       fetchPrivateBalance: vi.fn().mockResolvedValue('1.5'),
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
@@ -401,6 +403,75 @@ describe('useBalanceUpdater', () => {
     expect(slowOk).toBe(false);
     expect(props.setSessionAesKey).not.toHaveBeenCalledWith('a'.repeat(64), ACCOUNT);
     expect(props.setSessionAesKey).toHaveBeenCalledWith('b'.repeat(64), accountB);
+
+    (window as any).ethereum = original;
+  });
+
+  it('reuses session AES key on validateOnUnlock without calling Snap when already validated', async () => {
+    const original = (window as any).ethereum;
+    delete (window as any).ethereum;
+
+    const { markAesKeyValidatedForUnlock, clearAesKeyValidatedForUnlock } = await import(
+      '../../src/crypto/aesKeyValidation'
+    );
+    clearAesKeyValidatedForUnlock();
+    const sessionKey = 'a'.repeat(64);
+    markAesKeyValidatedForUnlock(ACCOUNT, sessionKey);
+
+    const validateMetaMaskAesKeyOnUnlock = vi.fn();
+    const props = makeProps({
+      sessionAesKey: sessionKey,
+      validateMetaMaskAesKeyOnUnlock,
+      fetchPrivateBalance: vi.fn().mockResolvedValue('42'),
+    });
+    const { result } = renderHook(() => useBalanceUpdater(props));
+
+    const ok = await result.current.updateAccountState(
+      ACCOUNT,
+      false,
+      true,
+      sessionKey,
+      COTI_TESTNET,
+      { validateOnUnlock: true },
+    );
+
+    expect(ok).toBe(true);
+    expect(props.getAESKeyFromSnap).not.toHaveBeenCalled();
+    expect(validateMetaMaskAesKeyOnUnlock).not.toHaveBeenCalled();
+    clearAesKeyValidatedForUnlock();
+
+    (window as any).ethereum = original;
+  });
+
+  it('validates session AES key on validateOnUnlock without re-fetching from Snap', async () => {
+    const original = (window as any).ethereum;
+    delete (window as any).ethereum;
+
+    const { clearAesKeyValidatedForUnlock } = await import('../../src/crypto/aesKeyValidation');
+    clearAesKeyValidatedForUnlock();
+
+    const sessionKey = 'b'.repeat(64);
+    const validateMetaMaskAesKeyOnUnlock = vi.fn().mockResolvedValue(undefined);
+    const props = makeProps({
+      sessionAesKey: sessionKey,
+      validateMetaMaskAesKeyOnUnlock,
+      fetchPrivateBalance: vi.fn().mockResolvedValue('42'),
+    });
+    const { result } = renderHook(() => useBalanceUpdater(props));
+
+    const ok = await result.current.updateAccountState(
+      ACCOUNT,
+      false,
+      true,
+      sessionKey,
+      COTI_TESTNET,
+      { validateOnUnlock: true },
+    );
+
+    expect(ok).toBe(true);
+    expect(props.getAESKeyFromSnap).not.toHaveBeenCalled();
+    expect(validateMetaMaskAesKeyOnUnlock).toHaveBeenCalledWith(sessionKey, ACCOUNT, COTI_TESTNET);
+    clearAesKeyValidatedForUnlock();
 
     (window as any).ethereum = original;
   });

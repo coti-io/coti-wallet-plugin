@@ -27,7 +27,17 @@ const getFailedRequestHex = async (
 };
 
 export async function resolvePodRequestStatus(request: PodPortalRequest) {
-  if (!request.requestId) return null;
+  if (!request.requestId) {
+    console.warn(
+      `[resolvePodRequestStatus] Missing requestId for tx ${request.sourceTxHash}. ` +
+      `PoD cannot be tracked. This usually means the DepositRequested event was not parsed correctly.`
+    );
+    return {
+      status: "source-mined" as const,
+      message: "PoD request ID not found. Cannot track progress.",
+      refreshPrivateBalances: false,
+    };
+  }
 
   const chainId = request.chainId;
   const addresses = CONTRACT_ADDRESSES[chainId];
@@ -101,6 +111,16 @@ export async function resolvePodRequestStatus(request: PodPortalRequest) {
     return {
       status: "target-mined" as const,
       message: "PoD request was mined on COTI and is waiting for callback generation.",
+      refreshPrivateBalances: false,
+    };
+  }
+
+  // If we reach here, the PoD request exists on-chain but hasn't been picked up yet.
+  // Keep it at source-mined (or pod-pending if the tracker knows about it).
+  if (request.status === "source-mined" || request.status === "pod-pending") {
+    return {
+      status: "pod-pending" as const,
+      message: "PoD request submitted. Waiting to be indexed and processed.",
       refreshPrivateBalances: false,
     };
   }
