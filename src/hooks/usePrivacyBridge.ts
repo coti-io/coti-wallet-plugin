@@ -32,6 +32,7 @@ export const usePrivacyBridge = ({
   getAESKeyFromSnap,
   handleOnboard,
   refreshPrivateBalances,
+  refreshPublicBalances,
   upsertPodRequest,
   sessionAesKey,
 }: UsePrivacyBridgeProps) => {
@@ -55,6 +56,7 @@ export const usePrivacyBridge = ({
     setPrivateTokens,
     setToastState,
     refreshPrivateBalances,
+    refreshPublicBalances,
     upsertPodRequest,
     podWithdrawPermit: allowance.podWithdrawPermit,
     setPodWithdrawPermit: allowance.setPodWithdrawPermit,

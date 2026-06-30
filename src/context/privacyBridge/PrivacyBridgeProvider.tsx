@@ -63,6 +63,7 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
     setHasSnap: session.setHasSnap,
     getAESKeyFromSnap: session.getAESKeyFromSnap,
     handleOnboard: session.handleOnboard,
+    refreshPublicBalances: session.refreshPublicBalances,
     refreshPrivateBalances: session.refreshPrivateBalances,
     upsertPodRequest: podState.upsertPodRequest,
     sessionAesKey: session.sessionAesKey,

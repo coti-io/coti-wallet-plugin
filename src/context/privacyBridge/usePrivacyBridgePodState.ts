@@ -12,12 +12,18 @@ const POD_PORTAL_CHAIN_IDS = new Set(
     .map(c => c.id),
 );
 
+const TERMINAL_POD_STATUSES = new Set<PodPortalRequest['status']>([
+  'failed',
+  'callback-errored',
+  'burn-debt',
+]);
+
 interface UsePrivacyBridgePodOptions {
   walletAddress: string;
   refreshPrivateBalances: () => Promise<boolean>;
 }
 
-/** Sepolia PoD portal request persistence and polling. */
+/** PoD portal request persistence and polling. */
 export const usePrivacyBridgePodState = ({
   walletAddress,
   refreshPrivateBalances,
@@ -67,14 +73,27 @@ export const usePrivacyBridgePodState = ({
   const refreshBalancesAfterPodCompletion = useCallback(
     async (requestId: string) => {
       if (completedPodRefreshesRef.current.has(requestId)) return;
-      completedPodRefreshesRef.current.add(requestId);
+
+      const attemptRefresh = async () => refreshPrivateBalances();
 
       try {
-        await refreshPrivateBalances();
+        let success = await attemptRefresh();
+        if (!success) {
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          success = await attemptRefresh();
+        }
+
+        if (success) {
+          completedPodRefreshesRef.current.add(requestId);
+          updatePodRequest(requestId, { balanceRefreshPending: false });
+          return;
+        }
+
+        logger.warn('PoD completion balance refresh failed — will retry on next poll', { requestId });
+        updatePodRequest(requestId, { balanceRefreshPending: true });
       } catch (e) {
         logger.warn('refreshBalancesAfterPodCompletion', e);
-      } finally {
-        updatePodRequest(requestId, { balanceRefreshPending: false });
+        updatePodRequest(requestId, { balanceRefreshPending: true });
       }
     },
     [refreshPrivateBalances, updatePodRequest],
@@ -82,6 +101,15 @@ export const usePrivacyBridgePodState = ({
 
   const refreshPodRequest = useCallback(
     async (request: PodPortalRequest) => {
+      if (
+        request.status === 'succeeded' &&
+        request.balanceRefreshPending &&
+        !completedPodRefreshesRef.current.has(request.id)
+      ) {
+        await refreshBalancesAfterPodCompletion(request.id);
+        return;
+      }
+
       try {
         const resolved = await resolvePodRequestStatus(request);
         if (!resolved) return;
@@ -92,15 +120,11 @@ export const usePrivacyBridgePodState = ({
         updatePodRequest(request.id, {
           status: resolved.status,
           message: resolved.message,
-          balanceRefreshPending: shouldRefreshBalances
-            ? true
-            : resolved.refreshPrivateBalances
-              ? false
-              : request.balanceRefreshPending,
+          balanceRefreshPending: shouldRefreshBalances ? true : request.balanceRefreshPending,
         });
 
         if (shouldRefreshBalances) {
-          void refreshBalancesAfterPodCompletion(request.id);
+          await refreshBalancesAfterPodCompletion(request.id);
         }
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
@@ -123,7 +147,8 @@ export const usePrivacyBridgePodState = ({
       r =>
         POD_PORTAL_CHAIN_IDS.has(r.chainId) &&
         r.wallet.toLowerCase() === walletAddress.toLowerCase() &&
-        !['succeeded', 'failed', 'callback-errored', 'burn-debt'].includes(r.status),
+        (r.balanceRefreshPending ||
+          (!TERMINAL_POD_STATUSES.has(r.status) && r.status !== 'succeeded')),
     );
     if (active.length === 0) return;
     active.forEach(r => {

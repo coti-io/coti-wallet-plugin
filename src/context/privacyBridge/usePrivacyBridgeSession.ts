@@ -52,6 +52,7 @@ export const usePrivacyBridgeSession = ({ modals }: UsePrivacyBridgeSessionOptio
     handleVerifyKeys: unlock.handleVerifyKeys,
     handleConnect,
     handleDisconnect,
+    refreshPublicBalances: unlock.refreshPublicBalances,
     refreshPrivateBalances: unlock.refreshPrivateBalances,
     lockPrivateBalances: unlock.lockPrivateBalances,
     saveManualAesKey: unlock.saveManualAesKey,

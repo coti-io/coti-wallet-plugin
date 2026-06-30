@@ -21,6 +21,7 @@ export interface UsePrivacyBridgeExecutorOptions {
   setPrivateTokens: React.Dispatch<React.SetStateAction<Token[]>>;
   setToastState: React.Dispatch<React.SetStateAction<ToastState>>;
   refreshPrivateBalances?: () => Promise<boolean>;
+  refreshPublicBalances?: () => Promise<boolean>;
   upsertPodRequest?: (request: PodPortalRequest) => void;
   podWithdrawPermit: PodWithdrawPermit | null;
   setPodWithdrawPermit: React.Dispatch<React.SetStateAction<PodWithdrawPermit | null>>;
@@ -34,6 +35,7 @@ export const usePrivacyBridgeExecutor = ({
   setPrivateTokens,
   setToastState,
   refreshPrivateBalances,
+  refreshPublicBalances,
   upsertPodRequest,
   podWithdrawPermit,
   setPodWithdrawPermit,
@@ -153,6 +155,13 @@ export const usePrivacyBridgeExecutor = ({
                 upsertPodRequest?.(result.request);
                 if (txDirection === 'to-public') setPodWithdrawPermit(null);
                 onProgress?.('transfer-complete', result.txHash);
+
+                if (refreshPublicBalances) {
+                    logger.log('🔄 Refreshing public balances after PoD source tx...');
+                    refreshPublicBalances().catch(err =>
+                        logger.warn('Public balance refresh after PoD source tx failed', err),
+                    );
+                }
 
                 setToastState({
                     visible: true,
@@ -761,6 +770,7 @@ export const usePrivacyBridgeExecutor = ({
         setPrivateTokens,
         setToastState,
         refreshPrivateBalances,
+        refreshPublicBalances,
         upsertPodRequest,
         podWithdrawPermit,
         setPodWithdrawPermit,

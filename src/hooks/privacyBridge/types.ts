@@ -29,6 +29,7 @@ export interface UsePrivacyBridgeProps {
   walletAddress: string;
   publicTokens: Token[];
   refreshPrivateBalances?: () => Promise<boolean>;
+  refreshPublicBalances?: () => Promise<boolean>;
   setPublicTokens: React.Dispatch<React.SetStateAction<Token[]>>;
   setPrivateTokens: React.Dispatch<React.SetStateAction<Token[]>>;
   setToastState: React.Dispatch<React.SetStateAction<ToastState>>;

@@ -71,6 +71,19 @@ export const usePrivacyBridgeUnlockSession = ({
     throw new Error('No cached AES key. Keys are session-only and lost on page refresh.');
   };
 
+  const refreshPublicBalances = useCallback(async () => {
+    if (!walletAddress) return false;
+
+    logger.log('Triggering public balance fetch...');
+    try {
+      const chainOverride = wagmiSyncRef.current ? wagmiChainId : undefined;
+      return await updateAccountState(walletAddress, false, false, undefined, chainOverride);
+    } catch (err: unknown) {
+      logger.warn('Public balance fetch failed', err);
+      return false;
+    }
+  }, [walletAddress, updateAccountState, wagmiChainId, wagmiSyncRef]);
+
   const refreshPrivateBalances = useCallback(async () => {
     if (!walletAddress) return false;
 
@@ -152,6 +165,7 @@ export const usePrivacyBridgeUnlockSession = ({
     handleOnboard,
     saveManualAesKey,
     unlockCachedAesKey,
+    refreshPublicBalances,
     refreshPrivateBalances,
     lockPrivateBalances,
     isPrivateUnlocked,
