@@ -13,6 +13,7 @@ const h = vi.hoisted(() => ({
   balanceOfWithStatus: vi.fn(),
   name: vi.fn(),
   nonces: vi.fn(),
+  symbol: vi.fn(),
   deposit: vi.fn(),
   requestWithdrawWithPermit: vi.fn(),
   estimateFee: vi.fn(),
@@ -32,6 +33,7 @@ vi.mock('ethers', async (importOriginal) => {
     balanceOfWithStatus = (...a: unknown[]) => h.balanceOfWithStatus(...a);
     name = (...a: unknown[]) => h.name(...a);
     nonces = (...a: unknown[]) => h.nonces(...a);
+    symbol = (...a: unknown[]) => h.symbol(...a);
     deposit = (...a: unknown[]) => h.deposit(...a);
     requestWithdrawWithPermit = (...a: unknown[]) => h.requestWithdrawWithPermit(...a);
   }
@@ -59,6 +61,17 @@ import {
 } from '../../../src/chains/portal/executePodPortalTransaction';
 import { PRIVACY_PORTAL_ABI, SEPOLIA_CHAIN_ID } from '../../../src/contracts/pod';
 import { configureCotiPlugin } from '../../../src/config/plugin';
+import { logger } from '../../../src/lib/logger';
+
+vi.mock('../../../src/lib/logger', () => ({
+  logger: {
+    log: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  },
+}));
 
 const WALLET = '0x' + '1'.repeat(40);
 const PORTAL = '0x' + 'a'.repeat(40);
@@ -121,10 +134,12 @@ const baseParams = () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.clear();
   h.balanceWithState.mockResolvedValue([0n, false, false]);
   h.balanceOfWithStatus.mockResolvedValue([0n, false]);
   h.estimateFee.mockResolvedValue({ remoteFee: 1000n, callBackFee: 500n });
   h.name.mockResolvedValue('MTT');
+  h.symbol.mockResolvedValue('p.MTT');
   h.nonces.mockResolvedValue(0n);
 });
 
@@ -246,11 +261,66 @@ describe('executePodPortalTransaction - deposit (to-private)', () => {
 });
 
 describe('executePodPortalTransaction - pToken readiness', () => {
+  it('logs blocked-state diagnostics when debug logging is enabled', async () => {
+    configureCotiPlugin({ debug: true });
+    h.balanceWithState.mockResolvedValue([0n, true, false]);
+
+    await expect(
+      executePodPortalTransaction({ ...baseParams(), txDirection: 'to-private' }),
+    ).rejects.toThrow(/already pending/);
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      '[PoD][pToken readiness] balanceWithState raw contract response: {"balance":"0","pending":true,"callbackErrored":false}',
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      '[PoD][pToken readiness] blocked new request',
+      expect.objectContaining({
+        reason: 'pending',
+        action: 'deposit',
+        account: WALLET,
+        pTokenAddress: PTOKEN,
+        blockingRequest: null,
+        balanceStatusRawResponse: { balance: '0', pending: true, callbackErrored: false },
+        onChain: expect.objectContaining({
+          pending: true,
+          callbackErrored: false,
+          source: 'balanceWithState',
+        }),
+      }),
+    );
+    configureCotiPlugin({ debug: false });
+  });
+
   it('rethrows the pending error when a PoD request is already in flight', async () => {
     h.balanceWithState.mockResolvedValue([0n, true, false]);
     await expect(
       executePodPortalTransaction({ ...baseParams(), txDirection: 'to-private' }),
     ).rejects.toThrow(/already pending/);
+  });
+
+  it('includes the blocking request id when local storage has an in-flight deposit', async () => {
+    const requestId = '0x' + '9'.repeat(64);
+    localStorage.setItem(
+      `pod-portal-requests:v1:${WALLET.toLowerCase()}`,
+      JSON.stringify([{
+        id: 'tx-1',
+        kind: 'deposit',
+        chainId: SEPOLIA_CHAIN_ID,
+        sourceTxHash: '0xsource',
+        requestId,
+        wallet: WALLET,
+        token: 'MTT',
+        amount: '1',
+        status: 'pod-pending',
+        createdAt: 1,
+        updatedAt: 2,
+      }]),
+    );
+    h.balanceWithState.mockResolvedValue([0n, true, false]);
+
+    await expect(
+      executePodPortalTransaction({ ...baseParams(), txDirection: 'to-private' }),
+    ).rejects.toThrow(requestId);
   });
 
   it('rethrows the untrusted error when a prior callback failed', async () => {
@@ -275,6 +345,7 @@ describe('executePodPortalTransaction - pToken readiness', () => {
   it('falls back to plain balanceOfWithStatus when encrypted status helpers fail', async () => {
     h.balanceWithState.mockRejectedValue(new Error('no balanceWithState'));
     h.balanceOfWithStatus
+      .mockRejectedValueOnce(new Error('flat decode failed'))
       .mockRejectedValueOnce(new Error('could not decode result data'))
       .mockResolvedValueOnce([0n, false]);
     h.deposit.mockResolvedValue({
@@ -283,7 +354,26 @@ describe('executePodPortalTransaction - pToken readiness', () => {
     });
     const result = await executePodPortalTransaction({ ...baseParams(), txDirection: 'to-private' });
     expect(result.txHash).toBe('0xdeposit');
-    expect(h.balanceOfWithStatus).toHaveBeenCalledTimes(2);
+    expect(h.balanceOfWithStatus).toHaveBeenCalledTimes(3);
+  });
+
+  it('reads pending from the flat ciphertext status tuple instead of the second limb', async () => {
+    h.balanceWithState.mockRejectedValue(new Error('no balanceWithState'));
+    h.balanceOfWithStatus.mockResolvedValue([
+      {
+        ciphertextHigh: 103090361038417376440519395658158555608413617740782153585815435058968053869084n,
+        ciphertextLow: 69807266116490216295279494087392419007142977616136111241921797536560538206173n,
+      },
+      false,
+    ]);
+    h.deposit.mockResolvedValue({
+      hash: '0xdeposit',
+      wait: async () => ({ status: 1, blockNumber: 1, logs: [depositLog()] }),
+    });
+
+    const result = await executePodPortalTransaction({ ...baseParams(), txDirection: 'to-private' });
+    expect(result.txHash).toBe('0xdeposit');
+    expect(h.balanceOfWithStatus).toHaveBeenCalledTimes(1);
   });
 
   it('wraps an unrecognized state error into a generic verify message', async () => {

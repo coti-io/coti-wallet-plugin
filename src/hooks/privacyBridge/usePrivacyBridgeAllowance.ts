@@ -361,6 +361,7 @@ export const usePrivacyBridgeAllowance = ({
                         portalAddress: resolved.portalAddress,
                         amountWei,
                         chainId: currentChainId,
+                        tokenSymbol: token.symbol,
                     });
                     setPodWithdrawPermit(permit);
                     setIsApproving(false);

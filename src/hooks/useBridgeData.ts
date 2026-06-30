@@ -57,7 +57,9 @@ export const useBridgeData = (chainId: number) => {
         const bridges: BridgeData[] = [];
 
         const bridgeTokens = SUPPORTED_TOKENS.filter(
-          token => !token.isPrivate && token.bridgeAddressKey
+          token => !token.isPrivate
+            && token.bridgeAddressKey
+            && (!token.supportedChainIds || token.supportedChainIds.includes(chainId))
         );
 
         for (const token of bridgeTokens) {
