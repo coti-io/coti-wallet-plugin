@@ -44,6 +44,8 @@ const COTI_TESTNET_CHAIN_ID = 7082400;
 const PCOTI_ADDRESS = '0x6cE8907414986E73De9e7D28d62Ea2080F8E88E1';
 const AES_BACKUP_API_URL = import.meta.env.VITE_AES_BACKUP_API_URL?.replace(/\/$/, '');
 const GRANT_API_URL = import.meta.env.VITE_GRANT_API_URL?.replace(/\/$/, '');
+const ONBOARDING_GRANT_MIN_BALANCE_COTI =
+  import.meta.env.VITE_ONBOARDING_GRANT_MIN_BALANCE_COTI ?? '0.2';
 
 const backupKey = (address: string, chainId: number) =>
   `coti-example:aes-backup:${chainId}:${address.toLowerCase()}`;
@@ -83,7 +85,7 @@ configureCotiPlugin({
   debug: true,
   // Local example only: wait until the wallet has enough testnet COTI to pay
   // the onboarding transaction gas before calling generateOrRecoverAes().
-  onboardingGrantMinBalanceWei: '1000000000000000000',
+  onboardingGrantMinBalanceWei: (BigInt(Math.trunc(Number(ONBOARDING_GRANT_MIN_BALANCE_COTI) * 1e6)) * 10n ** 12n).toString(),
   onboardingServices: {
     mode: 'custom',
     fetchEncryptedAesBackup: async ({ address, chainId }) => {
