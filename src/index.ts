@@ -49,6 +49,11 @@ export {
   getWalletNetworkOptions,
   getChainIdConstants,
   resolveIndexPageUi,
+  resolveTargetCotiChainId,
+  resolveCotiSnapEnvironment,
+  getTargetCotiWalletNetwork,
+  getTargetCotiChainName,
+  AVALANCHE_C_CHAIN_ID,
 } from './chains';
 export type { ChainConfig as PortalChainConfig, ResolvedIndexPageUi, UnlockStrategy, PortalStrategy, WalletNetworkConfig, ChainIndexPageUi } from './chains/types';
 

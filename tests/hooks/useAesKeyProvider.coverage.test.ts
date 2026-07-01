@@ -12,6 +12,7 @@ import type { WalletTypeInfo } from '../../src/hooks/useWalletType';
 const COTI_TESTNET = 7082400;
 const COTI_MAINNET = 2632500;
 const SEPOLIA = 11155111;
+const ETHEREUM_MAINNET = 1;
 const ADDR = '0x1234567890abcdef1234567890abcdef12345678';
 const VALID_KEY = 'a'.repeat(32);
 
@@ -587,6 +588,23 @@ describe('useAesKeyProvider (full branch coverage)', () => {
         key = await result.current.getAesKey(ADDR);
       });
       expect(key).toBe(VALID_KEY);
+    });
+
+    it('switches to COTI mainnet when the host chain is Ethereum mainnet', async () => {
+      const request = vi.fn().mockResolvedValue(undefined);
+      wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request }) };
+      wagmiState.chainId = ETHEREUM_MAINNET;
+      const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'rabby' })));
+
+      let key: string | null = null;
+      await act(async () => {
+        key = await result.current.getAesKey(ADDR);
+      });
+      expect(key).toBe(VALID_KEY);
+      expect(request).toHaveBeenCalledWith({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: '0x282b34' }],
+      });
     });
   });
 

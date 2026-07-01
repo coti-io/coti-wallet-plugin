@@ -103,3 +103,11 @@ export {
   SEPOLIA_RPC,
   getRpcUrlForChainId,
 } from "./viemChains";
+
+export {
+  AVALANCHE_C_CHAIN_ID,
+  getTargetCotiChainName,
+  getTargetCotiWalletNetwork,
+  resolveCotiSnapEnvironment,
+  resolveTargetCotiChainId,
+} from "./resolveTargetCotiChainId";
