@@ -1,4 +1,5 @@
 import type { ChainConfig } from "./types";
+import { POD_TESTNET_INBOX_ADDRESS } from "./podInbox";
 
 export const SEPOLIA_CHAIN_ID = 11155111;
 
@@ -26,7 +27,7 @@ export const sepoliaChain: ChainConfig = {
   explorerBaseUrl: "https://eth-sepolia.blockscout.com",
   unlockStrategy: "manual-aes-key",
   portalStrategy: "pod-privacy-portal",
-  podInboxAddress: "0xAb625bE229F603f6BBF964474AFf6d5487e364De",
+  podInboxAddress: POD_TESTNET_INBOX_ADDRESS,
   addresses: {
     MTT,
     WETH,

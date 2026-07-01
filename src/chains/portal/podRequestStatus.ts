@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
 import { PodRequest, type RequestTrackingResponse } from "@coti/pod-sdk";
-import { getPrivateTokensForChain, getPublicTokensForChain, getRpcUrlForChain } from "../index";
+import { getPrivateTokensForChain, getPublicTokensForChain, getNetworkNameForChain, getRpcUrlForChain } from "../index";
 import { CONTRACT_ADDRESSES } from "../../contracts/config";
 import { POD_PTOKEN_ABI, PRIVACY_PORTAL_ABI, type PodPortalRequest } from "../../contracts/pod";
 import { getPodSdkConfig } from "./executePodPortalTransaction";
@@ -52,10 +52,25 @@ export async function resolvePodRequestStatus(request: PodPortalRequest) {
   const provider = new ethers.JsonRpcProvider(rpcUrl);
   const sym = request.token.replace(/^p\./, "");
   const pubCfg = getPublicTokensForChain(chainId).find(t => t.symbol === sym && !t.isPrivate);
-  const privCfg = getPrivateTokensForChain(chainId).find(t => t.symbol === `p.${sym}`);
+  const privCfg =
+    getPrivateTokensForChain(chainId).find(t => t.symbol === `p.${sym}`) ??
+    getPrivateTokensForChain(chainId).find(t => t.symbol === request.token);
+  const portalKey = pubCfg?.bridgeAddressKey ?? privCfg?.bridgeAddressKey;
   const pTokenAddress = privCfg?.addressKey ? addresses[privCfg.addressKey] : undefined;
-  const portalAddress = pubCfg?.bridgeAddressKey ? addresses[pubCfg.bridgeAddressKey] : undefined;
-  if (!pTokenAddress || !portalAddress) return null;
+  const portalAddress = portalKey ? addresses[portalKey] : undefined;
+  if (!pTokenAddress || !portalAddress) {
+    logger.warn("[PoD][resolveStatus] Could not resolve portal/pToken for request", {
+      chainId,
+      token: request.token,
+      requestId: request.requestId,
+      portalKey,
+      pTokenAddress,
+      portalAddress,
+    });
+    return null;
+  }
+
+  const sourceChainName = getNetworkNameForChain(chainId);
 
   const failedHex = await getFailedRequestHex(provider, request, pTokenAddress);
   if (failedHex !== "0x") {
@@ -105,7 +120,7 @@ export async function resolvePodRequestStatus(request: PodPortalRequest) {
     resolution = "succeeded";
     result = {
       status: "succeeded",
-      message: "PoD mint callback completed on Sepolia.",
+      message: `PoD mint callback completed on ${sourceChainName}.`,
       refreshPrivateBalances: true,
     };
   } else if (request.kind === "withdraw" && request.withdrawalId) {
@@ -122,7 +137,7 @@ export async function resolvePodRequestStatus(request: PodPortalRequest) {
       resolution = "succeeded";
       result = {
         status: "succeeded",
-        message: "Withdraw released on Sepolia.",
+        message: `Withdraw released on ${sourceChainName}.`,
         refreshPrivateBalances: true,
       };
     }
@@ -132,7 +147,7 @@ export async function resolvePodRequestStatus(request: PodPortalRequest) {
     resolution = "callback-generated";
     result = {
       status: "callback-generated",
-      message: "PoD callback was generated and is waiting to complete on Sepolia.",
+      message: `PoD callback was generated and is waiting to complete on ${sourceChainName}.`,
       refreshPrivateBalances: false,
     };
   }

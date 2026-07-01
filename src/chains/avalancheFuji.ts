@@ -1,4 +1,5 @@
 import type { ChainConfig } from "./types";
+import { POD_TESTNET_INBOX_ADDRESS } from "./podInbox";
 
 export const AVALANCHE_FUJI_CHAIN_ID = 43113;
 
@@ -7,7 +8,7 @@ const AVALANCHE_FUJI_RPC_URL =
 const AVALANCHE_FUJI_RPC_FALLBACK_URL =
   "https://avalanche-fuji-c-chain-rpc.publicnode.com";
 
-const AVALANCHE_FUJI_INBOX = "0xAb625bE229F603f6BBF964474AFf6d5487e364De";
+const AVALANCHE_FUJI_INBOX = POD_TESTNET_INBOX_ADDRESS;
 
 /** Underlying ERC-20s from PrivacyPortalConfig.json (Avalanche Fuji). */
 const MTT = "0x328e70e1c52662cd5f19f824fcb8b463d77a6686";
