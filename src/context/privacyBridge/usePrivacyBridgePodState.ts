@@ -32,6 +32,9 @@ export const usePrivacyBridgePodState = ({
 } => {
   const [podRequests, setPodRequests] = useState<PodPortalRequest[]>(() => loadPodRequests(''));
   const completedPodRefreshesRef = useRef<Set<string>>(new Set());
+  const inFlightRefreshRef = useRef<Set<string>>(new Set());
+  const podRequestsRef = useRef(podRequests);
+  podRequestsRef.current = podRequests;
 
   const persistPodRequests = useCallback(
     (updater: (prev: PodPortalRequest[]) => PodPortalRequest[]) => {
@@ -53,8 +56,15 @@ export const usePrivacyBridgePodState = ({
       persistPodRequests(prev => {
         const i = prev.findIndex(r => r.id === request.id);
         if (i === -1) return [request, ...prev].slice(0, 20);
+        const current = prev[i];
+        const unchanged =
+          current.status === request.status &&
+          current.message === request.message &&
+          current.requestId === request.requestId &&
+          current.balanceRefreshPending === request.balanceRefreshPending;
+        if (unchanged) return prev;
         const next = [...prev];
-        next[i] = request;
+        next[i] = { ...request, updatedAt: Date.now() };
         return next;
       });
     },
@@ -63,9 +73,20 @@ export const usePrivacyBridgePodState = ({
 
   const updatePodRequest = useCallback(
     (id: string, patch: Partial<PodPortalRequest>) => {
-      persistPodRequests(prev =>
-        prev.map(r => (r.id === id ? { ...r, ...patch, updatedAt: Date.now() } : r)),
-      );
+      persistPodRequests(prev => {
+        const i = prev.findIndex(r => r.id === id);
+        if (i === -1) return prev;
+        const current = prev[i];
+        const nextFields = { ...current, ...patch };
+        const unchanged =
+          current.status === nextFields.status &&
+          current.message === nextFields.message &&
+          current.balanceRefreshPending === nextFields.balanceRefreshPending;
+        if (unchanged) return prev;
+        const next = [...prev];
+        next[i] = { ...nextFields, updatedAt: Date.now() };
+        return next;
+      });
     },
     [persistPodRequests],
   );
@@ -99,32 +120,45 @@ export const usePrivacyBridgePodState = ({
     [refreshPrivateBalances, updatePodRequest],
   );
 
+  const refreshBalancesAfterPodCompletionRef = useRef(refreshBalancesAfterPodCompletion);
+  refreshBalancesAfterPodCompletionRef.current = refreshBalancesAfterPodCompletion;
+
   const refreshPodRequest = useCallback(
     async (request: PodPortalRequest) => {
-      if (
-        request.status === 'succeeded' &&
-        request.balanceRefreshPending &&
-        !completedPodRefreshesRef.current.has(request.id)
-      ) {
-        await refreshBalancesAfterPodCompletion(request.id);
-        return;
-      }
+      if (inFlightRefreshRef.current.has(request.id)) return;
 
+      inFlightRefreshRef.current.add(request.id);
       try {
-        const resolved = await resolvePodRequestStatus(request);
+        const latest =
+          podRequestsRef.current.find(r => r.id === request.id) ?? request;
+
+        if (
+          latest.status === 'succeeded' &&
+          latest.balanceRefreshPending &&
+          !completedPodRefreshesRef.current.has(latest.id)
+        ) {
+          await refreshBalancesAfterPodCompletionRef.current(latest.id);
+          return;
+        }
+
+        const resolved = await resolvePodRequestStatus(latest);
         if (!resolved) return;
 
-        const shouldRefreshBalances =
-          resolved.refreshPrivateBalances && !completedPodRefreshesRef.current.has(request.id);
+        if (resolved.status === latest.status && resolved.message === latest.message) {
+          return;
+        }
 
-        updatePodRequest(request.id, {
+        const shouldRefreshBalances =
+          resolved.refreshPrivateBalances && !completedPodRefreshesRef.current.has(latest.id);
+
+        updatePodRequest(latest.id, {
           status: resolved.status,
           message: resolved.message,
-          balanceRefreshPending: shouldRefreshBalances ? true : request.balanceRefreshPending,
+          balanceRefreshPending: shouldRefreshBalances ? true : latest.balanceRefreshPending,
         });
 
         if (shouldRefreshBalances) {
-          await refreshBalancesAfterPodCompletion(request.id);
+          await refreshBalancesAfterPodCompletionRef.current(latest.id);
         }
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
@@ -136,14 +170,19 @@ export const usePrivacyBridgePodState = ({
           return;
         }
         logger.warn('refreshPodRequest', e);
+      } finally {
+        inFlightRefreshRef.current.delete(request.id);
       }
     },
-    [updatePodRequest, refreshBalancesAfterPodCompletion],
+    [updatePodRequest],
   );
 
-  useEffect(() => {
+  const refreshPodRequestRef = useRef(refreshPodRequest);
+  refreshPodRequestRef.current = refreshPodRequest;
+
+  const pollActiveRequests = useCallback(() => {
     if (!walletAddress) return;
-    const active = podRequests.filter(
+    const active = podRequestsRef.current.filter(
       r =>
         POD_PORTAL_CHAIN_IDS.has(r.chainId) &&
         r.wallet.toLowerCase() === walletAddress.toLowerCase() &&
@@ -152,13 +191,41 @@ export const usePrivacyBridgePodState = ({
     );
     if (active.length === 0) return;
     active.forEach(r => {
-      refreshPodRequest(r).catch(err => logger.warn('refreshPodRequest poll failed', err));
+      refreshPodRequestRef.current(r).catch(err =>
+        logger.warn('refreshPodRequest poll failed', err),
+      );
     });
-    const intervalId = setInterval(() => {
-      active.forEach(r => refreshPodRequest(r).catch(err => logger.warn('refreshPodRequest poll failed', err)));
-    }, 10_000);
+  }, [walletAddress]);
+
+  const activeRequestIdsRef = useRef('');
+
+  useEffect(() => {
+    if (!walletAddress) return;
+
+    const active = podRequests.filter(
+      r =>
+        POD_PORTAL_CHAIN_IDS.has(r.chainId) &&
+        r.wallet.toLowerCase() === walletAddress.toLowerCase() &&
+        (r.balanceRefreshPending ||
+          (!TERMINAL_POD_STATUSES.has(r.status) && r.status !== 'succeeded')),
+    );
+    const ids = active
+      .map(r => r.id)
+      .sort()
+      .join(',');
+    if (ids !== activeRequestIdsRef.current) {
+      activeRequestIdsRef.current = ids;
+      if (active.length > 0) pollActiveRequests();
+    }
+  }, [podRequests, walletAddress, pollActiveRequests]);
+
+  useEffect(() => {
+    if (!walletAddress) return;
+
+    pollActiveRequests();
+    const intervalId = setInterval(pollActiveRequests, 10_000);
     return () => clearInterval(intervalId);
-  }, [podRequests, refreshPodRequest, walletAddress]);
+  }, [walletAddress, pollActiveRequests]);
 
   return { podRequests, refreshPodRequest, upsertPodRequest };
 };

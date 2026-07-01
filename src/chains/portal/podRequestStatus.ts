@@ -64,6 +64,24 @@ export async function resolvePodRequestStatus(request: PodPortalRequest) {
   const tracker = new PodRequest(getPodSdkConfig());
   const tracking = await tracker.trackRequest(chainId, request.requestId);
 
+  console.log("[resolvePodRequestStatus] trackRequest result", {
+    sourceTxHash: request.sourceTxHash,
+    requestId: request.requestId,
+    chainId,
+    kind: request.kind,
+    currentStatus: request.status,
+    failedHex: failedHex === "0x" ? null : failedHex,
+    minedOnTarget: tracking.minedOnTarget ?? null,
+    hasResponse: Boolean(tracking.response),
+    responseMinedOnTarget: tracking.response?.minedOnTarget ?? null,
+    execution: tracking.execution
+      ? {
+          errorCode: tracking.execution.errorCode?.toString?.() ?? tracking.execution.errorCode,
+          errorMessage: tracking.execution.errorMessage ?? null,
+        }
+      : null,
+  });
+
   if (hasPodExecutionError(tracking.execution)) {
     return {
       status: "failed" as const,

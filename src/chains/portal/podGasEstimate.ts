@@ -1,11 +1,8 @@
 import { ethers } from "ethers";
 import type { TokenConfig } from "../types";
+import { getRpcUrlForChain } from "../index";
 import { getSepoliaGasPrice, quotePortalPodRequest } from "./executePodPortalTransaction";
 import { logger } from "../../lib/logger";
-
-type EthereumRequest = {
-  request: (args: { method: string; params?: unknown[] }) => Promise<string>;
-};
 
 export async function estimatePodPortalGasFeeDisplay(params: {
   provider: ethers.BrowserProvider;
@@ -64,19 +61,17 @@ export async function estimatePodPortalGasFeeDisplay(params: {
         amountWei,
         podFees.callbackFeeWei,
       ]);
+      // Use a direct JSON-RPC provider — routing eth_estimateGas through MetaMask
+      // logs noisy "execution reverted" errors when the simulation lacks allowance.
       try {
-        const gasEstimateHex = await (window.ethereum as EthereumRequest).request({
-          method: "eth_estimateGas",
-          params: [
-            {
-              from: walletAddr,
-              to: bridgeAddress,
-              data: calldataPod,
-              value: "0x" + simulationValue.toString(16),
-            },
-          ],
+        const rpcUrl = getRpcUrlForChain(params.currentChainId);
+        const rpcProvider = new ethers.JsonRpcProvider(rpcUrl);
+        gasLimit = await rpcProvider.estimateGas({
+          from: walletAddr,
+          to: bridgeAddress,
+          data: calldataPod,
+          value: simulationValue,
         });
-        gasLimit = BigInt(gasEstimateHex);
       } catch {
         gasLimit = 850000n;
       }

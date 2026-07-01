@@ -3,11 +3,18 @@ import { ethers } from 'ethers';
 
 const getSepoliaGasPrice = vi.fn(async () => 1_000_000_000n);
 const quotePortalPodRequest = vi.fn(async () => ({ totalFeeWei: 5_000n, callbackFeeWei: 1_000n }));
+const estimateGas = vi.fn(async () => 100000n);
+
+vi.mock('../../../src/chains/index', () => ({
+  getRpcUrlForChain: () => 'http://localhost:8545',
+}));
 
 vi.mock('../../../src/chains/portal/executePodPortalTransaction', () => ({
   getSepoliaGasPrice: (...args: unknown[]) => getSepoliaGasPrice(...(args as [])),
   quotePortalPodRequest: (...args: unknown[]) => quotePortalPodRequest(...(args as [])),
 }));
+
+vi.spyOn(ethers.JsonRpcProvider.prototype, 'estimateGas').mockImplementation(estimateGas);
 
 import { estimatePodPortalGasFeeDisplay } from '../../../src/chains/portal/podGasEstimate';
 
@@ -16,7 +23,6 @@ const makeProvider = () =>
     getSigner: vi.fn(async () => ({ getAddress: async () => '0x' + '1'.repeat(40) })),
   }) as unknown as ethers.BrowserProvider;
 
-const reqMock = window.ethereum!.request as unknown as ReturnType<typeof vi.fn>;
 const fmt = (wei: bigint) => ethers.formatEther(wei).replace(/\.?0+$/, '') || '0';
 
 const baseParams = {
@@ -30,13 +36,13 @@ const baseParams = {
 
 describe('estimatePodPortalGasFeeDisplay', () => {
   beforeEach(() => {
-    reqMock.mockReset();
+    estimateGas.mockReset();
+    estimateGas.mockResolvedValue(100000n);
     getSepoliaGasPrice.mockResolvedValue(1_000_000_000n);
     quotePortalPodRequest.mockResolvedValue({ totalFeeWei: 5_000n, callbackFeeWei: 1_000n });
   });
 
-  it('combines eth_estimateGas gas cost with the PoD fee for deposits', async () => {
-    reqMock.mockResolvedValue('0x' + (100000).toString(16));
+  it('combines estimateGas gas cost with the PoD fee for deposits', async () => {
     const result = await estimatePodPortalGasFeeDisplay({
       ...baseParams,
       provider: makeProvider(),
@@ -45,8 +51,8 @@ describe('estimatePodPortalGasFeeDisplay', () => {
     expect(result).toBe(fmt(100000n * 1_000_000_000n + 5_000n));
   });
 
-  it('falls back to 850000 gas for deposits when eth_estimateGas fails', async () => {
-    reqMock.mockRejectedValue(new Error('estimate failed'));
+  it('falls back to 850000 gas for deposits when estimateGas fails', async () => {
+    estimateGas.mockRejectedValue(new Error('estimate failed'));
     const result = await estimatePodPortalGasFeeDisplay({
       ...baseParams,
       provider: makeProvider(),
@@ -76,7 +82,7 @@ describe('estimatePodPortalGasFeeDisplay', () => {
   });
 
   it('defaults decimals to 18 when pubTok is undefined', async () => {
-    reqMock.mockResolvedValue('0x' + (100000).toString(16));
+    estimateGas.mockResolvedValue(100000n);
     const result = await estimatePodPortalGasFeeDisplay({
       ...baseParams,
       pubTok: undefined,
@@ -119,7 +125,7 @@ describe('estimatePodPortalGasFeeDisplay', () => {
   it('returns "0" when the total native fee is zero', async () => {
     getSepoliaGasPrice.mockResolvedValue(0n);
     quotePortalPodRequest.mockResolvedValue({ totalFeeWei: 0n, callbackFeeWei: 0n });
-    reqMock.mockResolvedValue('0x0');
+    estimateGas.mockResolvedValue(0n);
     const result = await estimatePodPortalGasFeeDisplay({
       ...baseParams,
       provider: makeProvider(),
