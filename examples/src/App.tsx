@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useAccount, useBalance, useReadContracts, useDisconnect, useSwitchChain } from 'wagmi';
 import { formatUnits } from 'viem';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
+import { BrowserProvider } from 'ethers';
 import {
   configureCotiPlugin,
   useWalletType,
@@ -9,6 +10,8 @@ import {
   usePrivateTokenBalance,
   OnboardModal,
   ERC20_ABI,
+  normalizeAesKey,
+  encryptAesKeyBackup,
   type EncryptedAesBackup,
   type OnboardingStep,
 } from '@coti-io/coti-wallet-plugin';
@@ -39,10 +42,42 @@ const COTI_TESTNET_CHAIN_ID = 7082400;
 
 // p.COTI legacy contract uses version 64; all other private tokens use 256
 const PCOTI_ADDRESS = '0x6cE8907414986E73De9e7D28d62Ea2080F8E88E1';
-const MOCK_GRANT_URL = 'http://localhost:8787';
+const AES_BACKUP_API_URL = import.meta.env.VITE_AES_BACKUP_API_URL?.replace(/\/$/, '');
+const GRANT_API_URL = import.meta.env.VITE_GRANT_API_URL?.replace(/\/$/, '');
 
 const backupKey = (address: string, chainId: number) =>
   `coti-example:aes-backup:${chainId}:${address.toLowerCase()}`;
+
+const backupApiUrl = (address: string, chainId: number) =>
+  `${AES_BACKUP_API_URL}/aes-backups/${chainId}/${address.toLowerCase()}`;
+
+const fetchEncryptedAesBackup = async (address: string, chainId: number) => {
+  const raw = window.localStorage.getItem(backupKey(address, chainId));
+  if (AES_BACKUP_API_URL) {
+    const response = await fetch(backupApiUrl(address, chainId));
+    if (response.status === 404) return raw ? JSON.parse(raw) as EncryptedAesBackup : null;
+    if (!response.ok) throw new Error(`Backup restore failed: ${response.status}`);
+    return response.json() as Promise<EncryptedAesBackup>;
+  }
+  return raw ? JSON.parse(raw) as EncryptedAesBackup : null;
+};
+
+const saveEncryptedAesBackup = async (
+  address: string,
+  chainId: number,
+  backup: EncryptedAesBackup,
+  action: 'save' | 'replace' = 'save',
+) => {
+  if (AES_BACKUP_API_URL) {
+    const response = await fetch(backupApiUrl(address, chainId), {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(backup),
+    });
+    if (!response.ok) throw new Error(`Backup ${action} failed: ${response.status}`);
+  }
+  window.localStorage.setItem(backupKey(address, chainId), JSON.stringify(backup));
+};
 
 configureCotiPlugin({
   debug: true,
@@ -52,24 +87,23 @@ configureCotiPlugin({
   onboardingServices: {
     mode: 'custom',
     fetchEncryptedAesBackup: async ({ address, chainId }) => {
-      const raw = window.localStorage.getItem(backupKey(address, chainId));
-      return raw ? JSON.parse(raw) as EncryptedAesBackup : null;
+      return fetchEncryptedAesBackup(address, chainId);
     },
     saveEncryptedAesBackup: async ({ address, chainId, backup }) => {
-      window.localStorage.setItem(backupKey(address, chainId), JSON.stringify(backup));
+      return saveEncryptedAesBackup(address, chainId, backup, 'save');
     },
     replaceEncryptedAesBackup: async ({ address, chainId, backup }) => {
-      window.localStorage.setItem(backupKey(address, chainId), JSON.stringify(backup));
+      return saveEncryptedAesBackup(address, chainId, backup, 'replace');
     },
-    grantNativeCoti: async ({ address, chainId }) => {
-      const response = await fetch(MOCK_GRANT_URL, {
+    grantNativeCoti: GRANT_API_URL ? async ({ address, chainId }) => {
+      const response = await fetch(GRANT_API_URL, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ address, chainId }),
       });
-      if (!response.ok) throw new Error(`Mock grant failed: ${response.status}`);
+      if (!response.ok) throw new Error(`Grant failed: ${response.status}`);
       return response.json();
-    },
+    } : undefined,
   },
 });
 
@@ -87,7 +121,7 @@ const erc20BalanceOfAbi = [
 // --- App ---
 
 export default function App() {
-  const { address, isConnected, chainId } = useAccount();
+  const { address, isConnected, chainId, connector } = useAccount();
   const { openConnectModal } = useConnectModal();
   const { disconnect: wagmiDisconnect } = useDisconnect();
   const { switchChainAsync } = useSwitchChain();
@@ -106,6 +140,7 @@ export default function App() {
   const [onboardingStep, setOnboardingStep] = useState<OnboardingStep>('idle');
   const [retrievedAesKey, setRetrievedAesKey] = useState<string | null>(null);
   const [saveAesBackup, setSaveAesBackup] = useState(true);
+  const [manualAesWarning, setManualAesWarning] = useState<string | null>(null);
 
   // Unlock: restore backup first; show onboarding only when no saved key exists.
   const unlockPrivateBalances = useCallback(async () => {
@@ -142,6 +177,7 @@ export default function App() {
   // Begin onboarding (called from modal's "Begin Onboarding" button)
   const beginOnboarding = useCallback(async () => {
     if (!address) return;
+    setManualAesWarning(null);
     try {
       const key = await getAesKey(address, setOnboardingStep, { saveBackup: saveAesBackup });
       if (key) {
@@ -153,6 +189,42 @@ export default function App() {
     }
   }, [address, getAesKey, saveAesBackup]);
 
+  const saveManualAesKey = useCallback(async (
+    aesKey: string,
+    options: { saveBackup: boolean } = { saveBackup: saveAesBackup },
+  ) => {
+    let key: string;
+    try {
+      key = normalizeAesKey(aesKey.trim());
+    } catch {
+      throw new Error('AES key must be 32 hexadecimal characters.');
+    }
+
+    setManualAesWarning(null);
+    if (options.saveBackup) {
+      try {
+        if (!address || !connector) throw new Error('Connect your wallet first.');
+        const walletProvider = await connector.getProvider() as any;
+        const provider = new BrowserProvider(walletProvider);
+        const signer = await provider.getSigner(address);
+        const backup = await encryptAesKeyBackup(key, signer, {
+          address,
+          chainId: COTI_TESTNET_CHAIN_ID,
+        });
+        await saveEncryptedAesBackup(address, COTI_TESTNET_CHAIN_ID, backup, 'save');
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Encrypted AES backup could not be saved.';
+        console.error('Manual AES key backup failed:', err);
+        setManualAesWarning(`AES key accepted, but encrypted backup was not saved. ${message}`);
+      }
+    }
+
+    setSessionAesKey(key);
+    setShowOnboardModal(false);
+    setOnboardingStep('idle');
+    setRetrievedAesKey(null);
+  }, [address, connector, saveAesBackup]);
+
   // Close modal and finalize (called from success screen's "Done" button)
   const closeModal = useCallback(() => {
     setShowOnboardModal(false);
@@ -162,6 +234,7 @@ export default function App() {
     // Reset modal state
     setOnboardingStep('idle');
     setRetrievedAesKey(null);
+    setManualAesWarning(null);
   }, [retrievedAesKey]);
 
   // Lock: clear session key
@@ -396,7 +469,8 @@ export default function App() {
         hasSnap={walletTypeInfo.isMetaMaskWithSnap}
         saveBackup={saveAesBackup}
         onSaveBackupChange={setSaveAesBackup}
-        warning={onboardingWarning}
+        onManualAesKeySubmit={saveManualAesKey}
+        warning={manualAesWarning || onboardingWarning}
       />
     </div>
   );

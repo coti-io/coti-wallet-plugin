@@ -13,7 +13,7 @@ const COTI_TESTNET = 7082400;
 const COTI_MAINNET = 2632500;
 const SEPOLIA = 11155111;
 const ADDR = '0x1234567890abcdef1234567890abcdef12345678';
-const VALID_KEY = 'a'.repeat(64);
+const VALID_KEY = 'a'.repeat(32);
 
 // ─── Mocks ──────────────────────────────────────────────────────────────────
 
@@ -375,6 +375,34 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       expect(grantNativeCoti).toHaveBeenCalledWith({ address: ADDR, chainId: COTI_TESTNET });
     });
 
+    it('continues onboarding when the grant API rejects', async () => {
+      wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
+      wagmiState.chainId = COTI_TESTNET;
+      ethersState.getBalance.mockResolvedValue(0n);
+      const grantNativeCoti = vi.fn().mockRejectedValue(new Error('grant rejected'));
+      const signer = makeSigner(VALID_KEY);
+      ethersState.getSigner.mockResolvedValue(signer);
+      configureCotiPlugin({
+        onboardingServices: {
+          mode: 'custom',
+          grantNativeCoti,
+        },
+        onboardingGrantMinBalanceWei: 10,
+      });
+
+      const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'rabby' })));
+
+      let key: string | null = null;
+      await act(async () => {
+        key = await result.current.getAesKey(ADDR);
+      });
+
+      expect(key).toBe(VALID_KEY);
+      expect(grantNativeCoti).toHaveBeenCalledWith({ address: ADDR, chainId: COTI_TESTNET });
+      expect(signer.generateOrRecoverAes).toHaveBeenCalled();
+      expect(result.current.onboardingError).toBeNull();
+    });
+
     it('saves an encrypted backup after onboarding when requested', async () => {
       wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
       wagmiState.chainId = COTI_TESTNET;
@@ -628,6 +656,24 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       expect(key).toBeNull();
       // getProvider called once for the BrowserProvider and again in the catch for restore
       expect(getProvider.mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('restores the wallet request wrapper when signer setup fails', async () => {
+      const request = vi.fn().mockResolvedValue(undefined);
+      const walletProvider = { request };
+      wagmiState.connector = { getProvider: vi.fn().mockResolvedValue(walletProvider) };
+      wagmiState.chainId = COTI_TESTNET;
+      ethersState.getSigner.mockRejectedValue(new Error('eth_accounts failed'));
+      const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'rabby' })));
+
+      let key: string | null = 'x';
+      await act(async () => {
+        key = await result.current.getAesKey(ADDR);
+      });
+
+      expect(key).toBeNull();
+      expect(result.current.onboardingError).toBe('eth_accounts failed');
+      expect(walletProvider.request).toBe(request);
     });
 
     it('warns when restoring the original chain in the catch path also fails', async () => {

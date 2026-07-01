@@ -1,4 +1,5 @@
 import { ethers } from "ethers";
+import { normalizeAesKey as normalizeSdkAesKey } from "@coti-io/coti-sdk-typescript";
 
 const VAULT_PREFIX = "pod:aes-key";
 const SIGN_MESSAGE = "COTI Privacy Portal: unlock local AES key cache";
@@ -49,14 +50,7 @@ const readCachedRecord = (address: string) => {
 
 const normalizeAesKey = (aesKey: string) => {
   const trimmedKey = aesKey.trim();
-  if (!trimmedKey) throw new Error("AES key is required.");
-  if (trimmedKey.startsWith("0x")) {
-    throw new Error("Paste the 32-character AES key without a 0x prefix.");
-  }
-  if (!/^[0-9a-fA-F]{32}$/.test(trimmedKey)) {
-    throw new Error("AES key must be exactly 32 hexadecimal characters.");
-  }
-  return trimmedKey.toLowerCase();
+  return normalizeSdkAesKey(trimmedKey);
 };
 
 const getSignature = async (address: string): Promise<string> => {

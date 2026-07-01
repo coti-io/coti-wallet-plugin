@@ -18,9 +18,9 @@ describe('AES Key Management (README: AES Key Management)', () => {
       expect(normalizeAesKey(key)).toBe(key);
     });
 
-    it('accepts 64-char (256-bit) keys', () => {
+    it('rejects 64-char keys', () => {
       const key = 'a'.repeat(64);
-      expect(normalizeAesKey(key)).toBe(key);
+      expect(() => normalizeAesKey(key)).toThrow('expected 32');
     });
 
     it('throws for non-hex characters', () => {
@@ -28,16 +28,16 @@ describe('AES Key Management (README: AES Key Management)', () => {
     });
 
     it('throws for wrong length (16 chars)', () => {
-      expect(() => normalizeAesKey('a'.repeat(16))).toThrow('expected 32 or 64');
+      expect(() => normalizeAesKey('a'.repeat(16))).toThrow('expected 32');
     });
 
     it('throws for wrong length (48 chars)', () => {
-      expect(() => normalizeAesKey('a'.repeat(48))).toThrow('expected 32 or 64');
+      expect(() => normalizeAesKey('a'.repeat(48))).toThrow('expected 32');
     });
 
-    it('handles 0x prefix with 64-char key', () => {
+    it('throws for 0x prefix with 64-char key', () => {
       const key = '0x' + 'b'.repeat(64);
-      expect(normalizeAesKey(key)).toBe('b'.repeat(64));
+      expect(() => normalizeAesKey(key)).toThrow('expected 32');
     });
 
     it('throws for empty string', () => {
@@ -67,9 +67,9 @@ describe('AES Key Management (README: AES Key Management)', () => {
       expect(() => validateAesKey('')).toThrow('AES key is required');
     });
 
-    it('validates and normalizes a 64-char key', () => {
+    it('throws for a 64-char key', () => {
       const key = 'F'.repeat(64);
-      expect(validateAesKey(key)).toBe('f'.repeat(64));
+      expect(() => validateAesKey(key)).toThrow('expected 32');
     });
   });
 });

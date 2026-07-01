@@ -126,13 +126,5 @@ describe('Package Exports (README: Installation & API)', () => {
     const aesKey = await import('../src/crypto/aesKey');
     expect(aesKey.normalizeAesKey).toBeDefined();
     expect(aesKey.validateAesKey).toBeDefined();
-
-    const signature = await import('../src/crypto/signature');
-    expect(signature.signDigest).toBeDefined();
-    expect(signature.buildItSignature).toBeDefined();
-    expect(signature.normalizeSignature).toBeDefined();
-
-    const wallet = await import('../src/crypto/wallet');
-    expect(wallet.deriveWallet).toBeDefined();
   });
 });

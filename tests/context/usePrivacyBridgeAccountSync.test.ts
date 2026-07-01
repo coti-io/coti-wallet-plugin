@@ -145,7 +145,7 @@ describe('usePrivacyBridgeAccountSync — sessionAesKey effect', () => {
 
     // Now simulate sessionAesKey being set
     const updatedCore = makeCore({
-      sessionAesKey: 'a'.repeat(64),
+      sessionAesKey: 'a'.repeat(32),
       walletAddress: '0xabc123',
       wagmiSyncRef: { current: true },
     });
@@ -161,7 +161,7 @@ describe('usePrivacyBridgeAccountSync — sessionAesKey effect', () => {
       '0xabc123',
       false,
       true,
-      'a'.repeat(64),
+      'a'.repeat(32),
       11155111,
     );
   });
@@ -178,7 +178,7 @@ describe('usePrivacyBridgeAccountSync — sessionAesKey effect', () => {
   });
 
   it('does NOT call updateAccountState when walletAddress is empty', () => {
-    const core = makeCore({ sessionAesKey: 'a'.repeat(64), walletAddress: '' });
+    const core = makeCore({ sessionAesKey: 'a'.repeat(32), walletAddress: '' });
     const network = makeNetwork();
     const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
 
@@ -203,7 +203,7 @@ describe('usePrivacyBridgeAccountSync — sessionAesKey effect', () => {
 
   it('passes undefined chainOverride when wagmiSyncRef is false', async () => {
     const core = makeCore({
-      sessionAesKey: 'b'.repeat(64),
+      sessionAesKey: 'b'.repeat(32),
       walletAddress: '0xdef456',
       wagmiSyncRef: { current: false },
     });
@@ -220,7 +220,7 @@ describe('usePrivacyBridgeAccountSync — sessionAesKey effect', () => {
       '0xdef456',
       false,
       true,
-      'b'.repeat(64),
+      'b'.repeat(32),
       undefined, // wagmiSyncRef.current is false, so chainOverride = undefined
     );
   });

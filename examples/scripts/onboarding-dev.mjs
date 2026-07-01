@@ -11,6 +11,7 @@ const env = {
   ...process.env,
   VITE_WALLETCONNECT_PROJECT_ID:
     process.env.VITE_WALLETCONNECT_PROJECT_ID || 'your_walletconnect_project_id_here',
+  VITE_GRANT_API_URL: process.env.VITE_GRANT_API_URL || 'http://localhost:8787',
 };
 
 function run(command, args, options = {}) {

@@ -1,213 +1,73 @@
-# User Onboarding: AES Key Retrieval from COTI Contract
+# User Onboarding: AES Key Retrieval
 
 ## Overview
 
-The user onboarding process retrieves (or generates) a per-user AES encryption key from the COTI onboarding smart contract. This key is required to decrypt private token balances on the COTI network. The onboarding is a **one-time signature flow** per session — the AES key lives only in React state and is never persisted to browser storage.
+Onboarding retrieves or restores the wallet-bound AES key used to decrypt private token balances. The active key is kept in React session state, while optional restore/save services can store an encrypted backup outside the session.
 
----
+The current flow is implemented by `useAesKeyProvider` in `src/hooks/useAesKeyProvider.ts`.
 
-## Entry Points
+## Routes
 
-There are **two routing paths** depending on the connected wallet type, both handled by `useAesKeyProvider` (`src/hooks/useAesKeyProvider.ts`):
-
-| Wallet Type | Path | Method |
+| Wallet | First route | Fallback |
 |---|---|---|
-| MetaMask (with Snap) | Route 1: Snap-based retrieval | `getAESKeyFromSnap(address)` via MetaMask Snaps API |
-| Non-MetaMask / MetaMask without Snap | Route 2: Contract onboarding | `@coti-io/coti-ethers` → `signer.generateOrRecoverAes()` |
+| MetaMask with Snap | `getAESKeyFromSnap(address)` | Contract onboarding if Snap is empty/unavailable |
+| Other wallets / MetaMask without usable Snap | Encrypted backup restore, then contract onboarding | Manual AES key input in `OnboardModal` if the host supplies `onManualAesKeySubmit` |
 
----
+## Contract Onboarding Flow
 
-## Detailed Flow (Route 2: Contract Onboarding)
+1. Caller invokes `getAesKey(address, setStep, options)`.
+2. If `onboardingServices.fetchEncryptedAesBackup` is configured, the hook emits `restoring-backup`, fetches the encrypted backup, asks the wallet for the EIP-712 restore signature, and decrypts it with `decryptAesKeyBackup`.
+3. If `options.restoreOnly` is true and no backup is restored, the hook returns `null` without contract onboarding.
+4. The hook switches to COTI mainnet/testnet when needed, muting chain-change reactions during the temporary switch.
+5. If `grantNativeCoti` is configured and the wallet balance is below `onboardingGrantMinBalanceWei` or the default minimum, the hook emits `granting-funds`, calls the grant service, then emits `waiting-for-funds` while polling native COTI balance.
+6. The hook creates a `@coti-io/coti-ethers` `BrowserProvider` and signer.
+7. `signer.generateOrRecoverAes()` runs the onboarding flow. The wallet sees the message signature and, for first-time onboarding, the on-chain transaction.
+8. The hook reads `signer.getUserOnboardInfo().aesKey`, validates the AES key, and switches the wallet back to the original chain when applicable.
+9. For MetaMask, the hook attempts to persist the key into the Snap if the origin is allowed.
+10. If `options.saveBackup` is true and backup save callbacks are configured, the hook encrypts the AES key with `encryptAesKeyBackup` and calls `saveEncryptedAesBackup` or `replaceEncryptedAesBackup`.
+11. The hook emits `complete` and returns the AES key.
 
-This is the primary path for non-MetaMask wallets (WalletConnect, Coinbase Wallet, etc.) and the fallback for MetaMask when the Snap is unavailable or empty.
+## Example App Services
 
-### Step-by-Step
+`examples/src/App.tsx` configures `onboardingServices` with `mode: 'custom'`.
 
-```
-User clicks "Sign & Onboard" in OnboardModal
-          │
-          ▼
-┌─────────────────────────────────────────┐
-│  useAesKeyProvider.getAesKey(address)   │
-│  (src/hooks/useAesKeyProvider.ts)       │
-└────────────────────┬────────────────────┘
-                     │
-                     ▼
-┌─────────────────────────────────────────┐
-│  1. Get EIP-1193 provider from wagmi    │
-│     connector.getProvider()             │
-└────────────────────┬────────────────────┘
-                     │
-                     ▼
-┌─────────────────────────────────────────┐
-│  2. Check if wallet is on COTI chain    │
-│     (Mainnet 0x27D1 or Testnet 0x27DA) │
-│     If NOT:                             │
-│       - Mute UI chain-change events     │
-│       - wallet_switchEthereumChain      │
-│         to COTI Testnet                 │
-│       - (Or wallet_addEthereumChain     │
-│         if chain 4902 not found)        │
-└────────────────────┬────────────────────┘
-                     │
-                     ▼
-┌─────────────────────────────────────────┐
-│  3. Create @coti-io/coti-ethers         │
-│     BrowserProvider(walletProvider)      │
-│     → provider.getSigner(address)       │
-└────────────────────┬────────────────────┘
-                     │
-                     ▼
-┌─────────────────────────────────────────┐
-│  4. signer.generateOrRecoverAes()       │
-│     ─────────────────────────────────── │
-│     This calls the COTI onboarding      │
-│     contract. The wallet prompts the    │
-│     user to sign a message. The         │
-│     contract either:                    │
-│       - Generates a NEW AES key         │
-│         (first-time onboard)            │
-│       - Recovers the EXISTING AES key   │
-│         (repeat onboard, same account)  │
-└────────────────────┬────────────────────┘
-                     │
-                     ▼
-┌─────────────────────────────────────────┐
-│  5. signer.getUserOnboardInfo()         │
-│     → { aesKey: string }               │
-│     Returns 32-char hex (128-bit key)   │
-└────────────────────┬────────────────────┘
-                     │
-                     ▼
-┌─────────────────────────────────────────┐
-│  6. Validate key format                 │
-│     /^[0-9a-fA-F]{32}$|               │
-│      ^[0-9a-fA-F]{64}$/               │
-└────────────────────┬────────────────────┘
-                     │
-                     ▼
-┌─────────────────────────────────────────┐
-│  7. Switch wallet back to original      │
-│     chain (if chain was switched)       │
-│     Unmute chain-change events          │
-└────────────────────┬────────────────────┘
-                     │
-                     ▼
-┌─────────────────────────────────────────┐
-│  8. (MetaMask only) Persist key to      │
-│     Snap via saveAESKeyToSnap()         │
-│     if origin is authorized             │
-└────────────────────┬────────────────────┘
-                     │
-                     ▼
-┌─────────────────────────────────────────┐
-│  9. Return aesKey to caller             │
-└─────────────────────────────────────────┘
-```
+| Env var | Behavior |
+|---|---|
+| `VITE_AES_BACKUP_API_URL` | Uses `GET /aes-backups/:chainId/:address` and `PUT /aes-backups/:chainId/:address`, and also keeps a localStorage encrypted backup copy |
+| unset `VITE_AES_BACKUP_API_URL` | Uses `localStorage` only for encrypted backup blobs |
+| `VITE_GRANT_API_URL` | Uses this URL for `grantNativeCoti` POST requests |
+| unset `VITE_GRANT_API_URL` | Does not configure a grant service; onboarding requires the wallet to already have native COTI for gas |
 
-### After Key Retrieval
+The example still keeps the active AES key in memory. LocalStorage is only a sample backing store for the encrypted backup blob, not the live session key.
 
-```
-┌─────────────────────────────────────────┐
-│  usePrivacyBridgeUnlockSession          │
-│  .handleOnboard()                       │
-│  → calls handleManualOnboarding()       │
-│  → stores key: setSessionAesKey(key, w) │
-└────────────────────┬────────────────────┘
-                     │
-                     ▼
-┌─────────────────────────────────────────┐
-│  usePrivacyBridgeSessionKey             │
-│  Binds key to wallet address in         │
-│  React state (in-memory only)           │
-│  Prevents cross-account key bleed       │
-└────────────────────┬────────────────────┘
-                     │
-                     ▼
-┌─────────────────────────────────────────┐
-│  usePrivacyBridgeAccountSync            │
-│  Detects sessionAesKey change →         │
-│  triggers updateAccountState()          │
-│  → fetches private token balances       │
-│  → sets arePrivateBalancesHidden=false  │
-└─────────────────────────────────────────┘
-```
+Manual AES key input uses the same encrypted backup helper as contract onboarding when `Save encrypted backup` is checked: the user signs the backup context, the key is encrypted with `encryptAesKeyBackup`, and the encrypted blob is saved through the configured API/localStorage path.
 
----
-
-## Detailed Flow (Route 1: MetaMask Snap)
-
-For MetaMask users with the COTI Snap installed:
-
-1. `getAESKeyFromSnap(address)` — calls the MetaMask Snap to retrieve a stored 64-char (256-bit) AES key
-2. If Snap is empty or unavailable, **falls back to Route 2** (contract onboarding)
-3. After Route 2 succeeds for MetaMask, the key is persisted to the Snap via `saveAESKeyToSnap()` for future sessions
-
----
+`npm run dev:onboarding` starts the local mock grant server and explicitly sets `VITE_GRANT_API_URL=http://localhost:8787` for that dev session.
 
 ## Key Components
 
 | File | Role |
 |---|---|
-| `src/hooks/useAesKeyProvider.ts` | Core dual-route AES key retrieval logic |
-| `src/components/OnboardModal.tsx` | UI explaining the signature to non-MetaMask users |
-| `src/hooks/useSnap.ts` | MetaMask Snap interaction (get/save key, `handleManualOnboarding`) |
-| `src/context/privacyBridge/usePrivacyBridgeSessionKey.ts` | Wallet-bound in-memory key state |
-| `src/context/privacyBridge/usePrivacyBridgeUnlockSession.ts` | Orchestrates onboard/unlock lifecycle |
-| `src/context/privacyBridge/usePrivacyBridgeAccountSync.ts` | Triggers balance refresh on key change |
-| `src/context/privacyBridge/usePrivacyBridgeSessionCore.ts` | Wires all hooks together |
-| `src/lib/chainMute.ts` | Mutes spurious chain-switch UI events during onboarding |
-
----
-
-## Contract Details
-
-- **Library**: `@coti-io/coti-ethers` (external dependency)
-- **Contract**: The onboarding contract address is embedded inside `@coti-io/coti-ethers` — it is NOT configured within this plugin
-- **Network**: Onboarding executes on **COTI Testnet** (chain ID `0x27DA` / `10202`)
-- **Key method**: `signer.generateOrRecoverAes()` — triggers a wallet signature request
-- **Key retrieval**: `signer.getUserOnboardInfo().aesKey` — returns the hex AES key
-
----
-
-## Key Format
-
-| Source | Length | Bits |
-|---|---|---|
-| Onboard contract | 32 hex chars | 128-bit AES |
-| MetaMask Snap | 64 hex chars | 256-bit AES |
-
-Both formats are accepted by the validation regex: `/^[0-9a-fA-F]{32}$|^[0-9a-fA-F]{64}$/`
-
----
+| `src/hooks/useAesKeyProvider.ts` | Snap route, encrypted backup restore/save, grant, contract onboarding |
+| `src/crypto/aesKeyBackupVault.ts` | EIP-712 signature based AES-GCM backup encryption/decryption |
+| `src/components/OnboardModal.tsx` | Onboarding UI, backup opt-in, manual AES key input, success key display |
+| `src/context/privacyBridge/usePrivacyBridgeSessionKey.ts` | Wallet-bound in-memory session AES key |
+| `src/context/privacyBridge/usePrivacyBridgeUnlockSession.ts` | PrivacyBridge unlock/manual onboarding lifecycle |
+| `src/context/privacyBridge/usePrivacyBridgeAccountSync.ts` | Balance refresh when the session AES key changes |
+| `src/lib/chainMute.ts` | Mutes temporary onboarding chain-switch UI effects |
 
 ## Security Properties
 
-1. **Session-only**: The AES key is stored exclusively in React state — never in localStorage or cookies
-2. **Wallet-bound**: The key is bound to a specific wallet address to prevent cross-account leakage
-3. **Lost on refresh**: By design, page reload requires re-onboarding (re-signing)
-4. **No persistence**: `unlockCachedAesKey()` always throws — caching was intentionally removed
-5. **Chain muting**: During the COTI chain switch for onboarding, UI chain-change events are suppressed to avoid stale state resets
-
----
+1. The active AES key is session-only React state and is wallet-bound to prevent cross-account leakage.
+2. Encrypted backups are optional and host-defined through `configureCotiPlugin`.
+3. Backup restore requires a wallet signature, so a stored blob alone is not enough to recover the AES key.
+4. Manual AES key input is session-only unless the host separately persists it.
+5. `unlockCachedAesKey()` in the PrivacyBridge compatibility surface still reports no cached key; legacy `localAesKeyVault` is exported but not used by the current PrivacyBridge unlock flow.
 
 ## Error Handling
 
-- **User rejection** (EIP-1193 code 4001): Returns `null` silently — user cancelled
-- **Snap unavailable/empty**: Falls through to contract onboarding
-- **Chain switch failure** (code 4902): Attempts `wallet_addEthereumChain` to add COTI Testnet
-- **Invalid key format**: Sets `onboardingError` state for UI display
-- **ACCOUNT_NOT_ONBOARDED**: Clears session key, re-hides private balances, triggers re-onboard flow
-
----
-
-## UI Flow (OnboardModal)
-
-The `OnboardModal` component (`src/components/OnboardModal.tsx`) is displayed to non-MetaMask wallet users and has four states:
-
-1. **Idle** — Explains that a signature is needed for AES key retrieval
-2. **Loading** — Shows spinner while `generateOrRecoverAes()` is in progress
-3. **Error** — Shows error message with retry button
-4. **Success** — Auto-closes when `sessionAesKey` is set in context
-
-The modal is triggered when the user attempts to view/manage private balances without an active session key.
+- User rejection during Snap, restore signature, chain switch, or onboarding returns `null` or shows the relevant modal error without storing a key.
+- Backup restore failures fall through to contract onboarding and set a non-blocking warning.
+- Backup save failures do not block a successful onboarding; the user receives a warning.
+- Grant API failures and grant timeouts fall through as if no grant was configured. The onboarding transaction still needs native COTI gas, so an unfunded wallet fails through the normal insufficient-balance path.
+- Invalid AES key format sets `onboardingError` and emits `error`.

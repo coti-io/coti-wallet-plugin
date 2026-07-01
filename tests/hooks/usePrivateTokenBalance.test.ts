@@ -20,7 +20,7 @@ describe('usePrivateTokenBalance', () => {
     const { result } = renderHook(() => usePrivateTokenBalance());
     const balance = await result.current.fetchPrivateBalance(
       '0xabc',
-      'a'.repeat(64),
+      'a'.repeat(32),
       '0xcontract',
       256,
       18,
@@ -46,7 +46,7 @@ describe('usePrivateTokenBalance', () => {
     const { result } = renderHook(() => usePrivateTokenBalance());
     const balance = await result.current.fetchPrivateBalance(
       '0xabc',
-      'a'.repeat(64),
+      'a'.repeat(32),
       '',
       256,
       18,
@@ -60,7 +60,7 @@ describe('usePrivateTokenBalance', () => {
     const { result } = renderHook(() => usePrivateTokenBalance());
     const balance = await result.current.fetchPrivateBalance(
       '0x1234567890abcdef1234567890abcdef12345678',
-      'a'.repeat(64),
+      'a'.repeat(32),
       '0x1234567890abcdef1234567890abcdef12345678',
       256,
       18,

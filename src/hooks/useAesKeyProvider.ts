@@ -9,16 +9,9 @@ import { logger } from '../lib/logger';
 import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID } from '../config/chains';
 import { getPluginConfig } from '../config/plugin';
 import { decryptAesKeyBackup, encryptAesKeyBackup } from '../crypto/aesKeyBackupVault';
+import { normalizeAesKey } from '../crypto/aesKey';
 import { muteChainUpdates, unmuteChainUpdates, isChainUpdatesMuted } from '../lib/chainMute';
 import { canPersistAesKeyToSnap } from '../lib/snapOrigins';
-
-/**
- * Regex pattern for validating AES key format: 32 or 64 hexadecimal characters.
- * Supports both 128-bit (32 chars) and 256-bit (64 chars) AES keys.
- * - Onboard contract returns 32-char keys (128-bit)
- * - Snap returns 64-char keys (256-bit)
- */
-const AES_KEY_PATTERN = /^[0-9a-fA-F]{32}$|^[0-9a-fA-F]{64}$/;
 
 /**
  * EIP-1193 error code for user rejection of a wallet request.
@@ -121,12 +114,14 @@ function isUserRejection(error: unknown): boolean {
   return false;
 }
 
-/**
- * Validates that a string is a valid 32 or 64-character hex AES key.
- * Accepts both 128-bit (32 chars) and 256-bit (64 chars) keys.
- */
+/** Validates that a string is a valid 32-character hex AES key. */
 export function isValidAesKey(key: string): boolean {
-  return AES_KEY_PATTERN.test(key);
+  try {
+    normalizeAesKey(key);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function isServiceEnabled(mode?: 'disabled' | 'custom' | 'official'): boolean {
@@ -369,7 +364,13 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
 
         // Create a @coti-io/coti-ethers BrowserProvider (now on COTI Testnet)
         const provider = new BrowserProvider(walletProvider);
-        const signer = await provider.getSigner(address);
+        let signer;
+        try {
+          signer = await provider.getSigner(address);
+        } catch (signerError) {
+          restoreRequest();
+          throw signerError;
+        }
 
         const configuredMinBalanceWei = toBigInt(config.onboardingGrantMinBalanceWei, 0n);
         if (servicesEnabled && services?.grantNativeCoti) {
@@ -383,30 +384,31 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           });
           if (nativeBalance < requiredBalanceWei) {
             emitStep('granting-funds');
-            const grantResult = await services.grantNativeCoti({ address, chainId: targetCotiChainId });
-            logger.log('[AesKeyProvider] Native COTI grant requested', grantResult);
+            try {
+              const grantResult = await services.grantNativeCoti({ address, chainId: targetCotiChainId });
+              logger.log('[AesKeyProvider] Native COTI grant requested', grantResult);
 
-            emitStep('waiting-for-funds');
-            const pollIntervalMs = config.onboardingGrantPollIntervalMs ?? 2000;
-            const timeoutMs = config.onboardingGrantTimeoutMs ?? 30000;
-            const startedAt = Date.now();
+              emitStep('waiting-for-funds');
+              const pollIntervalMs = config.onboardingGrantPollIntervalMs ?? 2000;
+              const timeoutMs = config.onboardingGrantTimeoutMs ?? 30000;
+              const startedAt = Date.now();
 
-            while (nativeBalance < requiredBalanceWei && Date.now() - startedAt < timeoutMs) {
-              await sleep(pollIntervalMs);
-              nativeBalance = await provider.getBalance(address);
-              logger.log('[AesKeyProvider] Native COTI balance while waiting for grant', {
-                address,
-                chainId: targetCotiChainId,
-                nativeBalanceWei: nativeBalance.toString(),
-                requiredBalanceWei: requiredBalanceWei.toString(),
-              });
+              while (nativeBalance < requiredBalanceWei && Date.now() - startedAt < timeoutMs) {
+                await sleep(pollIntervalMs);
+                nativeBalance = await provider.getBalance(address);
+                logger.log('[AesKeyProvider] Native COTI balance while waiting for grant', {
+                  address,
+                  chainId: targetCotiChainId,
+                  nativeBalanceWei: nativeBalance.toString(),
+                  requiredBalanceWei: requiredBalanceWei.toString(),
+                });
+              }
+            } catch (grantError) {
+              logger.warn('[AesKeyProvider] Native COTI grant unavailable; continuing without grant:', grantError);
             }
 
             if (nativeBalance < requiredBalanceWei) {
-              throw new CotiPluginError(
-                CotiErrorCode.API_ERROR,
-                'Native COTI grant did not fund the wallet before timeout.',
-              );
+              logger.warn('[AesKeyProvider] Native COTI balance remains below onboarding threshold; continuing without grant');
             }
           }
         }

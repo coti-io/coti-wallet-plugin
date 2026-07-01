@@ -105,7 +105,7 @@ describe('useBalanceUpdater branch coverage', () => {
   });
 
   it('returns "0" for a private token whose on-chain address is empty (lines 130-131)', async () => {
-    const props = makeProps({ sessionAesKey: 'a'.repeat(64) });
+    const props = makeProps({ sessionAesKey: 'a'.repeat(32) });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
     // Mainnet config has empty-string private token addresses.
@@ -117,7 +117,7 @@ describe('useBalanceUpdater branch coverage', () => {
 
   it('uses the "" message fallback for a non-mismatch error with no message (line 137)', async () => {
     const props = makeProps({
-      sessionAesKey: 'b'.repeat(64),
+      sessionAesKey: 'b'.repeat(32),
       // Error with an empty message → e?.message is falsy → `|| ''` fallback, not a mismatch
       fetchPrivateBalance: vi.fn().mockRejectedValue(new Error('')),
     });
@@ -129,7 +129,7 @@ describe('useBalanceUpdater branch coverage', () => {
 
   it('uses the "0" fallback when a fetched private balance value is nullish (line 164)', async () => {
     const props = makeProps({
-      sessionAesKey: 'c'.repeat(64),
+      sessionAesKey: 'c'.repeat(32),
       // resolve a nullish value to exercise `result?.value ?? '0'`
       fetchPrivateBalance: vi.fn().mockResolvedValue(null),
     });
@@ -141,7 +141,7 @@ describe('useBalanceUpdater branch coverage', () => {
   });
 
   it('treats a private token without an addressKey as having no address (line 129 alternate)', async () => {
-    const props = makeProps({ sessionAesKey: 'd'.repeat(64) });
+    const props = makeProps({ sessionAesKey: 'd'.repeat(32) });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
     const ok = await result.current.updateAccountState(ACCOUNT, true, true, undefined, KEYLESS_CHAIN);
