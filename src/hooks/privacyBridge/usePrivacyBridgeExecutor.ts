@@ -7,7 +7,7 @@ import type { PodWithdrawPermit } from '../../chains/portal/executePodPortalTran
 import { executePodPortalTransaction } from '../../chains/portal/executePodPortalTransaction';
 import { formatTokenBalanceDisplay } from '../../lib/utils';
 import { estimateBridgeFee } from '../useEstimateBridgeFees';
-import { getChainConfig, getPrivateTokensForChain, getPublicTokensForChain, getRpcUrlForChain } from '../../chains';
+import { getChainConfig, getExplorerBaseUrlForChain, getPrivateTokensForChain, getPublicTokensForChain, getRpcUrlForChain } from '../../chains';
 import { isPodPortalPublicToken, podPortalNotConfiguredError, resolveConfiguredAddress, resolvePodPortalAddresses } from '../../chains/portal/helpers';
 import { logger } from '../../lib/logger';
 import { truncateAddress } from '../../lib/format';
@@ -45,7 +45,7 @@ export const usePrivacyBridgeExecutor = ({
   // Connector for the wallet the user selected via RainbowKit/wagmi.
   // We resolve the EIP-1193 provider from it rather than window.ethereum,
   // which is unreliable when multiple wallet extensions are installed.
-  const { connector } = useAccount();
+  const { connector, chainId: connectedChainId } = useAccount();
 
   const resolveInjectedProvider = useCallback(async (): Promise<any> => {
     if (connector?.getProvider) {
@@ -750,9 +750,10 @@ export const usePrivacyBridgeExecutor = ({
                     }
                 }
 
-                // Generic revert — show the raw reason if available
-                const reason = error.reason || error.shortMessage || 'Transaction reverted on-chain.';
-                throwRevertError(reason);
+                // Generic revert — show a user-friendly message with a transaction link when available
+                const explorerBase = getExplorerBaseUrlForChain(connectedChainId).replace(/\/$/, '');
+                const txLink = failedTxHash ? ` ${explorerBase}/tx/${failedTxHash}` : '';
+                throwRevertError(`The transaction couldn't be completed. Please try again or contact support if the problem persists.${txLink}`);
             }
 
             let errorMessage = error.reason || error.message || "Unknown error occurred";
