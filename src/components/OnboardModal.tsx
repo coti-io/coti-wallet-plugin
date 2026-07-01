@@ -570,6 +570,22 @@ function getStepStatus(
   return 'pending';
 }
 
+function getProgressTitle(currentStep: OnboardingStep): string {
+  if (currentStep === 'granting-funds') return 'Requesting COTI Grant';
+  if (currentStep === 'waiting-for-funds') return 'Waiting for Grant Funds';
+  return 'Onboarding in Progress';
+}
+
+function getProgressDescription(currentStep: OnboardingStep): string {
+  if (currentStep === 'granting-funds') {
+    return 'Waiting for the grant service to fund your wallet before onboarding continues...';
+  }
+  if (currentStep === 'waiting-for-funds') {
+    return 'The grant request was submitted. Waiting for the native COTI balance to update...';
+  }
+  return 'Please wait while we retrieve your AES encryption key...';
+}
+
 /**
  * OnboardModal — Multi-step modal for AES key retrieval onboarding.
  *
@@ -885,11 +901,11 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
               </div>
 
               <h2 id="onboard-modal-title" style={styles.title}>
-                Onboarding in Progress
+                {getProgressTitle(currentStep)}
               </h2>
 
               <p id="onboard-modal-description" style={styles.description}>
-                Please wait while we retrieve your AES encryption key...
+                {getProgressDescription(currentStep)}
               </p>
 
               {warning && (
@@ -937,6 +953,30 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
               </div>
 
               {/* Callout for signing step */}
+              {currentStep === 'granting-funds' && (
+                <div style={styles.calloutBox}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00E5FF" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M12 6v6l4 2" />
+                  </svg>
+                  <p style={styles.calloutText}>
+                    <strong>Funding in progress:</strong> Requesting native COTI from the grant service.
+                  </p>
+                </div>
+              )}
+
+              {currentStep === 'waiting-for-funds' && (
+                <div style={styles.calloutBox}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00E5FF" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M4 12h4l2-4 4 8 2-4h4" />
+                  </svg>
+                  <p style={styles.calloutText}>
+                    <strong>Grant submitted:</strong> Waiting for the funded balance to appear on COTI.
+                  </p>
+                </div>
+              )}
+
               {currentStep === 'signing-transaction' && (
                 <div style={styles.calloutBox}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00E5FF" strokeWidth="2">

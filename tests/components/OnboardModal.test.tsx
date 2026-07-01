@@ -47,6 +47,40 @@ describe('OnboardModal', () => {
     expect(screen.getByText('Onboarding in Progress')).toBeInTheDocument();
   });
 
+  it('shows a visible grant service indicator while requesting funds', () => {
+    render(
+      <OnboardModal
+        {...defaultProps}
+        isLoading={true}
+        currentStep="granting-funds"
+      />
+    );
+
+    expect(screen.getByText('Requesting COTI Grant')).toBeInTheDocument();
+    expect(
+      screen.getByText(/Waiting for the grant service to fund your wallet/)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Requesting native COTI from the grant service/)
+    ).toBeInTheDocument();
+  });
+
+  it('shows a visible balance wait indicator after the grant request is submitted', () => {
+    render(
+      <OnboardModal
+        {...defaultProps}
+        isLoading={true}
+        currentStep="waiting-for-funds"
+      />
+    );
+
+    expect(screen.getByText('Waiting for Grant Funds')).toBeInTheDocument();
+    expect(screen.getByText(/grant request was submitted/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Waiting for the funded balance to appear on COTI/)
+    ).toBeInTheDocument();
+  });
+
   it('shows error screen with message and retry button', () => {
     render(<OnboardModal {...defaultProps} error="Network timeout" />);
     expect(screen.getByText('Onboarding Failed')).toBeInTheDocument();
