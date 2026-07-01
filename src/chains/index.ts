@@ -1,6 +1,9 @@
 import { cotiMainnetChain, cotiTestnetChain, COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID } from "./coti";
 import { sepoliaChain, SEPOLIA_CHAIN_ID } from "./sepolia";
 import { avalancheFujiChain, AVALANCHE_FUJI_CHAIN_ID } from "./avalancheFuji";
+import { avalancheCChain, AVALANCHE_C_CHAIN_ID } from "./avalancheCChain";
+import { ethereumMainnetPortalChain } from "./ethereumMainnetPortal";
+import { ETHEREUM_MAINNET_CHAIN_ID } from "./ethereumMainnetPortal";
 import type {
   ChainConfig,
   ResolvedIndexPageUi,
@@ -8,13 +11,32 @@ import type {
   UnlockStrategy,
   WalletNetworkConfig,
 } from "./types";
+import { resolveTargetCotiChainId } from "./resolveTargetCotiChainId";
+
+const POD_TRACKING_CHAIN_ORDER = [
+  SEPOLIA_CHAIN_ID,
+  AVALANCHE_FUJI_CHAIN_ID,
+  ETHEREUM_MAINNET_CHAIN_ID,
+  AVALANCHE_C_CHAIN_ID,
+  COTI_TESTNET_CHAIN_ID,
+  COTI_MAINNET_CHAIN_ID,
+] as const;
 
 export type { ChainConfig, ResolvedIndexPageUi, TokenConfig, UnlockStrategy, WalletNetworkConfig };
-export { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID, SEPOLIA_CHAIN_ID, AVALANCHE_FUJI_CHAIN_ID };
+export {
+  COTI_MAINNET_CHAIN_ID,
+  COTI_TESTNET_CHAIN_ID,
+  SEPOLIA_CHAIN_ID,
+  AVALANCHE_FUJI_CHAIN_ID,
+  AVALANCHE_C_CHAIN_ID,
+  ETHEREUM_MAINNET_CHAIN_ID,
+};
 
 export const CHAIN_CONFIGS: Record<number, ChainConfig> = {
   [sepoliaChain.id]: sepoliaChain,
   [avalancheFujiChain.id]: avalancheFujiChain,
+  [ethereumMainnetPortalChain.id]: ethereumMainnetPortalChain,
+  [avalancheCChain.id]: avalancheCChain,
   [cotiTestnetChain.id]: cotiTestnetChain,
   [cotiMainnetChain.id]: cotiMainnetChain,
 };
@@ -64,6 +86,26 @@ export const getNetworkNameForChain = (chainId?: number | string | null) =>
 export const getUnlockStrategyForChain = (chainId?: number | string | null): UnlockStrategy =>
   getChainConfig(chainId)?.unlockStrategy ?? "snap";
 
+/** Host chains using the PoD privacy portal strategy. */
+export const getPodPortalHostChainIds = (): number[] =>
+  Object.values(CHAIN_CONFIGS)
+    .filter(config => config.portalStrategy === "pod-privacy-portal")
+    .map(config => config.id);
+
+/**
+ * PoD SDK tracking set: portal host chains with a configured inbox plus their target COTI chains.
+ * Chains without `podInboxAddress` are excluded until deployed.
+ */
+export const getPodTrackingChainIds = (): number[] => {
+  const hosts = getPodPortalHostChainIds().filter(chainId => {
+    const inbox = getChainConfig(chainId)?.podInboxAddress?.trim();
+    return !!inbox;
+  });
+  const cotiTargets = hosts.map(resolveTargetCotiChainId);
+  const available = new Set([...hosts, ...cotiTargets]);
+  return POD_TRACKING_CHAIN_ORDER.filter(chainId => available.has(chainId));
+};
+
 export const getWalletNetworkConfigs = (): Record<string, WalletNetworkConfig> =>
   Object.values(CHAIN_CONFIGS).reduce<Record<string, WalletNetworkConfig>>((acc, config) => {
     acc[config.hexId] = config.walletNetwork;
@@ -95,17 +137,19 @@ export {
   cotiMainnet,
   cotiTestnet,
   sepolia,
+  avalancheFuji,
   ethereumMainnet,
-  ETHEREUM_MAINNET_CHAIN_ID,
+  avalancheC,
   ETHEREUM_MAINNET_RPC,
   COTI_MAINNET_RPC,
   COTI_TESTNET_RPC,
   SEPOLIA_RPC,
+  AVALANCHE_FUJI_RPC,
+  AVALANCHE_C_RPC,
   getRpcUrlForChainId,
 } from "./viemChains";
 
 export {
-  AVALANCHE_C_CHAIN_ID,
   getTargetCotiChainName,
   getTargetCotiWalletNetwork,
   resolveCotiSnapEnvironment,

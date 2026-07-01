@@ -16,9 +16,15 @@ import {
   cotiMainnet,
   cotiTestnet,
   sepolia,
+  avalancheFuji,
+  ethereumMainnet,
+  avalancheC,
   COTI_MAINNET_RPC,
   COTI_TESTNET_RPC,
   SEPOLIA_RPC,
+  AVALANCHE_FUJI_RPC,
+  ETHEREUM_MAINNET_RPC,
+  AVALANCHE_C_RPC,
 } from '../config/chains';
 import { getPluginConfig } from '../config/plugin';
 import { resolveWalletConnectProjectId } from '../config/walletConnect';
@@ -76,12 +82,15 @@ function createWagmiConfig(walletConnectProjectId?: string) {
   const sepoliaRpc = pluginConfig.sepoliaRpcUrl ?? SEPOLIA_RPC;
 
   return createConfig({
-    chains: [sepolia, cotiTestnet, cotiMainnet],
+    chains: [sepolia, avalancheFuji, ethereumMainnet, avalancheC, cotiTestnet, cotiMainnet],
     connectors,
     multiInjectedProviderDiscovery: true,
     ssr: false,
     transports: {
       [sepolia.id]: http(sepoliaRpc),
+      [avalancheFuji.id]: http(AVALANCHE_FUJI_RPC),
+      [ethereumMainnet.id]: http(ETHEREUM_MAINNET_RPC),
+      [avalancheC.id]: http(AVALANCHE_C_RPC),
       [cotiMainnet.id]: http(COTI_MAINNET_RPC),
       [cotiTestnet.id]: http(COTI_TESTNET_RPC),
     },

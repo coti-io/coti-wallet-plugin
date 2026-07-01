@@ -3,12 +3,16 @@ import type { ChainConfig } from "./types";
 import { cotiMainnetChain, cotiTestnetChain } from "./coti";
 import { sepoliaChain } from "./sepolia";
 import { avalancheFujiChain } from "./avalancheFuji";
+import { avalancheCChain } from "./avalancheCChain";
+import { ethereumMainnetPortalChain } from "./ethereumMainnetPortal";
 
 const REGISTRY_RPC_BY_CHAIN_ID: Record<number, string> = {
   [cotiMainnetChain.id]: cotiMainnetChain.rpcUrl,
   [cotiTestnetChain.id]: cotiTestnetChain.rpcUrl,
   [sepoliaChain.id]: sepoliaChain.rpcUrl,
   [avalancheFujiChain.id]: avalancheFujiChain.rpcUrl,
+  [ethereumMainnetPortalChain.id]: ethereumMainnetPortalChain.rpcUrl,
+  [avalancheCChain.id]: avalancheCChain.rpcUrl,
 };
 
 /** Explorer display name derived from registry URL (avoids duplicating viem metadata). */
@@ -38,25 +42,21 @@ export const cotiMainnet = chainConfigToViemChain(cotiMainnetChain);
 export const cotiTestnet = chainConfigToViemChain(cotiTestnetChain);
 export const sepolia = chainConfigToViemChain(sepoliaChain);
 export const avalancheFuji = chainConfigToViemChain(avalancheFujiChain);
+export const ethereumMainnet = chainConfigToViemChain(ethereumMainnetPortalChain);
+export const avalancheC = chainConfigToViemChain(avalancheCChain);
 
 /** RPC URL constants derived from the registry (single source of truth). */
 export const COTI_MAINNET_RPC = cotiMainnetChain.rpcUrl;
 export const COTI_TESTNET_RPC = cotiTestnetChain.rpcUrl;
 export const SEPOLIA_RPC = sepoliaChain.rpcUrl;
 export const AVALANCHE_FUJI_RPC = avalancheFujiChain.rpcUrl;
+export const ETHEREUM_MAINNET_RPC = ethereumMainnetPortalChain.rpcUrl;
+export const AVALANCHE_C_RPC = avalancheCChain.rpcUrl;
 
 /**
- * Auxiliary Ethereum L1 chain — not in {@link CHAIN_CONFIGS}; legacy RPC helper only.
+ * Auxiliary Ethereum L1 chain — re-exported from {@link ethereumMainnetPortalChain} registry entry.
  */
-export const ETHEREUM_MAINNET_CHAIN_ID = 1;
-export const ETHEREUM_MAINNET_RPC = "https://eth.llamarpc.com";
-export const ethereumMainnet = defineChain({
-  id: ETHEREUM_MAINNET_CHAIN_ID,
-  name: "Ethereum Mainnet",
-  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-  rpcUrls: { default: { http: [ETHEREUM_MAINNET_RPC] } },
-  blockExplorers: { default: { name: "Etherscan", url: "https://etherscan.io" } },
-});
+export const ETHEREUM_MAINNET_CHAIN_ID = ethereumMainnetPortalChain.id;
 
 /**
  * Resolves an RPC URL for ethers.js callers.

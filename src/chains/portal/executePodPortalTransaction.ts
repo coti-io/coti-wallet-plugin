@@ -10,14 +10,12 @@ import {
   summarizeInFlightLocalPodRequests,
   type BlockingPodRequestDiagnostics,
 } from "./podPTokenBlockingDiagnostics";
-import { AVALANCHE_FUJI_CHAIN_ID, getChainConfig, getRpcUrlForChain } from "../index";
-
-/** Source/target chains registered for PoD portal cross-chain tracking. */
-const POD_TRACKING_CHAIN_ORDER = [
-  SEPOLIA_CHAIN_ID,
-  AVALANCHE_FUJI_CHAIN_ID,
-  COTI_TESTNET_CHAIN_ID,
-] as const;
+import {
+  getChainConfig,
+  getPodTrackingChainIds,
+  getRpcUrlForChain,
+} from "../index";
+import { resolveCotiSnapEnvironment } from "../resolveTargetCotiChainId";
 
 const POD_CALLBACK_GAS_LIMIT = 1_000_000n;
 const POD_CALLBACK_DATA_SIZE = 1_024n;
@@ -43,11 +41,11 @@ const resolvePodChainRpcUrl = (chainId: number, pluginConfig: CotiPluginConfig):
   return getRpcUrlForChain(chainId);
 };
 
-export const getPodSdkConfig = (): PodSdkConfig => {
+export const getPodSdkConfig = (hostChainId?: number): PodSdkConfig => {
   const pluginConfig = getPluginConfig();
   return {
-    encryptionNetwork: "testnet",
-    chains: POD_TRACKING_CHAIN_ORDER.map(chainId => ({
+    encryptionNetwork: hostChainId != null ? resolveCotiSnapEnvironment(hostChainId) : "testnet",
+    chains: getPodTrackingChainIds().map(chainId => ({
       chainId,
       inboxAddress: getPodInboxAddress(chainId),
       rpcUrl: resolvePodChainRpcUrl(chainId, pluginConfig),
@@ -108,10 +106,11 @@ export const quotePortalPodRequest = async (
     ? runner.provider as ethers.BrowserProvider
     : runner as ethers.BrowserProvider;
   const resolvedGasPrice = gasPrice ?? await getSepoliaGasPrice(provider);
+  const encryptionNetwork = resolveCotiSnapEnvironment(chainId);
   const podContract = new PodContract(portalAddress, PRIVACY_PORTAL_ABI, runner, {
-    config: getPodSdkConfig(),
+    config: getPodSdkConfig(chainId),
     inboxAddress: getPodInboxAddress(chainId),
-    encryptionNetwork: "testnet",
+    encryptionNetwork,
   });
   const fee = await podContract.estimateFee(
     method,

@@ -54,6 +54,9 @@ export {
   getTargetCotiWalletNetwork,
   getTargetCotiChainName,
   AVALANCHE_C_CHAIN_ID,
+  ETHEREUM_MAINNET_CHAIN_ID,
+  getPodPortalHostChainIds,
+  getPodTrackingChainIds,
 } from './chains';
 export type { ChainConfig as PortalChainConfig, ResolvedIndexPageUi, UnlockStrategy, PortalStrategy, WalletNetworkConfig, ChainIndexPageUi } from './chains/types';
 

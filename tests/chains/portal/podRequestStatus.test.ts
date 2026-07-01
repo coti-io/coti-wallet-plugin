@@ -47,6 +47,8 @@ vi.mock('../../../src/chains/index', () => ({
   getPublicTokensForChain: vi.fn(() => [{ symbol: 'MTT', bridgeAddressKey: 'PrivacyPortalMTT', decimals: 18, isPrivate: false }]),
   getPrivateTokensForChain: vi.fn(() => [{ symbol: 'p.MTT', addressKey: 'p.MTT', decimals: 18 }]),
   getRpcUrlForChain: vi.fn(() => 'https://rpc.test'),
+  getChainConfig: vi.fn(() => ({ podInboxAddress: '0x' + 'd'.repeat(40) })),
+  getPodTrackingChainIds: vi.fn(() => [11155111, 7082400]),
 }));
 
 vi.mock('../../../src/contracts/config', () => ({

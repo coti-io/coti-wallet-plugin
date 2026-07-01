@@ -8,7 +8,8 @@ import {
 import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID } from "../../src/chains/coti";
 import { SEPOLIA_CHAIN_ID } from "../../src/chains/sepolia";
 import { AVALANCHE_FUJI_CHAIN_ID } from "../../src/chains/avalancheFuji";
-import { ETHEREUM_MAINNET_CHAIN_ID } from "../../src/chains/viemChains";
+import { ETHEREUM_MAINNET_CHAIN_ID } from "../../src/chains/ethereumMainnetPortal";
+import { AVALANCHE_C_CHAIN_ID } from "../../src/chains/avalancheCChain";
 
 describe("resolveTargetCotiChainId", () => {
   it("maps COTI chains to themselves", () => {

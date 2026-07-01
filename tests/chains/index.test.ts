@@ -21,6 +21,11 @@ import {
   COTI_MAINNET_CHAIN_ID,
   COTI_TESTNET_CHAIN_ID,
   SEPOLIA_CHAIN_ID,
+  AVALANCHE_FUJI_CHAIN_ID,
+  AVALANCHE_C_CHAIN_ID,
+  ETHEREUM_MAINNET_CHAIN_ID,
+  getPodPortalHostChainIds,
+  getPodTrackingChainIds,
   cotiMainnet,
   cotiTestnet,
   sepolia,
@@ -66,7 +71,14 @@ describe('chains/index', () => {
   describe('getSupportedChainIds / isSupportedChain', () => {
     it('lists every chain registered in CHAIN_CONFIGS', () => {
       expect(getSupportedChainIds().sort()).toEqual(
-        [COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID, SEPOLIA_CHAIN_ID].sort(),
+        [
+          COTI_MAINNET_CHAIN_ID,
+          COTI_TESTNET_CHAIN_ID,
+          SEPOLIA_CHAIN_ID,
+          AVALANCHE_FUJI_CHAIN_ID,
+          ETHEREUM_MAINNET_CHAIN_ID,
+          AVALANCHE_C_CHAIN_ID,
+        ].sort(),
       );
     });
 
@@ -108,7 +120,7 @@ describe('chains/index', () => {
 
   describe('explorer / rpc / name / unlock-strategy fallbacks', () => {
     it('getExplorerBaseUrlForChain returns chain value when known', () => {
-      expect(getExplorerBaseUrlForChain(SEPOLIA_CHAIN_ID)).toBe('https://sepolia.etherscan.io');
+      expect(getExplorerBaseUrlForChain(SEPOLIA_CHAIN_ID)).toBe('https://eth-sepolia.blockscout.com');
     });
 
     it('getExplorerBaseUrlForChain falls back to testnet explorer', () => {
@@ -158,6 +170,21 @@ describe('chains/index', () => {
       expect(options).toHaveLength(Object.keys(CHAIN_CONFIGS).length);
       const sepolia = options.find(o => o.id === CHAIN_CONFIGS[SEPOLIA_CHAIN_ID].hexId);
       expect(sepolia?.label).toBe('Sepolia');
+    });
+  });
+
+  describe('PoD portal registry helpers', () => {
+    it('getPodPortalHostChainIds includes testnet and mainnet portal hosts', () => {
+      const hosts = getPodPortalHostChainIds();
+      expect(hosts).toContain(SEPOLIA_CHAIN_ID);
+      expect(hosts).toContain(ETHEREUM_MAINNET_CHAIN_ID);
+      expect(hosts).toContain(AVALANCHE_C_CHAIN_ID);
+    });
+
+    it('getPodTrackingChainIds excludes hosts without inbox addresses', () => {
+      const tracking = getPodTrackingChainIds();
+      expect(tracking).toContain(SEPOLIA_CHAIN_ID);
+      expect(tracking).not.toContain(ETHEREUM_MAINNET_CHAIN_ID);
     });
   });
 

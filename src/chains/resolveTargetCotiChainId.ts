@@ -6,11 +6,11 @@ import {
 } from "./coti";
 import { SEPOLIA_CHAIN_ID } from "./sepolia";
 import { AVALANCHE_FUJI_CHAIN_ID } from "./avalancheFuji";
-import { ETHEREUM_MAINNET_CHAIN_ID } from "./viemChains";
+import { AVALANCHE_C_CHAIN_ID } from "./avalancheCChain";
+import { ETHEREUM_MAINNET_CHAIN_ID } from "./ethereumMainnetPortal";
 import type { WalletNetworkConfig } from "./types";
 
-/** Avalanche C-Chain mainnet */
-export const AVALANCHE_C_CHAIN_ID = 43114;
+export { AVALANCHE_C_CHAIN_ID } from "./avalancheCChain";
 
 /** Host chains whose AES keys live on COTI mainnet. */
 const HOST_MAINNET_CHAIN_IDS = new Set<number>([

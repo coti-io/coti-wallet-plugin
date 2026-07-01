@@ -158,7 +158,7 @@ describe('getPodSdkConfig', () => {
     const cfg = getPodSdkConfig();
     expect(cfg.chains.every(c => c.inboxAddress.startsWith('0x'))).toBe(true);
     expect(cfg.chains.find(c => c.chainId === SEPOLIA_CHAIN_ID)?.inboxAddress).toBe(
-      '0xB4A53FE02401fDFA8DAc00450dA3FfF8D01502F8',
+      '0xAb625bE229F603f6BBF964474AFf6d5487e364De',
     );
     expect(cfg.chains.find(c => c.chainId === 7082400)?.inboxAddress).toBe(
       '0xB4A53FE02401fDFA8DAc00450dA3FfF8D01502F8',
