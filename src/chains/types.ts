@@ -47,6 +47,8 @@ export interface ChainConfig {
   hexId: string;
   name: string;
   rpcUrl: string;
+  /** Secondary RPC endpoints tried when the primary {@link rpcUrl} is unavailable. */
+  rpcFallbackUrls?: string[];
   explorerBaseUrl: string;
   /** PoD inbox on this host chain (for fee quotes and request tracking). */
   podInboxAddress?: string;

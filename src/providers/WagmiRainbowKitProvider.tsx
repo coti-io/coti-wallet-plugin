@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { createConfig, http, WagmiProvider, type Config } from 'wagmi';
+import { createConfig, http, fallback, WagmiProvider, type Config } from 'wagmi';
 import { connectorsForWallets } from '@rainbow-me/rainbowkit';
 import {
   metaMaskWallet,
@@ -19,6 +19,7 @@ import {
   COTI_MAINNET_RPC,
   COTI_TESTNET_RPC,
   SEPOLIA_RPC,
+  SEPOLIA_RPC_FALLBACK,
 } from '../config/chains';
 import { getPluginConfig } from '../config/plugin';
 import { resolveWalletConnectProjectId } from '../config/walletConnect';
@@ -73,7 +74,9 @@ function createWagmiConfig(walletConnectProjectId?: string) {
   );
 
   const pluginConfig = getPluginConfig();
-  const sepoliaRpc = pluginConfig.sepoliaRpcUrl ?? SEPOLIA_RPC;
+  const sepoliaTransport = pluginConfig.sepoliaRpcUrl
+    ? http(pluginConfig.sepoliaRpcUrl)
+    : fallback([http(SEPOLIA_RPC), http(SEPOLIA_RPC_FALLBACK)]);
 
   return createConfig({
     chains: [sepolia, cotiTestnet, cotiMainnet],
@@ -81,7 +84,7 @@ function createWagmiConfig(walletConnectProjectId?: string) {
     multiInjectedProviderDiscovery: true,
     ssr: false,
     transports: {
-      [sepolia.id]: http(sepoliaRpc),
+      [sepolia.id]: sepoliaTransport,
       [cotiMainnet.id]: http(COTI_MAINNET_RPC),
       [cotiTestnet.id]: http(COTI_TESTNET_RPC),
     },
@@ -93,7 +96,7 @@ const queryClient = new QueryClient();
 function getWagmiConfigCacheKey(walletConnectProjectId?: string): string {
   const pluginConfig = getPluginConfig();
   const projectId = resolveWalletConnectProjectId(walletConnectProjectId);
-  const sepoliaRpc = pluginConfig.sepoliaRpcUrl ?? SEPOLIA_RPC;
+  const sepoliaRpc = pluginConfig.sepoliaRpcUrl ?? `${SEPOLIA_RPC}|${SEPOLIA_RPC_FALLBACK}`;
   const mobile = isMobileBrowser();
   return `${projectId}|${sepoliaRpc}|${mobile ? 'mobile' : 'desktop'}`;
 }

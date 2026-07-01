@@ -19,12 +19,16 @@ const explorerNameFromUrl = (url: string): string => {
 };
 
 /** Builds a viem {@link Chain} from a {@link CHAIN_CONFIGS} entry. */
-export const chainConfigToViemChain = (config: ChainConfig): Chain =>
-  defineChain({
+export const chainConfigToViemChain = (config: ChainConfig): Chain => {
+  const httpRpcUrls = config.rpcFallbackUrls?.length
+    ? [config.rpcUrl, ...config.rpcFallbackUrls]
+    : [config.rpcUrl];
+
+  return defineChain({
     id: config.id,
     name: config.name,
     nativeCurrency: { ...config.walletNetwork.nativeCurrency },
-    rpcUrls: { default: { http: [config.rpcUrl] } },
+    rpcUrls: { default: { http: httpRpcUrls } },
     blockExplorers: {
       default: {
         name: explorerNameFromUrl(config.explorerBaseUrl),
@@ -32,6 +36,7 @@ export const chainConfigToViemChain = (config: ChainConfig): Chain =>
       },
     },
   });
+};
 
 /** viem chains for wagmi — derived from {@link CHAIN_CONFIGS}. */
 export const cotiMainnet = chainConfigToViemChain(cotiMainnetChain);
@@ -43,7 +48,10 @@ export const avalancheFuji = chainConfigToViemChain(avalancheFujiChain);
 export const COTI_MAINNET_RPC = cotiMainnetChain.rpcUrl;
 export const COTI_TESTNET_RPC = cotiTestnetChain.rpcUrl;
 export const SEPOLIA_RPC = sepoliaChain.rpcUrl;
+export const SEPOLIA_RPC_FALLBACK = sepoliaChain.rpcFallbackUrls?.[0] ?? sepoliaChain.rpcUrl;
 export const AVALANCHE_FUJI_RPC = avalancheFujiChain.rpcUrl;
+export const AVALANCHE_FUJI_RPC_FALLBACK =
+  avalancheFujiChain.rpcFallbackUrls?.[0] ?? avalancheFujiChain.rpcUrl;
 
 /**
  * Auxiliary Ethereum L1 chain — not in {@link CHAIN_CONFIGS}; legacy RPC helper only.

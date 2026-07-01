@@ -10,6 +10,7 @@ import {
   getPrivateTokensForChain,
   getExplorerBaseUrlForChain,
   getRpcUrlForChain,
+  getRpcUrlsForChain,
   getNetworkNameForChain,
   getUnlockStrategyForChain,
   getWalletNetworkConfigs,
@@ -21,12 +22,15 @@ import {
   COTI_MAINNET_CHAIN_ID,
   COTI_TESTNET_CHAIN_ID,
   SEPOLIA_CHAIN_ID,
+  AVALANCHE_FUJI_CHAIN_ID,
   cotiMainnet,
   cotiTestnet,
   sepolia,
   COTI_MAINNET_RPC,
   COTI_TESTNET_RPC,
   SEPOLIA_RPC,
+  SEPOLIA_RPC_FALLBACK,
+  AVALANCHE_FUJI_RPC_FALLBACK,
 } from '../../src/chains/index';
 
 describe('chains/index', () => {
@@ -66,7 +70,7 @@ describe('chains/index', () => {
   describe('getSupportedChainIds / isSupportedChain', () => {
     it('lists every chain registered in CHAIN_CONFIGS', () => {
       expect(getSupportedChainIds().sort()).toEqual(
-        [COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID, SEPOLIA_CHAIN_ID].sort(),
+        [COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID, SEPOLIA_CHAIN_ID, AVALANCHE_FUJI_CHAIN_ID].sort(),
       );
     });
 
@@ -108,17 +112,30 @@ describe('chains/index', () => {
 
   describe('explorer / rpc / name / unlock-strategy fallbacks', () => {
     it('getExplorerBaseUrlForChain returns chain value when known', () => {
-      expect(getExplorerBaseUrlForChain(SEPOLIA_CHAIN_ID)).toBe('https://sepolia.etherscan.io');
+      expect(getExplorerBaseUrlForChain(SEPOLIA_CHAIN_ID)).toBe('https://eth-sepolia.blockscout.com');
     });
 
     it('getExplorerBaseUrlForChain falls back to testnet explorer', () => {
       expect(getExplorerBaseUrlForChain(999999)).toBe('https://testnet.cotiscan.io');
     });
 
-    it('getRpcUrlForChain returns chain value when known', () => {
-      expect(getRpcUrlForChain(SEPOLIA_CHAIN_ID)).toBe(
-        'https://ethereum-sepolia-rpc.publicnode.com',
-      );
+    it('getRpcUrlForChain returns primary RPC when known', () => {
+      expect(getRpcUrlForChain(SEPOLIA_CHAIN_ID)).toBe(SEPOLIA_RPC);
+    });
+
+    it('getRpcUrlsForChain returns primary and fallback RPCs when configured', () => {
+      expect(getRpcUrlsForChain(SEPOLIA_CHAIN_ID)).toEqual([
+        SEPOLIA_RPC,
+        SEPOLIA_RPC_FALLBACK,
+      ]);
+      expect(getRpcUrlsForChain(AVALANCHE_FUJI_CHAIN_ID)).toEqual([
+        CHAIN_CONFIGS[AVALANCHE_FUJI_CHAIN_ID].rpcUrl,
+        AVALANCHE_FUJI_RPC_FALLBACK,
+      ]);
+    });
+
+    it('getRpcUrlsForChain falls back to testnet rpc', () => {
+      expect(getRpcUrlsForChain(999999)).toEqual(['https://testnet.coti.io/rpc']);
     });
 
     it('getRpcUrlForChain falls back to testnet rpc', () => {
@@ -183,6 +200,11 @@ describe('chains/index', () => {
         expect(chain.name).toBe(cfg.name);
         expect(chain.nativeCurrency).toEqual(cfg.walletNetwork.nativeCurrency);
         expect(chain.rpcUrls.default.http[0]).toBe(cfg.rpcUrl);
+        if (cfg.rpcFallbackUrls?.length) {
+          expect(chain.rpcUrls.default.http).toEqual([cfg.rpcUrl, ...cfg.rpcFallbackUrls]);
+        } else {
+          expect(chain.rpcUrls.default.http).toEqual([cfg.rpcUrl]);
+        }
         expect(rpcConstant).toBe(cfg.rpcUrl);
         expect(chain.blockExplorers?.default?.url).toBe(cfg.explorerBaseUrl);
       }

@@ -6,6 +6,7 @@ import { render, screen } from '@testing-library/react';
 vi.mock('wagmi', () => ({
   createConfig: vi.fn(() => ({})),
   http: vi.fn((url: string) => url),
+  fallback: vi.fn((transports: unknown[]) => transports),
   WagmiProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
@@ -30,8 +31,8 @@ import { WagmiRainbowKitProvider, getWagmiConfig, wagmiConfig } from '../../src/
 import { configureCotiPlugin } from '../../src/config/plugin';
 import { resolveWalletConnectProjectId } from '../../src/config/walletConnect';
 import { CotiErrorCode, CotiPluginError, hasCotiErrorCode } from '../../src/errors';
-import { SEPOLIA_RPC } from '../../src/chains';
-import { createConfig, http } from 'wagmi';
+import { SEPOLIA_RPC, SEPOLIA_RPC_FALLBACK } from '../../src/chains';
+import { createConfig, fallback, http } from 'wagmi';
 import { connectorsForWallets } from '@rainbow-me/rainbowkit';
 import {
   metaMaskWallet,
@@ -113,11 +114,14 @@ describe('WagmiRainbowKitProvider', () => {
     configureCotiPlugin({ sepoliaRpcUrl: undefined });
   });
 
-  it('getWagmiConfig uses SEPOLIA_RPC when plugin sepoliaRpcUrl is unset (WAG-02)', () => {
+  it('getWagmiConfig uses SEPOLIA_RPC fallbacks when plugin sepoliaRpcUrl is unset (WAG-02)', () => {
     configureCotiPlugin({ sepoliaRpcUrl: undefined });
     vi.mocked(http).mockClear();
+    vi.mocked(fallback).mockClear();
     getWagmiConfig('wag2-explicit-project-id');
     expect(http).toHaveBeenCalledWith(SEPOLIA_RPC);
+    expect(http).toHaveBeenCalledWith(SEPOLIA_RPC_FALLBACK);
+    expect(fallback).toHaveBeenCalled();
   });
 
   it('wagmiConfig proxy binds function properties to the cached config (WAG-03)', () => {

@@ -3,6 +3,8 @@ import type { ChainConfig } from "./types";
 export const AVALANCHE_FUJI_CHAIN_ID = 43113;
 
 const AVALANCHE_FUJI_RPC_URL =
+  "https://twilight-small-rain.avalanche-testnet.quiknode.pro/ad1393483c2713058688a4e0fb47a308f29dd52d/ext/bc/C/rpc/";
+const AVALANCHE_FUJI_RPC_FALLBACK_URL =
   "https://avalanche-fuji-c-chain-rpc.publicnode.com";
 
 const AVALANCHE_FUJI_INBOX = "0xAb625bE229F603f6BBF964474AFf6d5487e364De";
@@ -23,6 +25,7 @@ export const avalancheFujiChain: ChainConfig = {
   hexId: "0xa869",
   name: "Avalanche Fuji",
   rpcUrl: AVALANCHE_FUJI_RPC_URL,
+  rpcFallbackUrls: [AVALANCHE_FUJI_RPC_FALLBACK_URL],
   explorerBaseUrl: "https://testnet.snowtrace.io",
   podInboxAddress: AVALANCHE_FUJI_INBOX,
   unlockStrategy: "manual-aes-key",
@@ -104,7 +107,7 @@ export const avalancheFujiChain: ChainConfig = {
   walletNetwork: {
     chainId: "0xa869",
     chainName: "Avalanche Fuji Testnet",
-    rpcUrls: [AVALANCHE_FUJI_RPC_URL],
+    rpcUrls: [AVALANCHE_FUJI_RPC_URL, AVALANCHE_FUJI_RPC_FALLBACK_URL],
     nativeCurrency: { name: "Avalanche", symbol: "AVAX", decimals: 18 },
     blockExplorerUrls: ["https://testnet.snowtrace.io"],
   },

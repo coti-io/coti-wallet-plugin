@@ -22,6 +22,7 @@ export {
   COTI_MAINNET_RPC,
   COTI_TESTNET_RPC,
   SEPOLIA_RPC,
+  SEPOLIA_RPC_FALLBACK,
   ETHEREUM_MAINNET_RPC,
   getRpcUrlForChainId,
 } from './chains';
@@ -36,6 +37,7 @@ export {
   getTokensForChain,
   getExplorerBaseUrlForChain,
   getRpcUrlForChain,
+  getRpcUrlsForChain,
   getNetworkNameForChain,
   getUnlockStrategyForChain,
   getWalletNetworkConfigs,

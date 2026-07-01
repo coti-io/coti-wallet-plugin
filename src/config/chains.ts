@@ -12,9 +12,12 @@ export {
   COTI_MAINNET_RPC,
   COTI_TESTNET_RPC,
   SEPOLIA_RPC,
+  SEPOLIA_RPC_FALLBACK,
   getRpcUrlForChainId,
   chainConfigToViemChain,
 } from '../chains/viemChains';
+
+export { getRpcUrlsForChain } from '../chains';
 
 export {
   COTI_MAINNET_CHAIN_ID,

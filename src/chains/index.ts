@@ -101,5 +101,11 @@ export {
   COTI_MAINNET_RPC,
   COTI_TESTNET_RPC,
   SEPOLIA_RPC,
+  SEPOLIA_RPC_FALLBACK,
+  AVALANCHE_FUJI_RPC_FALLBACK,
   getRpcUrlForChainId,
 } from "./viemChains";
+export { getRpcUrlsForChain } from "./rpcUrls";
+import { bindChainConfigLookup } from "./rpcUrls";
+
+bindChainConfigLookup(getChainConfig);

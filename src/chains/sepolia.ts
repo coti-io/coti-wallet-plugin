@@ -2,6 +2,10 @@ import type { ChainConfig } from "./types";
 
 export const SEPOLIA_CHAIN_ID = 11155111;
 
+const SEPOLIA_RPC_URL =
+  "https://sepolia.infura.io/v3/ed65559ebd384beabfee7a97c266d6bf";
+const SEPOLIA_RPC_FALLBACK_URL = "https://ethereum-sepolia-rpc.publicnode.com";
+
 /** Underlying ERC-20s from PrivacyPortalConfig.json (Sepolia). */
 const WETH = "0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9";
 const USDC = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238";
@@ -17,7 +21,8 @@ export const sepoliaChain: ChainConfig = {
   id: SEPOLIA_CHAIN_ID,
   hexId: "0xaa36a7",
   name: "Sepolia",
-  rpcUrl: "https://ethereum-sepolia-rpc.publicnode.com",
+  rpcUrl: SEPOLIA_RPC_URL,
+  rpcFallbackUrls: [SEPOLIA_RPC_FALLBACK_URL],
   explorerBaseUrl: "https://eth-sepolia.blockscout.com",
   unlockStrategy: "manual-aes-key",
   portalStrategy: "pod-privacy-portal",
@@ -99,7 +104,7 @@ export const sepoliaChain: ChainConfig = {
   walletNetwork: {
     chainId: "0xaa36a7",
     chainName: "Sepolia",
-    rpcUrls: ["https://ethereum-sepolia-rpc.publicnode.com"],
+    rpcUrls: [SEPOLIA_RPC_URL, SEPOLIA_RPC_FALLBACK_URL],
     nativeCurrency: { name: "Sepolia Ether", symbol: "ETH", decimals: 18 },
     blockExplorerUrls: ["https://eth-sepolia.blockscout.com"],
   },

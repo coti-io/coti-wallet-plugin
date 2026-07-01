@@ -90,8 +90,10 @@ describe('Chain Definitions (README: Supported Networks)', () => {
       expect(getRpcUrlForChainId(7082400)).toBe('https://testnet.coti.io/rpc');
     });
 
-    it('returns Sepolia RPC for Sepolia chain ID', () => {
-      expect(getRpcUrlForChainId(11155111)).toBe('https://ethereum-sepolia-rpc.publicnode.com');
+    it('returns Sepolia primary RPC for Sepolia chain ID', () => {
+      expect(getRpcUrlForChainId(11155111)).toBe(
+        'https://sepolia.infura.io/v3/ed65559ebd384beabfee7a97c266d6bf',
+      );
     });
 
     it('returns Ethereum Mainnet RPC for chain ID 1', () => {
