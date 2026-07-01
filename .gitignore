@@ -4,6 +4,7 @@ coverage/
 *.tsbuildinfo
 .DS_Store
 portal-bridge
+agents/
 
 # Kiro specs
 .kiro/specs/bridge-functions-integration
