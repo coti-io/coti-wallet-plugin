@@ -298,6 +298,24 @@ describe('executePodPortalTransaction - pToken readiness', () => {
     ).rejects.toThrow(/already pending/);
   });
 
+  it('treats TransferAlreadyPending revert data as pending without trying fallback ABIs', async () => {
+    const wallet = WALLET;
+    const requestId = '0x' + '3f'.padStart(64, '0');
+    const revertData = ethers.Interface.from([
+      'error TransferAlreadyPending(address from, address to, bytes32 requestId)',
+    ]).encodeErrorResult('TransferAlreadyPending', [wallet, wallet, requestId]);
+    const revertError = { code: 'CALL_EXCEPTION', data: revertData };
+
+    h.balanceWithState.mockRejectedValue(revertError);
+    h.balanceOfWithStatus.mockResolvedValue([0n, false]);
+
+    await expect(
+      executePodPortalTransaction({ ...baseParams(), txDirection: 'to-private' }),
+    ).rejects.toThrow(requestId);
+
+    expect(h.balanceOfWithStatus).not.toHaveBeenCalled();
+  });
+
   it('includes the blocking request id when local storage has an in-flight deposit', async () => {
     const requestId = '0x' + '9'.repeat(64);
     localStorage.setItem(

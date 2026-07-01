@@ -63,6 +63,61 @@ const getErrorMessage = (error: unknown) =>
     ? error.message
     : "";
 
+const pTokenErrorIface = new ethers.Interface(POD_PTOKEN_ABI);
+
+const extractRevertData = (error: unknown): string | null => {
+  if (!error || typeof error !== "object") return null;
+  const err = error as Record<string, unknown>;
+  const candidates = [
+    err.data,
+    (err.error as Record<string, unknown> | undefined)?.data,
+    (err.info as { error?: { data?: unknown } } | undefined)?.error?.data,
+  ];
+  for (const raw of candidates) {
+    if (typeof raw === "string" && raw.startsWith("0x")) return raw;
+    if (raw && typeof raw === "object" && "data" in raw) {
+      const nested = (raw as { data: unknown }).data;
+      if (typeof nested === "string" && nested.startsWith("0x")) return nested;
+    }
+  }
+  return null;
+};
+
+const parseTransferAlreadyPendingRevert = (
+  error: unknown,
+): { requestId: string } | null => {
+  const revertData = extractRevertData(error);
+  if (!revertData?.startsWith("0xbd8a45bc")) return null;
+  try {
+    const parsed = pTokenErrorIface.parseError(revertData);
+    if (parsed?.name !== "TransferAlreadyPending") return null;
+    const requestId = parsed.args[2];
+    return typeof requestId === "string" ? { requestId } : null;
+  } catch {
+    return null;
+  }
+};
+
+const pendingProbeFromRevert = (
+  error: unknown,
+  source: PodPTokenPendingSource,
+  probeErrors: string[],
+): PodPTokenPendingProbe | null => {
+  const pendingRevert = parseTransferAlreadyPendingRevert(error);
+  if (!pendingRevert) return null;
+  return {
+    pending: true,
+    callbackErrored: false,
+    source,
+    probeErrors,
+    pendingRequestId: pendingRevert.requestId,
+    rawResponse: {
+      transferAlreadyPending: true,
+      requestId: pendingRevert.requestId,
+    },
+  };
+};
+
 const findParsedEvent = (receipt: ethers.TransactionReceipt, iface: ethers.Interface, eventName: string) => {
   for (const log of receipt.logs) {
     try {
@@ -160,6 +215,8 @@ type PodPTokenPendingProbe = {
   callbackErrored: boolean;
   source: PodPTokenPendingSource;
   probeErrors: string[];
+  /** Decoded from TransferAlreadyPending when the status view reverts instead of returning. */
+  pendingRequestId?: string;
   /** Full contract return value from the successful status probe (JSON-safe). */
   rawResponse?: unknown;
 };
@@ -332,6 +389,15 @@ const logPodPTokenReadinessBlocked = async (
   return diagnostics;
 };
 
+const resolveBlockingRequestId = (
+  account: string,
+  probe: PodPTokenPendingProbe,
+  diagnostics: BlockingPodRequestDiagnostics,
+): string | undefined =>
+  probe.pendingRequestId
+  ?? diagnostics.blockingRequest?.requestId
+  ?? summarizeInFlightLocalPodRequests(account).find(entry => entry.requestId)?.requestId;
+
 const readPodPTokenPendingState = async (
   pToken: ethers.Contract,
   account: string,
@@ -350,6 +416,8 @@ const readPodPTokenPendingState = async (
       rawResponse: buildBalanceWithStateRaw(response as EthersContractResult),
     };
   } catch (error) {
+    const pendingFromRevert = pendingProbeFromRevert(error, "balanceWithState", probeErrors);
+    if (pendingFromRevert) return pendingFromRevert;
     probeErrors.push(`balanceWithState: ${getErrorMessage(error) || String(error)}`);
   }
 
@@ -369,6 +437,8 @@ const readPodPTokenPendingState = async (
       rawResponse: buildBalanceOfWithStatusRaw(response as EthersContractResult),
     };
   } catch (error) {
+    const pendingFromRevert = pendingProbeFromRevert(error, "flatBalanceOfWithStatus", probeErrors);
+    if (pendingFromRevert) return pendingFromRevert;
     probeErrors.push(`flatBalanceOfWithStatus: ${getErrorMessage(error) || String(error)}`);
   }
 
@@ -383,6 +453,8 @@ const readPodPTokenPendingState = async (
       rawResponse: buildBalanceOfWithStatusRaw(response as EthersContractResult),
     };
   } catch (error) {
+    const pendingFromRevert = pendingProbeFromRevert(error, "balanceOfWithStatus", probeErrors);
+    if (pendingFromRevert) return pendingFromRevert;
     probeErrors.push(`balanceOfWithStatus: ${getErrorMessage(error) || String(error)}`);
   }
 
@@ -391,15 +463,21 @@ const readPodPTokenPendingState = async (
     POD_PTOKEN_PLAIN_STATUS_ABI,
     pToken.runner as ethers.ContractRunner,
   );
-  const response = await plainToken.balanceOfWithStatus(account);
-  const pending = readContractResultField(response as EthersContractResult, "pending", 1);
-  return {
-    pending: Boolean(pending),
-    callbackErrored: false,
-    source: "plainBalanceOfWithStatus",
-    probeErrors,
-    rawResponse: buildBalanceOfWithStatusRaw(response as EthersContractResult),
-  };
+  try {
+    const response = await plainToken.balanceOfWithStatus(account);
+    const pending = readContractResultField(response as EthersContractResult, "pending", 1);
+    return {
+      pending: Boolean(pending),
+      callbackErrored: false,
+      source: "plainBalanceOfWithStatus",
+      probeErrors,
+      rawResponse: buildBalanceOfWithStatusRaw(response as EthersContractResult),
+    };
+  } catch (error) {
+    const pendingFromRevert = pendingProbeFromRevert(error, "plainBalanceOfWithStatus", probeErrors);
+    if (pendingFromRevert) return pendingFromRevert;
+    throw error;
+  }
 };
 
 const assertPodPTokenReady = async (
@@ -430,7 +508,7 @@ const assertPodPTokenReady = async (
 
   if (probe.callbackErrored) {
     const diagnostics = await logPodPTokenReadinessBlocked(pToken, account, pTokenAddress, action, probe, "callback-errored", debugContext);
-    const blockingRequestId = diagnostics.blockingRequest?.requestId;
+    const blockingRequestId = resolveBlockingRequestId(account, probe, diagnostics);
     throw new Error(
       blockingRequestId
         ? `This pToken balance is untrusted because PoD callback failed for request ${blockingRequestId}. Replay the callback before using this token.`
@@ -440,7 +518,7 @@ const assertPodPTokenReady = async (
 
   if (probe.pending) {
     const diagnostics = await logPodPTokenReadinessBlocked(pToken, account, pTokenAddress, action, probe, "pending", debugContext);
-    const blockingRequestId = diagnostics.blockingRequest?.requestId;
+    const blockingRequestId = resolveBlockingRequestId(account, probe, diagnostics);
     throw new Error(
       blockingRequestId
         ? `A PoD request is already pending for this wallet (request ${blockingRequestId}). Wait for it to complete before starting another ${action}.`

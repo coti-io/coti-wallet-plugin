@@ -83,6 +83,7 @@ export const POD_PTOKEN_ABI = [
   "function balanceOf(address account) view returns (tuple(tuple(uint256 high,uint256 low) high,tuple(uint256 high,uint256 low) low))",
   "function balanceWithState(address account) view returns (tuple(tuple(uint256 high,uint256 low) high,tuple(uint256 high,uint256 low) low) balance,bool pending,bool callbackErrored)",
   "function balanceOfWithStatus(address account) view returns (tuple(tuple(uint256 high,uint256 low) high,tuple(uint256 high,uint256 low) low),bool)",
+  "error TransferAlreadyPending(address from, address to, bytes32 requestId)",
   "event TransferRequestSubmitted(address indexed from,address indexed to,bytes32 requestId)",
   "event Transfer(address indexed from,address indexed to,bytes senderValue,bytes receiverValue)",
   "event TransferFailed(address indexed from,address indexed to,bytes errorMsg)",
