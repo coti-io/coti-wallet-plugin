@@ -14,6 +14,7 @@ describe('Balance Decryption (README: Balance Decryption)', () => {
     // Default mock: decryptUint returns 100n (a small, sane value)
     vi.mocked(CotiSDK.decryptUint).mockReturnValue(100n);
     vi.mocked(CotiSDK.decryptUint256).mockReturnValue(1000000000000000000n);
+    vi.mocked(CotiSDK.decryptCtUint256).mockReturnValue(1000000000000000000n);
   });
 
   describe('decryptCtUint64', () => {
@@ -101,12 +102,7 @@ describe('Balance Decryption (README: Balance Decryption)', () => {
     });
 
     it('decrypts nested format (4 segments) with small values', () => {
-      // Make decryptUint return 0n for all segments except the last
-      vi.mocked(CotiSDK.decryptUint)
-        .mockReturnValueOnce(0n)  // high.high
-        .mockReturnValueOnce(0n)  // high.low
-        .mockReturnValueOnce(0n)  // low.high
-        .mockReturnValueOnce(5n); // low.low → total = 5n (sane)
+      vi.mocked(CotiSDK.decryptCtUint256).mockReturnValueOnce(5n);
       const ct = { high: { high: 1n, low: 2n }, low: { high: 3n, low: 4n } };
       const result = decryptCtUint256(ct, validKey);
       expect(result).toBe(5n);
@@ -115,7 +111,7 @@ describe('Balance Decryption (README: Balance Decryption)', () => {
     it('decrypts flat format (2 segments)', () => {
       const ct = { ciphertextHigh: 1n, ciphertextLow: 2n };
       const result = decryptCtUint256(ct, validKey);
-      // decryptUint256 mock returns 1000000000000000000n (1e18) which is sane
+      // decryptCtUint256 mock returns 1000000000000000000n (1e18) which is sane
       expect(result).toBe(1000000000000000000n);
     });
 
@@ -128,7 +124,7 @@ describe('Balance Decryption (README: Balance Decryption)', () => {
 
     it('returns null when decryptUint256 throws a non-Error value', () => {
       // Exercises the `: error` branch of the 256-bit catch logger.
-      vi.mocked(CotiSDK.decryptUint256).mockImplementationOnce(() => { throw 'boom'; });
+      vi.mocked(CotiSDK.decryptCtUint256).mockImplementationOnce(() => { throw 'boom'; });
       const ct = { ciphertextHigh: 1n, ciphertextLow: 2n };
       const result = decryptCtUint256(ct, validKey);
       expect(result).toBeNull();
@@ -141,23 +137,23 @@ describe('Balance Decryption (README: Balance Decryption)', () => {
     });
 
     it('returns null when decrypted value exceeds insane threshold', () => {
-      vi.mocked(CotiSDK.decryptUint256).mockReturnValueOnce(10n ** 31n);
+      vi.mocked(CotiSDK.decryptCtUint256).mockReturnValueOnce(10n ** 31n);
       const ct = { ciphertextHigh: 1n, ciphertextLow: 2n };
       const result = decryptCtUint256(ct, validKey);
       expect(result).toBeNull();
     });
 
     it('returns null for an insane decrypted value from the nested format', () => {
-      // Each segment decrypts to a huge value; reconstructed total is "insane".
-      vi.mocked(CotiSDK.decryptUint).mockReturnValue(10n ** 40n);
+      vi.mocked(CotiSDK.decryptCtUint256).mockReturnValueOnce(10n ** 40n);
       const ct = { high: { high: 1n, low: 2n }, low: { high: 3n, low: 4n } };
       const result = decryptCtUint256(ct, validKey);
       expect(result).toBeNull();
     });
 
     it('returns null for a non-zero ciphertext that matches neither nested nor flat shape', () => {
-      // isZeroCtUint256 is false (a defined, non-zero field) but neither the nested
-      // nor the flat branch matches, so the function falls through to `return null`.
+      vi.mocked(CotiSDK.decryptCtUint256).mockImplementationOnce(() => {
+        throw new Error('invalid shape');
+      });
       const result = decryptCtUint256({ somethingElse: 1n } as any, validKey);
       expect(result).toBeNull();
     });

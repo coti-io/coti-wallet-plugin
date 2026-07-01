@@ -1,4 +1,5 @@
 import { ethers } from 'ethers';
+import { normalizeAesKey } from '@coti-io/coti-sdk-typescript';
 import { getEthereumProvider, type EIP1193Provider } from '../../lib/ethereum';
 import { logger } from '../../lib/logger';
 import { CONTRACT_ADDRESSES } from '../../contracts/config';
@@ -39,11 +40,11 @@ export interface ExecutePrivateTokenTransferResult {
 }
 
 export function normalizeAesKeyHex(aesKey: string): string {
-  const trimmed = aesKey.startsWith('0x') ? aesKey.slice(2) : aesKey;
-  if (!/^[0-9a-fA-F]{32}$/.test(trimmed)) {
+  try {
+    return normalizeAesKey(aesKey);
+  } catch {
     throw new Error('AES key must be a 32-hex-character string.');
   }
-  return trimmed.toLowerCase();
 }
 
 export function resolvePrivateTokenContractAddress(

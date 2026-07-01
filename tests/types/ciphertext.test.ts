@@ -51,14 +51,12 @@ describe('Ciphertext Type Guards (README: Balance Decryption)', () => {
       expect(isZeroCtUint256(ct)).toBe(true);
     });
 
-    it('returns false for zero bigint (falsy, caught by null guard)', () => {
-      // 0n is falsy in JS, so !value is true → returns false
-      expect(isZeroCtUint256(0n)).toBe(false);
+    it('returns true for zero bigint', () => {
+      expect(isZeroCtUint256(0n)).toBe(true);
     });
 
-    it('returns false for zero number (falsy, caught by null guard)', () => {
-      // 0 is falsy in JS, so !value is true → returns false
-      expect(isZeroCtUint256(0)).toBe(false);
+    it('returns true for zero number', () => {
+      expect(isZeroCtUint256(0)).toBe(true);
     });
 
     it('returns true for "0" string', () => {

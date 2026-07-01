@@ -10,7 +10,7 @@ import type { WalletTypeInfo } from '../../src/hooks/useWalletType';
 const COTI_TESTNET = 7082400;
 const SEPOLIA = 11155111;
 const ADDR = '0x1234567890abcdef1234567890abcdef12345678';
-const VALID_KEY = 'a'.repeat(64);
+const VALID_KEY = 'a'.repeat(32);
 
 // ─── Mocks ──────────────────────────────────────────────────────────────────
 

@@ -57,12 +57,12 @@ describe('usePrivateTokenBalance (ciphertext shape coverage)', () => {
     dec256.mockReturnValue(5000000000000000000n);
 
     const { result } = renderHook(() => usePrivateTokenBalance());
-    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(64), CONTRACT, 256, 18);
+    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(32), CONTRACT, 256, 18);
 
     expect(bal).toBe('formatted:5000000000000000000');
     expect(dec256).toHaveBeenCalledWith(
       { high: { high: 1n, low: 2n }, low: { high: 3n, low: 4n } },
-      'a'.repeat(64),
+      'a'.repeat(32),
       { decimals: 18 },
     );
   });
@@ -70,7 +70,7 @@ describe('usePrivateTokenBalance (ciphertext shape coverage)', () => {
   it('returns "0.00" for an array-form all-zero nested ciphertext', async () => {
     h.balanceOf.mockResolvedValue([[0n, 0n], [0n, 0n]]);
     const { result } = renderHook(() => usePrivateTokenBalance());
-    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(64), CONTRACT, 256, 18);
+    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(32), CONTRACT, 256, 18);
     expect(bal).toBe('0.00');
     expect(dec256).not.toHaveBeenCalled();
   });
@@ -79,7 +79,7 @@ describe('usePrivateTokenBalance (ciphertext shape coverage)', () => {
     // hasNestedShape passes via high.high/high.low; .low is absent → lh/ll undefined.
     h.balanceOf.mockResolvedValue({ high: { high: 0n, low: 0n } });
     const { result } = renderHook(() => usePrivateTokenBalance());
-    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(64), CONTRACT, 256, 18);
+    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(32), CONTRACT, 256, 18);
     expect(bal).toBe('0.00');
   });
 
@@ -89,12 +89,12 @@ describe('usePrivateTokenBalance (ciphertext shape coverage)', () => {
     dec256.mockReturnValue(7n);
 
     const { result } = renderHook(() => usePrivateTokenBalance());
-    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(64), CONTRACT, 256, 18);
+    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(32), CONTRACT, 256, 18);
 
     expect(bal).toBe('formatted:7');
     expect(dec256).toHaveBeenCalledWith(
       { high: { high: 1n, low: 2n }, low: { high: 0n, low: 0n } },
-      'a'.repeat(64),
+      'a'.repeat(32),
       { decimals: 18 },
     );
   });
@@ -105,7 +105,7 @@ describe('usePrivateTokenBalance (ciphertext shape coverage)', () => {
 
     const { result } = renderHook(() => usePrivateTokenBalance());
     await expect(
-      result.current.fetchPrivateBalance(USER, 'a'.repeat(64), CONTRACT, 256, 18),
+      result.current.fetchPrivateBalance(USER, 'a'.repeat(32), CONTRACT, 256, 18),
     ).rejects.toMatchObject({ code: CotiErrorCode.AES_KEY_MISMATCH });
   });
 
@@ -116,7 +116,7 @@ describe('usePrivateTokenBalance (ciphertext shape coverage)', () => {
       .mockResolvedValueOnce(null);
 
     const { result } = renderHook(() => usePrivateTokenBalance());
-    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(64), CONTRACT, 256, 18);
+    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(32), CONTRACT, 256, 18);
     expect(bal).toBe('0.00');
     expect(h.balanceOf).toHaveBeenCalledTimes(2);
   });
@@ -128,7 +128,7 @@ describe('usePrivateTokenBalance (ciphertext shape coverage)', () => {
     dec256.mockReturnValue(42n);
 
     const { result } = renderHook(() => usePrivateTokenBalance());
-    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(64), CONTRACT, 256, 18);
+    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(32), CONTRACT, 256, 18);
 
     expect(bal).toBe('formatted:42');
     expect(h.getSigner).toHaveBeenCalled();
@@ -137,7 +137,7 @@ describe('usePrivateTokenBalance (ciphertext shape coverage)', () => {
   it('treats a null nested ciphertext response as zero balance', async () => {
     h.balanceOf.mockResolvedValue(null);
     const { result } = renderHook(() => usePrivateTokenBalance());
-    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(64), CONTRACT, 256, 18);
+    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(32), CONTRACT, 256, 18);
     expect(bal).toBe('0.00');
   });
 
@@ -146,7 +146,7 @@ describe('usePrivateTokenBalance (ciphertext shape coverage)', () => {
       .mockResolvedValueOnce({ high: { high: 0n, low: 0n } })
       .mockResolvedValueOnce(null);
     const { result } = renderHook(() => usePrivateTokenBalance());
-    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(64), CONTRACT, 256, 18);
+    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(32), CONTRACT, 256, 18);
     expect(bal).toBe('0.00');
   });
 });

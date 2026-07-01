@@ -42,14 +42,12 @@ describe('localAesKeyVault', () => {
       await expect(saveAesKeyLocally(ADDRESS, '   ')).rejects.toThrow('AES key is required');
     });
 
-    it('rejects a 0x-prefixed key', async () => {
-      await expect(saveAesKeyLocally(ADDRESS, '0x' + 'a'.repeat(32))).rejects.toThrow(
-        'without a 0x prefix'
-      );
+    it('accepts and normalizes a 0x-prefixed key', async () => {
+      await expect(saveAesKeyLocally(ADDRESS, '0x' + 'a'.repeat(32))).resolves.toBe('a'.repeat(32));
     });
 
     it('rejects a key that is not 32 hex characters', async () => {
-      await expect(saveAesKeyLocally(ADDRESS, 'zz')).rejects.toThrow('32 hexadecimal');
+      await expect(saveAesKeyLocally(ADDRESS, 'zz')).rejects.toThrow('hexadecimal');
     });
   });
 

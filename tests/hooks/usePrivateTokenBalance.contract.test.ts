@@ -58,7 +58,7 @@ describe('usePrivateTokenBalance (contract paths)', () => {
     (decryptCtUint64 as any).mockReturnValue(100n);
 
     const { result } = renderHook(() => usePrivateTokenBalance());
-    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(64), CONTRACT, 64, 18);
+    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(32), CONTRACT, 64, 18);
 
     expect(bal).toBe('formatted:100');
     expect(decryptCtUint64).toHaveBeenCalled();
@@ -67,7 +67,7 @@ describe('usePrivateTokenBalance (contract paths)', () => {
   it('returns "0.00" for a zero 64-bit balance', async () => {
     h.balanceOf64.mockResolvedValue(0n);
     const { result } = renderHook(() => usePrivateTokenBalance());
-    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(64), CONTRACT, 64, 18);
+    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(32), CONTRACT, 64, 18);
     expect(bal).toBe('0.00');
   });
 
@@ -77,7 +77,7 @@ describe('usePrivateTokenBalance (contract paths)', () => {
 
     const { result } = renderHook(() => usePrivateTokenBalance());
     await expect(
-      result.current.fetchPrivateBalance(USER, 'a'.repeat(64), CONTRACT, 64, 18),
+      result.current.fetchPrivateBalance(USER, 'a'.repeat(32), CONTRACT, 64, 18),
     ).rejects.toMatchObject({ code: CotiErrorCode.AES_KEY_MISMATCH });
   });
 
@@ -104,7 +104,7 @@ describe('usePrivateTokenBalance (contract paths)', () => {
     (decryptCtUint256 as any).mockReturnValue(1000000000000000000n);
 
     const { result } = renderHook(() => usePrivateTokenBalance());
-    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(64), CONTRACT, 256, 18);
+    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(32), CONTRACT, 256, 18);
 
     expect(bal).toBe('formatted:1000000000000000000');
     expect(decryptCtUint256).toHaveBeenCalled();
@@ -113,7 +113,7 @@ describe('usePrivateTokenBalance (contract paths)', () => {
   it('returns "0.00" for an all-zero nested ciphertext', async () => {
     h.balanceOf.mockResolvedValue({ high: { high: 0n, low: 0n }, low: { high: 0n, low: 0n } });
     const { result } = renderHook(() => usePrivateTokenBalance());
-    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(64), CONTRACT, 256, 18);
+    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(32), CONTRACT, 256, 18);
     expect(bal).toBe('0.00');
   });
 
@@ -125,7 +125,7 @@ describe('usePrivateTokenBalance (contract paths)', () => {
     (decryptCtUint256 as any).mockReturnValue(2000000000000000000n);
 
     const { result } = renderHook(() => usePrivateTokenBalance());
-    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(64), CONTRACT, 256, 18);
+    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(32), CONTRACT, 256, 18);
 
     expect(bal).toBe('formatted:2000000000000000000');
     expect(h.balanceOf).toHaveBeenCalledTimes(2);
@@ -136,7 +136,7 @@ describe('usePrivateTokenBalance (contract paths)', () => {
       .mockResolvedValueOnce({ notNested: true })
       .mockResolvedValueOnce({ ciphertextHigh: 0n, ciphertextLow: 0n });
     const { result } = renderHook(() => usePrivateTokenBalance());
-    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(64), CONTRACT, 256, 18);
+    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(32), CONTRACT, 256, 18);
     expect(bal).toBe('0.00');
   });
 
@@ -148,7 +148,7 @@ describe('usePrivateTokenBalance (contract paths)', () => {
 
     const { result } = renderHook(() => usePrivateTokenBalance());
     await expect(
-      result.current.fetchPrivateBalance(USER, 'a'.repeat(64), CONTRACT, 256, 18),
+      result.current.fetchPrivateBalance(USER, 'a'.repeat(32), CONTRACT, 256, 18),
     ).rejects.toMatchObject({ code: CotiErrorCode.AES_KEY_MISMATCH });
   });
 
@@ -176,7 +176,7 @@ describe('usePrivateTokenBalance (contract paths)', () => {
     h.getNetwork.mockResolvedValue({ chainId: 1n });
 
     const { result } = renderHook(() => usePrivateTokenBalance());
-    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(64), CONTRACT, 256, 18);
+    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(32), CONTRACT, 256, 18);
 
     expect(bal).toBe('0.00');
     expect(h.getSigner).not.toHaveBeenCalled();
@@ -185,7 +185,7 @@ describe('usePrivateTokenBalance (contract paths)', () => {
   it('returns "0.00" on an unexpected (non-Coti) error', async () => {
     h.getSigner.mockRejectedValue(new Error('signer unavailable'));
     const { result } = renderHook(() => usePrivateTokenBalance());
-    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(64), CONTRACT, 256, 18);
+    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(32), CONTRACT, 256, 18);
     expect(bal).toBe('0.00');
   });
 });

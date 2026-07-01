@@ -5,6 +5,7 @@ import { getRpcUrlForChainId } from '../config/chains';
 import { getPluginConfig } from '../config/plugin';
 import { CotiPluginError, CotiErrorCode } from '../errors';
 import { logger } from '../lib/logger';
+import { isZeroCtUint256 } from '../types/ciphertext';
 
 /**
  * ABI for native PoD pTokens (p.ETH, p.AVAX): balance is a plain uint256 on-chain.
@@ -28,43 +29,6 @@ const NESTED_BALANCE_ABI = [
 const FLAT_BALANCE_ABI = [
     "function balanceOf(address) view returns (tuple(uint256 ciphertextHigh, uint256 ciphertextLow))"
 ];
-
-/**
- * Checks if a nested ciphertext result is all zeros.
- */
-function isZeroNestedCiphertext(result: any): boolean {
-    if (!result) return true; /* v8 ignore branch */
-    const hh = result.high?.high ?? result[0]?.[0];
-    const hl = result.high?.low ?? result[0]?.[1];
-    const lh = result.low?.high ?? result[1]?.[0];
-    const ll = result.low?.low ?? result[1]?.[1];
-    /* v8 ignore start -- array-index fallbacks mirror nested-shape paths covered elsewhere */
-    return (
-        (hh === 0n || hh === undefined) &&
-        (hl === 0n || hl === undefined) &&
-        (lh === 0n || lh === undefined) &&
-        (ll === 0n || ll === undefined)
-    );
-    /* v8 ignore stop */
-}
-
-/**
- * Normalizes a nested ciphertext result into the structure expected by decryptCtUint256.
- */
-function normalizeNestedCiphertext(result: any): { high: { high: bigint; low: bigint }; low: { high: bigint; low: bigint } } {
-    /* v8 ignore start -- array-index fallbacks mirror object-shape paths covered in tests */
-    return {
-        high: {
-            high: BigInt(result.high?.high ?? result[0]?.[0] ?? 0n),
-            low: BigInt(result.high?.low ?? result[0]?.[1] ?? 0n),
-        },
-        low: {
-            high: BigInt(result.low?.high ?? result[1]?.[0] ?? 0n),
-            low: BigInt(result.low?.low ?? result[1]?.[1] ?? 0n),
-        },
-    };
-    /* v8 ignore stop */
-}
 
 /**
  * Custom hook to fetch and decrypt balances for Confidential Tokens (both 64-bit and 256-bit).
@@ -168,22 +132,20 @@ export const usePrivateTokenBalance = () => {
                  if (!encryptedBalance) return '0.00';
 
                  if (isNested) {
-                     // Nested 4-part format: { high: { high, low }, low: { high, low } }
-                     if (isZeroNestedCiphertext(encryptedBalance)) return '0.00';
+                     if (isZeroCtUint256(encryptedBalance)) return '0.00';
 
-                     const normalized = normalizeNestedCiphertext(encryptedBalance);
-                     const decryptedVal = decryptCtUint256(normalized, aesKey, { decimals });
+                     const decryptedVal = decryptCtUint256(encryptedBalance, aesKey, { decimals });
                      if (decryptedVal === null) {
                          throw new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch: Error decrypting. Re-onboarding required.');
                      }
                      return ethers.formatUnits(decryptedVal, decimals);
                  } else {
-                     // Flat 2-part format: { ciphertextHigh, ciphertextLow }
                      const high = encryptedBalance.ciphertextHigh ?? encryptedBalance[0] ?? 0n;
                      const low = encryptedBalance.ciphertextLow ?? encryptedBalance[1] ?? 0n;
-                     if (high === 0n && low === 0n) return '0.00';
+                     const flatBalance = { ciphertextHigh: high, ciphertextLow: low };
+                     if (isZeroCtUint256(flatBalance)) return '0.00';
 
-                     const decryptedVal = decryptCtUint256({ ciphertextHigh: high, ciphertextLow: low }, aesKey, { decimals });
+                     const decryptedVal = decryptCtUint256(flatBalance, aesKey, { decimals });
                      if (decryptedVal === null) {
                          throw new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch: Error decrypting. Re-onboarding required.');
                      }

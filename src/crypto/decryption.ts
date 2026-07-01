@@ -5,7 +5,10 @@
  * Uses @coti-io/coti-sdk-typescript for the underlying AES decryption.
  */
 
-import { decryptUint, decryptUint256 } from '@coti-io/coti-sdk-typescript';
+import {
+  decryptCtUint256 as sdkDecryptCtUint256,
+  decryptUint,
+} from '@coti-io/coti-sdk-typescript';
 import type { CtUint64, CtUint256 } from '../types/ciphertext';
 import { isCtUint256, isZeroCtUint256 } from '../types/ciphertext';
 import { normalizeAesKey } from './aesKey';
@@ -145,74 +148,18 @@ export function decryptCtUint256(
       return 0n;
     }
 
-    const normalizedKey = normalizeAesKey(aesKey);
-
-    // Try nested structure: { high: { high, low }, low: { high, low } }
-    const nested = ciphertext as {
-      high?: { high?: bigint; low?: bigint };
-      low?: { high?: bigint; low?: bigint };
-    };
-
+    const decrypted = sdkDecryptCtUint256(ciphertext, normalizeAesKey(aesKey));
     if (
-      nested?.high?.high !== undefined &&
-      nested?.high?.low !== undefined &&
-      nested?.low?.high !== undefined &&
-      nested?.low?.low !== undefined
+      isInsaneDecryptedValue(
+        decrypted,
+        options?.decimals,
+        options?.insaneThresholdBase,
+      )
     ) {
-      const d1 = decryptUint(nested.high.high, normalizedKey);
-      const d2 = decryptUint(nested.high.low, normalizedKey);
-      const d3 = decryptUint(nested.low.high, normalizedKey);
-      const d4 = decryptUint(nested.low.low, normalizedKey);
-      const decrypted = (d1 << 192n) + (d2 << 128n) + (d3 << 64n) + d4;
-
-      if (
-        isInsaneDecryptedValue(
-          decrypted,
-          options?.decimals,
-          options?.insaneThresholdBase,
-        )
-      ) {
-        return null;
-      }
-
-      return decrypted;
+      return null;
     }
 
-    // Flat structure: { ciphertextHigh, ciphertextLow }
-    const flat = ciphertext as {
-      ciphertextHigh?: bigint;
-      ciphertextLow?: bigint;
-    };
-
-    if (flat.ciphertextHigh !== undefined && flat.ciphertextLow !== undefined) {
-      const decrypted = decryptUint256(
-        {
-          ciphertextHigh:
-            typeof flat.ciphertextHigh === 'bigint'
-              ? flat.ciphertextHigh
-              : BigInt(flat.ciphertextHigh),
-          ciphertextLow:
-            typeof flat.ciphertextLow === 'bigint'
-              ? flat.ciphertextLow
-              : BigInt(flat.ciphertextLow),
-        },
-        normalizedKey,
-      );
-
-      if (
-        isInsaneDecryptedValue(
-          decrypted,
-          options?.decimals,
-          options?.insaneThresholdBase,
-        )
-      ) {
-        return null;
-      }
-
-      return decrypted;
-    }
-
-    return null;
+    return decrypted;
   } catch (error) {
     logger.error(
       '[decryptCtUint256] failed:',

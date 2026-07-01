@@ -31,8 +31,8 @@ describe('aesKeyBackupVault', () => {
     ).resolves.toBe(aesKey);
   });
 
-  it('encrypts and decrypts a 64-char AES key', async () => {
-    const aesKey = 'b'.repeat(64);
+  it('encrypts and decrypts a 32-char AES key', async () => {
+    const aesKey = 'b'.repeat(32);
     const backupSigner = signer();
     const backup = await encryptAesKeyBackup(aesKey, backupSigner, {
       address: ADDRESS,
