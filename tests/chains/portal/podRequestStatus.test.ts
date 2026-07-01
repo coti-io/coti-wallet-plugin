@@ -43,6 +43,16 @@ vi.mock('@coti/pod-sdk', () => ({
   },
 }));
 
+vi.mock('../../../src/chains/portal/executePodPortalTransaction', () => ({
+  getPodSdkConfig: vi.fn(() => ({
+    encryptionNetwork: 'testnet',
+    chains: [
+      { chainId: 11155111, inboxAddress: '0x' + '1'.repeat(40), rpcUrl: 'https://sepolia.test' },
+      { chainId: 7082400, inboxAddress: '0x' + '2'.repeat(40), rpcUrl: 'https://coti.test' },
+    ],
+  })),
+}));
+
 vi.mock('../../../src/chains/index', () => ({
   getPublicTokensForChain: vi.fn(() => [{ symbol: 'MTT', bridgeAddressKey: 'PrivacyPortalMTT', decimals: 18, isPrivate: false }]),
   getPrivateTokensForChain: vi.fn(() => [{ symbol: 'p.MTT', addressKey: 'p.MTT', decimals: 18 }]),
@@ -87,8 +97,11 @@ beforeEach(() => {
 });
 
 describe('resolvePodRequestStatus - early returns', () => {
-  it('returns null when requestId is absent', async () => {
-    expect(await resolvePodRequestStatus(baseRequest({ requestId: undefined }))).toBeNull();
+  it('returns source-mined guidance when requestId is absent', async () => {
+    expect(await resolvePodRequestStatus(baseRequest({ requestId: undefined }))).toMatchObject({
+      status: 'source-mined',
+      message: expect.stringContaining('request ID not found'),
+    });
   });
 
   it('returns null for a non-Sepolia chain', async () => {
@@ -140,7 +153,7 @@ describe('resolvePodRequestStatus - callback errored', () => {
     h.failedRequests.mockRejectedValue(new Error('revert'));
     h.trackRequest.mockResolvedValue({});
     const res = await resolvePodRequestStatus(baseRequest());
-    expect(res).toBeNull();
+    expect(res).toMatchObject({ status: 'pod-pending' });
   });
 });
 
@@ -160,7 +173,7 @@ describe('resolvePodRequestStatus - tracking results', () => {
   it('ignores a zero error code (no failure)', async () => {
     h.trackRequest.mockResolvedValue({ execution: { errorCode: 0 } });
     const res = await resolvePodRequestStatus(baseRequest());
-    expect(res).toBeNull();
+    expect(res).toMatchObject({ status: 'pod-pending' });
   });
 
   it('marks a deposit succeeded when minedOnTarget is set on the response', async () => {
@@ -200,22 +213,22 @@ describe('resolvePodRequestStatus - tracking results', () => {
     expect(res).toMatchObject({ status: 'target-mined' });
   });
 
-  it('returns null when nothing has progressed yet', async () => {
+  it('returns pod-pending when nothing has progressed yet from source-mined', async () => {
     h.trackRequest.mockResolvedValue({});
     const res = await resolvePodRequestStatus(baseRequest());
-    expect(res).toBeNull();
+    expect(res).toMatchObject({ status: 'pod-pending' });
   });
 
   it('handles a null/undefined execution object', async () => {
     h.trackRequest.mockResolvedValue({ execution: null });
     const res = await resolvePodRequestStatus(baseRequest());
-    expect(res).toBeNull();
+    expect(res).toMatchObject({ status: 'pod-pending' });
   });
 
   it('treats a null error code as no execution error', async () => {
     h.trackRequest.mockResolvedValue({ execution: { errorCode: null } });
     const res = await resolvePodRequestStatus(baseRequest());
-    expect(res).toBeNull();
+    expect(res).toMatchObject({ status: 'pod-pending' });
   });
 });
 

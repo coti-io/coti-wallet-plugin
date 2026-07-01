@@ -145,8 +145,22 @@ export const usePrivacyBridgePodState = ({
         if (!resolved) return;
 
         if (resolved.status === latest.status && resolved.message === latest.message) {
+          logger.debug("[PoD][poll] status unchanged", {
+            id: latest.id,
+            status: latest.status,
+            requestId: latest.requestId,
+            message: latest.message,
+          });
           return;
         }
+
+        logger.log("[PoD][poll] status change", {
+          id: latest.id,
+          requestId: latest.requestId,
+          from: latest.status,
+          to: resolved.status,
+          message: resolved.message,
+        });
 
         const shouldRefreshBalances =
           resolved.refreshPrivateBalances && !completedPodRefreshesRef.current.has(latest.id);

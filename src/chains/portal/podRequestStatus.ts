@@ -4,6 +4,11 @@ import { getPrivateTokensForChain, getPublicTokensForChain, getRpcUrlForChain } 
 import { CONTRACT_ADDRESSES } from "../../contracts/config";
 import { POD_PTOKEN_ABI, PRIVACY_PORTAL_ABI, type PodPortalRequest } from "../../contracts/pod";
 import { getPodSdkConfig } from "./executePodPortalTransaction";
+import {
+  logPodTrackingDiagnostics,
+  type PodStatusResolution,
+} from "./podRequestTrackingDiagnostics";
+import { logger } from "../../lib/logger";
 
 const hasPodExecutionError = (execution: RequestTrackingResponse["execution"]) => {
   if (!execution) return false;
@@ -28,9 +33,9 @@ const getFailedRequestHex = async (
 
 export async function resolvePodRequestStatus(request: PodPortalRequest) {
   if (!request.requestId) {
-    console.warn(
-      `[resolvePodRequestStatus] Missing requestId for tx ${request.sourceTxHash}. ` +
-      `PoD cannot be tracked. This usually means the DepositRequested event was not parsed correctly.`
+    logger.warn(
+      `[PoD][resolveStatus] Missing requestId for tx ${request.sourceTxHash}. ` +
+        "PoD cannot be tracked — DepositRequested event may not have been parsed.",
     );
     return {
       status: "source-mined" as const,
@@ -61,44 +66,49 @@ export async function resolvePodRequestStatus(request: PodPortalRequest) {
     };
   }
 
-  const tracker = new PodRequest(getPodSdkConfig());
-  const tracking = await tracker.trackRequest(chainId, request.requestId);
+  const sdkConfig = getPodSdkConfig();
+  let tracking: RequestTrackingResponse;
+  try {
+    const tracker = new PodRequest(sdkConfig);
+    tracking = await tracker.trackRequest(chainId, request.requestId);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.warn("[PoD][trackRequest] SDK trackRequest failed", {
+      sourceTxHash: request.sourceTxHash,
+      requestId: request.requestId,
+      chainId,
+      message,
+      sdkConfig: sdkConfig.chains.map(c => ({
+        chainId: c.chainId,
+        inboxAddress: c.inboxAddress,
+        rpcUrl: c.rpcUrl,
+      })),
+    });
+    throw error;
+  }
 
-  console.log("[resolvePodRequestStatus] trackRequest result", {
-    sourceTxHash: request.sourceTxHash,
-    requestId: request.requestId,
-    chainId,
-    kind: request.kind,
-    currentStatus: request.status,
-    failedHex: failedHex === "0x" ? null : failedHex,
-    minedOnTarget: tracking.minedOnTarget ?? null,
-    hasResponse: Boolean(tracking.response),
-    responseMinedOnTarget: tracking.response?.minedOnTarget ?? null,
-    execution: tracking.execution
-      ? {
-          errorCode: tracking.execution.errorCode?.toString?.() ?? tracking.execution.errorCode,
-          errorMessage: tracking.execution.errorMessage ?? null,
-        }
-      : null,
-  });
+  let resolution: PodStatusResolution = "no-change";
+  let result: {
+    status: PodPortalRequest["status"];
+    message: string;
+    refreshPrivateBalances: boolean;
+  } | null = null;
 
   if (hasPodExecutionError(tracking.execution)) {
-    return {
-      status: "failed" as const,
+    resolution = "failed";
+    result = {
+      status: "failed",
       message: tracking.execution?.errorMessage || "PoD request execution failed.",
       refreshPrivateBalances: false,
     };
-  }
-
-  if (request.kind === "deposit" && tracking.response?.minedOnTarget) {
-    return {
-      status: "succeeded" as const,
+  } else if (request.kind === "deposit" && tracking.response?.minedOnTarget) {
+    resolution = "succeeded";
+    result = {
+      status: "succeeded",
       message: "PoD mint callback completed on Sepolia.",
       refreshPrivateBalances: true,
     };
-  }
-
-  if (request.kind === "withdraw" && request.withdrawalId) {
+  } else if (request.kind === "withdraw" && request.withdrawalId) {
     const iface = new ethers.Interface(PRIVACY_PORTAL_ABI);
     const latest = await provider.getBlockNumber();
     const fromBlock = request.fromBlock ?? Math.max(0, latest - 20_000);
@@ -109,39 +119,53 @@ export async function resolvePodRequestStatus(request: PodPortalRequest) {
       topics: [iface.getEvent("WithdrawalReleased")!.topicHash, request.withdrawalId],
     });
     if (logs.length > 0) {
-      return {
-        status: "succeeded" as const,
+      resolution = "succeeded";
+      result = {
+        status: "succeeded",
         message: "Withdraw released on Sepolia.",
         refreshPrivateBalances: true,
       };
     }
   }
 
-  if (tracking.response) {
-    return {
-      status: "callback-generated" as const,
+  if (!result && tracking.response) {
+    resolution = "callback-generated";
+    result = {
+      status: "callback-generated",
       message: "PoD callback was generated and is waiting to complete on Sepolia.",
       refreshPrivateBalances: false,
     };
   }
 
-  if (tracking.minedOnTarget) {
-    return {
-      status: "target-mined" as const,
+  if (!result && tracking.minedOnTarget) {
+    resolution = "target-mined";
+    result = {
+      status: "target-mined",
       message: "PoD request was mined on COTI and is waiting for callback generation.",
       refreshPrivateBalances: false,
     };
   }
 
-  // If we reach here, the PoD request exists on-chain but hasn't been picked up yet.
-  // Keep it at source-mined (or pod-pending if the tracker knows about it).
-  if (request.status === "source-mined" || request.status === "pod-pending") {
-    return {
-      status: "pod-pending" as const,
+  if (
+    !result &&
+    (request.status === "source-mined" || request.status === "pod-pending")
+  ) {
+    resolution = "pod-pending";
+    result = {
+      status: "pod-pending",
       message: "PoD request submitted. Waiting to be indexed and processed.",
       refreshPrivateBalances: false,
     };
   }
 
-  return null;
+  logPodTrackingDiagnostics({
+    request,
+    tracking,
+    sdkConfig,
+    resolution,
+    resolvedMessage: result?.message,
+    failedHex,
+  });
+
+  return result;
 }
