@@ -654,8 +654,6 @@ export async function executePodPortalTransaction(params: {
       undefined,
       chainId,
     );
-    onProgress?.("transfer-start");
-
     const depositValue = isNativeDeposit ? amountWei + quote.totalFeeWei : quote.totalFeeWei;
     const tx = isNativeDeposit
       ? await portal.depositNative(wallet, amountWei, quote.callbackFeeWei, {
@@ -667,9 +665,13 @@ export async function executePodPortalTransaction(params: {
           gasPrice: quote.gasPrice,
         });
 
+    onProgress?.("transfer-start", tx.hash);
+
     const receipt = await tx.wait();
     if (!receipt || receipt.status !== 1) {
-      throw new Error("PoD deposit transaction failed");
+      const failed = new Error("PoD deposit transaction failed") as Error & { txHash?: string };
+      failed.txHash = tx.hash;
+      throw failed;
     }
 
     const event = findParsedEvent(receipt, portalIface, "DepositRequested");
@@ -752,7 +754,6 @@ export async function executePodPortalTransaction(params: {
     sharedGasPrice,
     chainId,
   );
-  onProgress?.("transfer-start");
   const totalValue = transferQuote.totalFeeWei + burnQuote.totalFeeWei;
   const tx = await portal.requestWithdrawWithPermit(
     wallet,
@@ -768,9 +769,13 @@ export async function executePodPortalTransaction(params: {
     { value: totalValue, gasPrice: sharedGasPrice },
   );
 
+  onProgress?.("transfer-start", tx.hash);
+
   const receipt = await tx.wait();
   if (!receipt || receipt.status !== 1) {
-    throw new Error("Sepolia withdraw transaction failed");
+    const failed = new Error("Sepolia withdraw transaction failed") as Error & { txHash?: string };
+    failed.txHash = tx.hash;
+    throw failed;
   }
 
   const event = findParsedEvent(receipt, portalIface, "WithdrawalRequested");

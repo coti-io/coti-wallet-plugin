@@ -304,8 +304,6 @@ export const usePrivacyBridgeExecutor = ({
 
                         logger.log('ERC20 deposit prepared', { token: txPublicToken.symbol });
 
-                        onProgress?.('transfer-start');
-
                         // CRITICAL: Bypass the Coti provider — it strips the data field from
                         // non-encrypted transactions, causing msg.data to land as "" and revert.
                         const depositBridge = new ethers.Contract(bridgeAddress, BRIDGE_ERC20_ABI, signer);
@@ -389,7 +387,6 @@ export const usePrivacyBridgeExecutor = ({
                         }
                         /* v8 ignore stop */
 
-                        onProgress?.('transfer-start');
                         tx = await bridge['deposit(uint256,uint256)'](cotiOracleTimestamp, tokenOracleTimestamp, { value: amountWei, gasLimit: safeGasLimit });
                     }
                 } catch (e) {
@@ -545,7 +542,6 @@ export const usePrivacyBridgeExecutor = ({
                     });
 
                     logger.log('Withdraw tx sent', { txHash: shortHash(rawWithdrawTxHash) });
-                    onProgress?.('transfer-start');
 
                     // We mock a transaction response shape for the shared logic below
                     tx = {
@@ -567,6 +563,7 @@ export const usePrivacyBridgeExecutor = ({
 
 
             logger.log('Transaction sent', { txHash: shortHash(tx.hash) });
+            onProgress?.('transfer-start', tx.hash);
 
             // Show processing toast now that we have the tx
             setToastState({
@@ -701,7 +698,14 @@ export const usePrivacyBridgeExecutor = ({
                 const revertData = error.data || error.error?.data;
                 const errorName = error.errorName || error.revert?.name;
                 const gasUsed = error.receipt?.gasUsed ? Number(error.receipt.gasUsed) : 0;
+                const failedTxHash = error.receipt?.hash || error.transaction?.hash || '';
                 logger.warn(`⚠️ CALL_EXCEPTION on-chain revert. Error: ${errorName || 'unknown'}, Gas used: ${gasUsed}`);
+
+                const throwRevertError = (message: string): never => {
+                    const revertError = new Error(message) as Error & { txHash?: string };
+                    if (failedTxHash) revertError.txHash = failedTxHash;
+                    throw revertError;
+                };
 
                 // Map known contract custom errors to user-friendly messages
                 const knownErrors: Record<string, string> = {
@@ -719,7 +723,7 @@ export const usePrivacyBridgeExecutor = ({
                 };
 
                 if (errorName && knownErrors[errorName]) {
-                    throw new Error(knownErrors[errorName]);
+                    throwRevertError(knownErrors[errorName]);
                 }
 
                 // Try to match revert data against known error selectors if errorName wasn't decoded
@@ -738,13 +742,13 @@ export const usePrivacyBridgeExecutor = ({
                         '0x045c4b02': 'Token transfer failed. Please check your token balance and approval.',
                     };
                     if (selectorMap[selector]) {
-                        throw new Error(selectorMap[selector]);
+                        throwRevertError(selectorMap[selector]);
                     }
                 }
 
                 // Generic revert — show the raw reason if available
                 const reason = error.reason || error.shortMessage || 'Transaction reverted on-chain.';
-                throw new Error(reason);
+                throwRevertError(reason);
             }
 
             let errorMessage = error.reason || error.message || "Unknown error occurred";

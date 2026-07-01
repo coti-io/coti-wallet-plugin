@@ -430,7 +430,7 @@ describe('usePrivacyBridge - executeTransaction (COTI bridge)', () => {
       await result.current.executeTransaction('1', 'to-private', 0, onProgress);
     });
 
-    expect(onProgress).toHaveBeenCalledWith('transfer-start');
+    expect(onProgress).toHaveBeenCalledWith('transfer-start', expect.any(String));
     expect(onProgress).toHaveBeenCalledWith('transfer-complete', expect.any(String));
     expect(props.setPublicTokens).toHaveBeenCalled();
     expect(props.setPrivateTokens).toHaveBeenCalled();

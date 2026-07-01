@@ -232,7 +232,7 @@ describe('executePodPortalTransaction - deposit (to-private)', () => {
     expect(result.request.status).toBe('source-mined');
     expect(result.request.requestId).toBe('0x' + '7'.repeat(64));
     expect(result.request.message).toContain('mint request submitted');
-    expect(onProgress).toHaveBeenCalledWith('transfer-start');
+    expect(onProgress).toHaveBeenCalledWith('transfer-start', expect.any(String));
   });
 
   it('reports request id not found when the deposit log is absent', async () => {
@@ -454,7 +454,7 @@ describe('executePodPortalTransaction - withdraw (to-public)', () => {
     expect(result.request.kind).toBe('withdraw');
     expect(result.request.withdrawalId).toBe('0x' + '9'.repeat(64));
     expect(result.request.requestId).toBe('0x' + '8'.repeat(64));
-    expect(onProgress).toHaveBeenCalledWith('transfer-start');
+    expect(onProgress).toHaveBeenCalledWith('transfer-start', expect.any(String));
   });
 
   it('throws when the withdraw permit is missing', async () => {
