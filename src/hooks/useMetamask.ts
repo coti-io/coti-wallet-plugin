@@ -244,24 +244,32 @@ export const useMetamask = ({
             eth.on?.('chainChanged', handleChainChanged);
 
             // Check if already connected - ONLY ONCE
+            // Deferred one tick via setTimeout so MetaMask Mobile's JSON-RPC relay
+            // is fully ready before we send eth_accounts. Without the defer, this
+            // request races with any eth_accounts call triggered by user interaction
+            // (e.g. tapping Unlock) on the very first page load, overflowing
+            // MetaMask Mobile's request coalescer. The flag is set synchronously
+            // so that re-renders during the same tick do not schedule duplicates.
             if (!isInitialCheckDone.current) {
-                logger.log('🔄 useMetamask: Performing initial eth_accounts check');
-                (eth.request({ method: 'eth_accounts' }) as Promise<string[]>).then((accounts) => {
-                    logger.log(
-                        '🔄 useMetamask: eth_accounts result:',
-                        accounts.length === 0
-                            ? 'no accounts'
-                            : `${accounts.length} account(s), primary: ${truncateAddress(accounts[0])}`,
-                    );
-                    if (accounts.length > 0) {
-                        if (onAccountChanged) onAccountChanged(accounts[0]);
-                        logger.log('🔄 useMetamask: triggering checkSnapConnection');
-                        if (onSnapCheck) onSnapCheck(accounts[0]);
-                    } else {
-                        logger.log('ℹ️ useMetamask: No accounts returned by eth_accounts');
-                    }
-                }).catch((err: any) => logger.error('❌ useMetamask: eth_accounts failed', err));
                 isInitialCheckDone.current = true;
+                setTimeout(() => {
+                    logger.log('🔄 useMetamask: Performing initial eth_accounts check');
+                    (eth.request({ method: 'eth_accounts' }) as Promise<string[]>).then((accounts) => {
+                        logger.log(
+                            '🔄 useMetamask: eth_accounts result:',
+                            accounts.length === 0
+                                ? 'no accounts'
+                                : `${accounts.length} account(s), primary: ${truncateAddress(accounts[0])}`,
+                        );
+                        if (accounts.length > 0) {
+                            if (onAccountChanged) onAccountChanged(accounts[0]);
+                            logger.log('🔄 useMetamask: triggering checkSnapConnection');
+                            if (onSnapCheck) onSnapCheck(accounts[0]);
+                        } else {
+                            logger.log('ℹ️ useMetamask: No accounts returned by eth_accounts');
+                        }
+                    }).catch((err: any) => logger.error('❌ useMetamask: eth_accounts failed', err));
+                }, 0);
             }
 
             return () => {

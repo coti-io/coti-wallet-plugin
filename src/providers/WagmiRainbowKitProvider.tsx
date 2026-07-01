@@ -150,7 +150,7 @@ export function WagmiRainbowKitProvider({
   );
 
   return (
-    <WagmiProvider config={config}>
+    <WagmiProvider config={config} reconnectOnMount={false}>
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider
           initialChain={cotiTestnet}
