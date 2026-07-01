@@ -24,7 +24,7 @@ const cotiTokenConfigs = (supportedChainIds: number[]): TokenConfig[] => [
 ];
 
 /** PoD inbox on COTI testnet (same deployment as Sepolia/Fuji). */
-const COTI_TESTNET_POD_INBOX = POD_TESTNET_INBOX_ADDRESS;
+export const COTI_TESTNET_POD_INBOX = POD_TESTNET_INBOX_ADDRESS;
 
 export const cotiTestnetChain: ChainConfig = {
   id: COTI_TESTNET_CHAIN_ID,
