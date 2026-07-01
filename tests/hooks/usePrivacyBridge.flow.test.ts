@@ -143,7 +143,7 @@ vi.mock('../../src/contracts/config', () => ({
 }));
 
 import { usePrivacyBridge, type Token } from '../../src/hooks/usePrivacyBridge';
-import { decryptUint256 } from '@coti-io/coti-sdk-typescript';
+import { decryptCtUint256 } from '@coti-io/coti-sdk-typescript';
 import { logger } from '../../src/lib/logger';
 
 const WALLET = '0x' + '9'.repeat(40);
@@ -187,8 +187,8 @@ function makeProps(overrides: Record<string, unknown> = {}) {
     error: null as { title: string; message: string } | null,
     hasSnap: true,
     setHasSnap: vi.fn(),
-    getAESKeyFromSnap: vi.fn(async () => 'a'.repeat(64)),
-    handleOnboard: vi.fn(async () => 'a'.repeat(64)),
+    getAESKeyFromSnap: vi.fn(async () => 'a'.repeat(32)),
+    handleOnboard: vi.fn(async () => 'a'.repeat(32)),
     refreshPrivateBalances: vi.fn(async () => true),
     upsertPodRequest: vi.fn(),
     ...overrides,
@@ -291,7 +291,7 @@ describe('usePrivacyBridge - checkAllowance', () => {
     eth.allowance.mockResolvedValue({
       ownerCiphertext: { ciphertextHigh: 1n, ciphertextLow: 2n },
     });
-    vi.mocked(decryptUint256).mockReturnValue(3n * 10n ** 18n);
+    vi.mocked(decryptCtUint256).mockReturnValue(3n * 10n ** 18n);
     const props = makeProps({
       direction: 'to-public',
       hasSnap: true,
@@ -306,7 +306,7 @@ describe('usePrivacyBridge - checkAllowance', () => {
 
   it('caps an insane decrypted private allowance to 0', async () => {
     eth.allowance.mockResolvedValue({ ownerCiphertext: { ciphertextHigh: 1n, ciphertextLow: 2n } });
-    vi.mocked(decryptUint256).mockReturnValue(10n ** 40n);
+    vi.mocked(decryptCtUint256).mockReturnValue(10n ** 40n);
     const props = makeProps({ direction: 'to-public' });
     const { result } = renderHook(() => usePrivacyBridge(props));
     await act(async () => {
@@ -972,7 +972,7 @@ describe('usePrivacyBridge - handleSwap', () => {
     const props = makeProps({
       direction: 'to-public',
       hasSnap: false,
-      getAESKeyFromSnap: vi.fn(async () => 'a'.repeat(64)),
+      getAESKeyFromSnap: vi.fn(async () => 'a'.repeat(32)),
     });
     const { result } = renderHook(() => usePrivacyBridge(props));
     await act(async () => {
@@ -1003,12 +1003,12 @@ describe('usePrivacyBridge - handleSwap', () => {
     const getAESKeyFromSnap = vi
       .fn()
       .mockRejectedValueOnce(new Error('AES key not found'))
-      .mockResolvedValueOnce('a'.repeat(64));
+      .mockResolvedValueOnce('a'.repeat(32));
     const props = makeProps({
       direction: 'to-public',
       hasSnap: false,
       getAESKeyFromSnap,
-      handleOnboard: vi.fn(async () => 'a'.repeat(64)),
+      handleOnboard: vi.fn(async () => 'a'.repeat(32)),
     });
     const { result } = renderHook(() => usePrivacyBridge(props));
     await act(async () => {
@@ -1222,7 +1222,7 @@ describe('usePrivacyBridge - checkAllowance fallback symbol resolution', () => {
 
   it('resolves WBTC private decimals (8) for a withdraw allowance', async () => {
     eth.allowance.mockResolvedValue({ ownerCiphertext: { ciphertextHigh: 1n, ciphertextLow: 2n } });
-    vi.mocked(decryptUint256).mockReturnValue(5n * 10n ** 8n);
+    vi.mocked(decryptCtUint256).mockReturnValue(5n * 10n ** 8n);
     const props = makeProps({
       direction: 'to-public',
       publicTokens: [{ symbol: 'WBTC', name: 'WBTC', balance: '0', isPrivate: false }],
@@ -1236,7 +1236,7 @@ describe('usePrivacyBridge - checkAllowance fallback symbol resolution', () => {
 
   it('resolves COTI/PrivateCoti for a withdraw allowance', async () => {
     eth.allowance.mockResolvedValue({ ownerCiphertext: { ciphertextHigh: 1n, ciphertextLow: 2n } });
-    vi.mocked(decryptUint256).mockReturnValue(7n * 10n ** 18n);
+    vi.mocked(decryptCtUint256).mockReturnValue(7n * 10n ** 18n);
     const props = makeProps({
       direction: 'to-public',
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '0', isPrivate: false }],
@@ -1263,7 +1263,7 @@ describe('usePrivacyBridge - checkAllowance fallback symbol resolution', () => {
 
   it('warns and keeps 0 when private allowance decryption throws', async () => {
     eth.allowance.mockResolvedValue({ ownerCiphertext: { ciphertextHigh: 1n, ciphertextLow: 2n } });
-    vi.mocked(decryptUint256).mockImplementation(() => {
+    vi.mocked(decryptCtUint256).mockImplementation(() => {
       throw new Error('decrypt fail');
     });
     const props = makeProps({ direction: 'to-public' });
@@ -1272,8 +1272,8 @@ describe('usePrivacyBridge - checkAllowance fallback symbol resolution', () => {
       await result.current.checkAllowance();
     });
     await waitFor(() => expect(result.current.allowance).toBe('0'));
-    vi.mocked(decryptUint256).mockReset();
-    vi.mocked(decryptUint256).mockReturnValue(1n);
+    vi.mocked(decryptCtUint256).mockReset();
+    vi.mocked(decryptCtUint256).mockReturnValue(1n);
   });
 
   it('falls back to 0 when no snap key is available for a private allowance', async () => {
@@ -1561,7 +1561,7 @@ describe('usePrivacyBridge - isApprovalNeeded with a matching MTT permit', () =>
 describe('usePrivacyBridge - remaining allowance/approval branches', () => {
   it('uses 6 private decimals for a USDT withdraw allowance', async () => {
     eth.allowance.mockResolvedValue({ ownerCiphertext: { ciphertextHigh: 1n, ciphertextLow: 2n } });
-    vi.mocked(decryptUint256).mockReturnValue(4n * 10n ** 6n);
+    vi.mocked(decryptCtUint256).mockReturnValue(4n * 10n ** 6n);
     const props = makeProps({
       direction: 'to-public',
       publicTokens: [{ symbol: 'USDT', name: 'USDT', balance: '0', isPrivate: false }],
@@ -1638,7 +1638,7 @@ describe('usePrivacyBridge - remaining allowance/approval branches', () => {
 describe('usePrivacyBridge - additional branch coverage', () => {
   it('resolves the p.USDC_E key for a USDC.e withdraw allowance', async () => {
     eth.allowance.mockResolvedValue({ ownerCiphertext: { ciphertextHigh: 1n, ciphertextLow: 2n } });
-    vi.mocked(decryptUint256).mockReturnValue(2n * 10n ** 6n);
+    vi.mocked(decryptCtUint256).mockReturnValue(2n * 10n ** 6n);
     const props = makeProps({
       direction: 'to-public',
       publicTokens: [{ symbol: 'USDC.e', name: 'USDC.e', balance: '0', isPrivate: false }],

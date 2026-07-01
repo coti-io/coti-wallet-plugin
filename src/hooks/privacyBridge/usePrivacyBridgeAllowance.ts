@@ -14,6 +14,7 @@ import {
   skipsPublicDepositApproval,
 } from '../../chains/portal/helpers';
 import { logger } from '../../lib/logger';
+import { decryptCtUint256 } from '../../crypto/decryption';
 import { encryptValue256 } from './encryptValue256';
 import { shortHash } from './utils';
 import type { Token, ToastState } from './types';
@@ -204,16 +205,12 @@ export const usePrivacyBridgeAllowance = ({
                         try {
                             const aesKey = sessionAesKey || await getAESKeyFromSnap(walletAddress);
                             if (aesKey) {
-                                // Dynamically import CotiSDK
-                                const CotiSDK = await import('@coti-io/coti-sdk-typescript');
-                                const decryptedVal = CotiSDK.decryptUint256({
+                                const decryptedVal = decryptCtUint256({
                                     ciphertextHigh: currentAllowance.ownerCiphertext.ciphertextHigh,
                                     ciphertextLow: currentAllowance.ownerCiphertext.ciphertextLow
-                                }, aesKey);
+                                }, aesKey, { decimals: privateDecimals });
 
-                                // Sanity check to avoid rendering garbage
-                                const insaneThreshold = BigInt("1000000000000") * BigInt(10) ** BigInt(privateDecimals);
-                                if (decryptedVal > insaneThreshold) {
+                                if (decryptedVal === null) {
                                     setAllowance('0');
                                 } else {
                                     setAllowance(ethers.formatUnits(decryptedVal, privateDecimals));

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import type { WalletType } from '../hooks/useWalletType';
 import type { OnboardingStep } from '../hooks/useAesKeyProvider';
 import { ONBOARDING_STEPS } from '../hooks/useAesKeyProvider';
+import { normalizeAesKey } from '../crypto/aesKey';
 
 /**
  * Props for the OnboardModal component.
@@ -31,6 +32,11 @@ export interface OnboardModalProps {
   saveBackup?: boolean;
   /** Called when the encrypted-backup checkbox changes */
   onSaveBackupChange?: (saveBackup: boolean) => void;
+  /** Called when the user manually submits an AES key instead of onboarding */
+  onManualAesKeySubmit?: (
+    aesKey: string,
+    options: { saveBackup: boolean },
+  ) => void | Promise<void>;
   /** Non-blocking warning from restore/backup flows */
   warning?: string | null;
   /** Optional theme overrides for customizing the modal appearance */
@@ -178,19 +184,136 @@ const defaultStyles = {
   checkboxRow: {
     width: '100%',
     display: 'flex',
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: '8px',
     marginBottom: '14px',
-    textAlign: 'left' as const,
+    textAlign: 'center' as const,
   },
   checkbox: {
-    marginTop: '2px',
+    margin: 0,
     accentColor: '#1E29F6',
   },
   checkboxText: {
     fontSize: '11px',
     color: 'rgba(255, 255, 255, 0.75)',
     lineHeight: 1.5,
+  },
+  tooltipWrap: {
+    position: 'relative' as const,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tooltipButton: {
+    width: '14px',
+    height: '14px',
+    borderRadius: '50%',
+    border: '1px solid rgba(255, 255, 255, 0.25)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: '9px',
+    lineHeight: 1,
+    padding: 0,
+    cursor: 'help',
+    flexShrink: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontWeight: 700,
+  },
+  tooltipBubble: {
+    position: 'absolute' as const,
+    bottom: 'calc(100% + 8px)',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    width: '220px',
+    boxSizing: 'border-box' as const,
+    padding: '8px 10px',
+    borderRadius: '8px',
+    backgroundColor: 'rgba(0, 0, 0, 0.92)',
+    border: '1px solid rgba(255, 255, 255, 0.14)',
+    color: 'rgba(255, 255, 255, 0.86)',
+    fontSize: '11px',
+    lineHeight: 1.4,
+    textAlign: 'left' as const,
+    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.35)',
+    zIndex: 1,
+  },
+  actionRow: {
+    width: '100%',
+    display: 'flex',
+    gap: '8px',
+    alignItems: 'stretch',
+    marginBottom: '10px',
+  },
+  actionPrimary: {
+    flex: 1,
+    minWidth: 0,
+  },
+  iconButton: {
+    width: '42px',
+    minWidth: '42px',
+    boxSizing: 'border-box' as const,
+    padding: '9px',
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    color: '#ffffff',
+    border: '1px solid rgba(255, 255, 255, 0.14)',
+    borderRadius: '8px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+  },
+  iconButtonPressed: {
+    width: '42px',
+    minWidth: '42px',
+    boxSizing: 'border-box' as const,
+    padding: '9px',
+    backgroundColor: 'rgba(30, 41, 246, 0.22)',
+    color: '#00E5FF',
+    border: '1px solid rgba(0, 229, 255, 0.45)',
+    borderRadius: '8px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    boxShadow: 'inset 0 2px 6px rgba(0, 0, 0, 0.35)',
+  },
+  iconButtonDisabled: {
+    width: '42px',
+    minWidth: '42px',
+    boxSizing: 'border-box' as const,
+    padding: '9px',
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    color: 'rgba(255, 255, 255, 0.35)',
+    border: '1px solid rgba(255, 255, 255, 0.08)',
+    borderRadius: '8px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'not-allowed',
+  },
+  manualKeyInput: {
+    width: '100%',
+    height: '100%',
+    boxSizing: 'border-box' as const,
+    padding: '10px 12px',
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
+    color: '#ffffff',
+    border: '1px solid rgba(255, 255, 255, 0.16)',
+    borderRadius: '8px',
+    fontSize: '12px',
+    fontFamily: 'monospace',
+    outline: 'none',
+  },
+  manualKeyErrorText: {
+    fontSize: '11px',
+    color: '#b91c1c',
+    lineHeight: 1.5,
+    margin: '-4px 0 10px',
+    textAlign: 'left' as const,
+    width: '100%',
   },
   spinner: {
     display: 'inline-block',
@@ -265,19 +388,44 @@ const defaultStyles = {
     wordBreak: 'break-all' as const,
     textAlign: 'left' as const,
   },
-  copyButton: {
+  keyInputWrap: {
     width: '100%',
     boxSizing: 'border-box' as const,
-    padding: '8px 16px',
-    backgroundColor: 'rgba(0, 229, 255, 0.1)',
+    position: 'relative' as const,
+    marginBottom: '16px',
+  },
+  keyInput: {
+    width: '100%',
+    boxSizing: 'border-box' as const,
+    padding: '12px 82px 12px 12px',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
     color: '#00E5FF',
-    border: '1px solid rgba(0, 229, 255, 0.3)',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
     borderRadius: '8px',
-    fontSize: '12px',
-    fontWeight: 500,
+    fontFamily: 'monospace',
+    fontSize: '11px',
+    outline: 'none',
+  },
+  keyInputActions: {
+    position: 'absolute' as const,
+    top: '50%',
+    right: '8px',
+    transform: 'translateY(-50%)',
+    display: 'flex',
+    gap: '4px',
+  },
+  inlineIconButton: {
+    width: '30px',
+    height: '30px',
+    borderRadius: '6px',
+    border: '1px solid rgba(0, 229, 255, 0.25)',
+    backgroundColor: 'rgba(0, 229, 255, 0.08)',
+    color: '#00E5FF',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
     cursor: 'pointer',
-    marginBottom: '10px',
-    transition: 'all 0.2s',
+    padding: 0,
   },
   warningBox: {
     width: '100%',
@@ -365,6 +513,8 @@ function getWalletDisplayName(walletType: WalletType): string {
       return 'WalletConnect';
     case 'metamask':
       return 'MetaMask';
+    case 'rainbow':
+      return 'Rainbow Wallet';
     default:
       return 'your wallet';
   }
@@ -442,6 +592,7 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
   debugTrace,
   saveBackup = true,
   onSaveBackupChange,
+  onManualAesKeySubmit,
   warning,
   theme,
 }) => {
@@ -449,6 +600,11 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
   const snapBypassTriggered = useRef(false);
   const [copied, setCopied] = useState(false);
   const [isAesVisible, setIsAesVisible] = useState(false);
+  const [showManualKeyInput, setShowManualKeyInput] = useState(false);
+  const [manualAesKey, setManualAesKey] = useState('');
+  const [manualAesKeyError, setManualAesKeyError] = useState<string | null>(null);
+  const [isSubmittingManualKey, setIsSubmittingManualKey] = useState(false);
+  const [showBackupTooltip, setShowBackupTooltip] = useState(false);
   const styles = mergeTheme(theme);
 
   useEffect(() => {
@@ -464,6 +620,11 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
       snapBypassTriggered.current = false;
       setCopied(false);
       setIsAesVisible(false);
+      setShowManualKeyInput(false);
+      setManualAesKey('');
+      setManualAesKeyError(null);
+      setIsSubmittingManualKey(false);
+      setShowBackupTooltip(false);
     }
   }, [isOpen]);
 
@@ -501,6 +662,37 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error('Failed to copy:', err);
+    }
+  };
+
+  const handleManualAesKeySubmit = async () => {
+    if (!onManualAesKeySubmit) return;
+
+    const key = manualAesKey.trim();
+    setManualAesKeyError(null);
+
+    if (!key) {
+      setManualAesKeyError('AES key is required.');
+      return;
+    }
+
+    let normalizedKey: string;
+    try {
+      normalizedKey = normalizeAesKey(key);
+    } catch {
+      setManualAesKeyError('Paste a 32-character AES key.');
+      return;
+    }
+
+    setIsSubmittingManualKey(true);
+    try {
+      await onManualAesKeySubmit(normalizedKey, { saveBackup });
+      setManualAesKey('');
+      setShowManualKeyInput(false);
+    } catch (err: any) {
+      setManualAesKeyError(err?.message || 'Could not save AES key.');
+    } finally {
+      setIsSubmittingManualKey(false);
     }
   };
 
@@ -570,17 +762,38 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
                 This will execute a transaction on the COTI Network to retrieve your AES encryption key.
               </p>
 
-              <label style={styles.checkboxRow}>
-                <input
-                  type="checkbox"
-                  checked={saveBackup}
-                  onChange={(event) => onSaveBackupChange?.(event.target.checked)}
-                  style={styles.checkbox}
-                />
-                <span style={styles.checkboxText}>
-                  Save an encrypted backup of my AES key. Only the encrypted blob is stored; restoring it requires a wallet signature.
+              <div style={styles.checkboxRow}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input
+                    type="checkbox"
+                    checked={saveBackup}
+                    onChange={(event) => onSaveBackupChange?.(event.target.checked)}
+                    style={styles.checkbox}
+                  />
+                  <span style={styles.checkboxText}>
+                    Save encrypted backup
+                  </span>
+                </label>
+                <span style={styles.tooltipWrap}>
+                  <button
+                    type="button"
+                    aria-label="Backup details"
+                    aria-describedby={showBackupTooltip ? 'backup-details-tooltip' : undefined}
+                    onMouseEnter={() => setShowBackupTooltip(true)}
+                    onMouseLeave={() => setShowBackupTooltip(false)}
+                    onFocus={() => setShowBackupTooltip(true)}
+                    onBlur={() => setShowBackupTooltip(false)}
+                    style={styles.tooltipButton}
+                  >
+                    ?
+                  </button>
+                  {showBackupTooltip && (
+                    <span id="backup-details-tooltip" role="tooltip" style={styles.tooltipBubble}>
+                      Only the encrypted blob is stored. Restoring it requires a wallet signature.
+                    </span>
+                  )}
                 </span>
-              </label>
+              </div>
 
               {warning && (
                 <div style={styles.warningBox}>
@@ -588,12 +801,71 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
                 </div>
               )}
 
-              <button
-                onClick={onConfirm}
-                style={styles.primaryButton}
-              >
-                Begin Onboarding
-              </button>
+              <div style={styles.actionRow}>
+                {showManualKeyInput ? (
+                  <>
+                    <input
+                      type="text"
+                      value={manualAesKey}
+                      onChange={(event) => setManualAesKey(event.target.value)}
+                      placeholder="Paste AES key"
+                      aria-label="Manual AES key"
+                      disabled={isSubmittingManualKey}
+                      style={{ ...styles.manualKeyInput, ...styles.actionPrimary }}
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleManualAesKeySubmit}
+                      disabled={isSubmittingManualKey || !manualAesKey.trim()}
+                      aria-label="Use AES key"
+                      style={isSubmittingManualKey || !manualAesKey.trim() ? styles.iconButtonDisabled : styles.iconButton}
+                    >
+                      {isSubmittingManualKey ? (
+                        <div style={{ ...styles.spinner, width: '14px', height: '14px' }} />
+                      ) : (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                      )}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={onConfirm}
+                    style={{ ...styles.primaryButton, ...styles.actionPrimary, marginBottom: 0 }}
+                  >
+                    Begin Onboarding
+                  </button>
+                )}
+
+                {onManualAesKeySubmit && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowManualKeyInput((visible) => !visible);
+                      setManualAesKey('');
+                      setManualAesKeyError(null);
+                    }}
+                    disabled={isSubmittingManualKey}
+                    aria-label={showManualKeyInput ? 'Hide AES key input' : 'Input AES key'}
+                    aria-pressed={showManualKeyInput}
+                    title={showManualKeyInput ? 'Hide AES key input' : 'Input AES key'}
+                    style={showManualKeyInput ? styles.iconButtonPressed : styles.iconButton}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <rect x="2" y="6" width="20" height="12" rx="2" />
+                      <path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+
+              {manualAesKeyError && (
+                <p style={styles.manualKeyErrorText}>{manualAesKeyError}</p>
+              )}
 
               <button
                 onClick={onClose}
@@ -713,23 +985,58 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
                 Your AES encryption key has been successfully retrieved.
               </p>
 
-              <div style={styles.aesKeyBox}>
-                {isAesVisible ? aesKey : '•'.repeat(Math.min(aesKey.length, 64))}
+              <div style={styles.keyInputWrap}>
+                <input
+                  type={isAesVisible ? 'text' : 'password'}
+                  value={aesKey}
+                  readOnly
+                  aria-label="Retrieved AES key"
+                  style={styles.keyInput}
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                <div style={styles.keyInputActions}>
+                  <button
+                    type="button"
+                    onClick={() => setIsAesVisible((visible) => !visible)}
+                    aria-label={isAesVisible ? 'Hide AES key' : 'Show AES key'}
+                    title={isAesVisible ? 'Hide AES key' : 'Show AES key'}
+                    style={styles.inlineIconButton}
+                  >
+                    {isAesVisible ? (
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20C7 20 2.73 16.89 1 12a18.45 18.45 0 0 1 5.06-6.06" />
+                        <path d="M9.9 4.24A10.45 10.45 0 0 1 12 4c5 0 9.27 3.11 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+                        <path d="M14.12 14.12A3 3 0 0 1 9.88 9.88" />
+                        <path d="M1 1l22 22" />
+                      </svg>
+                    ) : (
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCopy}
+                    aria-label="Copy AES key"
+                    title={copied ? 'Copied' : 'Copy AES key'}
+                    style={styles.inlineIconButton}
+                  >
+                    {copied ? (
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    ) : (
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <rect x="9" y="9" width="13" height="13" rx="2" />
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
               </div>
-
-              <button
-                onClick={handleCopy}
-                style={styles.copyButton}
-              >
-                {copied ? '✓ Copied!' : 'Copy AES Key'}
-              </button>
-
-              <button
-                onClick={() => setIsAesVisible((visible) => !visible)}
-                style={styles.copyButton}
-              >
-                {isAesVisible ? 'Hide AES Key' : 'Show AES Key'}
-              </button>
 
               <div style={styles.warningBox}>
                 <p style={styles.warningText}>

@@ -125,7 +125,7 @@ describe('useBalanceUpdater', () => {
       ACCOUNT,
       true,
       true,
-      'a'.repeat(64),
+      'a'.repeat(32),
       COTI_TESTNET,
     );
 
@@ -138,7 +138,7 @@ describe('useBalanceUpdater', () => {
 
   it('retrieves the AES key from the snap and caches it when no session key exists', async () => {
     const props = makeProps({
-      getAESKeyFromSnap: vi.fn().mockResolvedValue('b'.repeat(64)),
+      getAESKeyFromSnap: vi.fn().mockResolvedValue('b'.repeat(32)),
       fetchPrivateBalance: vi.fn().mockResolvedValue('7'),
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
@@ -147,13 +147,13 @@ describe('useBalanceUpdater', () => {
 
     expect(ok).toBe(true);
     expect(props.getAESKeyFromSnap).toHaveBeenCalledWith(ACCOUNT);
-    expect(props.setSessionAesKey).toHaveBeenCalledWith('b'.repeat(64), ACCOUNT);
+    expect(props.setSessionAesKey).toHaveBeenCalledWith('b'.repeat(32), ACCOUNT);
     expect(props.setHasSnap).toHaveBeenCalledWith(true);
   });
 
   it('uses an existing session key and marks snap available without fetching from snap', async () => {
     const props = makeProps({
-      sessionAesKey: 'c'.repeat(64),
+      sessionAesKey: 'c'.repeat(32),
       fetchPrivateBalance: vi.fn().mockResolvedValue('9'),
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
@@ -180,7 +180,7 @@ describe('useBalanceUpdater', () => {
 
   it('throws AES_KEY_MISMATCH when a private balance decrypt mismatches', async () => {
     const props = makeProps({
-      sessionAesKey: 'd'.repeat(64),
+      sessionAesKey: 'd'.repeat(32),
       fetchPrivateBalance: vi.fn().mockRejectedValue(new Error('AES key mismatch')),
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
@@ -206,7 +206,7 @@ describe('useBalanceUpdater', () => {
 
   it('returns false (not throw) on a non-mismatch private fetch error', async () => {
     const props = makeProps({
-      sessionAesKey: 'e'.repeat(64),
+      sessionAesKey: 'e'.repeat(32),
       fetchPrivateBalance: vi.fn().mockRejectedValue(new Error('network blip')),
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
@@ -280,7 +280,7 @@ describe('useBalanceUpdater', () => {
     });
 
     const props = makeProps({
-      sessionAesKey: 'f'.repeat(64),
+      sessionAesKey: 'f'.repeat(32),
       fetchPrivateBalance: vi
         .fn()
         .mockReturnValueOnce(slowPrivate)
@@ -300,7 +300,7 @@ describe('useBalanceUpdater', () => {
       accountB,
       true,
       true,
-      'a'.repeat(64),
+      'a'.repeat(32),
       COTI_TESTNET,
     );
 
@@ -326,7 +326,7 @@ describe('useBalanceUpdater', () => {
     const accountB = '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
 
     const props = makeProps({
-      sessionAesKey: 'd'.repeat(64),
+      sessionAesKey: 'd'.repeat(32),
       fetchPrivateBalance: vi.fn().mockImplementation((userAddress: string) =>
         userAddress === ACCOUNT ? slowPrivate : Promise.resolve('5'),
       ),
@@ -347,7 +347,7 @@ describe('useBalanceUpdater', () => {
       accountB,
       true,
       true,
-      'e'.repeat(64),
+      'e'.repeat(32),
       COTI_TESTNET,
     );
 
@@ -371,7 +371,7 @@ describe('useBalanceUpdater', () => {
 
     const props = makeProps({
       getAESKeyFromSnap: vi.fn().mockImplementation((userAddress: string) =>
-        userAddress === ACCOUNT ? slowSnap : Promise.resolve('b'.repeat(64)),
+        userAddress === ACCOUNT ? slowSnap : Promise.resolve('b'.repeat(32)),
       ),
       fetchPrivateBalance: vi.fn().mockResolvedValue('7'),
     });
@@ -397,12 +397,12 @@ describe('useBalanceUpdater', () => {
     );
 
     await fastUpdate;
-    resolveSlowSnap('a'.repeat(64));
+    resolveSlowSnap('a'.repeat(32));
     const slowOk = await slowUpdate;
 
     expect(slowOk).toBe(false);
-    expect(props.setSessionAesKey).not.toHaveBeenCalledWith('a'.repeat(64), ACCOUNT);
-    expect(props.setSessionAesKey).toHaveBeenCalledWith('b'.repeat(64), accountB);
+    expect(props.setSessionAesKey).not.toHaveBeenCalledWith('a'.repeat(32), ACCOUNT);
+    expect(props.setSessionAesKey).toHaveBeenCalledWith('b'.repeat(32), accountB);
 
     (window as any).ethereum = original;
   });

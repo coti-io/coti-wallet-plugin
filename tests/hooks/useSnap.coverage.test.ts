@@ -10,7 +10,7 @@ import { CotiErrorCode } from '../../src/errors';
 
 const SNAP_ID = 'npm:@coti-io/coti-snap';
 const ACCOUNT = '0x1234567890abcdef1234567890abcdef12345678';
-const AES_KEY = 'a'.repeat(64);
+const AES_KEY = 'a'.repeat(32);
 
 type ReqArgs = { method: string; params?: unknown };
 

@@ -1,6 +1,8 @@
+import path from 'path';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
+
+const sdkPath = path.resolve(__dirname, '../../coti-sdk-typescript');
 
 // Deduplicate shared dependencies to avoid multiple React/wagmi/query contexts
 export default defineConfig({
@@ -13,14 +15,19 @@ export default defineConfig({
       'wagmi',
       'viem',
       '@rainbow-me/rainbowkit',
+      '@coti-io/coti-sdk-typescript',
     ],
     alias: {
-      // Force all imports to resolve to the example app's node_modules copy
-      '@coti/pod-sdk': path.resolve(__dirname, 'node_modules/@coti/pod-sdk'),
-      '@tanstack/react-query': path.resolve(__dirname, 'node_modules/@tanstack/react-query'),
-      wagmi: path.resolve(__dirname, 'node_modules/wagmi'),
-      react: path.resolve(__dirname, 'node_modules/react'),
-      'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
+      '@coti-io/coti-sdk-typescript': sdkPath,
+    },
+  },
+  optimizeDeps: {
+    include: ['@coti-io/coti-sdk-typescript'],
+  },
+  build: {
+    commonjsOptions: {
+      include: [/coti-sdk-typescript/, /node_modules/],
+      transformMixedEsModules: true,
     },
   },
 });

@@ -9,6 +9,7 @@ import type { PrivacyBridgeAccountSync } from './usePrivacyBridgeAccountSync';
 import type { PrivacyBridgeNetworkSession } from './usePrivacyBridgeNetworkSession';
 import type { PrivacyBridgeSessionCore } from './sessionShared';
 import type { AesKeyProviderOptions } from '../../hooks/useAesKeyProvider';
+import { normalizeAesKey } from '../../crypto/aesKey';
 
 interface UsePrivacyBridgeUnlockSessionOptions {
   core: PrivacyBridgeSessionCore;
@@ -52,13 +53,12 @@ export const usePrivacyBridgeUnlockSession = ({
 
     // Normalize and validate in-memory only — no localStorage persistence.
     // The key lives in React state for this session and is lost on page refresh by design.
-    const trimmedKey = aesKey.trim();
-    if (!trimmedKey) throw new Error('AES key is required.');
-    // Accept both 32-char (128-bit from onboard contract) and 64-char (256-bit from Snap) keys
-    if (!/^[0-9a-fA-F]{32}$|^[0-9a-fA-F]{64}$/.test(trimmedKey)) {
-      throw new Error('AES key must be 32 or 64 hexadecimal characters (no 0x prefix).');
+    let key: string;
+    try {
+      key = normalizeAesKey(aesKey.trim());
+    } catch {
+      throw new Error('AES key must be 32 hexadecimal characters.');
     }
-    const key = trimmedKey.toLowerCase();
 
     setSessionAesKey(key, walletAddress);
     setHasSnap(true);

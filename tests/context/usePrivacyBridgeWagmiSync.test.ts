@@ -160,7 +160,7 @@ describe('usePrivacyBridgeWagmiSync — chain-change guard with sessionAesKey', 
   });
 
   it('calls updateAccountState with fetchPrivate=true and sessionAesKey when key is set and chain changes (unmuted)', async () => {
-    const core = makeCore({ sessionAesKey: 'c'.repeat(64), walletAddress: '0xabc123' });
+    const core = makeCore({ sessionAesKey: 'c'.repeat(32), walletAddress: '0xabc123' });
     const network = makeNetwork({ wagmiChainId: 11155111 });
     const accountSync = makeAccountSync();
 
@@ -181,7 +181,7 @@ describe('usePrivacyBridgeWagmiSync — chain-change guard with sessionAesKey', 
         '0xabc123',
         true,
         true,
-        'c'.repeat(64),
+        'c'.repeat(32),
         7082400,
       );
     });
@@ -218,7 +218,7 @@ describe('usePrivacyBridgeWagmiSync — chain-change guard with sessionAesKey', 
   it('does NOT call updateAccountState when chain updates are muted', async () => {
     h.isChainUpdatesMuted.mockReturnValue(true);
 
-    const core = makeCore({ sessionAesKey: 'c'.repeat(64), walletAddress: '0xabc123' });
+    const core = makeCore({ sessionAesKey: 'c'.repeat(32), walletAddress: '0xabc123' });
     const network = makeNetwork({ wagmiChainId: 11155111 });
     const accountSync = makeAccountSync();
 

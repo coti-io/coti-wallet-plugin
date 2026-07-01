@@ -30,16 +30,16 @@ describe('AES Key Provider (README: useAesKeyProvider)', () => {
       expect(isValidAesKey('a'.repeat(32))).toBe(true);
     });
 
-    it('accepts 64-char hex key (256-bit)', () => {
-      expect(isValidAesKey('b'.repeat(64))).toBe(true);
+    it('rejects 64-char hex key', () => {
+      expect(isValidAesKey('b'.repeat(64))).toBe(false);
     });
 
     it('accepts uppercase hex', () => {
       expect(isValidAesKey('ABCDEF0123456789'.repeat(2))).toBe(true);
     });
 
-    it('rejects keys with 0x prefix', () => {
-      expect(isValidAesKey('0x' + 'a'.repeat(32))).toBe(false);
+    it('accepts keys with 0x prefix', () => {
+      expect(isValidAesKey('0x' + 'a'.repeat(32))).toBe(true);
     });
 
     it('rejects empty string', () => {
