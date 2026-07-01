@@ -23,6 +23,38 @@ import {
 import { getPluginConfig } from '../config/plugin';
 import { resolveWalletConnectProjectId } from '../config/walletConnect';
 
+/** RainbowKit-compatible mobile detection (iOS, Android, iPad). */
+const isMobileBrowser = (): boolean => {
+  if (typeof navigator === 'undefined') return false;
+  return (
+    /android|iphone|ipod/i.test(navigator.userAgent)
+    || (/ipad/i.test(navigator.userAgent)
+      || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))
+  );
+};
+
+type WalletFactory = Parameters<typeof connectorsForWallets>[0][number]['wallets'][number];
+
+const DESKTOP_WALLET_GROUPS: { groupName: string; wallets: WalletFactory[] }[] = [
+  {
+    groupName: 'Recommended',
+    wallets: [metaMaskWallet, rabbyWallet, trustWallet, oneKeyWallet, walletConnectWallet],
+  },
+  {
+    groupName: 'Other',
+    wallets: [coinbaseWallet, ledgerWallet],
+  },
+];
+
+const MOBILE_WALLET_GROUPS: { groupName: string; wallets: WalletFactory[] }[] = [
+  {
+    groupName: 'Recommended',
+    wallets: [walletConnectWallet, metaMaskWallet, rabbyWallet, oneKeyWallet],
+  },
+];
+
+const getWalletGroups = () => (isMobileBrowser() ? MOBILE_WALLET_GROUPS : DESKTOP_WALLET_GROUPS);
+
 interface WagmiRainbowKitProviderProps {
   children: React.ReactNode;
   /** WalletConnect Cloud project ID (falls back to configureCotiPlugin or VITE_WALLETCONNECT_PROJECT_ID). */
@@ -33,16 +65,7 @@ function createWagmiConfig(walletConnectProjectId?: string) {
   const projectId = resolveWalletConnectProjectId(walletConnectProjectId);
 
   const connectors = connectorsForWallets(
-    [
-      {
-        groupName: 'Recommended',
-        wallets: [metaMaskWallet, rabbyWallet, trustWallet, oneKeyWallet, walletConnectWallet],
-      },
-      {
-        groupName: 'Other',
-        wallets: [coinbaseWallet, ledgerWallet],
-      },
-    ],
+    getWalletGroups(),
     {
       appName: 'COTI Wallet Plugin',
       projectId,
@@ -71,7 +94,8 @@ function getWagmiConfigCacheKey(walletConnectProjectId?: string): string {
   const pluginConfig = getPluginConfig();
   const projectId = resolveWalletConnectProjectId(walletConnectProjectId);
   const sepoliaRpc = pluginConfig.sepoliaRpcUrl ?? SEPOLIA_RPC;
-  return `${projectId}|${sepoliaRpc}`;
+  const mobile = isMobileBrowser();
+  return `${projectId}|${sepoliaRpc}|${mobile ? 'mobile' : 'desktop'}`;
 }
 
 let cachedWagmiConfig: { key: string; config: Config } | undefined;

@@ -32,6 +32,16 @@ import { resolveWalletConnectProjectId } from '../../src/config/walletConnect';
 import { CotiErrorCode, CotiPluginError, hasCotiErrorCode } from '../../src/errors';
 import { SEPOLIA_RPC } from '../../src/chains';
 import { createConfig, http } from 'wagmi';
+import { connectorsForWallets } from '@rainbow-me/rainbowkit';
+import {
+  metaMaskWallet,
+  rabbyWallet,
+  oneKeyWallet,
+  walletConnectWallet,
+  trustWallet,
+  coinbaseWallet,
+  ledgerWallet,
+} from '@rainbow-me/rainbowkit/wallets';
 
 describe('WagmiRainbowKitProvider', () => {
   it('exports wagmiConfig for backward compatibility', () => {
@@ -151,5 +161,65 @@ describe('WagmiRainbowKitProvider', () => {
     configureCotiPlugin({ walletConnectProjectId: 'from-plugin' });
     expect(resolveWalletConnectProjectId('from-prop')).toBe('from-prop');
     configureCotiPlugin({ walletConnectProjectId: undefined });
+  });
+
+  it('uses a reduced mobile wallet list (WalletConnect, MetaMask, Rabby, OneKey)', () => {
+    const originalUserAgent = navigator.userAgent;
+    Object.defineProperty(navigator, 'userAgent', {
+      configurable: true,
+      value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)',
+    });
+
+    vi.mocked(connectorsForWallets).mockClear();
+    configureCotiPlugin({ sepoliaRpcUrl: 'https://mobile-wallets.example/rpc' });
+    getWagmiConfig('mobile-wallet-test');
+
+    expect(connectorsForWallets).toHaveBeenCalledWith(
+      [
+        {
+          groupName: 'Recommended',
+          wallets: [walletConnectWallet, metaMaskWallet, rabbyWallet, oneKeyWallet],
+        },
+      ],
+      expect.objectContaining({ projectId: 'mobile-wallet-test' }),
+    );
+
+    Object.defineProperty(navigator, 'userAgent', {
+      configurable: true,
+      value: originalUserAgent,
+    });
+    configureCotiPlugin({ sepoliaRpcUrl: undefined });
+  });
+
+  it('uses the full desktop wallet list on non-mobile browsers', () => {
+    const originalUserAgent = navigator.userAgent;
+    Object.defineProperty(navigator, 'userAgent', {
+      configurable: true,
+      value: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+    });
+
+    vi.mocked(connectorsForWallets).mockClear();
+    configureCotiPlugin({ sepoliaRpcUrl: 'https://desktop-wallets.example/rpc' });
+    getWagmiConfig('desktop-wallet-test');
+
+    expect(connectorsForWallets).toHaveBeenCalledWith(
+      [
+        {
+          groupName: 'Recommended',
+          wallets: [metaMaskWallet, rabbyWallet, trustWallet, oneKeyWallet, walletConnectWallet],
+        },
+        {
+          groupName: 'Other',
+          wallets: [coinbaseWallet, ledgerWallet],
+        },
+      ],
+      expect.objectContaining({ projectId: 'desktop-wallet-test' }),
+    );
+
+    Object.defineProperty(navigator, 'userAgent', {
+      configurable: true,
+      value: originalUserAgent,
+    });
+    configureCotiPlugin({ sepoliaRpcUrl: undefined });
   });
 });
