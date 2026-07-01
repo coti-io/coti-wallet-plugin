@@ -60,6 +60,7 @@ import {
   type PodWithdrawPermit,
 } from '../../../src/chains/portal/executePodPortalTransaction';
 import { PRIVACY_PORTAL_ABI, SEPOLIA_CHAIN_ID } from '../../../src/contracts/pod';
+import { POD_TESTNET_INBOX_ADDRESS } from '../../../src/chains/podInbox';
 import { configureCotiPlugin } from '../../../src/config/plugin';
 import { logger } from '../../../src/lib/logger';
 
@@ -158,10 +159,10 @@ describe('getPodSdkConfig', () => {
     const cfg = getPodSdkConfig();
     expect(cfg.chains.every(c => c.inboxAddress.startsWith('0x'))).toBe(true);
     expect(cfg.chains.find(c => c.chainId === SEPOLIA_CHAIN_ID)?.inboxAddress).toBe(
-      '0xB4A53FE02401fDFA8DAc00450dA3FfF8D01502F8',
+      POD_TESTNET_INBOX_ADDRESS,
     );
     expect(cfg.chains.find(c => c.chainId === 7082400)?.inboxAddress).toBe(
-      '0xB4A53FE02401fDFA8DAc00450dA3FfF8D01502F8',
+      POD_TESTNET_INBOX_ADDRESS,
     );
   });
 
