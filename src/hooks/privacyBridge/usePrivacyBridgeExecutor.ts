@@ -505,6 +505,7 @@ export const usePrivacyBridgeExecutor = ({
                             '0xfb291504': 'Deposits are currently disabled for this bridge.',
                             '0xcbca5aa2': 'Amount cannot be zero.',
                             '0x045c4b02': 'Token transfer failed. Please check your balance and approval.',
+                            '0x997c558e': 'The price quote expired before the transaction was confirmed.',
                         };
 
                         // ethers v6 JsonRpcProvider puts revert data in error.data or error.info.error.data
@@ -624,6 +625,7 @@ export const usePrivacyBridgeExecutor = ({
                         'AmountZero': 'Amount cannot be zero.',
                         'InsufficientBridgeLiquidity': 'Insufficient bridge liquidity.',
                         'TokenTransferFailed': 'Token transfer failed. Check balance and approval.',
+                        'OracleTimestampMismatch': 'The price quote expired before the transaction was confirmed.',
                     };
 
                     if (errorName && knownErrors[errorName]) {
@@ -720,6 +722,7 @@ export const usePrivacyBridgeExecutor = ({
                     'InsufficientBridgeLiquidity': 'Insufficient bridge liquidity. Please try a smaller amount.',
                     'TokenTransferFailed': 'Token transfer failed. Please check your token balance and approval.',
                     'InsufficientAccumulatedFees': 'Insufficient accumulated fees.',
+                    'OracleTimestampMismatch': 'The price quote expired before the transaction was confirmed.',
                 };
 
                 if (errorName && knownErrors[errorName]) {
@@ -740,6 +743,7 @@ export const usePrivacyBridgeExecutor = ({
                         '0xcbca5aa2': 'Amount cannot be zero.',
                         '0xaae25839': 'Insufficient bridge liquidity. Please try a smaller amount.',
                         '0x045c4b02': 'Token transfer failed. Please check your token balance and approval.',
+                        '0x997c558e': 'The price quote expired before the transaction was confirmed.',
                     };
                     if (selectorMap[selector]) {
                         throwRevertError(selectorMap[selector]);
