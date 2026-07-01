@@ -22,8 +22,8 @@ const cotiTokenConfigs = (supportedChainIds: number[]): TokenConfig[] => [
   { symbol: "p.MTT", name: "p.MTT", icon: "/icons/coti.svg", decimals: 18, isPrivate: true, addressKey: "p.MTT", bridgeAddressKey: "PrivacyPortalMTT", timeout: 1800, supportedChainIds },
 ];
 
-/** PoD inbox on COTI testnet (same deployment as Sepolia/Fuji PoD portal). */
-const COTI_TESTNET_POD_INBOX = "0xB4A53FE02401fDFA8DAc00450dA3FfF8D01502F8";
+/** PoD inbox on COTI testnet (target chain for Sepolia/Fuji PoD deposits). */
+export const COTI_TESTNET_POD_INBOX = "0xB4A53FE02401fDFA8DAc00450dA3FfF8D01502F8";
 
 export const cotiTestnetChain: ChainConfig = {
   id: COTI_TESTNET_CHAIN_ID,

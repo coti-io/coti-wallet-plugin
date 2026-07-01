@@ -17,6 +17,7 @@ export {
   ethereumMainnet,
   COTI_MAINNET_CHAIN_ID,
   COTI_TESTNET_CHAIN_ID,
+  COTI_TESTNET_POD_INBOX,
   SEPOLIA_CHAIN_ID,
   ETHEREUM_MAINNET_CHAIN_ID,
   COTI_MAINNET_RPC,
@@ -72,7 +73,7 @@ export { saveAesKeyLocally, unlockCachedAesKey, hasCachedAesKey, clearCachedAesK
 export { estimateCotiBridgeGasFeeDisplay } from './chains/cotiBridgeGasEstimate';
 export { estimatePodPortalGasFeeDisplay } from './chains/portal/podGasEstimate';
 export { resolvePodRequestStatus } from './chains/portal/podRequestStatus';
-export { executePodPortalTransaction, signPodWithdrawPermit, getPodSdkConfig, getSepoliaGasPrice, quotePortalPodRequest } from './chains/portal/executePodPortalTransaction';
+export { executePodPortalTransaction, signPodWithdrawPermit, getPodInboxAddress, getPodSdkConfig, getSepoliaGasPrice, quotePortalPodRequest } from './chains/portal/executePodPortalTransaction';
 export type { PodWithdrawPermit } from './chains/portal/executePodPortalTransaction';
 
 // Contracts
