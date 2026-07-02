@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { WalletType } from '../hooks/useWalletType';
 import type { OnboardingStep } from '../hooks/useAesKeyProvider';
 import { ONBOARDING_STEPS } from '../hooks/useAesKeyProvider';
@@ -28,6 +28,12 @@ export interface OnboardModalProps {
   hasSnap?: boolean;
   /** Timestamped onboarding trace (shown on error when debug is enabled or trace is non-empty) */
   debugTrace?: string[];
+  /** Installs/connects the COTI Snap for MetaMask users */
+  onInstallSnap?: () => boolean | Promise<boolean>;
+  /** Whether the Snap install/connect request is in progress */
+  isInstallingSnap?: boolean;
+  /** Error message from Snap install/connect, or null */
+  snapError?: string | null;
   /** Whether encrypted AES backup should be saved after contract onboarding */
   saveBackup?: boolean;
   /** Called when the encrypted-backup checkbox changes */
@@ -133,6 +139,7 @@ const defaultStyles = {
   },
   errorBox: {
     width: '100%',
+    boxSizing: 'border-box' as const,
     backgroundColor: 'rgba(239, 68, 68, 0.1)',
     border: '1px solid rgba(239, 68, 68, 0.3)',
     borderRadius: '8px',
@@ -685,48 +692,39 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
   aesKey,
   hasSnap,
   debugTrace,
+  onInstallSnap,
+  isInstallingSnap = false,
+  snapError,
   saveBackup = true,
   onSaveBackupChange,
   onManualAesKeySubmit,
   warning,
   theme,
 }) => {
-  // MetaMask + Snap bypass: skip modal entirely and trigger snap flow
-  const snapBypassTriggered = useRef(false);
   const [copied, setCopied] = useState(false);
   const [isAesVisible, setIsAesVisible] = useState(false);
   const [showManualKeyInput, setShowManualKeyInput] = useState(false);
   const [manualAesKey, setManualAesKey] = useState('');
   const [manualAesKeyError, setManualAesKeyError] = useState<string | null>(null);
   const [isSubmittingManualKey, setIsSubmittingManualKey] = useState(false);
+  const [isInstallingSnapLocal, setIsInstallingSnapLocal] = useState(false);
   const [showBackupTooltip, setShowBackupTooltip] = useState(false);
   const styles = mergeTheme(theme);
   const warningStyles = getWarningStyles(styles);
 
-  useEffect(() => {
-    if (isOpen && walletType === 'metamask' && hasSnap && !snapBypassTriggered.current) {
-      snapBypassTriggered.current = true;
-      onConfirm();
-    }
-  }, [isOpen, walletType, hasSnap, onConfirm]);
-
-  // Reset the bypass flag and copied state when the modal closes
+  // Reset local UI state when the modal closes
   useEffect(() => {
     if (!isOpen) {
-      snapBypassTriggered.current = false;
       setCopied(false);
       setIsAesVisible(false);
       setShowManualKeyInput(false);
       setManualAesKey('');
       setManualAesKeyError(null);
       setIsSubmittingManualKey(false);
+      setIsInstallingSnapLocal(false);
       setShowBackupTooltip(false);
     }
   }, [isOpen]);
-
-  if (isOpen && walletType === 'metamask' && hasSnap) {
-    return null;
-  }
 
   // Determine which screen to show
   const showIntro = currentStep === 'idle' && !error && !aesKey;
@@ -748,6 +746,8 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
       </div>
     );
   };
+  const canInstallSnap = walletType === 'metamask' && !hasSnap && !!onInstallSnap;
+  const snapInstallInProgress = isInstallingSnap || isInstallingSnapLocal;
 
   // Handle copy to clipboard
   const handleCopy = async () => {
@@ -789,6 +789,17 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
       setManualAesKeyError(err?.message || 'Could not save AES key.');
     } finally {
       setIsSubmittingManualKey(false);
+    }
+  };
+
+  const handleInstallSnap = async () => {
+    if (!onInstallSnap || snapInstallInProgress) return;
+
+    setIsInstallingSnapLocal(true);
+    try {
+      await onInstallSnap();
+    } finally {
+      setIsInstallingSnapLocal(false);
     }
   };
 
@@ -895,6 +906,23 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
                 <div style={warningStyles.box}>
                   <p style={warningStyles.text}>{warning}</p>
                 </div>
+              )}
+
+              {canInstallSnap && snapError && (
+                <div style={styles.errorBox}>
+                  <p style={styles.errorText}>{snapError}</p>
+                </div>
+              )}
+
+              {canInstallSnap && (
+                <button
+                  type="button"
+                  onClick={handleInstallSnap}
+                  disabled={snapInstallInProgress}
+                  style={snapInstallInProgress ? styles.primaryButtonDisabled : styles.primaryButton}
+                >
+                  {snapInstallInProgress ? 'Installing COTI Snap...' : 'Install COTI Snap'}
+                </button>
               )}
 
               <div style={styles.actionRow}>

@@ -33,13 +33,11 @@ export interface PrivacyBridgeUnlockContextValue {
   snapError: string | null;
   connectToSnap: () => Promise<boolean>;
   requestSnapConnection: () => Promise<boolean>;
-  sessionAesKey: string | null;
   isPrivateUnlocked: boolean;
   refreshPrivateBalances: (options?: AesKeyProviderOptions) => Promise<boolean>;
   lockPrivateBalances: () => void;
   handleOnboard: () => Promise<string | null>;
   saveManualAesKey: (aesKey: string) => Promise<void>;
-  unlockCachedAesKey: () => Promise<void>;
   handleVerifyKeys: () => Promise<void>;
   showSnapMissingModal: boolean;
   setShowSnapMissingModal: (show: boolean) => void;

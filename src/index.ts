@@ -67,18 +67,6 @@ export {
 } from './contracts/pod';
 export type { PodPortalRequest, PodPortalRequestStatus, PodBalanceState, PodBalanceTrustState } from './contracts/pod';
 export { loadPodRequests, savePodRequests, podRequestsStorageKey } from './pod/podPortalRequestsStorage';
-export {
-  validateAesKeyRoundTrip,
-  aesKeysEquivalent,
-  getSdkAesKeyHex,
-  assertMetaMaskActiveAccount,
-  validateAesKeyAgainstOnChainCiphertext,
-  validateMetaMaskAesKeyOnUnlock,
-} from './crypto/aesKeyValidation';
-export { normalizeAesKey, validateAesKey } from './crypto/aesKey';
-export { saveAesKeyLocally, unlockCachedAesKey, hasCachedAesKey, clearCachedAesKey } from './crypto/localAesKeyVault';
-export { encryptAesKeyBackup, decryptAesKeyBackup } from './crypto/aesKeyBackupVault';
-export type { AesBackupSigner, AesBackupVaultContext } from './crypto/aesKeyBackupVault';
 export { estimateCotiBridgeGasFeeDisplay } from './chains/cotiBridgeGasEstimate';
 export { estimatePodPortalGasFeeDisplay } from './chains/portal/podGasEstimate';
 export { resolvePodRequestStatus } from './chains/portal/podRequestStatus';
@@ -91,9 +79,7 @@ export type { TokenConfig } from './contracts/config';
 export { TOKEN_ABI, BRIDGE_ABI, BRIDGE_ERC20_ABI, COTI_PRICE_CONSUMER_ABI } from './contracts/abis';
 export { LIMITS } from './contracts/limits';
 
-// Hooks — Key & Onboarding Manager
-export { useSnap, signIT256ViaSnap, onboardUser } from './hooks/useSnap';
-export type { GetAESKeyFromSnapOptions } from './hooks/useSnap';
+// Hooks — Wallet Manager
 export { useMetamask } from './hooks/useMetamask';
 
 // Hooks — Balance Manager
@@ -113,16 +99,9 @@ export type { FeeEstimate } from './hooks/useEstimateBridgeFees';
 export { fetchBridgeFees, fetchTokenUsdPrice, computeCotiFee, computeErc20Fee, simulateFeeOnChain, getTokenSimulationMeta } from './hooks/useBridgeFees';
 export type { BridgeFees, SimulationResult } from './hooks/useBridgeFees';
 export {
-  executePrivateTokenTransfer,
   resolvePrivateTokenContractAddress,
   resolvePrivateTokenTransferTarget,
-  normalizeAesKeyHex,
-  encryptValue256,
   PRIVATE_ERC20_TRANSFER_256_SIG,
-} from './hooks/privacyBridge';
-export type {
-  ExecutePrivateTokenTransferParams,
-  ExecutePrivateTokenTransferResult,
 } from './hooks/privacyBridge';
 
 // Hooks — Network
@@ -159,12 +138,10 @@ export { WagmiRainbowKitProvider, getWagmiConfig, wagmiConfig } from './provider
 export { useWalletType } from './hooks/useWalletType';
 export type { WalletTypeInfo, WalletType } from './hooks/useWalletType';
 
-// Hooks — AES Key Provider Abstraction
-export { useAesKeyProvider, ONBOARDING_STEPS, isValidAesKey } from './hooks/useAesKeyProvider';
+// Hooks — Onboarding progress types
+export { ONBOARDING_STEPS } from './hooks/useAesKeyProvider';
 export type {
   AesKeyProviderOptions,
-  AesKeyProviderResult,
-  GetAesKeyOptions,
   OnboardingStep,
   OnboardingStepInfo,
   OnboardingProgressCallback,

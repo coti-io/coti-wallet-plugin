@@ -191,6 +191,26 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       expect(snapState.saveAESKeyToSnap).toHaveBeenCalledWith(contractKey, ADDR);
     });
 
+    it('does not request snap during restore-only unlock', async () => {
+      const walletProvider = { request: vi.fn().mockResolvedValue(undefined) };
+      wagmiState.connector = {
+        getProvider: vi.fn().mockResolvedValue(walletProvider),
+      };
+      wagmiState.chainId = COTI_TESTNET;
+
+      const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'metamask' })));
+
+      let key: string | null = 'x';
+      await act(async () => {
+        key = await result.current.getAesKey(ADDR, undefined, { restoreOnly: true });
+      });
+
+      expect(key).toBeNull();
+      expect(snapState.getAESKeyFromSnap).not.toHaveBeenCalled();
+      expect(walletProvider.request).not.toHaveBeenCalled();
+      expect(ethersState.getSigner).not.toHaveBeenCalled();
+    });
+
     it('returns null when snap key fails format validation', async () => {
       snapState.getAESKeyFromSnap.mockResolvedValue('zzzz');
       const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'metamask' })));

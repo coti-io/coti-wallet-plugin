@@ -7,10 +7,11 @@ vi.mock('wagmi', () => ({
 
 import { useSnap } from '../../src/hooks/useSnap';
 import { CotiErrorCode } from '../../src/errors';
+import * as CotiSDK from '@coti-io/coti-sdk-typescript';
 
 const SNAP_ID = 'npm:@coti-io/coti-snap';
 const ACCOUNT = '0x1234567890abcdef1234567890abcdef12345678';
-const AES_KEY = 'a'.repeat(32);
+const AES_KEY = '0123456789abcdef0123456789abcdef';
 
 type ReqArgs = { method: string; params?: unknown };
 
@@ -32,6 +33,8 @@ function fullSuccess(opts: {
         return Promise.resolve(undefined);
       case 'eth_chainId':
         return Promise.resolve(chainId);
+      case 'eth_accounts':
+        return Promise.resolve([ACCOUNT]);
       case 'wallet_invokeSnap': {
         const method = (args.params as { request?: { method?: string } })?.request?.method;
         if (method === 'set-environment') return opts.setEnv ? opts.setEnv() : Promise.resolve(undefined);
@@ -55,6 +58,7 @@ describe('useSnap (branch coverage)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
+    vi.mocked(CotiSDK.decryptUint).mockReturnValue(0x0123456789abcdefn);
     mockRequest = vi.fn(fullSuccess());
      
     (window as any).ethereum = {
@@ -133,32 +137,42 @@ describe('useSnap (branch coverage)', () => {
     });
   });
 
-  it('returns null from getAESKeyFromSnap when requestSnaps is unsupported after install check', async () => {
+  it('throws SNAP_CONNECT_FAILED without requesting permissions when snap is not connected', async () => {
     mockRequest.mockImplementation((args: ReqArgs) => {
       if (args.method === 'web3_clientVersion') return Promise.resolve('MetaMask/v11.0.0');
-      if (args.method === 'wallet_getSnaps') return Promise.resolve({ [SNAP_ID]: { version: '1.0.0' } });
+      if (args.method === 'wallet_getSnaps') return Promise.resolve({});
       if (args.method === 'wallet_requestSnaps') {
-        return Promise.reject(Object.assign(new Error('unsupported'), { code: -32601 }));
+        throw new Error('wallet_requestSnaps must not be called');
       }
       return Promise.resolve(undefined);
     });
     const setSnapError = vi.fn();
     const { result } = renderHook(() => useSnap(setSnapError));
-    await expect(result.current.getAESKeyFromSnap(ACCOUNT)).resolves.toBeNull();
-    expect(setSnapError).toHaveBeenCalledWith('Failed to connect to Snap');
+    await expect(result.current.getAESKeyFromSnap(ACCOUNT)).rejects.toMatchObject({
+      code: CotiErrorCode.SNAP_CONNECT_FAILED,
+    });
+    expect(mockRequest).not.toHaveBeenCalledWith(
+      expect.objectContaining({ method: 'wallet_requestSnaps' }),
+    );
+    expect(setSnapError).toHaveBeenCalledWith(null);
   });
 
-  it('returns null from getAESKeyFromSnap without calling setSnapError when no callback is provided', async () => {
+  it('throws SNAP_CONNECT_FAILED without a setSnapError callback when snap is not connected', async () => {
     mockRequest.mockImplementation((args: ReqArgs) => {
       if (args.method === 'web3_clientVersion') return Promise.resolve('MetaMask/v11.0.0');
-      if (args.method === 'wallet_getSnaps') return Promise.resolve({ [SNAP_ID]: { version: '1.0.0' } });
+      if (args.method === 'wallet_getSnaps') return Promise.resolve({});
       if (args.method === 'wallet_requestSnaps') {
-        return Promise.reject(Object.assign(new Error('unsupported'), { code: -32601 }));
+        throw new Error('wallet_requestSnaps must not be called');
       }
       return Promise.resolve(undefined);
     });
     const { result } = renderHook(() => useSnap());
-    await expect(result.current.getAESKeyFromSnap(ACCOUNT)).resolves.toBeNull();
+    await expect(result.current.getAESKeyFromSnap(ACCOUNT)).rejects.toMatchObject({
+      code: CotiErrorCode.SNAP_CONNECT_FAILED,
+    });
+    expect(mockRequest).not.toHaveBeenCalledWith(
+      expect.objectContaining({ method: 'wallet_requestSnaps' }),
+    );
   });
 
   // ─── executeSnapCheck ───────────────────────────────────────────────────
@@ -192,18 +206,21 @@ describe('useSnap (branch coverage)', () => {
 
   // ─── getAESKeyFromSnap ──────────────────────────────────────────────────
 
-  it('returns null when the snap connection fails after install check', async () => {
-    // Snap is visible (installed) but wallet_requestSnaps reports -32601 → connect fails.
+  it('does not request snap permissions from getAESKeyFromSnap', async () => {
     mockRequest.mockImplementation((args: ReqArgs) => {
       if (args.method === 'web3_clientVersion') return Promise.resolve('MetaMask/v11.0.0');
-      if (args.method === 'wallet_getSnaps') return Promise.resolve({ [SNAP_ID]: {} });
-      if (args.method === 'wallet_requestSnaps') return Promise.reject({ code: -32601 });
+      if (args.method === 'wallet_getSnaps') return Promise.resolve({});
+      if (args.method === 'wallet_requestSnaps') throw new Error('wallet_requestSnaps must not be called');
       return Promise.resolve(undefined);
     });
     const setSnapError = vi.fn();
     const { result } = renderHook(() => useSnap(setSnapError));
-    expect(await result.current.getAESKeyFromSnap(ACCOUNT)).toBeNull();
-    expect(setSnapError).toHaveBeenCalledWith('Failed to connect to Snap');
+    await expect(result.current.getAESKeyFromSnap(ACCOUNT)).rejects.toMatchObject({
+      code: CotiErrorCode.SNAP_CONNECT_FAILED,
+    });
+    expect(mockRequest).not.toHaveBeenCalledWith(
+      expect.objectContaining({ method: 'wallet_requestSnaps' }),
+    );
   });
 
   it('resolves the COTI mainnet chain id and syncs the mainnet environment', async () => {

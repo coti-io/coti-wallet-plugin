@@ -73,7 +73,12 @@ export const usePrivacyBridgeAccountSync = ({
       accountAddress: string,
       options?: { skipCache?: boolean } & AesKeyProviderOptions,
     ) => {
-      if (options?.skipCache) {
+      if (
+        options?.skipCache
+        && walletTypeInfo.walletType === 'metamask'
+        && !options.forceContractOnboarding
+        && !options.restoreOnly
+      ) {
         return getAESKeyFromSnap(accountAddress, { skipCache: true });
       }
 
@@ -87,7 +92,7 @@ export const usePrivacyBridgeAccountSync = ({
       // when checkSnap=true, i.e. explicit user-initiated unlock flows).
       return options === undefined
         ? getAesKeyFromProvider(accountAddress)
-        : getAesKeyFromProvider(accountAddress, undefined, options);
+        : getAesKeyFromProvider(accountAddress, options.onProgress, options);
     },
     [sessionAesKey, getAesKeyFromProvider, getAESKeyFromSnap],
   );
@@ -101,6 +106,11 @@ export const usePrivacyBridgeAccountSync = ({
     checkNetwork,
     getAESKeyFromSnap: getAESKeyForCurrentNetwork,
     fetchPrivateBalance,
+    canUseSnapOperations: walletTypeInfo.walletType === 'metamask' && (hasSnap || walletTypeInfo.isMetaMaskWithSnap),
+    snapDecryptOptions: {
+      decryptCtUint64: core.decryptCtUint64ViaSnap,
+      decryptCtUint256: core.decryptCtUint256ViaSnap,
+    },
     sessionAesKey,
     setSessionAesKey,
     validateMetaMaskAesKeyOnUnlock,

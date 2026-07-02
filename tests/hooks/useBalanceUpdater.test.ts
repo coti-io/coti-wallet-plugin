@@ -415,7 +415,7 @@ describe('useBalanceUpdater', () => {
       '../../src/crypto/aesKeyValidation'
     );
     clearAesKeyValidatedForUnlock();
-    const sessionKey = 'a'.repeat(64);
+    const sessionKey = 'a'.repeat(32);
     markAesKeyValidatedForUnlock(ACCOUNT, sessionKey);
 
     const validateMetaMaskAesKeyOnUnlock = vi.fn();
@@ -450,7 +450,7 @@ describe('useBalanceUpdater', () => {
     const { clearAesKeyValidatedForUnlock } = await import('../../src/crypto/aesKeyValidation');
     clearAesKeyValidatedForUnlock();
 
-    const sessionKey = 'b'.repeat(64);
+    const sessionKey = 'b'.repeat(32);
     const validateMetaMaskAesKeyOnUnlock = vi.fn().mockResolvedValue(undefined);
     const props = makeProps({
       sessionAesKey: sessionKey,

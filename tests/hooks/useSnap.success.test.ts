@@ -11,10 +11,11 @@ import {
   onboardUser,
 } from '../../src/hooks/useSnap';
 import { CotiErrorCode } from '../../src/errors';
+import * as CotiSDK from '@coti-io/coti-sdk-typescript';
 
 const SNAP_ID = 'npm:@coti-io/coti-snap';
 const ACCOUNT = '0x1234567890abcdef1234567890abcdef12345678';
-const AES_KEY = 'a'.repeat(32);
+const AES_KEY = '0123456789abcdef0123456789abcdef';
 
 function snapInstalledMocks() {
   return (args: { method: string; params?: unknown }) => {
@@ -27,6 +28,8 @@ function snapInstalledMocks() {
         return Promise.resolve(undefined);
       case 'eth_chainId':
         return Promise.resolve('0x6c11a0'); // COTI testnet
+      case 'eth_accounts':
+        return Promise.resolve([ACCOUNT]);
       case 'wallet_invokeSnap': {
         const snapMethod = (args.params as { request?: { method?: string } })?.request?.method;
         if (snapMethod === 'set-environment') return Promise.resolve(undefined);
@@ -47,6 +50,7 @@ describe('useSnap (success & lifecycle paths)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
+    vi.mocked(CotiSDK.decryptUint).mockReturnValue(0x0123456789abcdefn);
     mockRequest = vi.fn(snapInstalledMocks());
     (window as any).ethereum = {
       request: mockRequest,
@@ -147,7 +151,7 @@ describe('useSnap (success & lifecycle paths)', () => {
       await act(async () => {
         await result.current.executeSnapCheck(vi.fn());
       });
-      expect(setSnapError).toHaveBeenCalledWith('MetaMask Flask is required.');
+      expect(setSnapError).toHaveBeenCalledWith(null);
     });
 
     it('sets connect prompt when snap is missing on Flask', async () => {
@@ -162,7 +166,7 @@ describe('useSnap (success & lifecycle paths)', () => {
       await act(async () => {
         await result.current.executeSnapCheck(vi.fn());
       });
-      expect(setSnapError).toHaveBeenCalledWith('Coti Snap is not connected. Click to connect.');
+      expect(setSnapError).toHaveBeenCalledWith(null);
     });
   });
 
@@ -213,6 +217,7 @@ describe('useSnap (success & lifecycle paths)', () => {
           case 'wallet_getSnaps': return Promise.resolve({ [SNAP_ID]: {} });
           case 'wallet_requestSnaps': return Promise.resolve(undefined);
           case 'eth_chainId': return Promise.resolve('0x6c11a0');
+          case 'eth_accounts': return Promise.resolve([ACCOUNT]);
           case 'wallet_invokeSnap': {
             const snapMethod = (args.params as { request?: { method?: string } })?.request?.method;
             if (snapMethod === 'set-environment') return Promise.resolve(undefined);
@@ -238,6 +243,7 @@ describe('useSnap (success & lifecycle paths)', () => {
           case 'wallet_getSnaps': return Promise.resolve({ [SNAP_ID]: {} });
           case 'wallet_requestSnaps': return Promise.resolve(undefined);
           case 'eth_chainId': return Promise.resolve('0x6c11a0');
+          case 'eth_accounts': return Promise.resolve([ACCOUNT]);
           case 'wallet_invokeSnap': {
             const snapMethod = (args.params as { request?: { method?: string } })?.request?.method;
             if (snapMethod === 'set-environment') return Promise.resolve(undefined);
@@ -264,6 +270,7 @@ describe('useSnap (success & lifecycle paths)', () => {
           case 'wallet_getSnaps': return Promise.resolve({ [SNAP_ID]: {} });
           case 'wallet_requestSnaps': return Promise.resolve(undefined);
           case 'eth_chainId': return Promise.resolve('0x6c11a0');
+          case 'eth_accounts': return Promise.resolve([ACCOUNT]);
           case 'wallet_invokeSnap': {
             const snapMethod = (args.params as { request?: { method?: string } })?.request?.method;
             if (snapMethod === 'set-environment') return Promise.resolve(undefined);
@@ -294,11 +301,13 @@ describe('useSnap (success & lifecycle paths)', () => {
           case 'wallet_getSnaps': return Promise.resolve({ [SNAP_ID]: {} });
           case 'wallet_requestSnaps': return Promise.resolve(undefined);
           case 'eth_chainId': return Promise.resolve('0x6c11a0');
+          case 'eth_accounts': return Promise.resolve([ACCOUNT]);
           case 'wallet_invokeSnap': {
             const snapMethod = (args.params as { request?: { method?: string } })?.request?.method;
             if (snapMethod === 'set-environment') return Promise.resolve(undefined);
             if (snapMethod === 'has-aes-key') return Promise.resolve(true);
-            return new Promise(() => {}); // hang on get-aes-key
+            if (snapMethod === 'get-aes-key') return new Promise(() => {});
+            return Promise.resolve(undefined);
           }
           default: return Promise.resolve(undefined);
         }
@@ -363,6 +372,7 @@ describe('useSnap (success & lifecycle paths)', () => {
           case 'wallet_getSnaps': return Promise.resolve({ [SNAP_ID]: {} });
           case 'wallet_requestSnaps': return Promise.resolve(undefined);
           case 'eth_chainId': return Promise.resolve('0x6c11a0');
+          case 'eth_accounts': return Promise.resolve([ACCOUNT]);
           case 'wallet_invokeSnap':
             if ((args.params as any)?.request?.method === 'set-environment') {
               return Promise.resolve(undefined);

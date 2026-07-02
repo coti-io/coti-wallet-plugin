@@ -29,7 +29,6 @@ export const usePrivacyBridge = ({
   error,
   hasSnap,
   setHasSnap,
-  getAESKeyFromSnap,
   handleOnboard,
   refreshPrivateBalances,
   refreshPublicBalances,
@@ -44,7 +43,6 @@ export const usePrivacyBridge = ({
     direction,
     selectedTokenIndex,
     hasSnap,
-    getAESKeyFromSnap,
     setToastState,
     sessionAesKey,
   });
@@ -89,7 +87,6 @@ export const usePrivacyBridge = ({
         currentIndex,
         hasSnap,
         sessionAesKeyAvailable: !!sessionAesKey,
-        sessionAesKeyLength: sessionAesKey?.length,
         isBridgingLoading,
         error: !!error,
       });

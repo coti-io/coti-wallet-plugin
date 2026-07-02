@@ -2,6 +2,7 @@ import type { MutableRefObject, Dispatch, SetStateAction } from 'react';
 import type { AesKeyProviderOptions, OnboardingProgressCallback } from '../../hooks/useAesKeyProvider';
 import type { Token } from '../../hooks/usePrivacyBridge';
 import type { PrivacyBridgeModalsContextValue } from './types';
+import type { PrivateBalanceDecryptOptions } from '../../hooks/usePrivateTokenBalance';
 
 export type UpdateAccountStateOptions = {
     /** When true, validate MetaMask Snap keys on unlock (reuses session key when present). */
@@ -59,7 +60,10 @@ export interface PrivacyBridgeSessionCore {
     decimals?: number,
     readChainId?: number,
     isPlainBalance?: boolean,
+    decryptOptions?: PrivateBalanceDecryptOptions,
   ) => Promise<string>;
+  decryptCtUint64ViaSnap: NonNullable<PrivateBalanceDecryptOptions['decryptCtUint64']>;
+  decryptCtUint256ViaSnap: NonNullable<PrivateBalanceDecryptOptions['decryptCtUint256']>;
   getAesKeyFromProvider: (
     accountAddress: string,
     onProgress?: OnboardingProgressCallback,

@@ -27,7 +27,6 @@ export const usePrivacyBridgeUnlockSession = ({
     walletAddress,
     sessionAesKey,
     setHasSnap,
-    snapError,
     setSnapError,
     setSessionAesKey,
     arePrivateBalancesHidden,
@@ -216,7 +215,7 @@ export const usePrivacyBridgeUnlockSession = ({
     setPrivateTokens(getInitialPrivateTokens(currentChainId));
   };
 
-  const isPrivateUnlocked = !!core.sessionAesKey && !arePrivateBalancesHidden;
+  const isPrivateUnlocked = !arePrivateBalancesHidden && (!!core.sessionAesKey || core.hasSnap);
 
   return {
     handleOnboard,

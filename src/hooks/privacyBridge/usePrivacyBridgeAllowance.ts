@@ -18,6 +18,7 @@ import { decryptCtUint256 } from '../../crypto/decryption';
 import { encryptValue256 } from './encryptValue256';
 import { shortHash } from './utils';
 import type { Token, ToastState } from './types';
+import { useSnap } from '../useSnap';
 
 export interface UsePrivacyBridgeAllowanceOptions {
   isConnected: boolean;
@@ -27,7 +28,6 @@ export interface UsePrivacyBridgeAllowanceOptions {
   direction: 'to-private' | 'to-public';
   selectedTokenIndex: number;
   hasSnap: boolean;
-  getAESKeyFromSnap: (accountAddress: string) => Promise<string | null>;
   setToastState: React.Dispatch<React.SetStateAction<ToastState>>;
   /** In-memory session AES key — avoids Snap/provider calls when available. */
   sessionAesKey?: string | null;
@@ -42,13 +42,13 @@ export const usePrivacyBridgeAllowance = ({
   direction,
   selectedTokenIndex,
   hasSnap,
-  getAESKeyFromSnap,
   setToastState,
   sessionAesKey,
 }: UsePrivacyBridgeAllowanceOptions) => {
   const [allowance, setAllowance] = useState<string>('0');
   const [isApproving, setIsApproving] = useState(false);
   const [podWithdrawPermit, setPodWithdrawPermit] = useState<PodWithdrawPermit | null>(null);
+  const { decryptCtUint256ViaSnap, buildItUint256ViaSnap } = useSnap();
 
   // The wagmi connector for the wallet the user actually selected (Rabby, MetaMask, etc.).
   // We resolve the EIP-1193 provider from this connector instead of reading window.ethereum,
@@ -198,30 +198,29 @@ export const usePrivacyBridgeAllowance = ({
                         return;
                     }
 
-                    // Attempt dynamic decryption if we have an AES key available.
-                    // Prefer sessionAesKey (in-memory) to avoid calling getAESKeyFromSnap
-                    // which triggers Snap dialogs that don't work for non-MetaMask wallets.
+                    // Attempt dynamic decryption without exposing AES to the dApp.
+                    // Snap wallets decrypt inside Snap; non-Snap wallets use the plugin session key.
                     if (hasSnap || sessionAesKey) {
                         try {
-                            const aesKey = sessionAesKey || await getAESKeyFromSnap(walletAddress);
-                            if (aesKey) {
-                                const decryptedVal = decryptCtUint256({
-                                    ciphertextHigh: currentAllowance.ownerCiphertext.ciphertextHigh,
-                                    ciphertextLow: currentAllowance.ownerCiphertext.ciphertextLow
-                                }, aesKey, { decimals: privateDecimals });
+                            const ciphertext = {
+                                ciphertextHigh: currentAllowance.ownerCiphertext.ciphertextHigh,
+                                ciphertextLow: currentAllowance.ownerCiphertext.ciphertextLow
+                            };
+                            const decryptedVal = sessionAesKey
+                                ? decryptCtUint256(ciphertext, sessionAesKey, { decimals: privateDecimals })
+                                : await decryptCtUint256ViaSnap(ciphertext, currentChainId);
 
-                                if (decryptedVal === null) {
-                                    setAllowance('0');
-                                } else {
-                                    setAllowance(ethers.formatUnits(decryptedVal, privateDecimals));
-                                }
-                                return;
+                            if (decryptedVal === null) {
+                                setAllowance('0');
+                            } else {
+                                setAllowance(ethers.formatUnits(decryptedVal, privateDecimals));
                             }
+                            return;
                         } catch (decryptErr) {
                             logger.warn("Could not decrypt private allowance, defaulting to 0", decryptErr);
                         }
                     }
-                    
+
                     // If no AES key or user rejected, fall back to 0 so they can re-approve
                     setAllowance('0');
                 } catch (e) {
@@ -245,7 +244,7 @@ export const usePrivacyBridgeAllowance = ({
             logger.error("Failed to check allowance", err);
             setAllowance('0');
         }
-    }, [isConnected, walletAddress, selectedTokenIndex, publicTokens, hasSnap, getAESKeyFromSnap, direction, sessionAesKey, resolveInjectedProvider]);
+    }, [isConnected, walletAddress, selectedTokenIndex, publicTokens, hasSnap, direction, sessionAesKey, resolveInjectedProvider, decryptCtUint256ViaSnap]);
 
     // Auto-check allowance on dependencies change
     useEffect(() => {
@@ -412,17 +411,8 @@ export const usePrivacyBridgeAllowance = ({
                 );
                 if (privTokCfgApprove) privateDecimals = privTokCfgApprove.decimals;
 
-                // 2. Get AES key for encrypted approval
-                // Prefer session AES key to avoid Snap interaction on non-MetaMask wallets.
-                logger.log('🔐 [Approve] Resolving AES key', {
-                    hasSessionKey: !!sessionAesKey,
-                    willCallSnap: !sessionAesKey,
-                });
-                const aesKey = sessionAesKey || await getAESKeyFromSnap(walletAddress);
-                if (!aesKey) throw new Error("AES key required for private token approval. Please unlock your wallet first.");
-                logger.log('🔐 [Approve] AES key resolved', { keyLength: aesKey.length });
-
-                // 3. Create itValue with 256-bit encryption
+                // 2. Create itValue. Snap wallets build it inside Snap; non-Snap
+                // wallets use the plugin session key from onboarding/manual recovery.
                 setIsApproving(true);
                 setToastState({
                     visible: true,
@@ -434,16 +424,27 @@ export const usePrivacyBridgeAllowance = ({
 
                 // approve(address,itUint256) — Encrypted approval using manual 256-bit encryption.
                 const approveSig = ethers.id('approve(address,((uint256,uint256),bytes))').slice(0, 10);
-                logger.log('🔐 [Approve] Encrypting value + requesting signature (MetaMask popup expected)...');
-                const itValue = await encryptValue256(
-                    amountToApprove,
-                    aesKey,
-                    privateTokenAddress,
-                    approveSig,
-                    walletAddress,
-                    signer
-                );
-                logger.log('🔐 [Approve] Signature obtained, encoding calldata...');
+                const itValue = sessionAesKey
+                    ? await encryptValue256(
+                        amountToApprove,
+                        sessionAesKey,
+                        privateTokenAddress,
+                        approveSig,
+                        walletAddress,
+                        signer
+                    )
+                    : hasSnap
+                        ? await buildItUint256ViaSnap({
+                            value: amountToApprove,
+                            tokenAddress: privateTokenAddress,
+                            functionSelector: approveSig,
+                            chainId: currentChainId,
+                        })
+                        : null;
+                if (!itValue) {
+                    throw new Error("Private approval requires unlock/onboarding first.");
+                }
+                logger.log('🔐 [Approve] Encrypted approval payload ready, encoding calldata...');
 
                 // Manually encode the calldata
                 const approveInterface = new ethers.Interface([

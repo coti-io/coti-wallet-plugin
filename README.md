@@ -4,6 +4,12 @@
 
  Provides React hooks, multi-wallet support (via wagmi v2 and RainbowKit), and token detection for any EIP-1193 wallet. 
 
+## dApp API contract
+
+dApps should not handle AES keys in the normal integration path. Use the plugin provider/context APIs to connect wallets, onboard/unlock private balances, and execute private operations. The plugin owns AES retrieval, backup restore, Snap storage, and Snap-backed decrypt/encrypt calls internally.
+
+For MetaMask Snap wallets, runtime private operations use Snap RPCs such as decrypt/encrypt/build private values without extracting the AES key from Snap. For non-Snap wallets, the plugin keeps any recovered key in plugin session state only as needed.
+
 ## Installation
 
 ```bash

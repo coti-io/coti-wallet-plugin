@@ -5,6 +5,7 @@ import { getChainConfig } from '../chains';
 import { getRpcUrlForChainId } from '../config/chains';
 import type { Token } from './usePrivacyBridge';
 import type { AesKeyProviderOptions } from './useAesKeyProvider';
+import type { PrivateBalanceDecryptOptions } from './usePrivateTokenBalance';
 import { formatTokenBalanceDisplay } from '../lib/utils';
 import { CotiPluginError, CotiErrorCode } from '../errors';
 import { logger } from '../lib/logger';
@@ -25,7 +26,9 @@ interface UseBalanceUpdaterProps {
         accountAddress: string,
         options?: { skipCache?: boolean } & AesKeyProviderOptions,
     ) => Promise<string | null>;
-    fetchPrivateBalance: (userAddress: string, aesKey: string, contractAddress: string, version: 64 | 256, decimals?: number, readChainId?: number, isPlainBalance?: boolean) => Promise<string>;
+    fetchPrivateBalance: (userAddress: string, aesKey: string, contractAddress: string, version: 64 | 256, decimals?: number, readChainId?: number, isPlainBalance?: boolean, decryptOptions?: PrivateBalanceDecryptOptions) => Promise<string>;
+    canUseSnapOperations?: boolean;
+    snapDecryptOptions?: PrivateBalanceDecryptOptions;
     sessionAesKey?: string | null;
     setSessionAesKey: (key: string | null, keyWallet?: string) => void;
     /** MetaMask-only: read-only Snap key validation on explicit unlock. */
@@ -52,6 +55,8 @@ export const useBalanceUpdater = ({
     checkNetwork,
     getAESKeyFromSnap,
     fetchPrivateBalance,
+    canUseSnapOperations = false,
+    snapDecryptOptions,
     sessionAesKey,
     setSessionAesKey,
     validateMetaMaskAesKeyOnUnlock,
@@ -73,6 +78,8 @@ export const useBalanceUpdater = ({
         try {
             setWalletAddress(account);
             setIsConnected(true);
+            const allowSnapOperations =
+                canUseSnapOperations && !options?.restoreOnly && !options?.forceContractOnboarding;
 
             const hasChainOverride = typeof chainOverride === 'number';
             if (window.ethereum || hasChainOverride) {
@@ -138,7 +145,7 @@ export const useBalanceUpdater = ({
                     try {
                         let aesKey: string | null = aesKeyOverride ?? sessionAesKey ?? null;
 
-                        if (checkSnap && !aesKey) {
+                        if (checkSnap && !aesKey && !allowSnapOperations) {
                             const { validateOnUnlock: _validateOnUnlock, ...aesKeyOptions } = options ?? {};
                             if (validateOnUnlock) {
                                 aesKey = Object.keys(aesKeyOptions).length === 0
@@ -163,7 +170,7 @@ export const useBalanceUpdater = ({
                             markAesKeyValidatedForUnlock(account, aesKey);
                         }
 
-                        if (aesKey) {
+                        if (aesKey || allowSnapOperations) {
                             if (isStale()) return false;
                             setHasSnap(true);
                         }
@@ -181,12 +188,12 @@ export const useBalanceUpdater = ({
                             return !!publicTokenConfigs.find(t => t.symbol === publicSymbol)?.isNative;
                         });
 
-                        if (!aesKey && !hasPlainPrivateTokens) {
+                        if (!aesKey && !allowSnapOperations && !hasPlainPrivateTokens) {
                             logger.log('ℹ️ Snap available but keys missing/rejected.');
                             return false;
                         }
 
-                        if (aesKey || hasPlainPrivateTokens) {
+                        if (aesKey || allowSnapOperations || hasPlainPrivateTokens) {
                             if (aesKey && !sessionAesKey) {
                                 if (isStale()) return false;
                                 setHasSnap(true);
@@ -202,7 +209,7 @@ export const useBalanceUpdater = ({
                                 const publicSymbol = token.symbol.replace(/^p\./, '');
                                 const pubCfg = publicTokenConfigs.find(t => t.symbol === publicSymbol);
                                 const isPlainBalance = !isPodChain && !!pubCfg?.isNative;
-                                if (!aesKey && !isPlainBalance) {
+                                if (!aesKey && !allowSnapOperations && !isPlainBalance) {
                                     return { symbol: token.symbol, value: '0', isMismatch: false };
                                 }
                                 try {
@@ -214,6 +221,7 @@ export const useBalanceUpdater = ({
                                         token.decimals,
                                         currentChainId,
                                         isPlainBalance,
+                                        allowSnapOperations ? snapDecryptOptions : undefined,
                                     );
                                     return { symbol: token.symbol, value, isMismatch: false };
                                 } catch (e: any) {
@@ -282,7 +290,7 @@ export const useBalanceUpdater = ({
             }
             return false;
         }
-    }, [setWalletAddress, setHasSnap, setIsConnected, setPublicTokens, checkNetwork, getAESKeyFromSnap, fetchPrivateBalance, setPrivateTokens, sessionAesKey, setSessionAesKey, validateMetaMaskAesKeyOnUnlock]);
+    }, [setWalletAddress, setHasSnap, setIsConnected, setPublicTokens, checkNetwork, getAESKeyFromSnap, fetchPrivateBalance, canUseSnapOperations, setPrivateTokens, sessionAesKey, setSessionAesKey, validateMetaMaskAesKeyOnUnlock]);
 
     return { updateAccountState };
 };

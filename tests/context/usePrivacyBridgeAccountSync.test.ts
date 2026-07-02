@@ -5,10 +5,14 @@ import { renderHook } from '@testing-library/react';
 const h = vi.hoisted(() => ({
   updateAccountState: vi.fn().mockResolvedValue(true),
   isChainUpdatesMuted: vi.fn().mockReturnValue(false),
+  balanceUpdaterParams: undefined as any,
 }));
 
 vi.mock('../../src/hooks/useBalanceUpdater', () => ({
-  useBalanceUpdater: () => ({ updateAccountState: h.updateAccountState }),
+  useBalanceUpdater: (params: any) => {
+    h.balanceUpdaterParams = params;
+    return { updateAccountState: h.updateAccountState };
+  },
 }));
 
 vi.mock('../../src/lib/chainMute', () => ({
@@ -126,6 +130,7 @@ describe('usePrivacyBridgeAccountSync — sessionAesKey effect', () => {
     vi.clearAllMocks();
     h.updateAccountState.mockResolvedValue(true);
     h.isChainUpdatesMuted.mockReturnValue(false);
+    h.balanceUpdaterParams = undefined;
   });
 
   it('calls updateAccountState with fetchPrivate=true and the session key when sessionAesKey changes to non-null', async () => {
@@ -222,6 +227,50 @@ describe('usePrivacyBridgeAccountSync — sessionAesKey effect', () => {
       true,
       'b'.repeat(32),
       undefined, // wagmiSyncRef.current is false, so chainOverride = undefined
+    );
+  });
+
+  it('routes force-contract skipCache requests to the wallet provider instead of Snap', async () => {
+    const getAESKeyFromSnap = vi.fn().mockResolvedValue('snap-key');
+    const getAesKeyFromProvider = vi.fn().mockResolvedValue('contract-key');
+    const core = makeCore({ getAESKeyFromSnap, getAesKeyFromProvider });
+    const network = makeNetwork();
+    const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
+
+    renderHook(() => usePrivacyBridgeAccountSync({ core, network, updateAccountStateRef }));
+
+    const key = await h.balanceUpdaterParams.getAESKeyFromSnap('0xabc123', {
+      skipCache: true,
+      forceContractOnboarding: true,
+    });
+
+    expect(key).toBe('contract-key');
+    expect(getAESKeyFromSnap).not.toHaveBeenCalled();
+    expect(getAesKeyFromProvider).toHaveBeenCalledWith(
+      '0xabc123',
+      undefined,
+      { skipCache: true, forceContractOnboarding: true },
+    );
+  });
+
+  it('forwards onboarding progress callbacks to the wallet provider', async () => {
+    const onProgress = vi.fn();
+    const getAesKeyFromProvider = vi.fn().mockResolvedValue('contract-key');
+    const core = makeCore({ getAesKeyFromProvider });
+    const network = makeNetwork();
+    const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
+
+    renderHook(() => usePrivacyBridgeAccountSync({ core, network, updateAccountStateRef }));
+
+    await h.balanceUpdaterParams.getAESKeyFromSnap('0xabc123', {
+      forceContractOnboarding: true,
+      onProgress,
+    });
+
+    expect(getAesKeyFromProvider).toHaveBeenCalledWith(
+      '0xabc123',
+      onProgress,
+      { forceContractOnboarding: true, onProgress },
     );
   });
 });

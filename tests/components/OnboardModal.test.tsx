@@ -251,14 +251,16 @@ describe('OnboardModal', () => {
     expect(dialog).toHaveAttribute('aria-labelledby', 'onboard-modal-title');
   });
 
-  describe('MetaMask Snap bypass', () => {
-    it('renders nothing and auto-calls onConfirm for metamask + hasSnap', () => {
+  describe('MetaMask Snap install action', () => {
+    it('renders normally and does not auto-call onConfirm for metamask + hasSnap', () => {
       const onConfirm = vi.fn();
-      const { container } = render(
+      render(
         <OnboardModal {...defaultProps} walletType="metamask" hasSnap={true} onConfirm={onConfirm} />
       );
-      expect(container.innerHTML).toBe('');
-      expect(onConfirm).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(screen.getByText('Begin Onboarding')).toBeInTheDocument();
+      expect(onConfirm).not.toHaveBeenCalled();
+      expect(screen.queryByText('Install COTI Snap')).not.toBeInTheDocument();
     });
 
     it.each([
@@ -280,6 +282,29 @@ describe('OnboardModal', () => {
         <OnboardModal {...defaultProps} isOpen={false} walletType="metamask" hasSnap={true} onConfirm={onConfirm} />
       );
       expect(onConfirm).not.toHaveBeenCalled();
+    });
+
+    it('shows install snap only for metamask without snap and does not start onboarding after install', async () => {
+      const onConfirm = vi.fn();
+      const onInstallSnap = vi.fn().mockResolvedValue(true);
+
+      render(
+        <OnboardModal
+          {...defaultProps}
+          walletType="metamask"
+          hasSnap={false}
+          onConfirm={onConfirm}
+          onInstallSnap={onInstallSnap}
+        />
+      );
+
+      fireEvent.click(screen.getByText('Install COTI Snap'));
+
+      await waitFor(() => {
+        expect(onInstallSnap).toHaveBeenCalledTimes(1);
+      });
+      expect(onConfirm).not.toHaveBeenCalled();
+      expect(screen.getByText('Begin Onboarding')).toBeInTheDocument();
     });
   });
 });

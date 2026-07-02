@@ -75,6 +75,8 @@ export interface AesKeyProviderOptions {
   saveBackup?: boolean;
   /** Only try existing key sources; do not start contract onboarding. */
   restoreOnly?: boolean;
+  /** Receives contract-onboarding step updates for modal progress UI. */
+  onProgress?: OnboardingProgressCallback;
   /** Called when backup restore is cancelled by the user. */
   onRestoreCancelled?: () => void;
 }
@@ -238,7 +240,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
       options: AesKeyProviderOptions = {},
     ): Promise<string | null> => {
       // Store progress callback for use within the flow
-      progressCallbackRef.current = onProgress;
+      progressCallbackRef.current = onProgress ?? options.onProgress;
       // Clear previous error and debug trace on each new retrieval attempt
       setOnboardingError(null);
       debugTraceRef.current.clear();
@@ -265,12 +267,13 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         logger.log('ℹ️ MetaMask Mobile detected — skipping Snap path (uses eth_accounts)');
       }
 
-      // Route 1: MetaMask — try Snap path first unless contract onboarding was forced
-      // or we're on MetaMask Mobile (Snap + eth_accounts are unreliable in the in-app browser).
+      // Route 1: MetaMask — try Snap path first unless contract onboarding was forced,
+      // we're on MetaMask Mobile, or this is restore-only unlock.
       if (
         walletTypeInfo.walletType === 'metamask'
         && !forceContractOnboarding
         && !skipSnapOnMetaMaskMobile
+        && !options.restoreOnly
       ) {
         try {
           const key = await getAESKeyFromSnap(address, { skipCache: true });
