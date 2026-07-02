@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useAccount } from 'wagmi';
 import { useBalanceUpdater } from '../../hooks/useBalanceUpdater';
 import { isChainUpdatesMuted } from '../../lib/chainMute';
@@ -111,9 +111,17 @@ export const usePrivacyBridgeAccountSync = ({
     }
   }, [isConnected, currentChainId, setPublicTokens, setPrivateTokens]);
 
+  // Track the previous sessionAesKey value so we only auto-unlock when the key
+  // *arrives* for the first time (null → value), not on every render where a key
+  // is already present but balances happen to be hidden (e.g. after a manual lock).
+  const prevSessionAesKeyRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (sessionAesKey && walletAddress && arePrivateBalancesHidden) {
-      logger.log('Session AES Key set, refreshing account state...');
+    const keyJustArrived = !prevSessionAesKeyRef.current && !!sessionAesKey;
+    prevSessionAesKeyRef.current = sessionAesKey;
+
+    if (keyJustArrived && sessionAesKey && walletAddress && arePrivateBalancesHidden) {
+      logger.log('Session AES Key arrived — refreshing private balances...');
       if (!hasSnap) setHasSnap(true);
       const chainOverride = wagmiSyncRef.current ? wagmiChainId : undefined;
       updateAccountState(walletAddress, false, true, sessionAesKey, chainOverride).then(() => {

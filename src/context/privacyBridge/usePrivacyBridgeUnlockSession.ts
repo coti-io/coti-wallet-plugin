@@ -69,8 +69,17 @@ export const usePrivacyBridgeUnlockSession = ({
   };
 
   const unlockCachedAesKey = async () => {
-    // localStorage persistence has been removed — AES keys are session-only.
-    // This function is kept for interface compatibility but always reports no cached key.
+    // If the session key is still in memory (user locked without page reload), reuse it.
+    const existingKey = core.sessionAesKey;
+    if (existingKey && walletAddress) {
+      const chainOverride = wagmiSyncRef.current ? wagmiChainId : undefined;
+      const success = await updateAccountState(walletAddress, false, true, existingKey, chainOverride);
+      if (success) {
+        setArePrivateBalancesHidden(false);
+        return;
+      }
+    }
+    // No in-memory key and no localStorage fallback — caller must re-onboard.
     throw new Error('No cached AES key. Keys are session-only and lost on page refresh.');
   };
 
@@ -197,11 +206,12 @@ export const usePrivacyBridgeUnlockSession = ({
   ]);
 
   const lockPrivateBalances = () => {
-    logger.log('Hard locking private balances and clearing caches');
+    logger.log('Locking private balances (AES key preserved in session for re-unlock)');
     setArePrivateBalancesHidden(true);
-    if (walletAddress) clearAesKeyValidatedForUnlock(walletAddress);
-    setSessionAesKey(null);
-    clearSnapCache();
+    // NOTE: We intentionally do NOT clear sessionAesKey here.
+    // The key stays in React state for the lifetime of the browser session so the
+    // user can unlock again without going through onboarding.  The key is only
+    // discarded on wallet disconnect or an AES_KEY_MISMATCH error.
     setPrivateTokens(getInitialPrivateTokens(currentChainId));
   };
 
