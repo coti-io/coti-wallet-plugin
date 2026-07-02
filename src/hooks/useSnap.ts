@@ -53,7 +53,7 @@ export interface SnapItUint256 {
  * - `getAESKeyFromSnap`: Async function that specifically retrieves the AES key, handling retries.
  * - `resetError`: Function to clear the error state (if setSnapError is provided).
  */
-const snapId = getPluginConfig().snapId;
+const getSnapId = () => getPluginConfig().snapId;
 
 /**
  * Module-level AES key cache — singleton shared across all `useSnap` hook instances.
@@ -224,18 +224,18 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
             logger.log('🕵️‍♀️ wallet_getSnaps result:', JSON.stringify(snaps, null, 2));
 
             const snapInfo = Object.values(snaps).find(
-                (snap: any) => snap.id === snapId
-            ) || (snapId in snaps);
+                (snap: any) => snap.id === getSnapId()
+            ) || (getSnapId() in snaps);
 
             if (snapInfo) {
-                logger.log(`✅ Snap found and connected: ${snapId}`);
+                logger.log(`✅ Snap found and connected: ${getSnapId()}`);
                 return true;
             }
 
             // Snap not visible — either not installed or installed but not connected to this origin.
             // We cannot distinguish without showing a MetaMask dialog.
             // Return false and let the UI guide the user.
-            logger.log(`ℹ️ Snap ${snapId} not visible via wallet_getSnaps.`);
+            logger.log(`ℹ️ Snap ${getSnapId()} not visible via wallet_getSnaps.`);
             return false;
         } catch (error: any) {
             // -32601 means the wallet doesn't support wallet_getSnaps (Rabby, Trust, etc.)
@@ -246,7 +246,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
             logger.error('❌ Error checking snap connection:', error);
             return false;
         }
-    }, [snapId, detectFlask, resolveProvider]);
+    }, [detectFlask, resolveProvider]);
 
 
     /**
@@ -268,7 +268,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
             await provider.request({
                 method: 'wallet_requestSnaps',
                 params: {
-                    [snapId]: {}
+                    [getSnapId()]: {}
                 }
             });
             logger.log('✅ Connected to COTI Snap');
@@ -294,7 +294,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
             // Propagate error for context handling
             throw new CotiPluginError(CotiErrorCode.SNAP_CONNECT_FAILED, 'Failed to connect to COTI Snap');
         }
-    }, [snapId, setSnapError, resolveProvider]);
+    }, [setSnapError, resolveProvider]);
 
 
     /**
@@ -348,7 +348,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
             await provider.request({
                 method: 'wallet_invokeSnap',
                 params: {
-                    snapId,
+                    snapId: getSnapId(),
                     request: {
                         method: 'set-environment',
                         params: { environment }
@@ -360,7 +360,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
             logger.warn('⚠️ Failed to sync Snap environment:', error);
             // Non-critical, but good to know
         }
-    }, [snapId, resolveProvider]);
+    }, [resolveProvider]);
 
     const invokeSnapOperation = useCallback(async <Result,>(
         method: string,
@@ -380,20 +380,20 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
             );
         }
 
-        await prepareSnapForKeyAccess(provider, snapId);
+        await prepareSnapForKeyAccess(provider, getSnapId());
         await syncEnvironment();
 
         return provider.request({
             method: 'wallet_invokeSnap',
             params: {
-                snapId,
+                        snapId: getSnapId(),
                 request: {
                     method,
                     params,
                 },
             },
         }) as Promise<Result | null>;
-    }, [isSnapInstalled, resolveProvider, snapId, syncEnvironment]);
+    }, [isSnapInstalled, resolveProvider, syncEnvironment]);
 
     const decryptCtUint64ViaSnap = useCallback(async (
         value: bigint | string | number,
@@ -488,7 +488,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
             );
         }
 
-        await prepareSnapForKeyAccess(provider, snapId);
+        await prepareSnapForKeyAccess(provider, getSnapId());
 
         // Sync Environment explicitly before requesting key
         await syncEnvironment();
@@ -515,7 +515,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
                 hasKey = await provider.request({
                     method: 'wallet_invokeSnap',
                     params: {
-                        snapId,
+                        snapId: getSnapId(),
                         request: {
                             method: 'has-aes-key',
                             params: { chainId: cotiChainId },
@@ -554,7 +554,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
                     const key = await provider.request({
                         method: 'wallet_invokeSnap',
                         params: {
-                            snapId,
+                            snapId: getSnapId(),
                             request: {
                                 method: 'get-aes-key',
                                 params: { chainId: cotiChainId }
@@ -624,7 +624,45 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
         } finally {
             isSnapRequestPending.current = false;
         }
-    }, [isSnapInstalled, setSnapError, snapId, resolveProvider, syncEnvironment]);
+    }, [isSnapInstalled, setSnapError, resolveProvider, syncEnvironment]);
+
+    /**
+     * Read-only check: whether the Snap has an AES key stored for the active account.
+     * Does not prompt the user. Returns null when the Snap is unavailable.
+     */
+    const hasAesKeyInSnap = useCallback(async (): Promise<boolean | null> => {
+        const provider = await resolveProvider();
+        if (!provider) return null;
+
+        const installed = await isSnapInstalled();
+        if (!installed) return null;
+
+        await prepareSnapForKeyAccess(provider, getSnapId());
+        await syncEnvironment();
+
+        const COTI_MAINNET_ID = 2632500;
+        const COTI_TESTNET_ID = 7082400;
+        const rawChainIdHex = await provider.request({ method: 'eth_chainId' }) as string;
+        const rawChainId = parseInt(rawChainIdHex, 16);
+        const cotiChainId = rawChainId === COTI_MAINNET_ID ? COTI_MAINNET_ID : COTI_TESTNET_ID;
+
+        try {
+            return await provider.request({
+                method: 'wallet_invokeSnap',
+                params: {
+                    snapId: getSnapId(),
+                    request: {
+                        method: 'has-aes-key',
+                        params: { chainId: cotiChainId },
+                    },
+                },
+            }) as boolean;
+        } catch (error: unknown) {
+            if (isSnapAccountNotReadyError(error)) return false;
+            logger.warn('has-aes-key check failed:', getErrorMessage(error));
+            return null;
+        }
+    }, [isSnapInstalled, resolveProvider, syncEnvironment]);
 
     /**
      * Save AES key to Snap (persist it for future sessions)
@@ -633,6 +671,13 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
         const provider = await resolveProvider();
         if (!provider) return false;
         try {
+            await prepareSnapForKeyAccess(provider, getSnapId());
+            await syncEnvironment();
+
+            if (accountAddress) {
+                await assertMetaMaskActiveAccount(provider, accountAddress);
+            }
+
             const COTI_MAINNET_ID = 2632500;
             const COTI_TESTNET_ID = 7082400;
             const rawChainIdHex = await provider.request({ method: 'eth_chainId' }) as string;
@@ -643,7 +688,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
             await provider.request({
                 method: 'wallet_invokeSnap',
                 params: {
-                    snapId,
+                    snapId: getSnapId(),
                     request: {
                         method: 'set-aes-key',
                         params: { newUserAesKey: key, chainId: cotiChainId },
@@ -658,7 +703,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
             logger.error('❌ Failed to save AES key to Snap:', err);
             return false;
         }
-    }, [setSnapError, snapId, resolveProvider]);
+    }, [setSnapError, resolveProvider, syncEnvironment]);
 
     const resetError = useCallback(() => {
         if (setSnapError) setSnapError(null);
@@ -758,6 +803,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
         connectToSnap: connectAndSync,
         requestSnapConnection: connectToSnap, // explicit wallet_requestSnaps for "Connect Snap" button
         getAESKeyFromSnap,
+        hasAesKeyInSnap,
         saveAESKeyToSnap,
         decryptCtUint64ViaSnap,
         decryptCtUint256ViaSnap,

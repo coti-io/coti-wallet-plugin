@@ -148,10 +148,10 @@ describe('useBalanceUpdater', () => {
     expect(ok).toBe(true);
     expect(props.getAESKeyFromSnap).toHaveBeenCalledWith(ACCOUNT);
     expect(props.setSessionAesKey).toHaveBeenCalledWith('b'.repeat(32), ACCOUNT);
-    expect(props.setHasSnap).toHaveBeenCalledWith(true);
+    expect(props.setHasSnap).not.toHaveBeenCalled();
   });
 
-  it('uses an existing session key and marks snap available without fetching from snap', async () => {
+  it('uses an existing session key without fetching from snap', async () => {
     const props = makeProps({
       sessionAesKey: 'c'.repeat(32),
       fetchPrivateBalance: vi.fn().mockResolvedValue('9'),
@@ -162,7 +162,7 @@ describe('useBalanceUpdater', () => {
 
     expect(ok).toBe(true);
     expect(props.getAESKeyFromSnap).not.toHaveBeenCalled();
-    expect(props.setHasSnap).toHaveBeenCalledWith(true);
+    expect(props.setHasSnap).not.toHaveBeenCalled();
     expect(props.setPrivateTokens).toHaveBeenCalledTimes(1);
   });
 
@@ -472,6 +472,44 @@ describe('useBalanceUpdater', () => {
     expect(props.getAESKeyFromSnap).not.toHaveBeenCalled();
     expect(validateMetaMaskAesKeyOnUnlock).toHaveBeenCalledWith(sessionKey, ACCOUNT, COTI_TESTNET);
     clearAesKeyValidatedForUnlock();
+
+    (window as any).ethereum = original;
+  });
+
+  it('uses Snap-side decrypt on restoreOnly unlock without fetching raw AES key', async () => {
+    const original = (window as any).ethereum;
+    delete (window as any).ethereum;
+
+    const snapDecryptOptions = { decryptCtUint64: vi.fn(), decryptCtUint256: vi.fn() };
+    const props = makeProps({
+      canUseSnapOperations: true,
+      snapDecryptOptions,
+      fetchPrivateBalance: vi.fn().mockResolvedValue('3'),
+    });
+    const { result } = renderHook(() => useBalanceUpdater(props));
+
+    const ok = await result.current.updateAccountState(
+      ACCOUNT,
+      false,
+      true,
+      undefined,
+      COTI_TESTNET,
+      { restoreOnly: true, snapSideDecrypt: true },
+    );
+
+    expect(ok).toBe(true);
+    expect(props.getAESKeyFromSnap).not.toHaveBeenCalled();
+    expect(props.setHasSnap).toHaveBeenCalledWith(true);
+    expect(props.fetchPrivateBalance).toHaveBeenCalledWith(
+      ACCOUNT,
+      '',
+      expect.any(String),
+      256,
+      expect.any(Number),
+      COTI_TESTNET,
+      expect.any(Boolean),
+      snapDecryptOptions,
+    );
 
     (window as any).ethereum = original;
   });

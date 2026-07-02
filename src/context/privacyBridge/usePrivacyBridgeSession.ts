@@ -48,6 +48,7 @@ export const usePrivacyBridgeSession = ({ modals }: UsePrivacyBridgeSessionOptio
     connectToSnap: core.connectToSnap,
     requestSnapConnection: core.requestSnapConnection,
     getAESKeyFromSnap: core.getAESKeyFromSnap,
+    hasAesKeyInSnap: core.hasAesKeyInSnap,
     handleOnboard: unlock.handleOnboard,
     handleVerifyKeys: unlock.handleVerifyKeys,
     handleConnect,

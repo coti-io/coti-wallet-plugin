@@ -191,7 +191,7 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       expect(snapState.saveAESKeyToSnap).toHaveBeenCalledWith(contractKey, ADDR);
     });
 
-    it('does not request snap during restore-only unlock', async () => {
+    it('does not export snap key during restore-only unlock', async () => {
       const walletProvider = { request: vi.fn().mockResolvedValue(undefined) };
       wagmiState.connector = {
         getProvider: vi.fn().mockResolvedValue(walletProvider),
@@ -383,6 +383,66 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       expect(key).toBe(VALID_KEY);
       expect(fetchEncryptedAesBackup).toHaveBeenCalledWith({ address: ADDR, chainId: COTI_TESTNET });
       expect(signer.generateOrRecoverAes).not.toHaveBeenCalled();
+    });
+
+    it('persists a MetaMask backup restore to Snap before returning the key', async () => {
+      const signer = makeSigner(VALID_KEY);
+      const backup = await encryptAesKeyBackup(VALID_KEY, signer, {
+        address: ADDR,
+        chainId: COTI_TESTNET,
+      });
+      ethersState.getSigner.mockResolvedValue(signer);
+      wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
+      wagmiState.chainId = COTI_TESTNET;
+      configureCotiPlugin({
+        onboardingServices: {
+          mode: 'custom',
+          fetchEncryptedAesBackup: vi.fn().mockResolvedValue(backup),
+        },
+      });
+
+      const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'metamask' })));
+
+      let key: string | null = null;
+      await act(async () => {
+        key = await result.current.getAesKey(ADDR, undefined, { restoreOnly: true });
+      });
+
+      expect(key).toBe(VALID_KEY);
+      expect(snapState.getAESKeyFromSnap).not.toHaveBeenCalled();
+      expect(snapState.saveAESKeyToSnap).toHaveBeenCalledWith(VALID_KEY, ADDR);
+      expect(signer.generateOrRecoverAes).not.toHaveBeenCalled();
+    });
+
+    it('persists restored backup to Snap and returns null when hydrateSnapFromBackup is set', async () => {
+      const signer = makeSigner(VALID_KEY);
+      const backup = await encryptAesKeyBackup(VALID_KEY, signer, {
+        address: ADDR,
+        chainId: COTI_TESTNET,
+      });
+      ethersState.getSigner.mockResolvedValue(signer);
+      wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
+      wagmiState.chainId = COTI_TESTNET;
+      configureCotiPlugin({
+        onboardingServices: {
+          mode: 'custom',
+          fetchEncryptedAesBackup: vi.fn().mockResolvedValue(backup),
+        },
+      });
+
+      const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'metamask' })));
+
+      let key: string | null = 'pending';
+      await act(async () => {
+        key = await result.current.getAesKey(ADDR, undefined, {
+          restoreOnly: true,
+          hydrateSnapFromBackup: true,
+        });
+      });
+
+      expect(key).toBeNull();
+      expect(snapState.getAESKeyFromSnap).not.toHaveBeenCalled();
+      expect(snapState.saveAESKeyToSnap).toHaveBeenCalledWith(VALID_KEY, ADDR);
     });
 
     it('falls back to onboarding when backup restore fails', async () => {

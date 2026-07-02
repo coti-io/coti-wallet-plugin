@@ -73,8 +73,12 @@ export interface AesKeyProviderOptions {
   forceContractOnboarding?: boolean;
   /** Whether contract-onboarding should save a client-encrypted AES backup. */
   saveBackup?: boolean;
-  /** Only try existing key sources; do not start contract onboarding. */
+  /** Only restore via Snap-side decrypt / backup; never export raw key or run contract onboarding. */
   restoreOnly?: boolean;
+  /** Unlock via Snap typed decrypt RPC (no raw AES export). Used when AES is already stored in Snap. */
+  snapSideDecrypt?: boolean;
+  /** Decrypt encrypted backup blob, persist AES to Snap, return null (no raw key to dapp). */
+  hydrateSnapFromBackup?: boolean;
   /** Receives contract-onboarding step updates for modal progress UI. */
   onProgress?: OnboardingProgressCallback;
   /** Called when backup restore is cancelled by the user. */
@@ -346,6 +350,37 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
               const signer = await provider.getSigner(address);
               const restoredKey = await decryptAesKeyBackup(backup, signer, backupContext);
               logger.log('✅ AES key restored from encrypted backup');
+
+              if (
+                walletTypeInfo.walletType === 'metamask'
+                && canPersistAesKeyToSnap()
+              ) {
+                emitStep('persisting-key');
+                const saved = await saveAESKeyToSnap(restoredKey, address);
+                if (!saved) {
+                  logger.warn('⚠️ Restored AES key but could not persist it to Snap');
+                }
+
+                if (options.hydrateSnapFromBackup) {
+                  if (saved) {
+                    emitStep('complete');
+                  } else {
+                    emitStep('idle');
+                  }
+                  // Dedicated hydrate path keeps the raw AES key out of dapp session state.
+                  return null;
+                }
+              } else if (
+                options.hydrateSnapFromBackup
+                && walletTypeInfo.walletType === 'metamask'
+              ) {
+                logger.log(
+                  'ℹ️ Skipping Snap AES persist — origin not authorized for set-aes-key:',
+                  typeof window !== 'undefined' ? window.location.origin : 'unknown',
+                );
+                return null;
+              }
+
               emitStep('complete');
               return restoredKey;
             }

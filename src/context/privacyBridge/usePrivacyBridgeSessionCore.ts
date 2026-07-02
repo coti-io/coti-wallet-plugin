@@ -47,6 +47,7 @@ export const usePrivacyBridgeSessionCore = ({
   const {
     executeSnapCheck,
     getAESKeyFromSnap,
+    hasAesKeyInSnap,
     connectToSnap,
     requestSnapConnection,
     decryptCtUint64ViaSnap,
@@ -89,6 +90,7 @@ export const usePrivacyBridgeSessionCore = ({
     setArePrivateBalancesHidden,
     executeSnapCheck,
     getAESKeyFromSnap,
+    hasAesKeyInSnap,
     connectToSnap,
     requestSnapConnection,
     decryptCtUint64ViaSnap,

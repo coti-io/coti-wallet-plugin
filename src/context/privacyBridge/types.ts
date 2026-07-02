@@ -31,6 +31,8 @@ export interface PrivacyBridgeNetworkContextValue {
 export interface PrivacyBridgeUnlockContextValue {
   hasSnap: boolean;
   snapError: string | null;
+  /** True/false when check succeeds; null when Snap is unavailable. */
+  hasAesKeyInSnap: () => Promise<boolean | null>;
   connectToSnap: () => Promise<boolean>;
   requestSnapConnection: () => Promise<boolean>;
   isPrivateUnlocked: boolean;

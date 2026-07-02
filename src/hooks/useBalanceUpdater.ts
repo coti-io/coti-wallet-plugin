@@ -79,7 +79,9 @@ export const useBalanceUpdater = ({
             setWalletAddress(account);
             setIsConnected(true);
             const allowSnapOperations =
-                canUseSnapOperations && !options?.restoreOnly && !options?.forceContractOnboarding;
+                canUseSnapOperations
+                && !options?.forceContractOnboarding
+                && (!options?.restoreOnly || options?.snapSideDecrypt === true);
 
             const hasChainOverride = typeof chainOverride === 'number';
             if (window.ethereum || hasChainOverride) {
@@ -145,7 +147,7 @@ export const useBalanceUpdater = ({
                     try {
                         let aesKey: string | null = aesKeyOverride ?? sessionAesKey ?? null;
 
-                        if (checkSnap && !aesKey && !allowSnapOperations) {
+                        if (checkSnap && !aesKey && !(allowSnapOperations && options?.snapSideDecrypt)) {
                             const { validateOnUnlock: _validateOnUnlock, ...aesKeyOptions } = options ?? {};
                             if (validateOnUnlock) {
                                 aesKey = Object.keys(aesKeyOptions).length === 0
@@ -170,7 +172,7 @@ export const useBalanceUpdater = ({
                             markAesKeyValidatedForUnlock(account, aesKey);
                         }
 
-                        if (aesKey || allowSnapOperations) {
+                        if (allowSnapOperations) {
                             if (isStale()) return false;
                             setHasSnap(true);
                         }
@@ -194,11 +196,6 @@ export const useBalanceUpdater = ({
                         }
 
                         if (aesKey || allowSnapOperations || hasPlainPrivateTokens) {
-                            if (aesKey && !sessionAesKey) {
-                                if (isStale()) return false;
-                                setHasSnap(true);
-                            }
-
                             logger.log('🔄 Fetching private balances...');
 
                             const privateFetches = await Promise.all(privateTokenConfigs.map(async token => {

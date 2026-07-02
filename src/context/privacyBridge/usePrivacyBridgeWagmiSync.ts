@@ -69,6 +69,7 @@ export const usePrivacyBridgeWagmiSync = ({
       wagmiSyncRef.current = false;
       setIsConnected(false);
       setWalletAddress('');
+      setHasSnap(false);
       setMetamaskDetected(false);
       if (getPluginConfig().clearSessionKeyOnWagmiDisconnect) {
         setSessionAesKey(null);
@@ -105,13 +106,18 @@ export const usePrivacyBridgeWagmiSync = ({
 
   useEffect(() => {
     if (wagmiConnected && wagmiConnector) {
-      setMetamaskDetected(mapConnectorIdToWalletType(wagmiConnector.id) === 'metamask');
+      const isMetaMask = mapConnectorIdToWalletType(wagmiConnector.id) === 'metamask';
+      setMetamaskDetected(isMetaMask);
+      if (!isMetaMask) {
+        setHasSnap(false);
+      }
       return;
     }
     if (!wagmiConnected && wagmiSyncRef.current) {
       setMetamaskDetected(false);
+      setHasSnap(false);
     }
-  }, [wagmiConnected, wagmiConnector, wagmiSyncRef, setMetamaskDetected]);
+  }, [wagmiConnected, wagmiConnector, wagmiSyncRef, setMetamaskDetected, setHasSnap]);
 
   const prevWagmiChainIdRef = useRef<number | undefined>(undefined);
   useEffect(() => {

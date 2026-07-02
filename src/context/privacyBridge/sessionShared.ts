@@ -47,6 +47,7 @@ export interface PrivacyBridgeSessionCore {
   setArePrivateBalancesHidden: Dispatch<SetStateAction<boolean>>;
   executeSnapCheck: (onSnapFound: () => Promise<boolean>) => Promise<void>;
   getAESKeyFromSnap: (accountAddress: string, options?: { skipCache?: boolean }) => Promise<string | null>;
+  hasAesKeyInSnap: () => Promise<boolean | null>;
   connectToSnap: () => Promise<boolean>;
   requestSnapConnection: () => Promise<boolean>;
   handleManualOnboarding: () => Promise<string | null>;

@@ -106,7 +106,9 @@ export const usePrivacyBridgeAccountSync = ({
     checkNetwork,
     getAESKeyFromSnap: getAESKeyForCurrentNetwork,
     fetchPrivateBalance,
-    canUseSnapOperations: walletTypeInfo.walletType === 'metamask' && (hasSnap || walletTypeInfo.isMetaMaskWithSnap),
+    canUseSnapOperations:
+      walletTypeInfo.walletType === 'metamask'
+      && (walletTypeInfo.isMetaMaskWithSnap || hasSnap),
     snapDecryptOptions: {
       decryptCtUint64: core.decryptCtUint64ViaSnap,
       decryptCtUint256: core.decryptCtUint256ViaSnap,
@@ -138,7 +140,6 @@ export const usePrivacyBridgeAccountSync = ({
 
     if (keyJustArrived && sessionAesKey && walletAddress && arePrivateBalancesHidden) {
       logger.log('Session AES Key arrived — refreshing private balances...');
-      if (!hasSnap) setHasSnap(true);
       const chainOverride = wagmiSyncRef.current ? wagmiChainId : undefined;
       updateAccountState(walletAddress, false, true, sessionAesKey, chainOverride).then(() => {
         setArePrivateBalancesHidden(false);
@@ -149,8 +150,6 @@ export const usePrivacyBridgeAccountSync = ({
     walletAddress,
     arePrivateBalancesHidden,
     updateAccountState,
-    hasSnap,
-    setHasSnap,
     setArePrivateBalancesHidden,
     wagmiSyncRef,
     wagmiChainId,

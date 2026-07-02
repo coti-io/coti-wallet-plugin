@@ -93,6 +93,36 @@ configureCotiPlugin({
   },
 });
 
+type SnapAesKeyStatus = 'idle' | 'checking' | 'saved' | 'missing' | 'unknown';
+
+function snapAesKeyStatusLabel(status: SnapAesKeyStatus): string {
+  switch (status) {
+    case 'checking':
+      return 'Checking…';
+    case 'saved':
+      return 'Saved in Snap';
+    case 'missing':
+      return 'Not saved in Snap';
+    case 'unknown':
+      return 'Could not check Snap';
+    default:
+      return '';
+  }
+}
+
+function snapAesKeyStatusColor(status: SnapAesKeyStatus): string {
+  switch (status) {
+    case 'saved':
+      return '#0a7a3e';
+    case 'missing':
+      return '#b45309';
+    case 'unknown':
+      return '#666';
+    default:
+      return '#666';
+  }
+}
+
 export default function App() {
   const { address, isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
@@ -111,9 +141,12 @@ export default function App() {
   const [snapConnectedInModal, setSnapConnectedInModal] = useState(false);
   const [saveBackup, setSaveBackup] = useState(true);
   const [currentStep, setCurrentStep] = useState<OnboardingStep>('idle');
+  const [snapAesKeyStatus, setSnapAesKeyStatus] = useState<SnapAesKeyStatus>('idle');
 
   const connectedAddress = wallet.walletAddress || address || '';
-  const hasConnectedSnap = walletTypeInfo.isMetaMaskWithSnap || unlock.hasSnap || snapConnectedInModal;
+  const isMetaMaskWallet = walletTypeInfo.walletType === 'metamask';
+  const hasConnectedSnap =
+    isMetaMaskWallet && (walletTypeInfo.isMetaMaskWithSnap || snapConnectedInModal);
   const tokenRows = useMemo(
     () => [
       ...publicTokens.map(token => ({ ...token, type: 'Public' })),
@@ -126,8 +159,42 @@ export default function App() {
     if (!isConnected) {
       setSnapConnectedInModal(false);
       setSnapInstallError(null);
+      setSnapAesKeyStatus('idle');
     }
   }, [isConnected]);
+
+  const refreshSnapAesKeyStatus = useCallback(async () => {
+    if (!isConnected || !connectedAddress || !isMetaMaskWallet) {
+      setSnapAesKeyStatus('idle');
+      return;
+    }
+
+    if (!walletTypeInfo.isMetaMaskWithSnap && !snapConnectedInModal) {
+      setSnapAesKeyStatus('idle');
+      return;
+    }
+
+    setSnapAesKeyStatus('checking');
+    try {
+      const saved = await unlock.hasAesKeyInSnap();
+      if (saved === true) setSnapAesKeyStatus('saved');
+      else if (saved === false) setSnapAesKeyStatus('missing');
+      else setSnapAesKeyStatus('unknown');
+    } catch {
+      setSnapAesKeyStatus('unknown');
+    }
+  }, [
+    connectedAddress,
+    isConnected,
+    isMetaMaskWallet,
+    snapConnectedInModal,
+    unlock,
+    walletTypeInfo.isMetaMaskWithSnap,
+  ]);
+
+  useEffect(() => {
+    void refreshSnapAesKeyStatus();
+  }, [refreshSnapAesKeyStatus]);
 
   const unlockPrivateBalances = useCallback(async () => {
     if (!connectedAddress) return;
@@ -139,6 +206,7 @@ export default function App() {
       const ok = await unlock.refreshPrivateBalances({ restoreOnly: true });
       if (ok) {
         setShowOnboardModal(false);
+        await refreshSnapAesKeyStatus();
         return;
       }
       setCurrentStep('idle');
@@ -151,7 +219,7 @@ export default function App() {
     } finally {
       setIsUnlocking(false);
     }
-  }, [connectedAddress, unlock]);
+  }, [connectedAddress, unlock, refreshSnapAesKeyStatus]);
 
   const beginOnboarding = useCallback(async () => {
     if (!connectedAddress) return;
@@ -171,13 +239,14 @@ export default function App() {
       }
       setShowOnboardModal(false);
       setCurrentStep('complete');
+      await refreshSnapAesKeyStatus();
     } catch (error) {
       setCurrentStep('error');
       setModalError(error instanceof Error ? error.message : 'Onboarding failed.');
     } finally {
       setIsUnlocking(false);
     }
-  }, [connectedAddress, saveBackup, unlock]);
+  }, [connectedAddress, saveBackup, unlock, refreshSnapAesKeyStatus]);
 
   const connectSnap = useCallback(async () => {
     setModalError(null);
@@ -187,6 +256,7 @@ export default function App() {
       const connected = await unlock.requestSnapConnection();
       if (!connected) return false;
       setSnapConnectedInModal(true);
+      await refreshSnapAesKeyStatus();
       return true;
     } catch (error) {
       setSnapInstallError(error instanceof Error ? error.message : 'Could not install COTI Snap.');
@@ -194,7 +264,7 @@ export default function App() {
     } finally {
       setIsInstallingSnap(false);
     }
-  }, [unlock]);
+  }, [unlock, refreshSnapAesKeyStatus]);
 
   const lockPrivateBalances = useCallback(() => {
     unlock.lockPrivateBalances();
@@ -202,6 +272,7 @@ export default function App() {
     setCurrentStep('idle');
     setModalError(null);
     setSnapInstallError(null);
+    setSnapAesKeyStatus('idle');
   }, [unlock]);
 
   const handleDisconnect = useCallback(() => {
@@ -229,9 +300,14 @@ export default function App() {
           </p>
           <p>Network: {network.networkName || network.chainId || 'Unknown'}</p>
           <p style={{ fontSize: 12, color: '#666' }}>
-            Wallet: {walletTypeInfo.walletType}{' '}
-            {hasConnectedSnap ? '(COTI Snap connected)' : ''}
+            Wallet: {walletTypeInfo.walletType}
+            {hasConnectedSnap ? ' (COTI Snap connected)' : ''}
           </p>
+          {hasConnectedSnap && snapAesKeyStatus !== 'idle' && (
+            <p style={{ fontSize: 12, color: snapAesKeyStatusColor(snapAesKeyStatus) }}>
+              Snap AES key: {snapAesKeyStatusLabel(snapAesKeyStatus)}
+            </p>
+          )}
 
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             {!unlock.isPrivateUnlocked ? (

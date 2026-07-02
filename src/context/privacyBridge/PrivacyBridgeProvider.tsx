@@ -94,6 +94,7 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
     const unlock = {
       hasSnap: session.hasSnap,
       snapError: session.snapError,
+      hasAesKeyInSnap: session.hasAesKeyInSnap,
       connectToSnap: session.connectToSnap,
       requestSnapConnection: session.requestSnapConnection,
       isPrivateUnlocked: session.isPrivateUnlocked,

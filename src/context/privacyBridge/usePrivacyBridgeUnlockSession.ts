@@ -5,6 +5,7 @@ import { clearAesKeyValidatedForUnlock, getValidatedAesKeyForUnlock } from '../.
 import {
   getInitialPrivateTokens,
 } from '../../hooks/usePrivacyBridge';
+import { useWalletType } from '../../hooks/useWalletType';
 import type { PrivacyBridgeAccountSync } from './usePrivacyBridgeAccountSync';
 import type { PrivacyBridgeNetworkSession } from './usePrivacyBridgeNetworkSession';
 import type { PrivacyBridgeSessionCore } from './sessionShared';
@@ -26,6 +27,7 @@ export const usePrivacyBridgeUnlockSession = ({
   const {
     walletAddress,
     sessionAesKey,
+    hasSnap,
     setHasSnap,
     setSnapError,
     setSessionAesKey,
@@ -36,10 +38,13 @@ export const usePrivacyBridgeUnlockSession = ({
     clearSnapCache,
     setPrivateTokens,
     wagmiSyncRef,
+    hasAesKeyInSnap,
+    getAesKeyFromProvider,
   } = core;
 
   const { wagmiChainId } = network;
   const { updateAccountState, currentChainId } = accountSync;
+  const walletTypeInfo = useWalletType();
 
   const handleOnboard = async () => {
     const key = await handleManualOnboarding();
@@ -96,18 +101,86 @@ export const usePrivacyBridgeUnlockSession = ({
     }
   }, [walletAddress, updateAccountState, wagmiChainId, wagmiSyncRef]);
 
+  const resolveRestoreUnlockPlan = useCallback(async (
+    aesKeyOptions?: AesKeyProviderOptions,
+  ): Promise<{
+    unlockOptions: AesKeyProviderOptions & { validateOnUnlock: true };
+    checkSnap: boolean;
+    keyForUnlock: string | undefined;
+    failed?: boolean;
+  }> => {
+    const unlockOptions = { validateOnUnlock: true as const, ...aesKeyOptions };
+    const keyForUnlock =
+      sessionAesKey ?? getValidatedAesKeyForUnlock(walletAddress!) ?? undefined;
+
+    if (!aesKeyOptions?.restoreOnly || keyForUnlock) {
+      return { unlockOptions, checkSnap: !keyForUnlock, keyForUnlock };
+    }
+
+    const snapInstalled =
+      walletTypeInfo.walletType === 'metamask'
+      && (walletTypeInfo.isMetaMaskWithSnap || hasSnap);
+
+    if (!snapInstalled) {
+      return { unlockOptions, checkSnap: true, keyForUnlock: undefined };
+    }
+
+    const snapHasKey = await hasAesKeyInSnap();
+    if (snapHasKey === true) {
+      logger.log('Snap AES key present — unlock via Snap-side decrypt');
+      return {
+        unlockOptions: { ...unlockOptions, snapSideDecrypt: true },
+        checkSnap: false,
+        keyForUnlock: undefined,
+      };
+    }
+
+    if (snapHasKey === false) {
+      logger.log('Snap installed but no AES key — hydrating Snap from encrypted backup');
+      await getAesKeyFromProvider(walletAddress!, aesKeyOptions?.onProgress, {
+        ...aesKeyOptions,
+        restoreOnly: true,
+        hydrateSnapFromBackup: true,
+      });
+      const afterHydrate = await hasAesKeyInSnap();
+      if (afterHydrate !== true) {
+        logger.log('Snap hydration failed — no AES key available for unlock');
+        return { unlockOptions, checkSnap: false, keyForUnlock: undefined, failed: true };
+      }
+      return {
+        unlockOptions: { ...unlockOptions, snapSideDecrypt: true },
+        checkSnap: false,
+        keyForUnlock: undefined,
+      };
+    }
+
+    return { unlockOptions, checkSnap: true, keyForUnlock: undefined };
+  }, [
+    sessionAesKey,
+    walletAddress,
+    walletTypeInfo.walletType,
+    walletTypeInfo.isMetaMaskWithSnap,
+    hasSnap,
+    hasAesKeyInSnap,
+    getAesKeyFromProvider,
+  ]);
+
   const refreshPrivateBalances = useCallback(async (aesKeyOptions?: AesKeyProviderOptions) => {
     if (!walletAddress) return false;
 
     logger.log('Triggering private balance fetch...');
     try {
       const chainOverride = wagmiSyncRef.current ? wagmiChainId : undefined;
-      const unlockOptions = { validateOnUnlock: true as const, ...aesKeyOptions };
-      let keyForUnlock =
-        sessionAesKey ?? getValidatedAesKeyForUnlock(walletAddress) ?? undefined;
+      const plan = await resolveRestoreUnlockPlan(aesKeyOptions);
+      if (plan.failed) {
+        return false;
+      }
+      const { unlockOptions, checkSnap, keyForUnlock: initialKeyForUnlock } = plan;
+      let keyForUnlock = initialKeyForUnlock;
+
       let success = await updateAccountState(
         walletAddress,
-        !keyForUnlock,
+        checkSnap,
         true,
         keyForUnlock,
         chainOverride,
@@ -203,6 +276,7 @@ export const usePrivacyBridgeUnlockSession = ({
     setArePrivateBalancesHidden,
     setSnapError,
     wagmiSyncRef,
+    resolveRestoreUnlockPlan,
   ]);
 
   const lockPrivateBalances = () => {
