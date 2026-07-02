@@ -50,7 +50,7 @@ const DESKTOP_WALLET_GROUPS: { groupName: string; wallets: WalletFactory[] }[] =
 const MOBILE_WALLET_GROUPS: { groupName: string; wallets: WalletFactory[] }[] = [
   {
     groupName: 'Recommended',
-    wallets: [walletConnectWallet, metaMaskWallet, rabbyWallet, oneKeyWallet],
+    wallets: [walletConnectWallet, metaMaskWallet, rabbyWallet, trustWallet, oneKeyWallet],
   },
 ];
 

@@ -296,7 +296,11 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
 
         // Create a @coti-io/coti-ethers BrowserProvider (now on COTI Testnet)
         const provider = new BrowserProvider(walletProvider);
-        const signer = await provider.getSigner(address);
+        // Do NOT pass `address` to getSigner on mobile: ethers v6 BrowserProvider.getSigner(address)
+        // internally calls eth_accounts to verify the address, which on MetaMask Mobile's in-app
+        // browser triggers a recursive coalescer bug ("Maximum call stack size exceeded").
+        // Calling getSigner() without an address uses the already-connected account directly.
+        const signer = await provider.getSigner();
 
         // Step: Execute onboarding — first wallet interaction is the message signature
         emitStep('signing-transaction');

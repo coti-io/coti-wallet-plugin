@@ -167,7 +167,7 @@ describe('WagmiRainbowKitProvider', () => {
     configureCotiPlugin({ walletConnectProjectId: undefined });
   });
 
-  it('uses a reduced mobile wallet list (WalletConnect, MetaMask, Rabby, OneKey)', () => {
+  it('uses a reduced mobile wallet list (WalletConnect, MetaMask, Rabby, Trust, OneKey)', () => {
     const originalUserAgent = navigator.userAgent;
     Object.defineProperty(navigator, 'userAgent', {
       configurable: true,
@@ -182,7 +182,7 @@ describe('WagmiRainbowKitProvider', () => {
       [
         {
           groupName: 'Recommended',
-          wallets: [walletConnectWallet, metaMaskWallet, rabbyWallet, oneKeyWallet],
+          wallets: [walletConnectWallet, metaMaskWallet, rabbyWallet, trustWallet, oneKeyWallet],
         },
       ],
       expect.objectContaining({ projectId: 'mobile-wallet-test' }),
