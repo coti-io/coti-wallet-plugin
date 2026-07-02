@@ -425,6 +425,33 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       expect(grantNativeCoti).toHaveBeenCalledWith({ address: ADDR, chainId: COTI_TESTNET });
     });
 
+    it('skips grant polling when the grant service returns skipped', async () => {
+      wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
+      wagmiState.chainId = COTI_TESTNET;
+      ethersState.getBalance.mockResolvedValue(0n);
+      const grantNativeCoti = vi.fn().mockResolvedValue({ status: 'skipped' });
+      configureCotiPlugin({
+        onboardingServices: {
+          mode: 'custom',
+          grantNativeCoti,
+        },
+        onboardingGrantMinBalanceWei: 10,
+        onboardingGrantPollIntervalMs: 0,
+        onboardingGrantTimeoutMs: 50,
+      });
+
+      const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'rabby' })));
+
+      let key: string | null = null;
+      await act(async () => {
+        key = await result.current.getAesKey(ADDR);
+      });
+
+      expect(key).toBe(VALID_KEY);
+      expect(grantNativeCoti).toHaveBeenCalledWith({ address: ADDR, chainId: COTI_TESTNET });
+      expect(ethersState.getBalance).toHaveBeenCalledTimes(1);
+    });
+
     it('continues onboarding when the grant API rejects', async () => {
       wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
       wagmiState.chainId = COTI_TESTNET;

@@ -450,20 +450,22 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
               const grantResult = await services.grantNativeCoti({ address, chainId: targetCotiChainId });
               logger.log('[AesKeyProvider] Native COTI grant requested', grantResult);
 
-              emitStep('waiting-for-funds');
-              const pollIntervalMs = config.onboardingGrantPollIntervalMs ?? 2000;
-              const timeoutMs = config.onboardingGrantTimeoutMs ?? 30000;
-              const startedAt = Date.now();
+              if (grantResult?.status !== 'skipped') {
+                emitStep('waiting-for-funds');
+                const pollIntervalMs = config.onboardingGrantPollIntervalMs ?? 2000;
+                const timeoutMs = config.onboardingGrantTimeoutMs ?? 30000;
+                const startedAt = Date.now();
 
-              while (nativeBalance < requiredBalanceWei && Date.now() - startedAt < timeoutMs) {
-                await sleep(pollIntervalMs);
-                nativeBalance = await provider.getBalance(address);
-                logger.log('[AesKeyProvider] Native COTI balance while waiting for grant', {
-                  address,
-                  chainId: targetCotiChainId,
-                  nativeBalanceWei: nativeBalance.toString(),
-                  requiredBalanceWei: requiredBalanceWei.toString(),
-                });
+                while (nativeBalance < requiredBalanceWei && Date.now() - startedAt < timeoutMs) {
+                  await sleep(pollIntervalMs);
+                  nativeBalance = await provider.getBalance(address);
+                  logger.log('[AesKeyProvider] Native COTI balance while waiting for grant', {
+                    address,
+                    chainId: targetCotiChainId,
+                    nativeBalanceWei: nativeBalance.toString(),
+                    requiredBalanceWei: requiredBalanceWei.toString(),
+                  });
+                }
               }
             } catch (grantError) {
               logger.warn('[AesKeyProvider] Native COTI grant unavailable; continuing without grant:', grantError);

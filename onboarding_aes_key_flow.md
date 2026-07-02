@@ -35,14 +35,16 @@ The current flow is implemented by `useAesKeyProvider` in `src/hooks/useAesKeyPr
 |---|---|
 | `VITE_AES_BACKUP_API_URL` | Uses `GET /aes-backups/:chainId/:address` and `PUT /aes-backups/:chainId/:address`, and also keeps a localStorage encrypted backup copy |
 | unset `VITE_AES_BACKUP_API_URL` | Uses `localStorage` only for encrypted backup blobs |
-| `VITE_GRANT_API_URL` | Uses this URL for `grantNativeCoti` POST requests |
-| unset `VITE_GRANT_API_URL` | Does not configure a grant service; onboarding requires the wallet to already have native COTI for gas |
+| `VITE_GRANT_API_URL_TESTNET` | Testnet `grantNativeCoti` POST URL |
+| `VITE_GRANT_API_URL_MAINNET` | Mainnet `grantNativeCoti` POST URL |
+| one grant URL unset | Skips grant API calls on that chain; onboarding falls through to the normal insufficient-funds path if the wallet has no native COTI |
+| both grant URLs unset | Does not configure a grant service on either chain; onboarding requires the wallet to already have native COTI for gas |
 
 The example still keeps the active AES key in memory. LocalStorage is only a sample backing store for the encrypted backup blob, not the live session key.
 
 Manual AES key input uses the same encrypted backup helper as contract onboarding when `Save encrypted backup` is checked: the user signs the backup context, the key is encrypted with `encryptAesKeyBackup`, and the encrypted blob is saved through the configured API/localStorage path.
 
-`npm run dev:onboarding` starts the local mock grant server and explicitly sets `VITE_GRANT_API_URL=http://localhost:8787` for that dev session.
+`npm run dev:onboarding` starts the local mock grant server and explicitly sets `VITE_GRANT_API_URL_TESTNET=http://localhost:8787` for that dev session.
 
 ## Key Components
 
@@ -69,5 +71,5 @@ Manual AES key input uses the same encrypted backup helper as contract onboardin
 - User rejection during Snap, restore signature, chain switch, or onboarding returns `null` or shows the relevant modal error without storing a key.
 - Backup restore failures fall through to contract onboarding and set a non-blocking warning.
 - Backup save failures do not block a successful onboarding; the user receives a warning.
-- Grant API failures and grant timeouts fall through as if no grant was configured. The onboarding transaction still needs native COTI gas, so an unfunded wallet fails through the normal insufficient-balance path.
+- Grant API HTTP errors are treated as skipped grants, which covers duplicate/already-sent grant cases. The onboarding transaction still needs native COTI gas, so an unfunded wallet fails through the normal insufficient-balance path.
 - Invalid AES key format sets `onboardingError` and emits `error`.

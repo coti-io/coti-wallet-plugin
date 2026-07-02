@@ -495,6 +495,85 @@ function mergeTheme(theme?: OnboardModalTheme) {
   return merged as typeof defaultStyles;
 }
 
+function parseColorToRgb(
+  color: string,
+): { r: number; g: number; b: number; alpha: number } | null {
+  const normalized = color.trim();
+
+  const hexMatch = normalized.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (hexMatch) {
+    const hex = hexMatch[1];
+    if (hex.length === 3) {
+      return {
+        r: Number.parseInt(hex[0] + hex[0], 16),
+        g: Number.parseInt(hex[1] + hex[1], 16),
+        b: Number.parseInt(hex[2] + hex[2], 16),
+        alpha: 1,
+      };
+    }
+    return {
+      r: Number.parseInt(hex.slice(0, 2), 16),
+      g: Number.parseInt(hex.slice(2, 4), 16),
+      b: Number.parseInt(hex.slice(4, 6), 16),
+      alpha: 1,
+    };
+  }
+
+  const rgbMatch = normalized.match(
+    /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*([0-9]*\.?[0-9]+))?\s*\)$/i,
+  );
+  if (rgbMatch) {
+    return {
+      r: Number(rgbMatch[1]),
+      g: Number(rgbMatch[2]),
+      b: Number(rgbMatch[3]),
+      alpha: rgbMatch[4] ? Number(rgbMatch[4]) : 1,
+    };
+  }
+
+  return null;
+}
+
+function isLightBackgroundColor(color: string | undefined): boolean {
+  if (!color) return false;
+  const rgb = parseColorToRgb(color);
+  if (!rgb) return false;
+
+  const { r, g, b, alpha } = rgb;
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) * alpha;
+  return luminance >= 150;
+}
+
+function getWarningStyles(styles: typeof defaultStyles) {
+  const lightTheme = isLightBackgroundColor(
+    typeof styles.modal.backgroundColor === 'string'
+      ? styles.modal.backgroundColor
+      : undefined,
+  );
+
+  if (lightTheme) {
+    return {
+      box: {
+        ...styles.warningBox,
+        backgroundColor: 'rgba(245, 158, 11, 0.14)',
+        border: '1px solid rgba(180, 83, 9, 0.35)',
+      },
+      text: {
+        ...styles.warningText,
+        color: '#78350f',
+      },
+    };
+  }
+
+  return {
+    box: styles.warningBox,
+    text: {
+      ...styles.warningText,
+      color: '#fef3c7',
+    },
+  };
+}
+
 /** CSS keyframes for the spinner animation, injected once */
 const SPINNER_KEYFRAMES = `
 @keyframes onboard-spin {
@@ -622,6 +701,7 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
   const [isSubmittingManualKey, setIsSubmittingManualKey] = useState(false);
   const [showBackupTooltip, setShowBackupTooltip] = useState(false);
   const styles = mergeTheme(theme);
+  const warningStyles = getWarningStyles(styles);
 
   useEffect(() => {
     if (isOpen && walletType === 'metamask' && hasSnap && !snapBypassTriggered.current) {
@@ -812,8 +892,8 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
               </div>
 
               {warning && (
-                <div style={styles.warningBox}>
-                  <p style={styles.warningText}>{warning}</p>
+                <div style={warningStyles.box}>
+                  <p style={warningStyles.text}>{warning}</p>
                 </div>
               )}
 
@@ -909,8 +989,8 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
               </p>
 
               {warning && (
-                <div style={styles.warningBox}>
-                  <p style={styles.warningText}>{warning}</p>
+                <div style={warningStyles.box}>
+                  <p style={warningStyles.text}>{warning}</p>
                 </div>
               )}
 
@@ -1078,15 +1158,15 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
                 </div>
               </div>
 
-              <div style={styles.warningBox}>
-                <p style={styles.warningText}>
+              <div style={warningStyles.box}>
+                <p style={warningStyles.text}>
                   <strong>Important:</strong> {saveBackup ? 'An encrypted backup can help restore this key later, but you should still store it safely.' : 'This key will be lost when you refresh the page. Store it in a secure location.'}
                 </p>
               </div>
 
               {warning && (
-                <div style={styles.warningBox}>
-                  <p style={styles.warningText}>{warning}</p>
+                <div style={warningStyles.box}>
+                  <p style={warningStyles.text}>{warning}</p>
                 </div>
               )}
 

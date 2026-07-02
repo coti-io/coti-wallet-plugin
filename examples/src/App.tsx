@@ -39,13 +39,26 @@ const TOKEN_LIST_URL =
 
 // COTI Testnet chain ID — app only shows tokens for this chain
 const COTI_TESTNET_CHAIN_ID = 7082400;
+const COTI_MAINNET_CHAIN_ID = 2632500;
 
 // p.COTI legacy contract uses version 64; all other private tokens use 256
 const PCOTI_ADDRESS = '0x6cE8907414986E73De9e7D28d62Ea2080F8E88E1';
 const AES_BACKUP_API_URL = import.meta.env.VITE_AES_BACKUP_API_URL?.replace(/\/$/, '');
-const GRANT_API_URL = import.meta.env.VITE_GRANT_API_URL?.replace(/\/$/, '');
+const GRANT_API_URL_BY_CHAIN: Record<number, string | undefined> = {
+  [COTI_TESTNET_CHAIN_ID]: normalizeGrantApiUrl(
+    import.meta.env.VITE_GRANT_API_URL_TESTNET,
+  ),
+  [COTI_MAINNET_CHAIN_ID]: normalizeGrantApiUrl(
+    import.meta.env.VITE_GRANT_API_URL_MAINNET,
+  ),
+};
+const HAS_GRANT_API_URL = Object.values(GRANT_API_URL_BY_CHAIN).some(Boolean);
 const ONBOARDING_GRANT_MIN_BALANCE_COTI =
   import.meta.env.VITE_ONBOARDING_GRANT_MIN_BALANCE_COTI ?? '0.2';
+
+function normalizeGrantApiUrl(url: string | undefined): string | undefined {
+  return url?.replace(/\/$/, '');
+}
 
 const backupKey = (address: string, chainId: number) =>
   `coti-example:aes-backup:${chainId}:${address.toLowerCase()}`;
@@ -97,15 +110,24 @@ configureCotiPlugin({
     replaceEncryptedAesBackup: async ({ address, chainId, backup }) => {
       return saveEncryptedAesBackup(address, chainId, backup, 'replace');
     },
-    grantNativeCoti: GRANT_API_URL ? async ({ address, chainId }) => {
-      const response = await fetch(GRANT_API_URL, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ address, chainId }),
-      });
-      if (!response.ok) throw new Error(`Grant failed: ${response.status}`);
-      return response.json();
-    } : undefined,
+    grantNativeCoti:
+      HAS_GRANT_API_URL
+        ? async ({ address, chainId }) => {
+            const grantApiUrl = GRANT_API_URL_BY_CHAIN[chainId];
+            if (!grantApiUrl) {
+              return { status: 'skipped' };
+            }
+            const response = await fetch(grantApiUrl, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ address, chainId }),
+            });
+            if (!response.ok) {
+              return { status: 'skipped' };
+            }
+            return response.json();
+          }
+        : undefined,
   },
 });
 
