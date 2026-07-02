@@ -126,12 +126,15 @@ const SIGN_RPC_METHODS = new Set([
   'eth_signTypedData_v4',
 ]);
 
+type Eip1193RequestPayload = { method: string; params?: unknown[] };
+type Eip1193ProviderLike = { request: (args: Eip1193RequestPayload) => Promise<unknown> };
+
 /**
  * Wraps the wallet provider's `request` to log RPC calls and advance the UI
  * between the message-signature and on-chain onboarding transaction steps.
  */
 function instrumentWalletProvider(
-  walletProvider: { request: (...args: unknown[]) => Promise<unknown> },
+  walletProvider: Eip1193ProviderLike,
   emitStep: (step: OnboardingStep) => void,
   trace: OnboardingDebugTrace,
 ): () => void {
@@ -139,7 +142,7 @@ function instrumentWalletProvider(
   const originalRequest = walletProvider.request.bind(walletProvider);
   let executeStepEmitted = false;
 
-  walletProvider.request = async function instrumentedRequest(args: { method?: string; params?: unknown[] }) {
+  walletProvider.request = async function instrumentedRequest(args: Eip1193RequestPayload) {
     const method = args?.method ?? 'unknown';
     trace.push('rpc', method);
 
