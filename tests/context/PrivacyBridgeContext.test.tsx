@@ -63,7 +63,13 @@ vi.mock('../../src/hooks/useWalletType', async importOriginal => {
 });
 
 vi.mock('../../src/hooks/useAesKeyProvider', () => ({
-  useAesKeyProvider: () => ({ getAesKey: vi.fn(async () => null) }),
+  useAesKeyProvider: () => ({
+    getAesKey: vi.fn(async () => null),
+    isOnboarding: false,
+    onboardingError: null,
+    currentStep: 'idle' as const,
+    onboardingDebugTrace: [],
+  }),
 }));
 
 vi.mock('../../src/hooks/usePrivateTokenBalance', () => ({

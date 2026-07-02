@@ -93,7 +93,7 @@ export interface AesKeyProviderResult {
   /** Current onboarding step (for progress UI) */
   currentStep: OnboardingStep;
   /** Timestamped trace of onboarding steps and RPC calls (for MetaMask Mobile debugging) */
-  onboardingDebugTrace: string[];
+  onboardingDebugTrace?: string[];
 }
 
 /**
