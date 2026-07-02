@@ -43,27 +43,9 @@ vi.mock('wagmi', () => ({
 }));
 
 const ethersState = vi.hoisted(() => ({
-  getSigner: vi.fn(),
+  signer: null as ReturnType<typeof makeSigner> | null,
+  JsonRpcSigner: vi.fn(),
 }));
-vi.mock('@coti-io/coti-ethers', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>;
-  class BrowserProvider {
-    constructor(_p: unknown) {}
-    getSigner = ethersState.getSigner;
-  }
-  return { ...actual, BrowserProvider };
-});
-
-import { useAesKeyProvider } from '../../src/hooks/useAesKeyProvider';
-
-function walletInfo(overrides: Partial<WalletTypeInfo> = {}): WalletTypeInfo {
-  return {
-    isMetaMaskWithSnap: false,
-    walletType: 'unknown',
-    connectorId: undefined,
-    ...overrides,
-  };
-}
 
 function makeSigner(aesKey: string | null | undefined, opts: { generateThrows?: any } = {}) {
   return {
@@ -76,6 +58,46 @@ function makeSigner(aesKey: string | null | undefined, opts: { generateThrows?: 
   };
 }
 
+vi.mock('@coti-io/coti-ethers', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  class BrowserProvider {
+    constructor(_p: unknown) {}
+  }
+  class JsonRpcSigner {
+    generateOrRecoverAes: ReturnType<typeof vi.fn>;
+    getUserOnboardInfo: ReturnType<typeof vi.fn>;
+    constructor(_provider: unknown, _address: string) {
+      ethersState.JsonRpcSigner(_provider, _address);
+      const signer = ethersState.signer ?? makeSigner(VALID_KEY);
+      this.generateOrRecoverAes = signer.generateOrRecoverAes;
+      this.getUserOnboardInfo = signer.getUserOnboardInfo;
+    }
+  }
+  return { ...actual, BrowserProvider, JsonRpcSigner };
+});
+
+import { useAesKeyProvider } from '../../src/hooks/useAesKeyProvider';
+
+const mobileState = vi.hoisted(() => ({
+  isMetaMaskMobileBrowser: vi.fn(() => false),
+}));
+vi.mock('../../src/lib/metaMaskMobile', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    isMetaMaskMobileBrowser: () => mobileState.isMetaMaskMobileBrowser(),
+  };
+});
+
+function walletInfo(overrides: Partial<WalletTypeInfo> = {}): WalletTypeInfo {
+  return {
+    isMetaMaskWithSnap: false,
+    walletType: 'unknown',
+    connectorId: undefined,
+    ...overrides,
+  };
+}
+
 describe('useAesKeyProvider (full branch coverage)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -83,7 +105,8 @@ describe('useAesKeyProvider (full branch coverage)', () => {
     wagmiState.connector = undefined;
     wagmiState.chainId = undefined;
     wagmiState.connectorClient = undefined;
-    ethersState.getSigner.mockResolvedValue(makeSigner(VALID_KEY));
+    ethersState.signer = makeSigner(VALID_KEY);
+    mobileState.isMetaMaskMobileBrowser.mockReturnValue(false);
   });
 
   afterEach(() => {
@@ -94,6 +117,7 @@ describe('useAesKeyProvider (full branch coverage)', () => {
 
   describe('MetaMask snap route', () => {
     it('returns the snap key when valid', async () => {
+      mobileState.isMetaMaskMobileBrowser.mockReturnValue(false);
       snapState.getAESKeyFromSnap.mockResolvedValue(VALID_KEY);
       const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'metamask' })));
 
@@ -105,9 +129,30 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       expect(snapState.getAESKeyFromSnap).toHaveBeenCalledWith(ADDR, { skipCache: true });
     });
 
+    it('skips snap on MetaMask Mobile and uses contract onboarding', async () => {
+      mobileState.isMetaMaskMobileBrowser.mockReturnValue(true);
+      snapState.getAESKeyFromSnap.mockResolvedValue(VALID_KEY);
+      ethersState.signer = makeSigner('c'.repeat(32));
+      wagmiState.connector = {
+        getProvider: vi.fn().mockResolvedValue({ request: vi.fn().mockResolvedValue(undefined) }),
+      };
+      wagmiState.chainId = COTI_TESTNET;
+
+      const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'metamask' })));
+
+      let key: string | null = null;
+      await act(async () => {
+        key = await result.current.getAesKey(ADDR);
+      });
+
+      expect(snapState.getAESKeyFromSnap).not.toHaveBeenCalled();
+      expect(key).toBe('c'.repeat(32));
+      expect(ethersState.JsonRpcSigner).toHaveBeenCalled();
+    });
+
     it('skips snap and uses contract onboarding when forceContractOnboarding is set', async () => {
       const contractKey = 'b'.repeat(32);
-      ethersState.getSigner.mockResolvedValue(makeSigner(contractKey));
+      ethersState.signer = makeSigner(contractKey);
       wagmiState.connector = {
         getProvider: vi.fn().mockResolvedValue({ request: vi.fn().mockResolvedValue(undefined) }),
       };
@@ -284,7 +329,7 @@ describe('useAesKeyProvider (full branch coverage)', () => {
     });
 
     it('sets an error but still returns the key when the onboard key has an invalid format', async () => {
-      ethersState.getSigner.mockResolvedValue(makeSigner('bad-key'));
+      ethersState.signer = makeSigner('bad-key');
       wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
       wagmiState.chainId = COTI_TESTNET;
       const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'rabby' })));
@@ -298,7 +343,7 @@ describe('useAesKeyProvider (full branch coverage)', () => {
     });
 
     it('returns null when the onboard info has no aes key', async () => {
-      ethersState.getSigner.mockResolvedValue(makeSigner(undefined));
+      ethersState.signer = makeSigner(undefined);
       wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
       wagmiState.chainId = COTI_TESTNET;
       const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'rabby' })));
@@ -434,7 +479,7 @@ describe('useAesKeyProvider (full branch coverage)', () => {
 
   describe('onboarding errors', () => {
     it('returns null without error when onboarding signing is rejected (4001) on a COTI chain', async () => {
-      ethersState.getSigner.mockResolvedValue(makeSigner(VALID_KEY, { generateThrows: { code: 4001 } }));
+      ethersState.signer = makeSigner(VALID_KEY, { generateThrows: { code: 4001 } });
       wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
       wagmiState.chainId = COTI_TESTNET;
       const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'rabby' })));
@@ -448,9 +493,7 @@ describe('useAesKeyProvider (full branch coverage)', () => {
     });
 
     it('sets an Error message when onboarding throws a generic Error on a COTI chain', async () => {
-      ethersState.getSigner.mockResolvedValue(
-        makeSigner(VALID_KEY, { generateThrows: new Error('boom onboarding') }),
-      );
+      ethersState.signer = makeSigner(VALID_KEY, { generateThrows: new Error('boom onboarding') });
       wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
       wagmiState.chainId = COTI_TESTNET;
       const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'rabby' })));
@@ -464,9 +507,7 @@ describe('useAesKeyProvider (full branch coverage)', () => {
     });
 
     it('uses a fallback message when onboarding throws a non-Error value', async () => {
-      ethersState.getSigner.mockResolvedValue(
-        makeSigner(VALID_KEY, { generateThrows: 'string failure' }),
-      );
+      ethersState.signer = makeSigner(VALID_KEY, { generateThrows: 'string failure' });
       wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
       wagmiState.chainId = COTI_TESTNET;
       const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'rabby' })));
@@ -476,15 +517,13 @@ describe('useAesKeyProvider (full branch coverage)', () => {
         key = await result.current.getAesKey(ADDR);
       });
       expect(key).toBeNull();
-      expect(result.current.onboardingError).toContain('Failed to retrieve AES key');
+      expect(result.current.onboardingError).toBe('string failure');
     });
 
     it('attempts to restore the original chain after an onboarding error on a non-COTI chain', async () => {
       const request = vi.fn().mockResolvedValue(undefined);
       const getProvider = vi.fn().mockResolvedValue({ request });
-      ethersState.getSigner.mockResolvedValue(
-        makeSigner(VALID_KEY, { generateThrows: new Error('onboard failed') }),
-      );
+      ethersState.signer = makeSigner(VALID_KEY, { generateThrows: new Error('onboard failed') });
       wagmiState.connector = { getProvider };
       wagmiState.chainId = SEPOLIA;
       const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'rabby' })));
@@ -503,9 +542,7 @@ describe('useAesKeyProvider (full branch coverage)', () => {
         .mockResolvedValueOnce(undefined) // initial switch to COTI
         .mockRejectedValue(new Error('restore failed')); // restore attempts fail
       const getProvider = vi.fn().mockResolvedValue({ request });
-      ethersState.getSigner.mockResolvedValue(
-        makeSigner(VALID_KEY, { generateThrows: new Error('onboard failed') }),
-      );
+      ethersState.signer = makeSigner(VALID_KEY, { generateThrows: new Error('onboard failed') });
       wagmiState.connector = { getProvider };
       wagmiState.chainId = SEPOLIA;
       const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'rabby' })));

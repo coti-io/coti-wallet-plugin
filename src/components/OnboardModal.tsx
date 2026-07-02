@@ -25,6 +25,8 @@ export interface OnboardModalProps {
   aesKey?: string | null;
   /** Whether MetaMask Snap is available for direct AES key retrieval */
   hasSnap?: boolean;
+  /** Timestamped onboarding trace (shown on error when debug is enabled or trace is non-empty) */
+  debugTrace?: string[];
   /** Optional theme overrides for customizing the modal appearance */
   theme?: OnboardModalTheme;
 }
@@ -280,6 +282,25 @@ const defaultStyles = {
     margin: 0,
     textAlign: 'left' as const,
   },
+  debugBox: {
+    width: '100%',
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    borderRadius: '8px',
+    padding: '10px',
+    marginBottom: '16px',
+    maxHeight: '140px',
+    overflowY: 'auto' as const,
+    textAlign: 'left' as const,
+  },
+  debugLine: {
+    fontSize: '10px',
+    fontFamily: 'monospace',
+    color: 'rgba(255, 255, 255, 0.55)',
+    lineHeight: 1.5,
+    margin: '0 0 2px 0',
+    wordBreak: 'break-all' as const,
+  },
 } as const;
 
 /** Merges default styles with optional theme overrides */
@@ -382,6 +403,7 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
   currentStep = 'idle',
   aesKey,
   hasSnap,
+  debugTrace,
   theme,
 }) => {
   // MetaMask + Snap bypass: skip modal entirely and trigger snap flow
@@ -415,6 +437,19 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
   const showError = !!error || currentStep === 'error';
 
   const walletName = getWalletDisplayName(walletType);
+  const showDebugTrace = (debugTrace?.length ?? 0) > 0;
+
+  const renderDebugTrace = () => {
+    if (!showDebugTrace || !debugTrace) return null;
+    return (
+      <div style={styles.debugBox} aria-label="Onboarding debug trace">
+        <p style={{ ...styles.stepLabel, marginBottom: 6 }}>Debug trace</p>
+        {debugTrace.map((line) => (
+          <p key={line} style={styles.debugLine}>{line}</p>
+        ))}
+      </div>
+    );
+  };
 
   // Handle copy to clipboard
   const handleCopy = async () => {
@@ -574,9 +609,14 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
                   </svg>
                   <p style={styles.calloutText}>
                     <strong>Action Required:</strong> Please approve the transaction in {walletName}
+                    {walletType === 'metamask' && (
+                      <> — you may see two prompts (message signature, then on-chain transaction)</>
+                    )}
                   </p>
                 </div>
               )}
+
+              {renderDebugTrace()}
             </>
           )}
 
@@ -666,6 +706,8 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
               <div style={styles.errorBox}>
                 <p style={styles.errorText}>{error || 'An unknown error occurred'}</p>
               </div>
+
+              {renderDebugTrace()}
 
               <button
                 onClick={onConfirm}

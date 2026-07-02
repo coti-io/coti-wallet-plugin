@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { useConnectorClient, useAccount } from 'wagmi';
-import { BrowserProvider } from '@coti-io/coti-ethers';
+import { BrowserProvider, JsonRpcSigner } from '@coti-io/coti-ethers';
 import { useSnap } from './useSnap';
 import type { WalletTypeInfo } from './useWalletType';
 import { CotiPluginError, CotiErrorCode } from '../errors';
@@ -8,6 +8,11 @@ import { logger } from '../lib/logger';
 import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID } from '../config/chains';
 import { muteChainUpdates, unmuteChainUpdates, isChainUpdatesMuted } from '../lib/chainMute';
 import { canPersistAesKeyToSnap } from '../lib/snapOrigins';
+import {
+  formatOnboardingError,
+  isMetaMaskMobileBrowser,
+  OnboardingDebugTrace,
+} from '../lib/metaMaskMobile';
 
 /**
  * Regex pattern for validating AES key format: 32 or 64 hexadecimal characters.
@@ -87,6 +92,8 @@ export interface AesKeyProviderResult {
   onboardingError: string | null;
   /** Current onboarding step (for progress UI) */
   currentStep: OnboardingStep;
+  /** Timestamped trace of onboarding steps and RPC calls (for MetaMask Mobile debugging) */
+  onboardingDebugTrace: string[];
 }
 
 /**
@@ -111,6 +118,62 @@ export function isValidAesKey(key: string): boolean {
   return AES_KEY_PATTERN.test(key);
 }
 
+const SIGN_RPC_METHODS = new Set([
+  'personal_sign',
+  'eth_sign',
+  'eth_signTypedData',
+  'eth_signTypedData_v3',
+  'eth_signTypedData_v4',
+]);
+
+/**
+ * Wraps the wallet provider's `request` to log RPC calls and advance the UI
+ * between the message-signature and on-chain onboarding transaction steps.
+ */
+function instrumentWalletProvider(
+  walletProvider: { request: (...args: unknown[]) => Promise<unknown> },
+  emitStep: (step: OnboardingStep) => void,
+  trace: OnboardingDebugTrace,
+): () => void {
+  const hadOwnRequest = Object.prototype.hasOwnProperty.call(walletProvider, 'request');
+  const originalRequest = walletProvider.request.bind(walletProvider);
+  let executeStepEmitted = false;
+
+  walletProvider.request = async function instrumentedRequest(args: { method?: string; params?: unknown[] }) {
+    const method = args?.method ?? 'unknown';
+    trace.push('rpc', method);
+
+    if (args?.method === 'eth_sendTransaction' && !executeStepEmitted) {
+      executeStepEmitted = true;
+      emitStep('retrieving-key');
+    } else if (SIGN_RPC_METHODS.has(method)) {
+      trace.push('wallet-prompt', `Approve signature in wallet (${method})`);
+    }
+
+    try {
+      const result = await originalRequest(args);
+      trace.push('rpc-ok', method);
+      return result;
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      trace.push('rpc-err', `${method}: ${errMsg}`);
+      throw error;
+    }
+  };
+
+  return () => {
+    if (hadOwnRequest) {
+      walletProvider.request = originalRequest;
+    } else {
+      try {
+        delete (walletProvider as { request?: unknown }).request;
+      } catch {
+        walletProvider.request = originalRequest;
+      }
+    }
+  };
+}
+
 /**
  * Single abstraction for AES key retrieval. Routes to Snap or onboarding contract
  * based on wallet type.
@@ -127,7 +190,9 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
   const [isOnboarding, setIsOnboarding] = useState(false);
   const [onboardingError, setOnboardingError] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<OnboardingStep>('idle');
+  const [onboardingDebugTrace, setOnboardingDebugTrace] = useState<string[]>([]);
   const progressCallbackRef = useRef<OnboardingProgressCallback | undefined>();
+  const debugTraceRef = useRef(new OnboardingDebugTrace());
 
   const { getAESKeyFromSnap, saveAESKeyToSnap, clearSnapCache } = useSnap();
   const { connector, chainId: connectedChainId } = useAccount();
@@ -146,19 +211,36 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
     ): Promise<string | null> => {
       // Store progress callback for use within the flow
       progressCallbackRef.current = onProgress;
-      // Clear previous error on each new retrieval attempt
+      // Clear previous error and debug trace on each new retrieval attempt
       setOnboardingError(null);
+      debugTraceRef.current.clear();
+      setOnboardingDebugTrace([]);
       emitStep('idle');
 
+      const trace = debugTraceRef.current;
+      trace.push('start', `wallet=${walletTypeInfo.walletType} mobile=${isMetaMaskMobileBrowser()}`);
+
       const forceContractOnboarding = options?.forceContractOnboarding === true;
+      const skipSnapOnMetaMaskMobile =
+        walletTypeInfo.walletType === 'metamask' && isMetaMaskMobileBrowser();
 
       if (forceContractOnboarding) {
         logger.log('ℹ️ Forcing AccountOnboard contract path (skipping Snap read)');
         clearSnapCache();
       }
 
+      if (skipSnapOnMetaMaskMobile) {
+        trace.push('route', 'MetaMask Mobile — skipping Snap, using contract onboarding');
+        logger.log('ℹ️ MetaMask Mobile detected — skipping Snap path (uses eth_accounts)');
+      }
+
       // Route 1: MetaMask — try Snap path first unless contract onboarding was forced
-      if (walletTypeInfo.walletType === 'metamask' && !forceContractOnboarding) {
+      // or we're on MetaMask Mobile (Snap + eth_accounts are unreliable in the in-app browser).
+      if (
+        walletTypeInfo.walletType === 'metamask'
+        && !forceContractOnboarding
+        && !skipSnapOnMetaMaskMobile
+      ) {
         try {
           const key = await getAESKeyFromSnap(address, { skipCache: true });
           if (key && !isValidAesKey(key)) {
@@ -216,6 +298,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
 
         // Step: Switch network to COTI Testnet
         emitStep('switching-network');
+        trace.push('step', 'switching-network');
 
         // Determine if we need to switch to a COTI chain for onboarding
         const isCotiChain = connectedChainId === COTI_MAINNET_CHAIN_ID || connectedChainId === COTI_TESTNET_CHAIN_ID;
@@ -262,53 +345,28 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
 
         // Step: Create provider and signer
         emitStep('creating-provider');
+        trace.push('step', 'creating-provider');
 
-        // Instrument the wallet provider's `request` method so we can detect when
-        // the SDK moves from the message signature to the on-chain onboarding
-        // transaction. `generateOrRecoverAes()` performs TWO wallet interactions
-        // inside a single call:
-        //   1. a message signature   → "Sign Transaction" step (already active)
-        //   2. an eth_sendTransaction → "Execute Transaction" step
-        // Without this hook the UI cannot advance between the two wallet prompts
-        // and appears stuck on step 1.
-        let executeStepEmitted = false;
-        const hadOwnRequest = Object.prototype.hasOwnProperty.call(walletProvider, 'request');
-        const originalRequest = walletProvider.request;
-        walletProvider.request = function instrumentedRequest(args: any) {
-          if (args?.method === 'eth_sendTransaction' && !executeStepEmitted) {
-            executeStepEmitted = true;
-            // Mark "Sign Transaction" complete and activate "Execute Transaction"
-            emitStep('retrieving-key');
-          }
-          return originalRequest.call(walletProvider, args);
-        };
-        const restoreRequest = () => {
-          if (hadOwnRequest) {
-            walletProvider.request = originalRequest;
-          } else {
-            try {
-              delete walletProvider.request;
-            } catch {
-              walletProvider.request = originalRequest;
-            }
-          }
-        };
+        const restoreRequest = instrumentWalletProvider(walletProvider, emitStep, trace);
 
-        // Create a @coti-io/coti-ethers BrowserProvider (now on COTI Testnet)
+        // Create a @coti-io/coti-ethers BrowserProvider (now on COTI Testnet).
+        // Use JsonRpcSigner directly with the wagmi-connected address — NEVER call
+        // BrowserProvider.getSigner(), which always invokes eth_accounts (via hasSigner)
+        // and triggers MetaMask Mobile's coalescer stack overflow.
         const provider = new BrowserProvider(walletProvider);
-        // Do NOT pass `address` to getSigner on mobile: ethers v6 BrowserProvider.getSigner(address)
-        // internally calls eth_accounts to verify the address, which on MetaMask Mobile's in-app
-        // browser triggers a recursive coalescer bug ("Maximum call stack size exceeded").
-        // Calling getSigner() without an address uses the already-connected account directly.
-        const signer = await provider.getSigner();
+        trace.push('signer', `JsonRpcSigner(${address.slice(0, 10)}…)`);
+        const signer = new JsonRpcSigner(provider, address);
 
         // Step: Execute onboarding — first wallet interaction is the message signature
         emitStep('signing-transaction');
+        trace.push('step', 'signing-transaction');
 
         // Execute onboarding on COTI Testnet. The instrumented request hook above
         // advances the UI to "Execute Transaction" when the on-chain tx is sent.
         try {
+          trace.push('sdk', 'generateOrRecoverAes()');
           await signer.generateOrRecoverAes();
+          trace.push('sdk-ok', 'generateOrRecoverAes() complete');
         } finally {
           restoreRequest();
         }
@@ -322,6 +380,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
 
         // Step: Validate key format
         emitStep('validating-key');
+        trace.push('step', 'validating-key');
 
         if (aesKey && !isValidAesKey(aesKey)) {
           logger.warn('⚠️ AES key from onboard contract failed format validation');
@@ -365,8 +424,10 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         // Step: Complete
         if (aesKey && isValidAesKey(aesKey)) {
           emitStep('complete');
+          trace.push('step', 'complete');
         }
 
+        setOnboardingDebugTrace(trace.toLines());
         return aesKey;
       } catch (error: unknown) {
         // On error, attempt to switch wallet back to the original chain
@@ -389,10 +450,11 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         }
 
         // Set error state for UI display
-        const errorMessage =
-          error instanceof Error ? error.message : 'Failed to retrieve AES key from onboarding contract';
+        const errorMessage = formatOnboardingError(error);
         setOnboardingError(errorMessage);
         emitStep('error');
+        trace.push('error', errorMessage);
+        setOnboardingDebugTrace(trace.toLines());
         logger.error('❌ Onboarding contract AES key retrieval failed:', error);
         return null;
       } finally {
@@ -416,5 +478,6 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
     isOnboarding,
     onboardingError,
     currentStep,
+    onboardingDebugTrace,
   };
 }

@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import {
-  muteChainUpdates,
   unmuteChainUpdates,
   isChainUpdatesMuted,
 } from '../../src/lib/chainMute';
@@ -34,16 +33,34 @@ vi.mock('wagmi', () => ({
   useConnectorClient: () => ({ data: wagmiState.connectorClient }),
 }));
 
+function makeSigner(aesKey: string | null) {
+  return {
+    generateOrRecoverAes: vi.fn().mockResolvedValue(undefined),
+    getUserOnboardInfo: vi.fn().mockReturnValue({ aesKey }),
+  };
+}
+
 const ethersState = vi.hoisted(() => ({
-  getSigner: vi.fn(),
+  signer: null as ReturnType<typeof makeSigner> | null,
+  JsonRpcSigner: vi.fn(),
 }));
+
 vi.mock('@coti-io/coti-ethers', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   class BrowserProvider {
     constructor(_p: unknown) {}
-    getSigner = ethersState.getSigner;
   }
-  return { ...actual, BrowserProvider };
+  class JsonRpcSigner {
+    generateOrRecoverAes: ReturnType<typeof vi.fn>;
+    getUserOnboardInfo: ReturnType<typeof vi.fn>;
+    constructor(_provider: unknown, _address: string) {
+      ethersState.JsonRpcSigner(_provider, _address);
+      const signer = ethersState.signer ?? makeSigner(VALID_KEY);
+      this.generateOrRecoverAes = signer.generateOrRecoverAes;
+      this.getUserOnboardInfo = signer.getUserOnboardInfo;
+    }
+  }
+  return { ...actual, BrowserProvider, JsonRpcSigner };
 });
 
 import { useAesKeyProvider } from '../../src/hooks/useAesKeyProvider';
@@ -57,20 +74,13 @@ function walletInfo(overrides: Partial<WalletTypeInfo> = {}): WalletTypeInfo {
   };
 }
 
-function makeSigner(aesKey: string | null) {
-  return {
-    generateOrRecoverAes: vi.fn().mockResolvedValue(undefined),
-    getUserOnboardInfo: vi.fn().mockReturnValue({ aesKey }),
-  };
-}
-
 describe('useAesKeyProvider — unmute delay is approximately 500ms', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     unmuteChainUpdates();
     wagmiState.connector = undefined;
     wagmiState.chainId = undefined;
-    ethersState.getSigner.mockResolvedValue(makeSigner(VALID_KEY));
+    ethersState.signer = makeSigner(VALID_KEY);
   });
 
   afterEach(() => {

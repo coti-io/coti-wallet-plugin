@@ -38,6 +38,18 @@ describe('OnboardModal', () => {
     expect(screen.getByText('Retry')).toBeInTheDocument();
   });
 
+  it('shows debug trace on error screen when provided', () => {
+    render(
+      <OnboardModal
+        {...defaultProps}
+        error="Provider error"
+        debugTrace={['+0ms start — wallet=metamask', '+120ms rpc — personal_sign']}
+      />,
+    );
+    expect(screen.getByText('Debug trace')).toBeInTheDocument();
+    expect(screen.getByText('+120ms rpc — personal_sign')).toBeInTheDocument();
+  });
+
   it('calls onConfirm when "Begin Onboarding" is clicked', () => {
     const onConfirm = vi.fn();
     render(<OnboardModal {...defaultProps} onConfirm={onConfirm} />);

@@ -59,7 +59,7 @@ export default function App() {
 
   // Wallet type detection & AES key provider (routes Snap vs onboard contract)
   const walletTypeInfo = useWalletType();
-  const { getAesKey, isOnboarding, onboardingError, currentStep } = useAesKeyProvider(walletTypeInfo);
+  const { getAesKey, isOnboarding, onboardingError, currentStep, onboardingDebugTrace } = useAesKeyProvider(walletTypeInfo);
   const { fetchPrivateBalance } = usePrivateTokenBalance();
 
   // Session AES key state
@@ -341,6 +341,7 @@ export default function App() {
         currentStep={onboardingStep}
         aesKey={retrievedAesKey}
         hasSnap={walletTypeInfo.isMetaMaskWithSnap}
+        debugTrace={onboardingDebugTrace}
       />
     </div>
   );

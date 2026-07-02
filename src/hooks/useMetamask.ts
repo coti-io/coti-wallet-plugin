@@ -6,6 +6,7 @@ import { CotiPluginError, CotiErrorCode } from '../errors';
 import { logger } from '../lib/logger';
 import { truncateAddress } from '../lib/format';
 import { isChainUpdatesMuted } from '../lib/chainMute';
+import { getMetaMaskMobileEthAccountsDelayMs } from '../lib/metaMaskMobile';
 import {
     getChainIdConstants,
     getNetworkNameForChain,
@@ -243,8 +244,7 @@ export const useMetamask = ({
             eth.on?.('accountsChanged', handleAccountsChanged);
             eth.on?.('chainChanged', handleChainChanged);
 
-            // Check if already connected - ONLY ONCE
-            // Deferred one tick via setTimeout so MetaMask Mobile's JSON-RPC relay
+            // Deferred via setTimeout so MetaMask Mobile's JSON-RPC relay
             // is fully ready before we send eth_accounts. Without the defer, this
             // request races with any eth_accounts call triggered by user interaction
             // (e.g. tapping Unlock) on the very first page load, overflowing
@@ -252,8 +252,9 @@ export const useMetamask = ({
             // so that re-renders during the same tick do not schedule duplicates.
             if (!isInitialCheckDone.current) {
                 isInitialCheckDone.current = true;
+                const deferMs = getMetaMaskMobileEthAccountsDelayMs();
                 setTimeout(() => {
-                    logger.log('🔄 useMetamask: Performing initial eth_accounts check');
+                    logger.log(`🔄 useMetamask: Performing initial eth_accounts check (defer=${deferMs}ms)`);
                     (eth.request({ method: 'eth_accounts' }) as Promise<string[]>).then((accounts) => {
                         logger.log(
                             '🔄 useMetamask: eth_accounts result:',
@@ -269,7 +270,7 @@ export const useMetamask = ({
                             logger.log('ℹ️ useMetamask: No accounts returned by eth_accounts');
                         }
                     }).catch((err: any) => logger.error('❌ useMetamask: eth_accounts failed', err));
-                }, 0);
+                }, deferMs);
             }
 
             return () => {

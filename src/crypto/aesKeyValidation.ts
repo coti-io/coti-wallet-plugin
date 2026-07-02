@@ -3,6 +3,7 @@ import { ethers } from 'ethers';
 import { normalizeAesKey } from './aesKey';
 import { decryptCtUint256 } from './decryption';
 import { CotiPluginError, CotiErrorCode } from '../errors';
+import { guardedEthAccounts } from '../lib/metaMaskMobile';
 import { logger } from '../lib/logger';
 import type { EIP1193Provider } from '../lib/ethereum';
 import { CONTRACT_ADDRESSES, getPrivateTokensForChain, getPublicTokensForChain } from '../contracts/config';
@@ -65,7 +66,7 @@ export async function assertMetaMaskActiveAccount(
   provider: EIP1193Provider,
   expectedAddress: string,
 ): Promise<void> {
-  const accounts = (await provider.request({ method: 'eth_accounts' })) as string[];
+  const accounts = await guardedEthAccounts(provider);
   const active = accounts[0]?.toLowerCase();
   const expected = expectedAddress.toLowerCase();
   if (!active || active !== expected) {
