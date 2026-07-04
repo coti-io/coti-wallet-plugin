@@ -661,6 +661,7 @@ function getStepStatus(
 function getProgressTitle(currentStep: OnboardingStep): string {
   if (currentStep === 'granting-funds') return 'Requesting COTI Grant';
   if (currentStep === 'waiting-for-funds') return 'Waiting for Grant Funds';
+  if (currentStep === 'saving-backup') return 'Saving Encrypted Backup';
   return 'Onboarding in Progress';
 }
 
@@ -670,6 +671,9 @@ function getProgressDescription(currentStep: OnboardingStep): string {
   }
   if (currentStep === 'waiting-for-funds') {
     return 'The grant request was submitted. Waiting for the native COTI balance to update...';
+  }
+  if (currentStep === 'saving-backup') {
+    return 'Saving your encrypted AES backup. If a vault address is configured, approve the backup transaction in your wallet.';
   }
   return 'Please wait while we retrieve your AES encryption key...';
 }
@@ -1067,6 +1071,19 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
                     {walletType === 'metamask' && (
                       <> — you may see two prompts (message signature, then on-chain transaction)</>
                     )}
+                  </p>
+                </div>
+              )}
+
+              {currentStep === 'saving-backup' && (
+                <div style={styles.calloutBox}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00E5FF" strokeWidth="2">
+                    <path d="M12 3v12" />
+                    <path d="M8 11l4 4 4-4" />
+                    <path d="M5 21h14" />
+                  </svg>
+                  <p style={styles.calloutText}>
+                    <strong>Backup save:</strong> The encrypted blob is saved locally first. If on-chain backup is enabled, your wallet will ask you to submit one vault transaction.
                   </p>
                 </div>
               )}

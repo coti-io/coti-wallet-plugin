@@ -66,7 +66,7 @@ export interface CotiPluginConfig {
   onboardingServices?: OnboardingServices;
   /**
    * CREATE2 `AesKeyBackupVault` address (same on COTI testnet and mainnet).
-   * When omitted, encrypted backup restore/save is skipped and onboarding stays local/session-only.
+   * When omitted, encrypted backup restore/save falls back to localStorage.
    */
   aesKeyBackupVaultAddress?: string;
   /** Native COTI threshold required before contract onboarding. Defaults to 0. */

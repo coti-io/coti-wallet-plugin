@@ -36,13 +36,11 @@ vi.mock('../../src/lib/snapOrigins', () => ({
 
 const backupContractState = vi.hoisted(() => ({
   fetchEncryptedAesBackupFromContract: vi.fn(),
-  isAesKeyBackupVaultConfigured: vi.fn(),
   saveEncryptedAesBackupToContract: vi.fn(),
 }));
 
 vi.mock('../../src/crypto/aesKeyBackupContract', () => ({
   fetchEncryptedAesBackupFromContract: backupContractState.fetchEncryptedAesBackupFromContract,
-  isAesKeyBackupVaultConfigured: backupContractState.isAesKeyBackupVaultConfigured,
   saveEncryptedAesBackupToContract: backupContractState.saveEncryptedAesBackupToContract,
 }));
 
@@ -130,10 +128,10 @@ describe('useAesKeyProvider (full branch coverage)', () => {
     ethersState.getSigner.mockResolvedValue(makeSigner(VALID_KEY));
     ethersState.getBalance.mockResolvedValue(1n);
     backupContractState.fetchEncryptedAesBackupFromContract.mockResolvedValue(null);
-    backupContractState.isAesKeyBackupVaultConfigured.mockReturnValue(true);
     backupContractState.saveEncryptedAesBackupToContract.mockResolvedValue('0xbackup');
     mobileState.isMetaMaskMobileBrowser.mockReturnValue(false);
     configureCotiPlugin({
+      aesKeyBackupVaultAddress: undefined,
       onboardingServices: {
         mode: 'disabled',
         grantNativeCoti: undefined,
@@ -598,8 +596,7 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       );
     });
 
-    it('skips restore and backup save when the backup vault is not configured', async () => {
-      backupContractState.isAesKeyBackupVaultConfigured.mockReturnValue(false);
+    it('uses the backup storage adapter even when the vault is not configured', async () => {
       wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
       wagmiState.chainId = COTI_TESTNET;
 
@@ -611,8 +608,14 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       });
 
       expect(key).toBe(VALID_KEY);
-      expect(backupContractState.fetchEncryptedAesBackupFromContract).not.toHaveBeenCalled();
-      expect(backupContractState.saveEncryptedAesBackupToContract).not.toHaveBeenCalled();
+      expect(backupContractState.fetchEncryptedAesBackupFromContract).toHaveBeenCalledWith(ADDR, COTI_TESTNET);
+      expect(backupContractState.saveEncryptedAesBackupToContract).toHaveBeenCalledWith(
+        expect.objectContaining({
+          address: ADDR,
+          chainId: COTI_TESTNET,
+          backup: expect.objectContaining({ signatureKind: 'eip712' }),
+        }),
+      );
       expect(result.current.onboardingWarning).toBeNull();
     });
 

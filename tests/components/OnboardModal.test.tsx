@@ -81,6 +81,20 @@ describe('OnboardModal', () => {
     ).toBeInTheDocument();
   });
 
+  it('shows a visible backup transaction indicator while saving backup', () => {
+    render(
+      <OnboardModal
+        {...defaultProps}
+        isLoading={true}
+        currentStep="saving-backup"
+      />
+    );
+
+    expect(screen.getByText('Saving Encrypted Backup')).toBeInTheDocument();
+    expect(screen.getByText(/approve the backup transaction/i)).toBeInTheDocument();
+    expect(screen.getByText(/one vault transaction/i)).toBeInTheDocument();
+  });
+
   it('shows error screen with message and retry button', () => {
     render(<OnboardModal {...defaultProps} error="Network timeout" />);
     expect(screen.getByText('Onboarding Failed')).toBeInTheDocument();

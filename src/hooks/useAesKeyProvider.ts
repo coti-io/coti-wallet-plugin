@@ -11,7 +11,6 @@ import { getPluginConfig } from '../config/plugin';
 import { decryptAesKeyBackup, encryptAesKeyBackup } from '../crypto/aesKeyBackupVault';
 import {
   fetchEncryptedAesBackupFromContract,
-  isAesKeyBackupVaultConfigured,
   saveEncryptedAesBackupToContract,
 } from '../crypto/aesKeyBackupContract';
 import { normalizeAesKey } from '../crypto/aesKey';
@@ -345,66 +344,63 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         const isConnectedCotiChain = connectedChainId === COTI_MAINNET_CHAIN_ID || connectedChainId === COTI_TESTNET_CHAIN_ID;
         const targetCotiChainId = isConnectedCotiChain && connectedChainId ? connectedChainId : COTI_TESTNET_CHAIN_ID;
         const backupContext = { address, chainId: targetCotiChainId };
-        const backupVaultConfigured = isAesKeyBackupVaultConfigured();
 
-        if (backupVaultConfigured) {
-          try {
-            emitStep('restoring-backup');
-            const backup = await fetchEncryptedAesBackupFromContract(address, targetCotiChainId);
-            if (backup) {
-              const provider = new BrowserProvider(walletProvider);
-              const signer = await provider.getSigner(address);
-              const restoredKey = await decryptAesKeyBackup(backup, signer, backupContext);
-              logger.log('✅ AES key restored from encrypted backup vault');
+        try {
+          emitStep('restoring-backup');
+          const backup = await fetchEncryptedAesBackupFromContract(address, targetCotiChainId);
+          if (backup) {
+            const provider = new BrowserProvider(walletProvider);
+            const signer = await provider.getSigner(address);
+            const restoredKey = await decryptAesKeyBackup(backup, signer, backupContext);
+            logger.log('✅ AES key restored from encrypted backup');
 
-              if (
-                options.hydrateSnapFromBackup
-                && walletTypeInfo.walletType === 'metamask'
-                && canPersistAesKeyToSnap()
-              ) {
-                emitStep('persisting-key');
-                const saved = await saveAESKeyToSnap(restoredKey, address);
-                if (!saved) {
-                  logger.warn('⚠️ Restored AES key but could not persist it to Snap');
-                }
-
-                if (saved) {
-                  emitStep('complete');
-                } else {
-                  emitStep('idle');
-                }
-                // Dedicated hydrate path keeps the raw AES key out of dapp session state.
-                return null;
+            if (
+              options.hydrateSnapFromBackup
+              && walletTypeInfo.walletType === 'metamask'
+              && canPersistAesKeyToSnap()
+            ) {
+              emitStep('persisting-key');
+              const saved = await saveAESKeyToSnap(restoredKey, address);
+              if (!saved) {
+                logger.warn('⚠️ Restored AES key but could not persist it to Snap');
               }
 
-              if (
-                options.hydrateSnapFromBackup
-                && walletTypeInfo.walletType === 'metamask'
-              ) {
-                logger.log(
-                  'ℹ️ Skipping Snap AES persist — origin not authorized for set-aes-key:',
-                  typeof window !== 'undefined' ? window.location.origin : 'unknown',
-                );
-                return null;
+              if (saved) {
+                emitStep('complete');
+              } else {
+                emitStep('idle');
               }
-
-              emitStep('complete');
-              return restoredKey;
-            }
-          } catch (restoreError) {
-            if (isUserRejection(restoreError)) {
-              setOnboardingWarning('Backup restore was cancelled. Approve the wallet signature to unlock from your encrypted backup.');
-              setWasRestoreCancelled(true);
-              options.onRestoreCancelled?.();
-              emitStep('idle');
+              // Dedicated hydrate path keeps the raw AES key out of dapp session state.
               return null;
             }
-            const message = restoreError instanceof Error
-              ? restoreError.message
-              : 'Encrypted AES backup could not be restored.';
-            logger.warn('⚠️ AES backup restore failed, falling back to contract onboarding:', restoreError);
-            setOnboardingWarning(`Encrypted backup could not be restored. Continuing with onboarding. ${message}`);
+
+            if (
+              options.hydrateSnapFromBackup
+              && walletTypeInfo.walletType === 'metamask'
+            ) {
+              logger.log(
+                'ℹ️ Skipping Snap AES persist — origin not authorized for set-aes-key:',
+                typeof window !== 'undefined' ? window.location.origin : 'unknown',
+              );
+              return null;
+            }
+
+            emitStep('complete');
+            return restoredKey;
           }
+        } catch (restoreError) {
+          if (isUserRejection(restoreError)) {
+            setOnboardingWarning('Backup restore was cancelled. Approve the wallet signature to unlock from your encrypted backup.');
+            setWasRestoreCancelled(true);
+            options.onRestoreCancelled?.();
+            emitStep('idle');
+            return null;
+          }
+          const message = restoreError instanceof Error
+            ? restoreError.message
+            : 'Encrypted AES backup could not be restored.';
+          logger.warn('⚠️ AES backup restore failed, falling back to contract onboarding:', restoreError);
+          setOnboardingWarning(`Encrypted backup could not be restored. Continuing with onboarding. ${message}`);
         }
 
         if (options.restoreOnly) {
@@ -580,8 +576,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           aesKey &&
           isValidAesKey(aesKey) &&
           options.saveBackup &&
-          !skipEncryptedBackupForSnap &&
-          backupVaultConfigured
+          !skipEncryptedBackupForSnap
         ) {
           try {
             emitStep('saving-backup');

@@ -16,6 +16,42 @@ const base64ToHex = (value: string) =>
 const bytesLikeToBase64 = (value: ethers.BytesLike) =>
   bytesToBase64(ethers.getBytes(value));
 
+const localBackupKey = (address: string, chainId: number) =>
+  `coti-wallet-plugin:aes-backup:${chainId}:${address.toLowerCase()}`;
+
+const legacyExampleBackupKey = (address: string, chainId: number) =>
+  `coti-example:aes-backup:${chainId}:${address.toLowerCase()}`;
+
+const getLocalStorage = (): Storage | null => {
+  if (typeof window === 'undefined') return null;
+  return window.localStorage ?? null;
+};
+
+const fetchEncryptedAesBackupFromLocalStorage = (
+  address: string,
+  chainId: number,
+): EncryptedAesBackup | null => {
+  const storage = getLocalStorage();
+  if (!storage) return null;
+
+  const raw =
+    storage.getItem(localBackupKey(address, chainId)) ??
+    storage.getItem(legacyExampleBackupKey(address, chainId));
+  if (!raw) return null;
+
+  return JSON.parse(raw) as EncryptedAesBackup;
+};
+
+const saveEncryptedAesBackupToLocalStorage = (
+  address: string,
+  chainId: number,
+  backup: EncryptedAesBackup,
+): void => {
+  const storage = getLocalStorage();
+  if (!storage) return;
+  storage.setItem(localBackupKey(address, chainId), JSON.stringify(backup));
+};
+
 export const getConfiguredAesKeyBackupVaultAddress = (): string | null => {
   const address = getPluginConfig().aesKeyBackupVaultAddress;
   if (!address) return null;
@@ -25,13 +61,13 @@ export const getConfiguredAesKeyBackupVaultAddress = (): string | null => {
   return address;
 };
 
-export const isAesKeyBackupVaultConfigured = (): boolean =>
-  getConfiguredAesKeyBackupVaultAddress() !== null;
-
 export async function fetchEncryptedAesBackupFromContract(
   address: string,
   chainId: number,
 ): Promise<EncryptedAesBackup | null> {
+  const localBackup = fetchEncryptedAesBackupFromLocalStorage(address, chainId);
+  if (localBackup) return localBackup;
+
   const vaultAddress = getConfiguredAesKeyBackupVaultAddress();
   if (!vaultAddress) return null;
 
@@ -59,7 +95,8 @@ export async function saveEncryptedAesBackupToContract(params: {
   provider: Eip1193Provider;
 }): Promise<string | null> {
   const { address, chainId, backup, provider: eip1193 } = params;
-  void chainId;
+  saveEncryptedAesBackupToLocalStorage(address, chainId, backup);
+
   const vaultAddress = getConfiguredAesKeyBackupVaultAddress();
   if (!vaultAddress) return null;
 
