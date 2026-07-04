@@ -3,6 +3,7 @@ import type { AesKeyProviderOptions, OnboardingProgressCallback } from '../../ho
 import type { Token } from '../../hooks/usePrivacyBridge';
 import type { PrivacyBridgeModalsContextValue } from './types';
 import type { PrivateBalanceDecryptOptions } from '../../hooks/usePrivateTokenBalance';
+import type { BuildItUint256ViaSnapParams, SnapItUint256 } from '../../hooks/useSnap';
 
 export type UpdateAccountStateOptions = {
     /** When true, validate MetaMask Snap keys on unlock (reuses session key when present). */
@@ -65,6 +66,7 @@ export interface PrivacyBridgeSessionCore {
   ) => Promise<string>;
   decryptCtUint64ViaSnap: NonNullable<PrivateBalanceDecryptOptions['decryptCtUint64']>;
   decryptCtUint256ViaSnap: NonNullable<PrivateBalanceDecryptOptions['decryptCtUint256']>;
+  buildItUint256ViaSnap: (params: BuildItUint256ViaSnapParams) => Promise<SnapItUint256 | null>;
   getAesKeyFromProvider: (
     accountAddress: string,
     onProgress?: OnboardingProgressCallback,

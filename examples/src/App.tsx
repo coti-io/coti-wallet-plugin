@@ -5,6 +5,7 @@ import {
   configureCotiPlugin,
   OnboardModal,
   usePrivacyBridgeNetwork,
+  usePrivacyBridgeSwap,
   usePrivacyBridgeTokens,
   usePrivacyBridgeUnlock,
   usePrivacyBridgeWallet,
@@ -131,6 +132,7 @@ export default function App() {
   const wallet = usePrivacyBridgeWallet();
   const network = usePrivacyBridgeNetwork();
   const unlock = usePrivacyBridgeUnlock();
+  const swap = usePrivacyBridgeSwap();
   const { publicTokens, privateTokens } = usePrivacyBridgeTokens();
 
   const [showOnboardModal, setShowOnboardModal] = useState(false);
@@ -142,6 +144,13 @@ export default function App() {
   const [saveBackup, setSaveBackup] = useState(true);
   const [currentStep, setCurrentStep] = useState<OnboardingStep>('idle');
   const [snapAesKeyStatus, setSnapAesKeyStatus] = useState<SnapAesKeyStatus>('idle');
+  const [portalAmount, setPortalAmount] = useState('');
+  const [portalTokenIndex, setPortalTokenIndex] = useState(0);
+  const [portalStatus, setPortalStatus] = useState<string | null>(null);
+  const [privateSendSymbol, setPrivateSendSymbol] = useState('');
+  const [privateSendRecipient, setPrivateSendRecipient] = useState('');
+  const [privateSendAmount, setPrivateSendAmount] = useState('');
+  const [privateSendStatus, setPrivateSendStatus] = useState<string | null>(null);
 
   const connectedAddress = wallet.walletAddress || address || '';
   const isMetaMaskWallet = walletTypeInfo.walletType === 'metamask';
@@ -154,6 +163,11 @@ export default function App() {
     ],
     [publicTokens, privateTokens],
   );
+  const selectedPortalToken = publicTokens[portalTokenIndex] ?? publicTokens[0];
+  const privateSendTokens = useMemo(
+    () => privateTokens.filter(token => token.addressKey),
+    [privateTokens],
+  );
 
   useEffect(() => {
     if (!isConnected) {
@@ -162,6 +176,16 @@ export default function App() {
       setSnapAesKeyStatus('idle');
     }
   }, [isConnected]);
+
+  useEffect(() => {
+    if (portalTokenIndex >= publicTokens.length) setPortalTokenIndex(0);
+  }, [portalTokenIndex, publicTokens.length]);
+
+  useEffect(() => {
+    if (!privateSendSymbol && privateSendTokens[0]) {
+      setPrivateSendSymbol(privateSendTokens[0].symbol);
+    }
+  }, [privateSendSymbol, privateSendTokens]);
 
   const refreshSnapAesKeyStatus = useCallback(async () => {
     if (!isConnected || !connectedAddress || !isMetaMaskWallet) {
@@ -282,6 +306,79 @@ export default function App() {
     disconnect();
   }, [disconnect, lockPrivateBalances, wallet]);
 
+  const syncSwapForm = useCallback((direction: 'to-private' | 'to-public') => {
+    swap.setAmount(portalAmount);
+    swap.setDirection(direction);
+    swap.setSelectedTokenIndex(portalTokenIndex);
+  }, [portalAmount, portalTokenIndex, swap]);
+
+  const onSwapProgress = useCallback<NonNullable<Parameters<typeof swap.handleSwap>[3]>>((stage, txHash) => {
+    const label = stage.replace('-', ' ');
+    setPortalStatus(txHash ? `${label}: ${txHash}` : label);
+  }, []);
+
+  const runPortalSwap = useCallback(async (direction: 'to-private' | 'to-public') => {
+    if (!selectedPortalToken) {
+      setPortalStatus('No portal token available on this network.');
+      return;
+    }
+    if (direction === 'to-public' && !unlock.isPrivateUnlocked) {
+      setPortalStatus('Unlock private balances before portal out.');
+      return;
+    }
+
+    syncSwapForm(direction);
+    setPortalStatus(direction === 'to-private' ? 'Portal in started...' : 'Portal out started...');
+    try {
+      await swap.handleSwap(portalAmount, direction, portalTokenIndex, onSwapProgress);
+      setPortalStatus(direction === 'to-private' ? 'Portal in submitted.' : 'Portal out submitted.');
+    } catch (error) {
+      setPortalStatus(error instanceof Error ? error.message : 'Portal swap failed.');
+    }
+  }, [
+    onSwapProgress,
+    portalAmount,
+    portalTokenIndex,
+    selectedPortalToken,
+    swap,
+    syncSwapForm,
+    unlock.isPrivateUnlocked,
+  ]);
+
+  const approvePortalOut = useCallback(async () => {
+    syncSwapForm('to-public');
+    setPortalStatus('Approval started...');
+    try {
+      await swap.handleApprove();
+      setPortalStatus('Approval complete.');
+    } catch (error) {
+      setPortalStatus(error instanceof Error ? error.message : 'Approval failed.');
+    }
+  }, [swap, syncSwapForm]);
+
+  const sendPrivateToken = useCallback(async () => {
+    if (!unlock.isPrivateUnlocked) {
+      setPrivateSendStatus('Unlock private balances before private send.');
+      return;
+    }
+    setPrivateSendStatus('Private send started...');
+    try {
+      const result = await unlock.sendPrivateToken({
+        symbol: privateSendSymbol,
+        recipient: privateSendRecipient,
+        amount: privateSendAmount,
+      });
+      setPrivateSendStatus(`Private send confirmed: ${result.txHash}`);
+    } catch (error) {
+      setPrivateSendStatus(error instanceof Error ? error.message : 'Private send failed.');
+    }
+  }, [
+    privateSendAmount,
+    privateSendRecipient,
+    privateSendSymbol,
+    unlock,
+  ]);
+
   return (
     <div style={{ fontFamily: 'system-ui, sans-serif', maxWidth: 760, margin: '0 auto', padding: 24 }}>
       <h1 style={{ fontSize: 24, marginBottom: 16 }}>COTI Wallet Plugin - Example dApp</h1>
@@ -371,6 +468,133 @@ export default function App() {
             ))}
           </tbody>
         </table>
+      )}
+
+      {isConnected && (
+        <section style={{ marginTop: 24, padding: 16, border: '1px solid #ddd', borderRadius: 8 }}>
+          <h2 style={{ fontSize: 18, marginTop: 0 }}>Portal In / Portal Out</h2>
+          <p style={{ fontSize: 13, color: '#666' }}>
+            Uses <code>usePrivacyBridgeSwap()</code>. Portal in moves public token balance to private.
+            Portal out moves private balance back to public and may need private approval first.
+          </p>
+
+          <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr', marginBottom: 12 }}>
+            <label style={{ display: 'grid', gap: 4 }}>
+              <span style={{ fontSize: 12, color: '#555' }}>Token</span>
+              <select
+                value={portalTokenIndex}
+                onChange={event => setPortalTokenIndex(Number(event.target.value))}
+                style={{ padding: 8 }}
+              >
+                {publicTokens.map((token, index) => (
+                  <option key={token.symbol} value={index}>
+                    {token.symbol}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label style={{ display: 'grid', gap: 4 }}>
+              <span style={{ fontSize: 12, color: '#555' }}>Amount</span>
+              <input
+                value={portalAmount}
+                onChange={event => setPortalAmount(event.target.value)}
+                placeholder="0.1"
+                style={{ padding: 8 }}
+              />
+            </label>
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <button
+              onClick={() => void runPortalSwap('to-private')}
+              disabled={swap.isBridgingLoading || !portalAmount}
+              style={{ padding: '8px 16px', cursor: swap.isBridgingLoading ? 'wait' : 'pointer' }}
+            >
+              Portal In
+            </button>
+            <button
+              onClick={() => void runPortalSwap('to-public')}
+              disabled={swap.isBridgingLoading || !portalAmount || !unlock.isPrivateUnlocked}
+              style={{ padding: '8px 16px', cursor: swap.isBridgingLoading ? 'wait' : 'pointer' }}
+            >
+              Portal Out
+            </button>
+            {swap.isApprovalNeeded && (
+              <button
+                onClick={() => void approvePortalOut()}
+                disabled={swap.isApproving || !unlock.isPrivateUnlocked}
+                style={{ padding: '8px 16px', cursor: swap.isApproving ? 'wait' : 'pointer' }}
+              >
+                {swap.isApproving ? 'Approving...' : 'Approve Private Spend'}
+              </button>
+            )}
+          </div>
+
+          <p style={{ fontSize: 12, color: '#666' }}>
+            Selected: {selectedPortalToken?.symbol ?? 'None'} | Estimated gas:{' '}
+            {swap.isGasEstimating ? 'estimating...' : swap.estimatedGasFee ?? 'n/a'} | Portal fee:{' '}
+            {swap.portalFeeCoti ?? 'n/a'} COTI
+          </p>
+          {portalStatus && <p style={{ fontSize: 12 }}>{portalStatus}</p>}
+        </section>
+      )}
+
+      {isConnected && (
+        <section style={{ marginTop: 16, padding: 16, border: '1px solid #ddd', borderRadius: 8 }}>
+          <h2 style={{ fontSize: 18, marginTop: 0 }}>Send Private Token</h2>
+          <p style={{ fontSize: 13, color: '#666' }}>
+            Uses <code>usePrivacyBridgeUnlock().sendPrivateToken()</code>. The example does not
+            implement regular public-token send because that is standard wallet/app code, not plugin
+            behavior.
+          </p>
+
+          <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 2fr 1fr', marginBottom: 12 }}>
+            <label style={{ display: 'grid', gap: 4 }}>
+              <span style={{ fontSize: 12, color: '#555' }}>Private token</span>
+              <select
+                value={privateSendSymbol}
+                onChange={event => setPrivateSendSymbol(event.target.value)}
+                style={{ padding: 8 }}
+              >
+                {privateSendTokens.map(token => (
+                  <option key={token.symbol} value={token.symbol}>
+                    {token.symbol}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label style={{ display: 'grid', gap: 4 }}>
+              <span style={{ fontSize: 12, color: '#555' }}>Recipient</span>
+              <input
+                value={privateSendRecipient}
+                onChange={event => setPrivateSendRecipient(event.target.value)}
+                placeholder="0x..."
+                style={{ padding: 8 }}
+              />
+            </label>
+
+            <label style={{ display: 'grid', gap: 4 }}>
+              <span style={{ fontSize: 12, color: '#555' }}>Amount</span>
+              <input
+                value={privateSendAmount}
+                onChange={event => setPrivateSendAmount(event.target.value)}
+                placeholder="0.1"
+                style={{ padding: 8 }}
+              />
+            </label>
+          </div>
+
+          <button
+            onClick={() => void sendPrivateToken()}
+            disabled={!unlock.isPrivateUnlocked || !privateSendSymbol || !privateSendRecipient || !privateSendAmount}
+            style={{ padding: '8px 16px', cursor: unlock.isPrivateUnlocked ? 'pointer' : 'not-allowed' }}
+          >
+            Send Private Token
+          </button>
+          {privateSendStatus && <p style={{ fontSize: 12 }}>{privateSendStatus}</p>}
+        </section>
       )}
 
       <OnboardModal

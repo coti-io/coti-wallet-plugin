@@ -58,6 +58,7 @@ export const usePrivacyBridgeSession = ({ modals }: UsePrivacyBridgeSessionOptio
     lockPrivateBalances: unlock.lockPrivateBalances,
     saveManualAesKey: unlock.saveManualAesKey,
     unlockCachedAesKey: unlock.unlockCachedAesKey,
+    sendPrivateToken: unlock.sendPrivateToken,
     sessionAesKey: core.sessionAesKey,
     isPrivateUnlocked: unlock.isPrivateUnlocked,
     showSnapMissingModal: core.showSnapMissingModal,

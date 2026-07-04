@@ -36,6 +36,13 @@ export interface PrivacyBridgeUnlockContextValue {
   connectToSnap: () => Promise<boolean>;
   requestSnapConnection: () => Promise<boolean>;
   isPrivateUnlocked: boolean;
+  /** Re-unlock after lock without page refresh (uses in-memory session key internally). */
+  unlockCachedAesKey: () => Promise<void>;
+  sendPrivateToken: (params: {
+    symbol: string;
+    recipient: string;
+    amount: string;
+  }) => Promise<{ txHash: string }>;
   refreshPrivateBalances: (options?: AesKeyProviderOptions) => Promise<boolean>;
   lockPrivateBalances: () => void;
   handleOnboard: () => Promise<string | null>;
