@@ -27,6 +27,7 @@ import {
 } from '../config/chains';
 import { getPluginConfig } from '../config/plugin';
 import { resolveWalletConnectProjectId } from '../config/walletConnect';
+import { eip6963MetaMaskWallet } from './eip6963MetaMaskWallet';
 
 /** RainbowKit-compatible mobile detection (iOS, Android, iPad). */
 const isMobileBrowser = (): boolean => {
@@ -38,27 +39,29 @@ const isMobileBrowser = (): boolean => {
   );
 };
 
-type WalletFactory = Parameters<typeof connectorsForWallets>[0][number]['wallets'][number];
+function getWalletGroups(useEip6963MetaMask = false) {
+  const metaMaskConnector = useEip6963MetaMask ? eip6963MetaMaskWallet : metaMaskWallet;
 
-const DESKTOP_WALLET_GROUPS: { groupName: string; wallets: WalletFactory[] }[] = [
-  {
-    groupName: 'Recommended',
-    wallets: [metaMaskWallet, rabbyWallet, trustWallet, oneKeyWallet, walletConnectWallet],
-  },
-  {
-    groupName: 'Other',
-    wallets: [coinbaseWallet, ledgerWallet],
-  },
-];
+  if (isMobileBrowser()) {
+    return [
+      {
+        groupName: 'Recommended',
+        wallets: [walletConnectWallet, metaMaskConnector, rabbyWallet, trustWallet, oneKeyWallet],
+      },
+    ];
+  }
 
-const MOBILE_WALLET_GROUPS: { groupName: string; wallets: WalletFactory[] }[] = [
-  {
-    groupName: 'Recommended',
-    wallets: [walletConnectWallet, metaMaskWallet, rabbyWallet, trustWallet, oneKeyWallet],
-  },
-];
-
-const getWalletGroups = () => (isMobileBrowser() ? MOBILE_WALLET_GROUPS : DESKTOP_WALLET_GROUPS);
+  return [
+    {
+      groupName: 'Recommended',
+      wallets: [metaMaskConnector, rabbyWallet, trustWallet, oneKeyWallet, walletConnectWallet],
+    },
+    {
+      groupName: 'Other',
+      wallets: [coinbaseWallet, ledgerWallet],
+    },
+  ];
+}
 
 interface WagmiRainbowKitProviderProps {
   children: React.ReactNode;
@@ -68,13 +71,20 @@ interface WagmiRainbowKitProviderProps {
   initialChain?: Chain;
   /** Override the app name shown in the RainbowKit modal. Defaults to 'COTI Wallet'. */
   appName?: string;
+  /**
+   * When true, replaces the standard metaMaskWallet connector with an EIP-6963
+   * discovered provider connector, preventing window.ethereum hijacking by
+   * other installed wallets (Rabby, Phantom, Trust).
+   * Default: false (keeps existing behaviour).
+   */
+  useEip6963MetaMask?: boolean;
 }
 
-function createWagmiConfig(walletConnectProjectId?: string) {
+function createWagmiConfig(walletConnectProjectId?: string, useEip6963MetaMask = false) {
   const projectId = resolveWalletConnectProjectId(walletConnectProjectId);
 
   const connectors = connectorsForWallets(
-    getWalletGroups(),
+    getWalletGroups(useEip6963MetaMask),
     {
       appName: 'COTI Wallet Plugin',
       projectId,
@@ -153,11 +163,12 @@ export function WagmiRainbowKitProvider({
   walletConnectProjectId,
   initialChain = cotiTestnet,
   appName = 'COTI Wallet',
+  useEip6963MetaMask = false,
 }: WagmiRainbowKitProviderProps) {
   const pluginConfig = getPluginConfig();
   const config = useMemo(
-    () => createWagmiConfig(walletConnectProjectId),
-    [walletConnectProjectId, pluginConfig.sepoliaRpcUrl, pluginConfig.walletConnectProjectId],
+    () => createWagmiConfig(walletConnectProjectId, useEip6963MetaMask),
+    [walletConnectProjectId, useEip6963MetaMask, pluginConfig.sepoliaRpcUrl, pluginConfig.walletConnectProjectId],
   );
 
   return (

@@ -28,6 +28,7 @@ vi.mock('viem', () => ({
 // rainbowkit and rainbowkit/wallets are mocked via vitest.config.ts aliases
 
 import { WagmiRainbowKitProvider, getWagmiConfig, wagmiConfig } from '../../src/providers/WagmiRainbowKitProvider';
+import { eip6963MetaMaskWallet } from '../../src/providers/eip6963MetaMaskWallet';
 import { configureCotiPlugin } from '../../src/config/plugin';
 import { resolveWalletConnectProjectId } from '../../src/config/walletConnect';
 import { CotiErrorCode, CotiPluginError, hasCotiErrorCode } from '../../src/errors';
@@ -218,6 +219,43 @@ describe('WagmiRainbowKitProvider', () => {
         },
       ],
       expect.objectContaining({ projectId: 'desktop-wallet-test' }),
+    );
+
+    Object.defineProperty(navigator, 'userAgent', {
+      configurable: true,
+      value: originalUserAgent,
+    });
+    configureCotiPlugin({ sepoliaRpcUrl: undefined });
+  });
+
+  it('uses EIP-6963 MetaMask wallet when useEip6963MetaMask is enabled', () => {
+    const originalUserAgent = navigator.userAgent;
+    Object.defineProperty(navigator, 'userAgent', {
+      configurable: true,
+      value: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+    });
+
+    vi.mocked(connectorsForWallets).mockClear();
+    configureCotiPlugin({ sepoliaRpcUrl: 'https://eip6963-metamask.example/rpc' });
+    render(
+      <WagmiRainbowKitProvider useEip6963MetaMask walletConnectProjectId="eip6963-wallet-test">
+        <div data-testid="eip6963-child">EIP-6963</div>
+      </WagmiRainbowKitProvider>,
+    );
+
+    expect(screen.getByTestId('eip6963-child')).toBeDefined();
+    expect(connectorsForWallets).toHaveBeenCalledWith(
+      [
+        {
+          groupName: 'Recommended',
+          wallets: [eip6963MetaMaskWallet, rabbyWallet, trustWallet, oneKeyWallet, walletConnectWallet],
+        },
+        {
+          groupName: 'Other',
+          wallets: [coinbaseWallet, ledgerWallet],
+        },
+      ],
+      expect.objectContaining({ projectId: 'eip6963-wallet-test' }),
     );
 
     Object.defineProperty(navigator, 'userAgent', {
