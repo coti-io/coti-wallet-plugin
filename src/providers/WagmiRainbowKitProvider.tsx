@@ -16,10 +16,13 @@ import {
   cotiMainnet,
   cotiTestnet,
   sepolia,
+  avalancheFuji,
   COTI_MAINNET_RPC,
   COTI_TESTNET_RPC,
   SEPOLIA_RPC,
   SEPOLIA_RPC_FALLBACK,
+  AVALANCHE_FUJI_RPC,
+  AVALANCHE_FUJI_RPC_FALLBACK,
 } from '../config/chains';
 import { getPluginConfig } from '../config/plugin';
 import { resolveWalletConnectProjectId } from '../config/walletConnect';
@@ -79,7 +82,7 @@ function createWagmiConfig(walletConnectProjectId?: string) {
     : fallback([http(SEPOLIA_RPC), http(SEPOLIA_RPC_FALLBACK)]);
 
   return createConfig({
-    chains: [sepolia, cotiTestnet, cotiMainnet],
+    chains: [sepolia, cotiTestnet, cotiMainnet, avalancheFuji],
     connectors,
     multiInjectedProviderDiscovery: true,
     ssr: false,
@@ -87,6 +90,7 @@ function createWagmiConfig(walletConnectProjectId?: string) {
       [sepolia.id]: sepoliaTransport,
       [cotiMainnet.id]: http(COTI_MAINNET_RPC),
       [cotiTestnet.id]: http(COTI_TESTNET_RPC),
+      [avalancheFuji.id]: fallback([http(AVALANCHE_FUJI_RPC), http(AVALANCHE_FUJI_RPC_FALLBACK)]),
     },
   });
 }

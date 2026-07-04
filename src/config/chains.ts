@@ -6,6 +6,7 @@ export {
   cotiMainnet,
   cotiTestnet,
   sepolia,
+  avalancheFuji,
   ethereumMainnet,
   ETHEREUM_MAINNET_CHAIN_ID,
   ETHEREUM_MAINNET_RPC,
@@ -13,6 +14,8 @@ export {
   COTI_TESTNET_RPC,
   SEPOLIA_RPC,
   SEPOLIA_RPC_FALLBACK,
+  AVALANCHE_FUJI_RPC,
+  AVALANCHE_FUJI_RPC_FALLBACK,
   getRpcUrlForChainId,
   chainConfigToViemChain,
 } from '../chains/viemChains';
