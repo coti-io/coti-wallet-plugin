@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
+import { configureCotiPlugin } from '../../src/config/plugin';
 import { canPersistAesKeyToSnap } from '../../src/lib/snapOrigins';
 
 describe('snapOrigins', () => {
@@ -25,5 +26,17 @@ describe('snapOrigins', () => {
       value: { ...window.location, origin: 'http://localhost:8080' },
     });
     expect(canPersistAesKeyToSnap()).toBe(false);
+  });
+
+  it('allows origins from additionalSnapAesWriteOrigins config', () => {
+    configureCotiPlugin({
+      additionalSnapAesWriteOrigins: ['https://portal.example.com'],
+    });
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...window.location, origin: 'https://portal.example.com' },
+    });
+    expect(canPersistAesKeyToSnap()).toBe(true);
+    configureCotiPlugin({ additionalSnapAesWriteOrigins: [] });
   });
 });

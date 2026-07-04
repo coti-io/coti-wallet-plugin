@@ -72,6 +72,13 @@ export interface CotiPluginConfig {
   onboardingGrantPollIntervalMs?: number;
   /** Max time to wait after grant callback. Defaults to 30000ms. */
   onboardingGrantTimeoutMs?: number;
+  /**
+   * Additional origins allowed to call wallet_invokeSnap set-aes-key.
+   * Use this to whitelist dApp domains that are not the published COTI portals.
+   * Each entry must be an exact origin string (e.g. 'https://portal.example.com').
+   * The Snap manifest's allowedOrigins must also include these domains — see PL-3.
+   */
+  additionalSnapAesWriteOrigins?: string[];
 }
 
 let _config: CotiPluginConfig = {
@@ -83,6 +90,7 @@ let _config: CotiPluginConfig = {
   onboardingGrantMinBalanceWei: 0,
   onboardingGrantPollIntervalMs: 2000,
   onboardingGrantTimeoutMs: 30000,
+  additionalSnapAesWriteOrigins: [],
 };
 
 /**
