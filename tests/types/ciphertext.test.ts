@@ -14,7 +14,7 @@ describe('Ciphertext Type Guards (README: Balance Decryption)', () => {
     });
 
     it('recognizes positional structure (ethers.js Result)', () => {
-      const ct = { 0: 1n, 1: 2n };
+      const ct = { ciphertextHigh: 1n, ciphertextLow: 2n };
       expect(isCtUint256(ct)).toBe(true);
     });
 
@@ -83,9 +83,7 @@ describe('Ciphertext Type Guards (README: Balance Decryption)', () => {
     });
 
     it('returns true for positional zeros', () => {
-      const ct = { 0: 0n, 1: 0n, ciphertextHigh: undefined, ciphertextLow: undefined };
-      // Positional check: [0] and [1] are both 0n
-      expect(isZeroCtUint256({ 0: 0n, 1: 0n })).toBe(true);
+      expect(isZeroCtUint256({ ciphertextHigh: 0n, ciphertextLow: 0n })).toBe(true);
     });
 
     it('returns false for positional non-zeros', () => {

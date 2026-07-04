@@ -105,7 +105,10 @@ const withdrawLog = () => {
 const makeSigner = () => ({
   getAddress: vi.fn(async () => WALLET),
   signTypedData: vi.fn(),
-  provider: { send: vi.fn(async () => '0x' + (1_000_000_000).toString(16)) },
+  provider: {
+    send: vi.fn(async () => '0x' + (1_000_000_000).toString(16)),
+    getNetwork: vi.fn(async () => ({ chainId: 11155111n })),
+  },
 });
 
 const makeProvider = () => ({ send: vi.fn(async () => '0x' + (1_000_000_000).toString(16)) });

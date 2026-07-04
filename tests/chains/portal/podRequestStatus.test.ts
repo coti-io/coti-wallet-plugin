@@ -57,6 +57,7 @@ vi.mock('../../../src/chains/index', () => ({
   getPublicTokensForChain: vi.fn(() => [{ symbol: 'MTT', bridgeAddressKey: 'PrivacyPortalMTT', decimals: 18, isPrivate: false }]),
   getPrivateTokensForChain: vi.fn(() => [{ symbol: 'p.MTT', addressKey: 'p.MTT', decimals: 18 }]),
   getRpcUrlForChain: vi.fn(() => 'https://rpc.test'),
+  getNetworkNameForChain: vi.fn((chainId: number) => (chainId === 11155111 ? 'Sepolia' : 'Unknown')),
 }));
 
 vi.mock('../../../src/contracts/config', () => ({

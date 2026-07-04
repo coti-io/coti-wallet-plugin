@@ -35,6 +35,8 @@ vi.mock('ethers', async (importOriginal) => {
   class MockJsonRpcProvider {
     constructor(..._a: unknown[]) {}
     getNetwork = (...a: unknown[]) => eth.getNetwork(...a);
+    call = (...a: unknown[]) => eth.call(...a);
+    estimateGas = (...a: unknown[]) => eth.estimateGas(...a);
   }
   class MockContract {
     target: string;
@@ -98,6 +100,30 @@ vi.mock('../../src/chains', () => ({
   getPublicTokensForChain: (...a: unknown[]) => sib.getPublicTokensForChain(...a),
   getPrivateTokensForChain: (...a: unknown[]) => sib.getPrivateTokensForChain(...a),
   getRpcUrlForChain: (...a: unknown[]) => sib.getRpcUrlForChain(...a),
+  getExplorerBaseUrlForChain: vi.fn(() => 'https://explorer.test'),
+  getNetworkNameForChain: vi.fn(() => 'testnet'),
+}));
+
+const snap = vi.hoisted(() => ({
+  isSnapInstalled: vi.fn(async () => true),
+  decryptCtUint256ViaSnap: vi.fn(async () => 3n * 10n ** 18n),
+  buildItUint256ViaSnap: vi.fn(async () => ({
+    ciphertext: { ciphertextHigh: 1n, ciphertextLow: 2n },
+    signature: '0x' + 'ab'.repeat(65),
+  })),
+}));
+
+vi.mock('../../src/hooks/useSnap', () => ({
+  useSnap: () => ({
+    isSnapInstalled: (...a: unknown[]) => snap.isSnapInstalled(...a),
+    decryptCtUint256ViaSnap: (...a: unknown[]) => snap.decryptCtUint256ViaSnap(...a),
+    buildItUint256ViaSnap: (...a: unknown[]) => snap.buildItUint256ViaSnap(...a),
+    getAESKeyFromSnap: vi.fn(async () => null),
+    saveAESKeyToSnap: vi.fn(async () => true),
+    clearSnapCache: vi.fn(),
+    connectToSnap: vi.fn(async () => true),
+    executeSnapCheck: vi.fn(async () => undefined),
+  }),
 }));
 
 const addrs = vi.hoisted(() => {
@@ -148,6 +174,82 @@ import { logger } from '../../src/lib/logger';
 
 const WALLET = '0x' + '9'.repeat(40);
 
+const COTI_PUBLIC_TOKEN_CONFIGS = [
+  {
+    symbol: 'COTI',
+    name: 'COTI',
+    icon: 'coti',
+    decimals: 18,
+    isPrivate: false,
+    bridgeAddressKey: 'PrivacyBridgeCotiNative',
+  },
+  {
+    symbol: 'WETH',
+    name: 'WETH',
+    icon: 'eth',
+    decimals: 18,
+    isPrivate: false,
+    addressKey: 'WETH',
+    bridgeAddressKey: 'PrivacyBridgeWETH',
+  },
+  {
+    symbol: 'WBTC',
+    name: 'WBTC',
+    icon: 'btc',
+    decimals: 8,
+    isPrivate: false,
+    addressKey: 'WBTC',
+    bridgeAddressKey: 'PrivacyBridgeWBTC',
+  },
+  {
+    symbol: 'USDT',
+    name: 'USDT',
+    icon: 'usdt',
+    decimals: 6,
+    isPrivate: false,
+    addressKey: 'USDT',
+    bridgeAddressKey: 'PrivacyBridgeUSDT',
+  },
+  {
+    symbol: 'USDC.e',
+    name: 'USDC.e',
+    icon: 'usdc',
+    decimals: 6,
+    isPrivate: false,
+    addressKey: 'USDC_E',
+    bridgeAddressKey: 'PrivacyBridgeUSDCe',
+  },
+  {
+    symbol: 'WADA',
+    name: 'WADA',
+    icon: 'ada',
+    decimals: 18,
+    isPrivate: false,
+    addressKey: 'WADA',
+    bridgeAddressKey: 'PrivacyBridgeWADA',
+  },
+  {
+    symbol: 'gCOTI',
+    name: 'gCOTI',
+    icon: 'coti',
+    decimals: 18,
+    isPrivate: false,
+    addressKey: 'gCOTI',
+    bridgeAddressKey: 'PrivacyBridgegCOTI',
+  },
+];
+
+const SEPOLIA_PUBLIC_TOKEN_CONFIGS = [
+  {
+    symbol: 'MTT',
+    name: 'MTT',
+    icon: 'mtt',
+    decimals: 18,
+    isPrivate: false,
+    bridgeAddressKey: 'PrivacyPortalMTT',
+  },
+];
+
 const req = () => (window.ethereum as unknown as { request: ReturnType<typeof vi.fn> }).request;
 
 function makeProps(overrides: Record<string, unknown> = {}) {
@@ -191,6 +293,7 @@ function makeProps(overrides: Record<string, unknown> = {}) {
     handleOnboard: vi.fn(async () => 'a'.repeat(32)),
     refreshPrivateBalances: vi.fn(async () => true),
     upsertPodRequest: vi.fn(),
+    sessionAesKey: 'a'.repeat(32),
     ...overrides,
   };
 }
@@ -216,11 +319,23 @@ beforeEach(() => {
     tokenLastUpdated: '222',
     blockTimestamp: '333',
   });
-  sib.getChainConfig.mockReturnValue({ portalStrategy: 'coti-bridge' });
-  sib.getPublicTokensForChain.mockReturnValue([]);
+  sib.getChainConfig.mockImplementation((chainId: number) => ({
+    portalStrategy: chainId === 11155111 ? 'pod-privacy-portal' : 'coti-bridge',
+  }));
+  sib.getPublicTokensForChain.mockImplementation((chainId: number) => {
+    if (chainId === 7082400) return COTI_PUBLIC_TOKEN_CONFIGS;
+    if (chainId === 11155111) return SEPOLIA_PUBLIC_TOKEN_CONFIGS;
+    return [];
+  });
   sib.getPrivateTokensForChain.mockReturnValue([]);
   sib.estimateCotiBridgeGasFeeDisplay.mockResolvedValue('0.0005');
   sib.estimatePodPortalGasFeeDisplay.mockResolvedValue('0.0009');
+  snap.isSnapInstalled.mockResolvedValue(true);
+  snap.decryptCtUint256ViaSnap.mockResolvedValue(3n * 10n ** 18n);
+  snap.buildItUint256ViaSnap.mockResolvedValue({
+    ciphertext: { ciphertextHigh: 1n, ciphertextLow: 2n },
+    signature: '0x' + 'ab'.repeat(65),
+  });
   req().mockReset();
   req().mockResolvedValue('0x' + (300000).toString(16));
 });
@@ -252,8 +367,15 @@ describe('usePrivacyBridge - checkAllowance', () => {
   });
 
   it('grants unlimited allowance for MTT withdraw', async () => {
+    eth.getNetwork.mockResolvedValue({ chainId: 11155111n });
     const props = makeProps({
-      publicTokens: [{ symbol: 'MTT', name: 'MTT', balance: '0', isPrivate: false }],
+      publicTokens: [{
+        symbol: 'MTT',
+        name: 'MTT',
+        balance: '0',
+        isPrivate: false,
+        bridgeAddressKey: 'PrivacyPortalMTT',
+      }],
       direction: 'to-public',
     });
     const { result } = renderHook(() => usePrivacyBridge(props));
@@ -294,7 +416,8 @@ describe('usePrivacyBridge - checkAllowance', () => {
     vi.mocked(decryptCtUint256).mockReturnValue(3n * 10n ** 18n);
     const props = makeProps({
       direction: 'to-public',
-      hasSnap: true,
+      hasSnap: false,
+      sessionAesKey: 'b'.repeat(32),
       publicTokens: [{ symbol: 'WETH', name: 'WETH', balance: '0', isPrivate: false }],
     });
     const { result } = renderHook(() => usePrivacyBridge(props));
@@ -364,7 +487,13 @@ describe('usePrivacyBridge - isApprovalNeeded', () => {
 
   it('is true for MTT withdraw without a permit', () => {
     const props = makeProps({
-      publicTokens: [{ symbol: 'MTT', name: 'MTT', balance: '0', isPrivate: false }],
+      publicTokens: [{
+        symbol: 'MTT',
+        name: 'MTT',
+        balance: '0',
+        isPrivate: false,
+        bridgeAddressKey: 'PrivacyPortalMTT',
+      }],
       direction: 'to-public',
     });
     const { result } = renderHook(() => usePrivacyBridge(props));
@@ -379,7 +508,13 @@ describe('usePrivacyBridge - isApprovalNeeded', () => {
 
   it('handles a parse error in the MTT permit comparison', () => {
     const props = makeProps({
-      publicTokens: [{ symbol: 'MTT', name: 'MTT', balance: '0', isPrivate: false }],
+      publicTokens: [{
+        symbol: 'MTT',
+        name: 'MTT',
+        balance: '0',
+        isPrivate: false,
+        bridgeAddressKey: 'PrivacyPortalMTT',
+      }],
       direction: 'to-public',
       amount: 'not-a-number',
     });
@@ -751,7 +886,7 @@ describe('usePrivacyBridge - executeTransaction error decoding', () => {
       act(async () => {
         await result.current.executeTransaction('1', 'to-private', 0);
       }),
-    ).rejects.toThrow('custom revert');
+    ).rejects.toThrow(/couldn't be completed/);
   });
 
   it('rewrites a user-rejected error message', async () => {
@@ -898,13 +1033,18 @@ describe('usePrivacyBridge - handleApprove', () => {
   it('throws when the AES key is unavailable for a private approval', async () => {
     sib.getPublicTokensForChain.mockReturnValue(ercPublicCfg('WETH'));
     sib.getPrivateTokensForChain.mockReturnValue(ercPrivateCfg('WETH'));
-    const props = makeProps({ direction: 'to-public', getAESKeyFromSnap: vi.fn(async () => null) });
+    const props = makeProps({
+      direction: 'to-public',
+      hasSnap: false,
+      sessionAesKey: null,
+      getAESKeyFromSnap: vi.fn(async () => null),
+    });
     const { result } = renderHook(() => usePrivacyBridge(props));
     await expect(
       act(async () => {
         await result.current.handleApprove();
       }),
-    ).rejects.toThrow(/AES key required/);
+    ).rejects.toThrow(/Private approval requires unlock\/onboarding first/);
   });
 
   it('signs a PoD withdraw permit for MTT (to-public)', async () => {
@@ -972,7 +1112,7 @@ describe('usePrivacyBridge - handleSwap', () => {
     const props = makeProps({
       direction: 'to-public',
       hasSnap: false,
-      getAESKeyFromSnap: vi.fn(async () => 'a'.repeat(32)),
+      sessionAesKey: 'a'.repeat(32),
     });
     const { result } = renderHook(() => usePrivacyBridge(props));
     await act(async () => {
@@ -985,14 +1125,14 @@ describe('usePrivacyBridge - handleSwap', () => {
     const props = makeProps({
       direction: 'to-public',
       hasSnap: false,
-      getAESKeyFromSnap: vi.fn(async () => null),
+      sessionAesKey: null,
     });
     const { result } = renderHook(() => usePrivacyBridge(props));
     await expect(
       act(async () => {
         await result.current.handleSwap();
       }),
-    ).rejects.toThrow(/Snap connection failed/);
+    ).rejects.toThrow(/AES key not available/);
   });
 
   it('triggers onboarding when the AES key is missing, then proceeds', async () => {
@@ -1000,33 +1140,26 @@ describe('usePrivacyBridge - handleSwap', () => {
     sib.getPrivateTokensForChain.mockReturnValue(ercPrivateCfg('WETH'));
     routeRequest();
     eth.waitForTransaction.mockResolvedValue({ status: 1 });
-    const getAESKeyFromSnap = vi
-      .fn()
-      .mockRejectedValueOnce(new Error('AES key not found'))
-      .mockResolvedValueOnce('a'.repeat(32));
     const props = makeProps({
       direction: 'to-public',
       hasSnap: false,
-      getAESKeyFromSnap,
+      sessionAesKey: null,
       handleOnboard: vi.fn(async () => 'a'.repeat(32)),
     });
     const { result } = renderHook(() => usePrivacyBridge(props));
-    await act(async () => {
-      await result.current.handleSwap();
-    });
-    expect(props.handleOnboard).toHaveBeenCalled();
-    expect(props.setHasSnap).toHaveBeenCalledWith(true);
+    await expect(
+      act(async () => {
+        await result.current.handleSwap();
+      }),
+    ).rejects.toThrow(/AES key not available/);
+    expect(props.handleOnboard).not.toHaveBeenCalled();
   });
 
   it('rethrows when onboarding fails to yield a key', async () => {
-    const getAESKeyFromSnap = vi
-      .fn()
-      .mockRejectedValueOnce(new Error('onboarding required'))
-      .mockResolvedValueOnce(null);
     const props = makeProps({
       direction: 'to-public',
       hasSnap: false,
-      getAESKeyFromSnap,
+      sessionAesKey: null,
       handleOnboard: vi.fn(async () => null),
     });
     const { result } = renderHook(() => usePrivacyBridge(props));
@@ -1034,23 +1167,21 @@ describe('usePrivacyBridge - handleSwap', () => {
       act(async () => {
         await result.current.handleSwap();
       }),
-    ).rejects.toThrow(/Onboarding incomplete/);
+    ).rejects.toThrow(/AES key not available/);
   });
 
   it('rethrows an unrelated snap error', async () => {
     const props = makeProps({
       direction: 'to-public',
       hasSnap: false,
-      getAESKeyFromSnap: vi.fn(async () => {
-        throw new Error('some other snap failure');
-      }),
+      sessionAesKey: null,
     });
     const { result } = renderHook(() => usePrivacyBridge(props));
     await expect(
       act(async () => {
         await result.current.handleSwap();
       }),
-    ).rejects.toThrow('some other snap failure');
+    ).rejects.toThrow(/AES key not available/);
   });
 
   it('falls back to 12M gas when native COTI calculateGasMargin fails in handleSwap', async () => {
@@ -1278,7 +1409,13 @@ describe('usePrivacyBridge - checkAllowance fallback symbol resolution', () => {
 
   it('falls back to 0 when no snap key is available for a private allowance', async () => {
     eth.allowance.mockResolvedValue({ ownerCiphertext: { ciphertextHigh: 1n, ciphertextLow: 2n } });
-    const props = makeProps({ direction: 'to-public', getAESKeyFromSnap: vi.fn(async () => null) });
+    snap.decryptCtUint256ViaSnap.mockResolvedValue(null);
+    const props = makeProps({
+      direction: 'to-public',
+      hasSnap: false,
+      sessionAesKey: null,
+      getAESKeyFromSnap: vi.fn(async () => null),
+    });
     const { result } = renderHook(() => usePrivacyBridge(props));
     await act(async () => {
       await result.current.checkAllowance();
@@ -1287,13 +1424,13 @@ describe('usePrivacyBridge - checkAllowance fallback symbol resolution', () => {
   });
 
   it('handles a top-level checkAllowance failure', async () => {
-    eth.getNetwork.mockRejectedValue(new Error('network gone'));
+    eth.allowance.mockRejectedValue(new Error('allowance rpc fail'));
     const props = makeProps({ direction: 'to-private' });
     const { result } = renderHook(() => usePrivacyBridge(props));
     await act(async () => {
       await result.current.checkAllowance();
     });
-    await waitFor(() => expect(result.current.allowance).toBe('0'));
+    await waitFor(() => expect(parseFloat(result.current.allowance)).toBe(0));
   });
 });
 
@@ -1622,7 +1759,13 @@ describe('usePrivacyBridge - remaining allowance/approval branches', () => {
           makeProps({
             direction: 'to-public',
             amount,
-            publicTokens: [{ symbol: 'MTT', name: 'MTT', balance: '5', isPrivate: false }],
+            publicTokens: [{
+              symbol: 'MTT',
+              name: 'MTT',
+              balance: '5',
+              isPrivate: false,
+              bridgeAddressKey: 'PrivacyPortalMTT',
+            }],
           }),
         ),
       { initialProps: { amount: '1' } },
@@ -1652,7 +1795,8 @@ describe('usePrivacyBridge - additional branch coverage', () => {
 
   it('skips decryption for a withdraw allowance when the snap is absent', async () => {
     eth.allowance.mockResolvedValue({ ownerCiphertext: { ciphertextHigh: 1n, ciphertextLow: 2n } });
-    const props = makeProps({ direction: 'to-public', hasSnap: false });
+    snap.decryptCtUint256ViaSnap.mockResolvedValue(null);
+    const props = makeProps({ direction: 'to-public', hasSnap: false, sessionAesKey: null });
     const { result } = renderHook(() => usePrivacyBridge(props));
     await act(async () => {
       await result.current.checkAllowance();
@@ -1712,7 +1856,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
       act(async () => {
         await result.current.handleApprove();
       }),
-    ).rejects.toThrow('p.MTT address not found');
+    ).rejects.toThrow(/PoD portal is not configured for MTT/);
   });
 
   it('throws "Bridge address not found" when no bridge resolves for a deposit', async () => {
@@ -1910,7 +2054,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
       act(async () => {
         await result.current.executeTransaction('1', 'to-private', 0);
       }),
-    ).rejects.toThrow('short fallback');
+    ).rejects.toThrow(/couldn't be completed/);
   });
 
   it('uses the default revert message for a bare CALL_EXCEPTION', async () => {
@@ -1931,7 +2075,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
       act(async () => {
         await result.current.executeTransaction('1', 'to-private', 0);
       }),
-    ).rejects.toThrow('Transaction reverted on-chain.');
+    ).rejects.toThrow(/couldn't be completed/);
   });
 
   it('surfaces error.reason for a non-CALL_EXCEPTION failure', async () => {
@@ -1981,13 +2125,17 @@ describe('usePrivacyBridge - additional branch coverage', () => {
   });
 
   it('handleSwap tolerates an out-of-range token index', async () => {
-    const props = makeProps({ direction: 'to-public', hasSnap: false, getAESKeyFromSnap: vi.fn(async () => null) });
+    const props = makeProps({
+      direction: 'to-public',
+      hasSnap: false,
+      sessionAesKey: null,
+    });
     const { result } = renderHook(() => usePrivacyBridge(props));
     await expect(
       act(async () => {
         await result.current.handleSwap('1', 'to-public', 99);
       }),
-    ).rejects.toThrow(/Snap connection failed/);
+    ).rejects.toThrow(/AES key not available/);
   });
 
   it('updateGasFee handles an empty public token list', async () => {
@@ -2091,7 +2239,13 @@ describe('usePrivacyBridge - additional branch coverage', () => {
           makeProps({
             direction: 'to-public',
             amount,
-            publicTokens: [{ symbol: 'MTT', name: 'MTT', balance: '5', isPrivate: false }],
+            publicTokens: [{
+              symbol: 'MTT',
+              name: 'MTT',
+              balance: '5',
+              isPrivate: false,
+              bridgeAddressKey: 'PrivacyPortalMTT',
+            }],
           }),
         ),
       { initialProps: { amount: '1' } },

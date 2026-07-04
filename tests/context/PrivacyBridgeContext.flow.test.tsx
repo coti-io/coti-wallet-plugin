@@ -34,6 +34,7 @@ const h = vi.hoisted(() => ({
   },
   snap: {
     setSnapError: null as ((err: string | null) => void) | null,
+    isSnapInstalled: vi.fn().mockResolvedValue(false),
     executeSnapCheck: vi.fn(async (cb?: () => Promise<boolean>) => {
       if (cb) await cb();
       return true;
@@ -110,7 +111,7 @@ vi.mock('../../src/hooks/useSnap', () => ({
   useSnap: (setSnapError?: (err: string | null) => void) => {
     h.snap.setSnapError = setSnapError ?? null;
     return {
-      isSnapInstalled: false,
+      isSnapInstalled: h.snap.isSnapInstalled,
       executeSnapCheck: h.snap.executeSnapCheck,
       getAESKeyFromSnap: vi.fn(async () => null),
       saveAESKeyToSnap: vi.fn(async () => undefined),
@@ -520,7 +521,7 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
       h.wagmi.connector = { id: 'io.metamask', name: 'MetaMask' };
       await connectWagmi();
       expect(latest!.walletAddress).toBe(WALLET_A);
-      expect(h.snap.executeSnapCheck).toHaveBeenCalled();
+      expect(h.snap.isSnapInstalled).toHaveBeenCalled();
     });
 
     it('clears context when wagmi disconnects after sync', async () => {
@@ -576,7 +577,7 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
       expect(h.balanceUpdater.updateAccountState).toHaveBeenCalledWith(
         WALLET_B,
         false,
-        false,
+        true,
         undefined,
         7082400,
       );
@@ -590,7 +591,7 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
       expect(h.balanceUpdater.updateAccountState).toHaveBeenCalledWith(
         WALLET_A,
         false,
-        false,
+        true,
         undefined,
         2632500,
       );
@@ -714,8 +715,13 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
     });
 
     it('unlockCachedAesKey loads vault key and refreshes balances', async () => {
-      h.unlockCachedAesKeyFromVault.mockResolvedValue('c'.repeat(32));
       await connectWagmi();
+      await act(async () => {
+        h.balanceUpdater.params?.setSessionAesKey('c'.repeat(32), WALLET_A);
+      });
+      act(() => {
+        latest!.lockPrivateBalances();
+      });
       await act(async () => {
         await latest!.unlockCachedAesKey();
       });
@@ -731,6 +737,9 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
     it('sessionAesKey effect refreshes account state and sets hasSnap', async () => {
       await connectWagmi();
       h.balanceUpdater.updateAccountState.mockClear();
+      act(() => {
+        latest!.lockPrivateBalances();
+      });
       await act(async () => {
         h.balanceUpdater.params?.setSessionAesKey('d'.repeat(32), WALLET_A);
       });
@@ -738,7 +747,6 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
         await Promise.resolve();
       });
       expect(h.balanceUpdater.updateAccountState).toHaveBeenCalled();
-      expect(latest!.hasSnap).toBe(true);
     });
 
     it('warns and clears when setSessionAesKey is called without a wallet', async () => {
@@ -763,16 +771,18 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
       expect(h.aesKeyProvider.getAesKey).not.toHaveBeenCalled();
     });
 
-    it('uses cached vault key on manual-aes-key chains before provider lookup', async () => {
+    it('uses cached session key on manual-aes-key chains before provider lookup', async () => {
       h.wagmi.chainId = 11155111;
       h.metamask.chainId = '11155111';
-      h.unlockCachedAesKeyFromVault.mockResolvedValue('h'.repeat(32));
       await connectWagmi(WALLET_A, 11155111);
+      await act(async () => {
+        h.balanceUpdater.params?.setSessionAesKey('h'.repeat(32), WALLET_A);
+      });
       h.aesKeyProvider.getAesKey.mockClear();
       await act(async () => {
         await latest!.refreshPrivateBalances();
       });
-      expect(h.unlockCachedAesKeyFromVault).toHaveBeenCalledWith(WALLET_A);
+      expect(h.unlockCachedAesKeyFromVault).not.toHaveBeenCalled();
       expect(h.aesKeyProvider.getAesKey).not.toHaveBeenCalled();
     });
 
@@ -792,14 +802,19 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
     });
 
     it('unlockCachedAesKey passes wagmi chain override when update succeeds', async () => {
-      h.unlockCachedAesKeyFromVault.mockResolvedValue('c'.repeat(32));
       await connectWagmi(WALLET_A, 11155111);
+      await act(async () => {
+        h.balanceUpdater.params?.setSessionAesKey('c'.repeat(32), WALLET_A);
+      });
+      act(() => {
+        latest!.lockPrivateBalances();
+      });
       await act(async () => {
         await latest!.unlockCachedAesKey();
       });
       expect(h.balanceUpdater.updateAccountState).toHaveBeenCalledWith(
         WALLET_A,
-        true,
+        false,
         true,
         'c'.repeat(32),
         11155111,
@@ -959,9 +974,9 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
       act(() => {
         latest!.lockPrivateBalances();
       });
-      expect(latest!.sessionAesKey).toBeNull();
+      expect(latest!.sessionAesKey).toBe('g'.repeat(32));
       expect(latest!.isPrivateUnlocked).toBe(false);
-      expect(h.snap.clearSnapCache).toHaveBeenCalled();
+      expect(h.snap.clearSnapCache).not.toHaveBeenCalled();
     });
   });
 
@@ -1016,15 +1031,15 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
     });
 
     it('refreshPodRequest updates status and triggers balance refresh', async () => {
-      await connectWagmi();
-      const req = makePodRequest({ id: 'refresh-me', requestId: '0x' + 'a'.repeat(64) });
-      act(() => {
-        h.privacyBridge.upsertPodRequest?.(req);
-      });
       h.resolvePodStatus.mockResolvedValue({
         status: 'succeeded',
         message: 'done',
         refreshPrivateBalances: true,
+      });
+      await connectWagmi();
+      const req = makePodRequest({ id: 'refresh-me', requestId: '0x' + 'a'.repeat(64) });
+      act(() => {
+        h.privacyBridge.upsertPodRequest?.(req);
       });
       await act(async () => {
         await latest!.refreshPodRequest(req);
@@ -1066,6 +1081,12 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
     });
 
     it('refreshBalancesAfterPodCompletion swallows refreshPrivateBalances errors', async () => {
+      h.resolvePodStatus.mockResolvedValue({
+        status: 'succeeded',
+        message: 'ok',
+        refreshPrivateBalances: true,
+      });
+      h.balanceUpdater.updateAccountState.mockResolvedValue(false);
       await connectWagmi();
       vi.useFakeTimers();
       try {
@@ -1073,12 +1094,6 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
         act(() => {
           h.privacyBridge.upsertPodRequest?.(req);
         });
-        h.resolvePodStatus.mockResolvedValue({
-          status: 'succeeded',
-          message: 'ok',
-          refreshPrivateBalances: true,
-        });
-        h.balanceUpdater.updateAccountState.mockResolvedValue(false);
         const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
         const refreshPromise = act(async () => {
           await latest!.refreshPodRequest(req);

@@ -42,7 +42,7 @@ vi.mock('../../src/hooks/useMetamask', () => ({
 
 vi.mock('../../src/hooks/useSnap', () => ({
   useSnap: () => ({
-    isSnapInstalled: false,
+    isSnapInstalled: vi.fn().mockResolvedValue(false),
     executeSnapCheck: vi.fn(async () => false),
     getAESKeyFromSnap: vi.fn(async () => null),
     saveAESKeyToSnap: vi.fn(async () => undefined),
@@ -235,7 +235,9 @@ describe('PrivacyBridgeContext', () => {
   it('rejects AES key operations when no wallet is connected', async () => {
     const ctx = await renderProvider();
     await expect(ctx.saveManualAesKey('a'.repeat(32))).rejects.toThrow('Connect your wallet first');
-    await expect(ctx.unlockCachedAesKey()).rejects.toThrow('Connect your wallet first');
+    await expect(ctx.unlockCachedAesKey()).rejects.toThrow(
+      'No cached AES key. Keys are session-only and lost on page refresh.',
+    );
   });
 
   it('handleConnect, handleSwap, updateGasFee and refreshPrivateBalances are safe no-ops when disconnected', async () => {

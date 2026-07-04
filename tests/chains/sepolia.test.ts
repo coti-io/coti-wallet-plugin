@@ -12,16 +12,17 @@ describe('chains/sepolia', () => {
       expect(sepoliaChain.getBridgeDataOverride).toBeDefined();
       const result = sepoliaChain.getBridgeDataOverride!(sepoliaChain.addresses);
 
-      expect(result).toHaveLength(1);
-      const [bridge] = result;
-      expect(bridge.bridgeName).toBe('MTT PoD Portal');
-      expect(bridge.bridgeAddress).toBe(sepoliaChain.addresses.PrivacyPortalMTT);
-      expect(bridge.publicToken).toBe('MTT');
-      expect(bridge.privateToken).toBe('p.MTT');
-      expect(bridge.isPaused).toBe(false);
-      expect(bridge.isLoading).toBe(false);
-      expect(bridge.error).toBeNull();
-      expect(bridge.tokenDecimals).toBe(18);
+      expect(result).toHaveLength(3);
+      const bridge = result.find(entry => entry.publicToken === 'MTT');
+      expect(bridge).toBeDefined();
+      expect(bridge!.bridgeName).toBe('MTT PoD Portal');
+      expect(bridge!.bridgeAddress).toBe(sepoliaChain.addresses.PrivacyPortalMTT);
+      expect(bridge!.publicToken).toBe('MTT');
+      expect(bridge!.privateToken).toBe('p.MTT');
+      expect(bridge!.isPaused).toBe(false);
+      expect(bridge!.isLoading).toBe(false);
+      expect(bridge!.error).toBeNull();
+      expect(bridge!.tokenDecimals).toBe(18);
     });
 
     it('uses whatever PrivacyPortalMTT address is passed in', () => {

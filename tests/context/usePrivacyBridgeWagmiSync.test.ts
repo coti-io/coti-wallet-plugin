@@ -218,7 +218,7 @@ describe('usePrivacyBridgeWagmiSync — chain-change guard with sessionAesKey', 
       expect(h.updateAccountState).toHaveBeenCalledWith(
         '0xabc123',
         false,
-        false,
+        true,
         undefined,
         7082400,
       );

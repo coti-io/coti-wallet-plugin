@@ -112,7 +112,7 @@ describe('aesKeyValidation', () => {
       expect(isAesKeyValidatedForUnlock('0xAbC', key)).toBe(false);
       markAesKeyValidatedForUnlock('0xabc', key);
       expect(isAesKeyValidatedForUnlock('0xABC', key)).toBe(true);
-      expect(getValidatedAesKeyForUnlock('0xABC')).toBe(key.toLowerCase().slice(0, 64));
+      expect(getValidatedAesKeyForUnlock('0xABC')).toBe(key.toLowerCase().slice(0, 32));
       clearAesKeyValidatedForUnlock('0xabc');
       expect(isAesKeyValidatedForUnlock('0xabc', key)).toBe(false);
     });

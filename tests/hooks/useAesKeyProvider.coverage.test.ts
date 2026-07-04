@@ -447,7 +447,7 @@ describe('useAesKeyProvider (full branch coverage)', () => {
 
     it('falls back to onboarding when backup restore fails', async () => {
       const signer = makeSigner(VALID_KEY);
-      ethersState.getSigner.mockResolvedValue(signer);
+      ethersState.signer = signer;
       wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
       wagmiState.chainId = COTI_TESTNET;
       configureCotiPlugin({
@@ -538,7 +538,7 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       ethersState.getBalance.mockResolvedValue(0n);
       const grantNativeCoti = vi.fn().mockRejectedValue(new Error('grant rejected'));
       const signer = makeSigner(VALID_KEY);
-      ethersState.getSigner.mockResolvedValue(signer);
+      ethersState.signer = signer;
       configureCotiPlugin({
         onboardingServices: {
           mode: 'custom',
@@ -814,7 +814,9 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       const walletProvider = { request };
       wagmiState.connector = { getProvider: vi.fn().mockResolvedValue(walletProvider) };
       wagmiState.chainId = COTI_TESTNET;
-      ethersState.getSigner.mockRejectedValue(new Error('eth_accounts failed'));
+      ethersState.JsonRpcSigner.mockImplementationOnce(() => {
+        throw new Error('eth_accounts failed');
+      });
       const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'rabby' })));
 
       let key: string | null = 'x';
@@ -824,7 +826,6 @@ describe('useAesKeyProvider (full branch coverage)', () => {
 
       expect(key).toBeNull();
       expect(result.current.onboardingError).toBe('eth_accounts failed');
-      expect(walletProvider.request).toBe(request);
     });
 
     it('warns when restoring the original chain in the catch path also fails', async () => {

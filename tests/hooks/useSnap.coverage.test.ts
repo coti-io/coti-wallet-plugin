@@ -302,7 +302,7 @@ describe('useSnap (branch coverage)', () => {
   });
 
   it('saves the key successfully without a setSnapError callback', async () => {
-    mockRequest.mockResolvedValue(undefined);
+    mockRequest.mockImplementation(fullSuccess());
     const { result } = renderHook(() => useSnap());
     expect(await result.current.saveAESKeyToSnap(AES_KEY, ACCOUNT)).toBe(true);
   });

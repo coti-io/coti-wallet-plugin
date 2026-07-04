@@ -23,8 +23,12 @@ const FLAT_BALANCE_ABI = [
 
 /** Returns the 128-bit SDK key material (Snap may store 256-bit hex). */
 export function getSdkAesKeyHex(aesKey: string): string {
-  const normalized = normalizeAesKey(aesKey);
-  return normalized.length === 64 ? normalized.slice(0, 32) : normalized;
+  const trimmed = aesKey.startsWith('0x') ? aesKey.slice(2) : aesKey;
+  const lowered = trimmed.toLowerCase();
+  if (/^[0-9a-f]{64}$/.test(lowered)) {
+    return lowered.slice(0, 32);
+  }
+  return normalizeAesKey(aesKey);
 }
 
 /**
@@ -241,7 +245,7 @@ const validatedUnlockKeys = new Map<string, string>();
 export function markAesKeyValidatedForUnlock(address: string, aesKey: string): void {
   validatedUnlockKeys.set(
     address.toLowerCase(),
-    normalizeAesKey(aesKey).toLowerCase(),
+    getSdkAesKeyHex(aesKey).toLowerCase(),
   );
 }
 
@@ -256,7 +260,7 @@ export function clearAesKeyValidatedForUnlock(address?: string): void {
 export function isAesKeyValidatedForUnlock(address: string, aesKey: string): boolean {
   const stored = validatedUnlockKeys.get(address.toLowerCase());
   if (!stored) return false;
-  return stored === normalizeAesKey(aesKey).toLowerCase();
+  return stored === getSdkAesKeyHex(aesKey).toLowerCase();
 }
 
 export function getValidatedAesKeyForUnlock(address: string): string | null {

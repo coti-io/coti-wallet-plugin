@@ -57,3 +57,18 @@ Object.defineProperty(globalThis, 'localStorage', {
 vi.spyOn(console, 'log').mockImplementation(() => {});
 vi.spyOn(console, 'warn').mockImplementation(() => {});
 vi.spyOn(console, 'error').mockImplementation(() => {});
+
+// Default wagmi hooks for unit tests that render hooks using useAccount (e.g. useSnap).
+vi.mock('wagmi', () => ({
+  useAccount: vi.fn(() => ({
+    address: undefined,
+    isConnected: false,
+    chainId: undefined,
+    connector: undefined,
+  })),
+  useDisconnect: vi.fn(() => ({ disconnect: vi.fn() })),
+  useConnectorClient: vi.fn(() => ({ data: undefined })),
+  useSwitchChain: vi.fn(() => ({ switchChain: vi.fn(), switchChainAsync: vi.fn() })),
+  useConfig: vi.fn(() => ({})),
+  WagmiProvider: ({ children }: { children: unknown }) => children,
+}));

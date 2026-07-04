@@ -1,6 +1,25 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ethers } from 'ethers';
 
+const rpc = vi.hoisted(() => ({
+  estimateGas: vi.fn(async () => 300000n),
+}));
+
+vi.mock('ethers', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('ethers')>();
+  class MockJsonRpcProvider {
+    constructor(..._a: unknown[]) {}
+    estimateGas = (...a: unknown[]) => rpc.estimateGas(...a);
+  }
+  return {
+    ...actual,
+    ethers: {
+      ...actual.ethers,
+      JsonRpcProvider: MockJsonRpcProvider,
+    },
+  };
+});
+
 vi.mock('../../src/chains/index', () => ({
   getRpcUrlForChain: vi.fn(() => 'https://rpc.test'),
 }));
@@ -23,7 +42,6 @@ const makeProvider = () =>
     getSigner: vi.fn(async () => ({ getAddress: async () => '0x' + '1'.repeat(40) })),
   }) as unknown as ethers.BrowserProvider;
 
-const reqMock = window.ethereum!.request as unknown as ReturnType<typeof vi.fn>;
 const fmt = (wei: bigint) => ethers.formatEther(wei).replace(/\.?0+$/, '') || '0';
 
 const baseParams = {
@@ -34,7 +52,10 @@ const baseParams = {
 };
 
 describe('estimateCotiBridgeGasFeeDisplay', () => {
-  beforeEach(() => reqMock.mockReset());
+  beforeEach(() => {
+    rpc.estimateGas.mockReset();
+    rpc.estimateGas.mockResolvedValue(300000n);
+  });
 
   it('uses the 790000 gas constant for ERC20 deposits without calling eth_estimateGas', async () => {
     const gasPrice = 2_000_000_000n;
@@ -47,7 +68,7 @@ describe('estimateCotiBridgeGasFeeDisplay', () => {
       isErc20Token: true,
     });
     expect(result).toBe(fmt(790000n * gasPrice));
-    expect(reqMock).not.toHaveBeenCalled();
+    expect(rpc.estimateGas).not.toHaveBeenCalled();
   });
 
   it('returns "0" for ERC20 deposits when gas price is zero (|| "0" branch)', async () => {
@@ -63,7 +84,7 @@ describe('estimateCotiBridgeGasFeeDisplay', () => {
   });
 
   it('returns "0" for native deposits when gas limit resolves to zero fee (|| "0" branch)', async () => {
-    reqMock.mockResolvedValue('0x0');
+    rpc.estimateGas.mockResolvedValue(0n);
     const result = await estimateCotiBridgeGasFeeDisplay({
       ...baseParams,
       provider: makeProvider(),
@@ -76,7 +97,7 @@ describe('estimateCotiBridgeGasFeeDisplay', () => {
 
   it('uses the eth_estimateGas result for native COTI deposits', async () => {
     const gasPrice = 1_000_000_000n;
-    reqMock.mockResolvedValue('0x' + (300000).toString(16));
+    rpc.estimateGas.mockResolvedValue(300000n);
     const result = await estimateCotiBridgeGasFeeDisplay({
       ...baseParams,
       provider: makeProvider(),
@@ -89,8 +110,7 @@ describe('estimateCotiBridgeGasFeeDisplay', () => {
 
   it('falls back to 660000 gas for native deposits when eth_estimateGas fails', async () => {
     const gasPrice = 1_000_000_000n;
-    // Invalid hex makes the SUT's own `BigInt(...)` throw inside its try/catch.
-    reqMock.mockResolvedValue('not-a-hex');
+    rpc.estimateGas.mockRejectedValue(new Error('estimate failed'));
     const result = await estimateCotiBridgeGasFeeDisplay({
       ...baseParams,
       provider: makeProvider(),
@@ -103,7 +123,7 @@ describe('estimateCotiBridgeGasFeeDisplay', () => {
 
   it('falls back to 500000 gas for withdrawals when eth_estimateGas fails', async () => {
     const gasPrice = 1_000_000_000n;
-    reqMock.mockResolvedValue('not-a-hex');
+    rpc.estimateGas.mockRejectedValue(new Error('estimate failed'));
     const result = await estimateCotiBridgeGasFeeDisplay({
       ...baseParams,
       provider: makeProvider(),
@@ -137,7 +157,7 @@ describe('estimateCotiBridgeGasFeeDisplay', () => {
       blockTimestamp: '0',
     });
     const gasPrice = 1_000_000_000n;
-    reqMock.mockResolvedValue('0x' + (200000).toString(16));
+    rpc.estimateGas.mockResolvedValue(200000n);
     const result = await estimateCotiBridgeGasFeeDisplay({
       ...baseParams,
       provider: makeProvider(),
@@ -151,7 +171,7 @@ describe('estimateCotiBridgeGasFeeDisplay', () => {
 
   it('uses the eth_estimateGas result for an ERC20 withdraw with a real fee', async () => {
     const gasPrice = 1_000_000_000n;
-    reqMock.mockResolvedValue('0x' + (250000).toString(16));
+    rpc.estimateGas.mockResolvedValue(250000n);
     const result = await estimateCotiBridgeGasFeeDisplay({
       ...baseParams,
       provider: makeProvider(),
@@ -176,7 +196,7 @@ describe('estimateCotiBridgeGasFeeDisplay', () => {
   });
 
   it('returns "0" for a native deposit when gas price is zero', async () => {
-    reqMock.mockResolvedValue('0x' + (300000).toString(16));
+    rpc.estimateGas.mockResolvedValue(300000n);
     const result = await estimateCotiBridgeGasFeeDisplay({
       ...baseParams,
       provider: makeProvider(),

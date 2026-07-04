@@ -23,7 +23,10 @@ describe('viemChains', () => {
 
   it('uses Etherscan label for etherscan explorer URLs', () => {
     const base = getChainConfig(11155111)!;
-    const chain = chainConfigToViemChain(base);
+    const chain = chainConfigToViemChain({
+      ...base,
+      explorerBaseUrl: 'https://sepolia.etherscan.io',
+    });
 
     expect(chain.blockExplorers?.default.name).toBe('Etherscan');
   });
