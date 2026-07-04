@@ -29,6 +29,7 @@ vi.mock('viem', () => ({
 
 import { WagmiRainbowKitProvider, getWagmiConfig, wagmiConfig } from '../../src/providers/WagmiRainbowKitProvider';
 import { eip6963MetaMaskWallet } from '../../src/providers/eip6963MetaMaskWallet';
+import { directTrustWallet } from '../../src/providers/directTrustWallet';
 import { configureCotiPlugin } from '../../src/config/plugin';
 import { resolveWalletConnectProjectId } from '../../src/config/walletConnect';
 import { CotiErrorCode, CotiPluginError, hasCotiErrorCode } from '../../src/errors';
@@ -256,6 +257,43 @@ describe('WagmiRainbowKitProvider', () => {
         },
       ],
       expect.objectContaining({ projectId: 'eip6963-wallet-test' }),
+    );
+
+    Object.defineProperty(navigator, 'userAgent', {
+      configurable: true,
+      value: originalUserAgent,
+    });
+    configureCotiPlugin({ sepoliaRpcUrl: undefined });
+  });
+
+  it('uses direct Trust wallet when useDirectTrustWallet is enabled', () => {
+    const originalUserAgent = navigator.userAgent;
+    Object.defineProperty(navigator, 'userAgent', {
+      configurable: true,
+      value: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+    });
+
+    vi.mocked(connectorsForWallets).mockClear();
+    configureCotiPlugin({ sepoliaRpcUrl: 'https://direct-trust.example/rpc' });
+    render(
+      <WagmiRainbowKitProvider useDirectTrustWallet walletConnectProjectId="direct-trust-wallet-test">
+        <div data-testid="direct-trust-child">Direct Trust</div>
+      </WagmiRainbowKitProvider>,
+    );
+
+    expect(screen.getByTestId('direct-trust-child')).toBeDefined();
+    expect(connectorsForWallets).toHaveBeenCalledWith(
+      [
+        {
+          groupName: 'Recommended',
+          wallets: [metaMaskWallet, rabbyWallet, directTrustWallet, oneKeyWallet, walletConnectWallet],
+        },
+        {
+          groupName: 'Other',
+          wallets: [coinbaseWallet, ledgerWallet],
+        },
+      ],
+      expect.objectContaining({ projectId: 'direct-trust-wallet-test' }),
     );
 
     Object.defineProperty(navigator, 'userAgent', {

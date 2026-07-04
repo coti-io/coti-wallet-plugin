@@ -28,6 +28,7 @@ import {
 import { getPluginConfig } from '../config/plugin';
 import { resolveWalletConnectProjectId } from '../config/walletConnect';
 import { eip6963MetaMaskWallet } from './eip6963MetaMaskWallet';
+import { directTrustWallet } from './directTrustWallet';
 
 /** RainbowKit-compatible mobile detection (iOS, Android, iPad). */
 const isMobileBrowser = (): boolean => {
@@ -39,14 +40,15 @@ const isMobileBrowser = (): boolean => {
   );
 };
 
-function getWalletGroups(useEip6963MetaMask = false) {
+function getWalletGroups(useEip6963MetaMask = false, useDirectTrustWallet = false) {
   const metaMaskConnector = useEip6963MetaMask ? eip6963MetaMaskWallet : metaMaskWallet;
+  const trustConnector = useDirectTrustWallet ? directTrustWallet : trustWallet;
 
   if (isMobileBrowser()) {
     return [
       {
         groupName: 'Recommended',
-        wallets: [walletConnectWallet, metaMaskConnector, rabbyWallet, trustWallet, oneKeyWallet],
+        wallets: [walletConnectWallet, metaMaskConnector, rabbyWallet, trustConnector, oneKeyWallet],
       },
     ];
   }
@@ -54,7 +56,7 @@ function getWalletGroups(useEip6963MetaMask = false) {
   return [
     {
       groupName: 'Recommended',
-      wallets: [metaMaskConnector, rabbyWallet, trustWallet, oneKeyWallet, walletConnectWallet],
+      wallets: [metaMaskConnector, rabbyWallet, trustConnector, oneKeyWallet, walletConnectWallet],
     },
     {
       groupName: 'Other',
@@ -78,13 +80,23 @@ interface WagmiRainbowKitProviderProps {
    * Default: false (keeps existing behaviour).
    */
   useEip6963MetaMask?: boolean;
+  /**
+   * When true, replaces the standard trustWallet connector with a direct
+   * window.trustwallet injected connector for the Trust Browser Extension.
+   * Default: false.
+   */
+  useDirectTrustWallet?: boolean;
 }
 
-function createWagmiConfig(walletConnectProjectId?: string, useEip6963MetaMask = false) {
+function createWagmiConfig(
+  walletConnectProjectId?: string,
+  useEip6963MetaMask = false,
+  useDirectTrustWallet = false,
+) {
   const projectId = resolveWalletConnectProjectId(walletConnectProjectId);
 
   const connectors = connectorsForWallets(
-    getWalletGroups(useEip6963MetaMask),
+    getWalletGroups(useEip6963MetaMask, useDirectTrustWallet),
     {
       appName: 'COTI Wallet Plugin',
       projectId,
@@ -164,11 +176,18 @@ export function WagmiRainbowKitProvider({
   initialChain = cotiTestnet,
   appName = 'COTI Wallet',
   useEip6963MetaMask = false,
+  useDirectTrustWallet = false,
 }: WagmiRainbowKitProviderProps) {
   const pluginConfig = getPluginConfig();
   const config = useMemo(
-    () => createWagmiConfig(walletConnectProjectId, useEip6963MetaMask),
-    [walletConnectProjectId, useEip6963MetaMask, pluginConfig.sepoliaRpcUrl, pluginConfig.walletConnectProjectId],
+    () => createWagmiConfig(walletConnectProjectId, useEip6963MetaMask, useDirectTrustWallet),
+    [
+      walletConnectProjectId,
+      useEip6963MetaMask,
+      useDirectTrustWallet,
+      pluginConfig.sepoliaRpcUrl,
+      pluginConfig.walletConnectProjectId,
+    ],
   );
 
   return (
