@@ -226,7 +226,11 @@ export const usePrivacyBridgeUnlockSession = ({
       logger.log('Unlock logic caught error', { code: err.code, name: err.name });
 
       if (err.message === 'SNAP_CONNECT_FAILED' || err.message?.includes('SNAP_CONNECT_FAILED')) {
-        throw new Error('SNAP_REQUIRED');
+        throw new CotiPluginError(
+          CotiErrorCode.SNAP_REQUIRED,
+          'Snap connection failed — install or reconnect the COTI Snap.',
+          err.message,
+        );
       }
 
       if (
@@ -237,14 +241,27 @@ export const usePrivacyBridgeUnlockSession = ({
         return false;
       }
 
-      if (err.message === 'SNAP_DIALOG_REJECTED') throw err;
+      if (
+        err.message === 'SNAP_DIALOG_REJECTED' ||
+        (err instanceof CotiPluginError && err.code === CotiErrorCode.SNAP_DIALOG_REJECTED)
+      ) {
+        if (err instanceof CotiPluginError) throw err;
+        throw new CotiPluginError(
+          CotiErrorCode.SNAP_DIALOG_REJECTED,
+          'User dismissed the Snap dialog.',
+        );
+      }
 
       if (err.message?.includes('ACCOUNT_NOT_ONBOARDED')) {
         setSessionAesKey(null);
         clearAesKeyValidatedForUnlock(walletAddress);
         clearSnapCache();
         setArePrivateBalancesHidden(true);
-        throw new Error('SNAP_REQUIRED');
+        throw new CotiPluginError(
+          CotiErrorCode.ACCOUNT_NOT_ONBOARDED,
+          'Account has not been onboarded to the COTI network.',
+          err.message,
+        );
       }
 
       if (
@@ -254,9 +271,7 @@ export const usePrivacyBridgeUnlockSession = ({
         clearAesKeyValidatedForUnlock(walletAddress);
         clearSnapCache();
         setArePrivateBalancesHidden(true);
-        const mismatchError = new Error('AES_KEY_MISMATCH');
-        (mismatchError as any).detail = err.message;
-        throw mismatchError;
+        throw err;
       }
 
       if (err.message?.includes('AES key') || err.message?.includes('onboarding')) {
@@ -264,9 +279,11 @@ export const usePrivacyBridgeUnlockSession = ({
         clearAesKeyValidatedForUnlock(walletAddress);
         clearSnapCache();
         setArePrivateBalancesHidden(true);
-        const mismatchError = new Error('AES_KEY_MISMATCH');
-        (mismatchError as any).detail = err.message;
-        throw mismatchError;
+        throw new CotiPluginError(
+          CotiErrorCode.AES_KEY_MISMATCH,
+          'AES key mismatch or onboarding error.',
+          err.message,
+        );
       }
       return false;
     }
