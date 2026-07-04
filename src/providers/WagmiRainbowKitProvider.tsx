@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { type Chain } from 'viem';
 import { createConfig, http, fallback, WagmiProvider, type Config } from 'wagmi';
 import { connectorsForWallets } from '@rainbow-me/rainbowkit';
 import {
@@ -63,6 +64,10 @@ interface WagmiRainbowKitProviderProps {
   children: React.ReactNode;
   /** WalletConnect Cloud project ID (falls back to configureCotiPlugin or VITE_WALLETCONNECT_PROJECT_ID). */
   walletConnectProjectId?: string;
+  /** Override the chain pre-selected in the RainbowKit connect modal. Defaults to cotiTestnet. */
+  initialChain?: Chain;
+  /** Override the app name shown in the RainbowKit modal. Defaults to 'COTI Wallet'. */
+  appName?: string;
 }
 
 function createWagmiConfig(walletConnectProjectId?: string) {
@@ -146,6 +151,8 @@ export const wagmiConfig: Config = new Proxy({} as Config, {
 export function WagmiRainbowKitProvider({
   children,
   walletConnectProjectId,
+  initialChain = cotiTestnet,
+  appName = 'COTI Wallet',
 }: WagmiRainbowKitProviderProps) {
   const pluginConfig = getPluginConfig();
   const config = useMemo(
@@ -157,9 +164,9 @@ export function WagmiRainbowKitProvider({
     <WagmiProvider config={config} reconnectOnMount={false}>
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider
-          initialChain={cotiTestnet}
+          initialChain={initialChain}
           modalSize="compact"
-          appInfo={{ appName: 'COTI Wallet' }}
+          appInfo={{ appName }}
         >
           {children}
         </RainbowKitProvider>
