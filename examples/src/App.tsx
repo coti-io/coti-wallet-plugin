@@ -10,13 +10,12 @@ import {
   usePrivacyBridgeWallet,
   usePrivateUnlockFlow,
   useWalletType,
-  type EncryptedAesBackup,
 } from '@coti-io/coti-wallet-plugin';
 
 const COTI_TESTNET_CHAIN_ID = 7082400;
 const COTI_MAINNET_CHAIN_ID = 2632500;
+const AES_KEY_BACKUP_VAULT_ADDRESS = import.meta.env.VITE_AES_KEY_BACKUP_VAULT_ADDRESS;
 
-const AES_BACKUP_API_URL = import.meta.env.VITE_AES_BACKUP_API_URL?.replace(/\/$/, '');
 const GRANT_API_URL_BY_CHAIN: Record<number, string | undefined> = {
   [COTI_TESTNET_CHAIN_ID]: normalizeGrantApiUrl(import.meta.env.VITE_GRANT_API_URL_TESTNET),
   [COTI_MAINNET_CHAIN_ID]: normalizeGrantApiUrl(import.meta.env.VITE_GRANT_API_URL_MAINNET),
@@ -28,40 +27,6 @@ const ONBOARDING_GRANT_MIN_BALANCE_COTI =
 function normalizeGrantApiUrl(url: string | undefined): string | undefined {
   return url?.replace(/\/$/, '');
 }
-
-const backupKey = (address: string, chainId: number) =>
-  `coti-example:aes-backup:${chainId}:${address.toLowerCase()}`;
-
-const backupApiUrl = (address: string, chainId: number) =>
-  `${AES_BACKUP_API_URL}/aes-backups/${chainId}/${address.toLowerCase()}`;
-
-const fetchEncryptedAesBackup = async (address: string, chainId: number) => {
-  const raw = window.localStorage.getItem(backupKey(address, chainId));
-  if (AES_BACKUP_API_URL) {
-    const response = await fetch(backupApiUrl(address, chainId));
-    if (response.status === 404) return raw ? JSON.parse(raw) as EncryptedAesBackup : null;
-    if (!response.ok) throw new Error(`Backup restore failed: ${response.status}`);
-    return response.json() as Promise<EncryptedAesBackup>;
-  }
-  return raw ? JSON.parse(raw) as EncryptedAesBackup : null;
-};
-
-const saveEncryptedAesBackup = async (
-  address: string,
-  chainId: number,
-  backup: EncryptedAesBackup,
-  action: 'save' | 'replace' = 'save',
-) => {
-  if (AES_BACKUP_API_URL) {
-    const response = await fetch(backupApiUrl(address, chainId), {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(backup),
-    });
-    if (!response.ok) throw new Error(`Backup ${action} failed: ${response.status}`);
-  }
-  window.localStorage.setItem(backupKey(address, chainId), JSON.stringify(backup));
-};
 
 const LOCAL_SNAP_ID = import.meta.env.VITE_SNAP_ID?.trim();
 const LOCAL_SNAP_VERSION = import.meta.env.VITE_SNAP_VERSION?.trim();
@@ -75,18 +40,13 @@ configureCotiPlugin({
   ...(LOCAL_SNAP_VERSION ? { snapVersion: LOCAL_SNAP_VERSION } : {}),
   additionalSnapAesWriteOrigins: LOCAL_SNAP_AES_WRITE_ORIGINS,
   debug: true,
+  aesKeyBackupVaultAddress: AES_KEY_BACKUP_VAULT_ADDRESS || undefined,
   onboardingGrantMinBalanceWei: (
     BigInt(Math.trunc(Number(ONBOARDING_GRANT_MIN_BALANCE_COTI) * 1e6)) *
     10n ** 12n
   ).toString(),
   onboardingServices: {
     mode: 'custom',
-    fetchEncryptedAesBackup: async ({ address, chainId }) =>
-      fetchEncryptedAesBackup(address, chainId),
-    saveEncryptedAesBackup: async ({ address, chainId, backup }) =>
-      saveEncryptedAesBackup(address, chainId, backup, 'save'),
-    replaceEncryptedAesBackup: async ({ address, chainId, backup }) =>
-      saveEncryptedAesBackup(address, chainId, backup, 'replace'),
     grantNativeCoti: HAS_GRANT_API_URL
       ? async ({ address, chainId }) => {
           const grantApiUrl = GRANT_API_URL_BY_CHAIN[chainId];

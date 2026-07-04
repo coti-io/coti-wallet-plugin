@@ -9,6 +9,11 @@ import { logger } from '../lib/logger';
 import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID } from '../config/chains';
 import { getPluginConfig } from '../config/plugin';
 import { decryptAesKeyBackup, encryptAesKeyBackup } from '../crypto/aesKeyBackupVault';
+import {
+  fetchEncryptedAesBackupFromContract,
+  isAesKeyBackupVaultConfigured,
+  saveEncryptedAesBackupToContract,
+} from '../crypto/aesKeyBackupContract';
 import { normalizeAesKey } from '../crypto/aesKey';
 import { muteChainUpdates, unmuteChainUpdates, isChainUpdatesMuted } from '../lib/chainMute';
 import { canPersistAesKeyToSnap } from '../lib/snapOrigins';
@@ -158,7 +163,8 @@ function instrumentWalletProvider(
   trace: OnboardingDebugTrace,
 ): () => void {
   const hadOwnRequest = Object.prototype.hasOwnProperty.call(walletProvider, 'request');
-  const originalRequest = walletProvider.request.bind(walletProvider);
+  const rawRequest = walletProvider.request;
+  const originalRequest = rawRequest.bind(walletProvider);
   let executeStepEmitted = false;
 
   walletProvider.request = async function instrumentedRequest(args: Eip1193RequestPayload) {
@@ -185,7 +191,7 @@ function instrumentWalletProvider(
 
   return () => {
     if (hadOwnRequest) {
-      walletProvider.request = originalRequest;
+      walletProvider.request = rawRequest;
     } else {
       try {
         delete (walletProvider as { request?: unknown }).request;
@@ -252,7 +258,6 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
       setOnboardingWarning(null);
       setWasRestoreCancelled(false);
       emitStep('idle');
-      let restoreBackupFailed = false;
 
       const trace = debugTraceRef.current;
       trace.push('start', `wallet=${walletTypeInfo.walletType} mobile=${isMetaMaskMobileBrowser()}`);
@@ -340,16 +345,17 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         const isConnectedCotiChain = connectedChainId === COTI_MAINNET_CHAIN_ID || connectedChainId === COTI_TESTNET_CHAIN_ID;
         const targetCotiChainId = isConnectedCotiChain && connectedChainId ? connectedChainId : COTI_TESTNET_CHAIN_ID;
         const backupContext = { address, chainId: targetCotiChainId };
+        const backupVaultConfigured = isAesKeyBackupVaultConfigured();
 
-        if (servicesEnabled && services?.fetchEncryptedAesBackup) {
+        if (backupVaultConfigured) {
           try {
             emitStep('restoring-backup');
-            const backup = await services.fetchEncryptedAesBackup(backupContext);
+            const backup = await fetchEncryptedAesBackupFromContract(address, targetCotiChainId);
             if (backup) {
               const provider = new BrowserProvider(walletProvider);
               const signer = await provider.getSigner(address);
               const restoredKey = await decryptAesKeyBackup(backup, signer, backupContext);
-              logger.log('✅ AES key restored from encrypted backup');
+              logger.log('✅ AES key restored from encrypted backup vault');
 
               if (
                 options.hydrateSnapFromBackup
@@ -397,7 +403,6 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
               ? restoreError.message
               : 'Encrypted AES backup could not be restored.';
             logger.warn('⚠️ AES backup restore failed, falling back to contract onboarding:', restoreError);
-            restoreBackupFailed = true;
             setOnboardingWarning(`Encrypted backup could not be restored. Continuing with onboarding. ${message}`);
           }
         }
@@ -550,21 +555,6 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           logger.log('✅ AES key retrieved successfully:', aesKey?.length, 'characters');
         }
 
-        // Step: Switch wallet back to original chain
-        emitStep('restoring-network');
-
-        if (!isConnectedCotiChain && originalChainHex) {
-          logger.log('🔇 [AesKeyProvider] Switching back to:', originalChainHex);
-          try {
-            await walletProvider.request({
-              method: 'wallet_switchEthereumChain',
-              params: [{ chainId: originalChainHex }],
-            });
-          } catch {
-            logger.warn('⚠️ [AesKeyProvider] Could not switch back to original chain');
-          }
-        }
-
         // Step: Persist key (MetaMask Snap) or finalize
         emitStep('persisting-key');
 
@@ -591,22 +581,37 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           isValidAesKey(aesKey) &&
           options.saveBackup &&
           !skipEncryptedBackupForSnap &&
-          servicesEnabled &&
-          (services?.saveEncryptedAesBackup || services?.replaceEncryptedAesBackup)
+          backupVaultConfigured
         ) {
           try {
             emitStep('saving-backup');
             const backup = await encryptAesKeyBackup(aesKey, signer, backupContext);
-            const saveBackup = restoreBackupFailed && services.replaceEncryptedAesBackup
-              ? services.replaceEncryptedAesBackup
-              : services.saveEncryptedAesBackup;
-            await saveBackup?.({ ...backupContext, backup });
+            await saveEncryptedAesBackupToContract({
+              ...backupContext,
+              backup,
+              provider: walletProvider,
+            });
           } catch (backupError) {
             const message = backupError instanceof Error
               ? backupError.message
               : 'Encrypted AES backup could not be saved.';
             logger.warn('⚠️ AES key retrieved but encrypted backup save failed:', backupError);
             setOnboardingWarning(`Onboarding succeeded, but encrypted backup was not saved. ${message}`);
+          }
+        }
+
+        // Step: Switch wallet back to original chain
+        emitStep('restoring-network');
+
+        if (!isConnectedCotiChain && originalChainHex) {
+          logger.log('🔇 [AesKeyProvider] Switching back to:', originalChainHex);
+          try {
+            await walletProvider.request({
+              method: 'wallet_switchEthereumChain',
+              params: [{ chainId: originalChainHex }],
+            });
+          } catch {
+            logger.warn('⚠️ [AesKeyProvider] Could not switch back to original chain');
           }
         }
 

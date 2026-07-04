@@ -21,20 +21,13 @@ export interface OnboardingServiceRequest {
   chainId: number;
 }
 
-export interface SaveEncryptedAesBackupRequest extends OnboardingServiceRequest {
-  backup: EncryptedAesBackup;
-}
-
 export interface OnboardingServices {
   /**
-   * Disabled: no grant/backup features. Custom: use provided callbacks.
+   * Disabled: no grant feature. Custom: use provided grant callback.
    * Official is reserved for stable COTI-hosted APIs.
    */
   mode?: 'disabled' | 'custom' | 'official';
   grantNativeCoti?: (request: OnboardingServiceRequest) => Promise<GrantResult>;
-  fetchEncryptedAesBackup?: (request: OnboardingServiceRequest) => Promise<EncryptedAesBackup | null>;
-  saveEncryptedAesBackup?: (request: SaveEncryptedAesBackupRequest) => Promise<void>;
-  replaceEncryptedAesBackup?: (request: SaveEncryptedAesBackupRequest) => Promise<void>;
 }
 
 /**
@@ -69,8 +62,13 @@ export interface CotiPluginConfig {
    * the same wallet can skip Snap re-fetch; use true for stricter shared-browser security.
    */
   clearSessionKeyOnWagmiDisconnect?: boolean;
-  /** Optional onboarding service hooks for grant and encrypted AES backup flows. */
+  /** Optional onboarding service hooks for native COTI grants. */
   onboardingServices?: OnboardingServices;
+  /**
+   * CREATE2 `AesKeyBackupVault` address (same on COTI testnet and mainnet).
+   * When omitted, encrypted backup restore/save is skipped and onboarding stays local/session-only.
+   */
+  aesKeyBackupVaultAddress?: string;
   /** Native COTI threshold required before contract onboarding. Defaults to 0. */
   onboardingGrantMinBalanceWei?: BigNumberish;
   /** Polling interval after grant callback. Defaults to 2000ms. */

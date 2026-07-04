@@ -6,7 +6,6 @@ export type {
   GrantResult,
   OnboardingServiceRequest,
   OnboardingServices,
-  SaveEncryptedAesBackupRequest,
 } from './config/plugin';
 
 // Logging — silent by default, opt in via configureCotiPlugin({ debug: true })

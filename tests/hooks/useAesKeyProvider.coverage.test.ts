@@ -34,6 +34,18 @@ vi.mock('../../src/lib/snapOrigins', () => ({
   canPersistAesKeyToSnap: vi.fn(() => true),
 }));
 
+const backupContractState = vi.hoisted(() => ({
+  fetchEncryptedAesBackupFromContract: vi.fn(),
+  isAesKeyBackupVaultConfigured: vi.fn(),
+  saveEncryptedAesBackupToContract: vi.fn(),
+}));
+
+vi.mock('../../src/crypto/aesKeyBackupContract', () => ({
+  fetchEncryptedAesBackupFromContract: backupContractState.fetchEncryptedAesBackupFromContract,
+  isAesKeyBackupVaultConfigured: backupContractState.isAesKeyBackupVaultConfigured,
+  saveEncryptedAesBackupToContract: backupContractState.saveEncryptedAesBackupToContract,
+}));
+
 const wagmiState = vi.hoisted(() => ({
   connector: undefined as any,
   chainId: undefined as number | undefined,
@@ -117,14 +129,14 @@ describe('useAesKeyProvider (full branch coverage)', () => {
     ethersState.signer = makeSigner(VALID_KEY);
     ethersState.getSigner.mockResolvedValue(makeSigner(VALID_KEY));
     ethersState.getBalance.mockResolvedValue(1n);
+    backupContractState.fetchEncryptedAesBackupFromContract.mockResolvedValue(null);
+    backupContractState.isAesKeyBackupVaultConfigured.mockReturnValue(true);
+    backupContractState.saveEncryptedAesBackupToContract.mockResolvedValue('0xbackup');
     mobileState.isMetaMaskMobileBrowser.mockReturnValue(false);
     configureCotiPlugin({
       onboardingServices: {
         mode: 'disabled',
         grantNativeCoti: undefined,
-        fetchEncryptedAesBackup: undefined,
-        saveEncryptedAesBackup: undefined,
-        replaceEncryptedAesBackup: undefined,
       },
     });
   });
@@ -390,13 +402,7 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       ethersState.getSigner.mockResolvedValue(signer);
       wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
       wagmiState.chainId = COTI_TESTNET;
-      const fetchEncryptedAesBackup = vi.fn().mockResolvedValue(backup);
-      configureCotiPlugin({
-        onboardingServices: {
-          mode: 'custom',
-          fetchEncryptedAesBackup,
-        },
-      });
+      backupContractState.fetchEncryptedAesBackupFromContract.mockResolvedValue(backup);
 
       const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'rabby' })));
 
@@ -406,7 +412,7 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       });
 
       expect(key).toBe(VALID_KEY);
-      expect(fetchEncryptedAesBackup).toHaveBeenCalledWith({ address: ADDR, chainId: COTI_TESTNET });
+      expect(backupContractState.fetchEncryptedAesBackupFromContract).toHaveBeenCalledWith(ADDR, COTI_TESTNET);
       expect(signer.generateOrRecoverAes).not.toHaveBeenCalled();
     });
 
@@ -419,12 +425,7 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       ethersState.getSigner.mockResolvedValue(signer);
       wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
       wagmiState.chainId = COTI_TESTNET;
-      configureCotiPlugin({
-        onboardingServices: {
-          mode: 'custom',
-          fetchEncryptedAesBackup: vi.fn().mockResolvedValue(backup),
-        },
-      });
+      backupContractState.fetchEncryptedAesBackupFromContract.mockResolvedValue(backup);
 
       const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'metamask' })));
 
@@ -448,12 +449,7 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       ethersState.getSigner.mockResolvedValue(signer);
       wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
       wagmiState.chainId = COTI_TESTNET;
-      configureCotiPlugin({
-        onboardingServices: {
-          mode: 'custom',
-          fetchEncryptedAesBackup: vi.fn().mockResolvedValue(backup),
-        },
-      });
+      backupContractState.fetchEncryptedAesBackupFromContract.mockResolvedValue(backup);
 
       const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'metamask' })));
 
@@ -475,19 +471,14 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       ethersState.signer = signer;
       wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
       wagmiState.chainId = COTI_TESTNET;
-      configureCotiPlugin({
-        onboardingServices: {
-          mode: 'custom',
-          fetchEncryptedAesBackup: vi.fn().mockResolvedValue({
-            version: 1,
-            address: ADDR,
-            chainId: COTI_TESTNET,
-            signatureKind: 'eip712',
-            iv: 'bad',
-            ciphertext: 'bad',
-            createdAt: new Date().toISOString(),
-          }),
-        },
+      backupContractState.fetchEncryptedAesBackupFromContract.mockResolvedValue({
+        version: 1,
+        address: ADDR,
+        chainId: COTI_TESTNET,
+        signatureKind: 'eip712',
+        iv: 'bad',
+        ciphertext: 'bad',
+        createdAt: new Date().toISOString(),
       });
 
       const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'rabby' })));
@@ -588,13 +579,6 @@ describe('useAesKeyProvider (full branch coverage)', () => {
     it('saves an encrypted backup after onboarding when requested', async () => {
       wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
       wagmiState.chainId = COTI_TESTNET;
-      const saveEncryptedAesBackup = vi.fn().mockResolvedValue(undefined);
-      configureCotiPlugin({
-        onboardingServices: {
-          mode: 'custom',
-          saveEncryptedAesBackup,
-        },
-      });
 
       const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'rabby' })));
 
@@ -604,13 +588,32 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       });
 
       expect(key).toBe(VALID_KEY);
-      expect(saveEncryptedAesBackup).toHaveBeenCalledWith(
+      expect(backupContractState.saveEncryptedAesBackupToContract).toHaveBeenCalledWith(
         expect.objectContaining({
           address: ADDR,
           chainId: COTI_TESTNET,
           backup: expect.objectContaining({ signatureKind: 'eip712' }),
+          provider: expect.any(Object),
         }),
       );
+    });
+
+    it('skips restore and backup save when the backup vault is not configured', async () => {
+      backupContractState.isAesKeyBackupVaultConfigured.mockReturnValue(false);
+      wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
+      wagmiState.chainId = COTI_TESTNET;
+
+      const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'rabby' })));
+
+      let key: string | null = null;
+      await act(async () => {
+        key = await result.current.getAesKey(ADDR, undefined, { saveBackup: true });
+      });
+
+      expect(key).toBe(VALID_KEY);
+      expect(backupContractState.fetchEncryptedAesBackupFromContract).not.toHaveBeenCalled();
+      expect(backupContractState.saveEncryptedAesBackupToContract).not.toHaveBeenCalled();
+      expect(result.current.onboardingWarning).toBeNull();
     });
 
     it('returns the AES key when already on COTI mainnet', async () => {
