@@ -30,7 +30,7 @@ export const usePrivacyBridgeWagmiSync = ({
     wagmiSyncRef,
     setSessionAesKey,
     setArePrivateBalancesHidden,
-    executeSnapCheck,
+    checkSnapStatus,
     clearSnapCache,
     setMetamaskDetected,
   } = core;
@@ -56,11 +56,7 @@ export const usePrivacyBridgeWagmiSync = ({
       const isMetaMask = mapConnectorIdToWalletType(wagmiConnector?.id) === 'metamask';
       if (isMetaMask) {
         logger.log('MetaMask detected via RainbowKit — checking Snap...');
-        executeSnapCheck(async () => {
-          logger.log('Snap found via RainbowKit MetaMask connection');
-          setHasSnap(true);
-          return true;
-        });
+        void checkSnapStatus();
       }
     }
 
@@ -99,7 +95,7 @@ export const usePrivacyBridgeWagmiSync = ({
     setHasSnap,
     setSessionAesKey,
     setArePrivateBalancesHidden,
-    executeSnapCheck,
+    checkSnapStatus,
     clearSnapCache,
     setMetamaskDetected,
   ]);

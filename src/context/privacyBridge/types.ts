@@ -35,6 +35,8 @@ export interface PrivacyBridgeUnlockContextValue {
   hasAesKeyInSnap: () => Promise<boolean | null>;
   connectToSnap: () => Promise<boolean>;
   requestSnapConnection: () => Promise<boolean>;
+  /** Probes Snap via wallet_getSnaps, updates hasSnap, and returns the result. */
+  checkSnapStatus: () => Promise<boolean>;
   isPrivateUnlocked: boolean;
   /** Re-unlock after lock without page refresh (uses in-memory session key internally). */
   unlockCachedAesKey: () => Promise<void>;

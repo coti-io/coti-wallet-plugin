@@ -59,7 +59,7 @@ vi.mock('../../src/hooks/useMetamask', () => ({
 
 vi.mock('../../src/hooks/useSnap', () => ({
   useSnap: () => ({
-    isSnapInstalled: false,
+    isSnapInstalled: vi.fn().mockResolvedValue(false),
     executeSnapCheck: vi.fn(async () => false),
     getAESKeyFromSnap: vi.fn(async () => null),
     saveAESKeyToSnap: vi.fn(async () => undefined),
@@ -171,6 +171,7 @@ describe('privacyBridge facade', () => {
         snapError: null,
         connectToSnap: async () => false,
         requestSnapConnection: async () => false,
+        checkSnapStatus: async () => false,
         isPrivateUnlocked: false,
         unlockCachedAesKey: async () => undefined,
         sendPrivateToken: async () => ({ txHash: '0x1' }),

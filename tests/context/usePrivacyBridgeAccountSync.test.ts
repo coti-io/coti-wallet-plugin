@@ -87,6 +87,7 @@ function makeCore(overrides: Partial<PrivacyBridgeSessionCore> = {}): PrivacyBri
     arePrivateBalancesHidden: true,
     setArePrivateBalancesHidden: vi.fn(),
     executeSnapCheck: vi.fn(),
+    checkSnapStatus: vi.fn().mockResolvedValue(false),
     getAESKeyFromSnap: vi.fn().mockResolvedValue(null),
     connectToSnap: vi.fn().mockResolvedValue(false),
     requestSnapConnection: vi.fn().mockResolvedValue(false),
@@ -276,5 +277,47 @@ describe('usePrivacyBridgeAccountSync — sessionAesKey effect', () => {
       onProgress,
       { forceContractOnboarding: true, onProgress },
     );
+  });
+});
+
+describe('usePrivacyBridgeAccountSync — snap auto-probe', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    h.updateAccountState.mockResolvedValue(true);
+  });
+
+  it('calls checkSnapStatus when MetaMask connects with hasSnap false', async () => {
+    const checkSnapStatus = vi.fn().mockResolvedValue(true);
+    const core = makeCore({ hasSnap: false, walletAddress: '0xabc123', checkSnapStatus });
+    const network = makeNetwork();
+    const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
+
+    renderHook(() => usePrivacyBridgeAccountSync({ core, network, updateAccountStateRef }));
+
+    await vi.waitFor(() => {
+      expect(checkSnapStatus).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('skips checkSnapStatus when hasSnap is already true', () => {
+    const checkSnapStatus = vi.fn().mockResolvedValue(true);
+    const core = makeCore({ hasSnap: true, walletAddress: '0xabc123', checkSnapStatus });
+    const network = makeNetwork();
+    const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
+
+    renderHook(() => usePrivacyBridgeAccountSync({ core, network, updateAccountStateRef }));
+
+    expect(checkSnapStatus).not.toHaveBeenCalled();
+  });
+
+  it('skips checkSnapStatus when walletAddress is empty', () => {
+    const checkSnapStatus = vi.fn().mockResolvedValue(true);
+    const core = makeCore({ hasSnap: false, walletAddress: '', checkSnapStatus });
+    const network = makeNetwork();
+    const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
+
+    renderHook(() => usePrivacyBridgeAccountSync({ core, network, updateAccountStateRef }));
+
+    expect(checkSnapStatus).not.toHaveBeenCalled();
   });
 });

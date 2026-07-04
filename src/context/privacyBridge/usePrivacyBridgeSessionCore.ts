@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSnap } from '../../hooks/useSnap';
 import { usePrivateTokenBalance } from '../../hooks/usePrivateTokenBalance';
 import { useWalletType } from '../../hooks/useWalletType';
@@ -32,6 +32,7 @@ export const usePrivacyBridgeSessionCore = ({
   const ethereumListenerRegistered = useRef(false);
   const wagmiSyncRef = useRef(false);
   const metamaskExplicitConnect = useRef(false);
+  const snapCheckInFlightRef = useRef<Promise<boolean> | null>(null);
 
   const {
     sessionAesKey,
@@ -45,6 +46,7 @@ export const usePrivacyBridgeSessionCore = ({
   }, [snapError]);
 
   const {
+    isSnapInstalled,
     executeSnapCheck,
     getAESKeyFromSnap,
     hasAesKeyInSnap,
@@ -57,6 +59,27 @@ export const usePrivacyBridgeSessionCore = ({
     handleKeyVerification,
     clearSnapCache,
   } = useSnap(setSnapError);
+
+  const checkSnapStatus = useCallback(async (): Promise<boolean> => {
+    if (snapCheckInFlightRef.current) {
+      return snapCheckInFlightRef.current;
+    }
+
+    const promise = isSnapInstalled().then(installed => {
+      setHasSnap(installed);
+      return installed;
+    });
+
+    snapCheckInFlightRef.current = promise;
+
+    try {
+      return await promise;
+    } finally {
+      if (snapCheckInFlightRef.current === promise) {
+        snapCheckInFlightRef.current = null;
+      }
+    }
+  }, [isSnapInstalled, setHasSnap]);
 
   const walletTypeInfo = useWalletType();
   const { getAesKey: getAesKeyFromProvider } = useAesKeyProvider(walletTypeInfo);
@@ -90,6 +113,7 @@ export const usePrivacyBridgeSessionCore = ({
     arePrivateBalancesHidden,
     setArePrivateBalancesHidden,
     executeSnapCheck,
+    checkSnapStatus,
     getAESKeyFromSnap,
     hasAesKeyInSnap,
     connectToSnap,

@@ -47,6 +47,8 @@ export interface PrivacyBridgeSessionCore {
   arePrivateBalancesHidden: boolean;
   setArePrivateBalancesHidden: Dispatch<SetStateAction<boolean>>;
   executeSnapCheck: (onSnapFound: () => Promise<boolean>) => Promise<void>;
+  /** Probes Snap via wallet_getSnaps and updates hasSnap. Dedupes concurrent calls. */
+  checkSnapStatus: () => Promise<boolean>;
   getAESKeyFromSnap: (accountAddress: string, options?: { skipCache?: boolean }) => Promise<string | null>;
   hasAesKeyInSnap: () => Promise<boolean | null>;
   connectToSnap: () => Promise<boolean>;

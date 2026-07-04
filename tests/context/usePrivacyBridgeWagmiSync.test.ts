@@ -5,6 +5,7 @@ import { renderHook } from '@testing-library/react';
 const h = vi.hoisted(() => ({
   updateAccountState: vi.fn().mockResolvedValue(true),
   isChainUpdatesMuted: vi.fn().mockReturnValue(false),
+  mapConnectorIdToWalletType: vi.fn(() => 'unknown' as const),
   wagmiAccount: {
     address: '0xabc123' as string | undefined,
     isConnected: true,
@@ -50,7 +51,7 @@ vi.mock('../../src/config/plugin', () => ({
 }));
 
 vi.mock('../../src/hooks/useWalletType', () => ({
-  mapConnectorIdToWalletType: () => 'unknown',
+  mapConnectorIdToWalletType: h.mapConnectorIdToWalletType,
 }));
 
 vi.mock('../../src/lib/chainMute', () => ({
@@ -67,9 +68,13 @@ vi.mock('../../src/lib/format', () => ({
   truncateAddress: (a: string) => a.slice(0, 8),
 }));
 
-vi.mock('../../src/chains', () => ({
-  getWalletNetworkConfigs: () => ({}),
-}));
+vi.mock('../../src/chains', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../src/chains')>();
+  return {
+    ...actual,
+    getWalletNetworkConfigs: () => ({}),
+  };
+});
 
 import { usePrivacyBridgeWagmiSync } from '../../src/context/privacyBridge/usePrivacyBridgeWagmiSync';
 import type { PrivacyBridgeSessionCore } from '../../src/context/privacyBridge/sessionShared';
@@ -103,6 +108,7 @@ function makeCore(overrides: Partial<PrivacyBridgeSessionCore> = {}): PrivacyBri
     arePrivateBalancesHidden: true,
     setArePrivateBalancesHidden: vi.fn(),
     executeSnapCheck: vi.fn(),
+    checkSnapStatus: vi.fn().mockResolvedValue(false),
     getAESKeyFromSnap: vi.fn().mockResolvedValue(null),
     connectToSnap: vi.fn().mockResolvedValue(false),
     requestSnapConnection: vi.fn().mockResolvedValue(false),
@@ -246,5 +252,41 @@ describe('usePrivacyBridgeWagmiSync — chain-change guard with sessionAesKey', 
       (call: any[]) => call[4] === 7082400 // chainOverride matches the new chain
     );
     expect(chainChangeCalls).toHaveLength(0);
+  });
+});
+
+describe('usePrivacyBridgeWagmiSync — snap status on connect', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    h.updateAccountState.mockResolvedValue(true);
+    h.wagmiAccount.address = '0xabc123';
+    h.wagmiAccount.isConnected = true;
+    h.wagmiAccount.chainId = 11155111;
+    vi.mocked(h.mapConnectorIdToWalletType).mockReturnValue('metamask');
+  });
+
+  it('calls checkSnapStatus when RainbowKit MetaMask connects', async () => {
+    const checkSnapStatus = vi.fn().mockResolvedValue(true);
+    const core = makeCore({ isConnected: false, checkSnapStatus });
+    const network = makeNetwork({ wagmiConnector: { id: 'io.metamask' } });
+    const accountSync = makeAccountSync();
+
+    renderHook(() => usePrivacyBridgeWagmiSync({ core, network, accountSync }));
+
+    await vi.waitFor(() => {
+      expect(checkSnapStatus).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('does not call checkSnapStatus for non-MetaMask connectors', () => {
+    vi.mocked(h.mapConnectorIdToWalletType).mockReturnValue('coinbase');
+    const checkSnapStatus = vi.fn().mockResolvedValue(false);
+    const core = makeCore({ isConnected: false, checkSnapStatus });
+    const network = makeNetwork({ wagmiConnector: { id: 'coinbaseWalletSDK' } });
+    const accountSync = makeAccountSync();
+
+    renderHook(() => usePrivacyBridgeWagmiSync({ core, network, accountSync }));
+
+    expect(checkSnapStatus).not.toHaveBeenCalled();
   });
 });

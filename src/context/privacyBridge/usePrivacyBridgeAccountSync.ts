@@ -43,6 +43,7 @@ export const usePrivacyBridgeAccountSync = ({
     hasSnap,
     walletAddress,
     wagmiSyncRef,
+    checkSnapStatus,
   } = core;
 
   const { checkNetwork, currentChainId, wagmiChainId } = network;
@@ -119,6 +120,22 @@ export const usePrivacyBridgeAccountSync = ({
   });
 
   updateAccountStateRef.current = updateAccountState;
+
+  // Proactively detect Snap on MetaMask wallet connect so hasSnap is available
+  // before the user triggers refreshPrivateBalances / unlock routing.
+  useEffect(() => {
+    if (
+      walletTypeInfo.walletType !== 'metamask'
+      || !walletAddress
+      || hasSnap
+    ) {
+      return;
+    }
+
+    checkSnapStatus().catch(() => {
+      // Non-fatal — hasSnap stays false and unlock falls back to contract path.
+    });
+  }, [walletAddress, walletTypeInfo.walletType, hasSnap, checkSnapStatus]);
 
   useEffect(() => {
     if (isChainUpdatesMuted()) return;
