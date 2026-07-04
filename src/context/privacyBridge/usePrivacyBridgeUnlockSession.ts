@@ -11,6 +11,10 @@ import type { PrivacyBridgeNetworkSession } from './usePrivacyBridgeNetworkSessi
 import type { PrivacyBridgeSessionCore } from './sessionShared';
 import type { AesKeyProviderOptions } from '../../hooks/useAesKeyProvider';
 import { normalizeAesKey } from '../../crypto/aesKey';
+import {
+  sendPrivateTokenTransfer,
+  type ExecutePrivateTokenTransferResult,
+} from '../../hooks/privacyBridge/executePrivateTokenTransfer';
 
 interface UsePrivacyBridgeUnlockSessionOptions {
   core: PrivacyBridgeSessionCore;
@@ -279,6 +283,46 @@ export const usePrivacyBridgeUnlockSession = ({
     resolveRestoreUnlockPlan,
   ]);
 
+  const sendPrivateToken = useCallback(async (params: {
+    symbol: string;
+    recipient: string;
+    amount: string;
+  }): Promise<ExecutePrivateTokenTransferResult> => {
+    if (!walletAddress) {
+      throw new Error('Wallet not connected');
+    }
+    if (arePrivateBalancesHidden) {
+      throw new Error('Private balances are locked. Unlock to send tokens.');
+    }
+
+    const chainIdNum = Number(currentChainId);
+    if (!Number.isFinite(chainIdNum) || chainIdNum <= 0) {
+      throw new Error('Network not available');
+    }
+
+    const result = await sendPrivateTokenTransfer({
+      chainId: chainIdNum,
+      symbol: params.symbol,
+      recipient: params.recipient,
+      amount: params.amount,
+      walletAddress,
+      sessionAesKey: core.sessionAesKey,
+      hasSnap: core.hasSnap,
+      buildItUint256ViaSnap: core.buildItUint256ViaSnap,
+    });
+
+    await refreshPrivateBalances();
+    return result;
+  }, [
+    walletAddress,
+    arePrivateBalancesHidden,
+    currentChainId,
+    core.sessionAesKey,
+    core.hasSnap,
+    core.buildItUint256ViaSnap,
+    refreshPrivateBalances,
+  ]);
+
   const lockPrivateBalances = () => {
     logger.log('Locking private balances (AES key preserved in session for re-unlock)');
     setArePrivateBalancesHidden(true);
@@ -298,6 +342,7 @@ export const usePrivacyBridgeUnlockSession = ({
     refreshPublicBalances,
     refreshPrivateBalances,
     lockPrivateBalances,
+    sendPrivateToken,
     isPrivateUnlocked,
     handleVerifyKeys: handleKeyVerification,
   };

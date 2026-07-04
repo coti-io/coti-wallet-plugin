@@ -98,6 +98,8 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
       connectToSnap: session.connectToSnap,
       requestSnapConnection: session.requestSnapConnection,
       isPrivateUnlocked: session.isPrivateUnlocked,
+      unlockCachedAesKey: session.unlockCachedAesKey,
+      sendPrivateToken: session.sendPrivateToken,
       refreshPrivateBalances: session.refreshPrivateBalances,
       lockPrivateBalances: session.lockPrivateBalances,
       handleOnboard: session.handleOnboard,

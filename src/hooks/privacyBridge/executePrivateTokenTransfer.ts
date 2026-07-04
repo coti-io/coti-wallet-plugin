@@ -39,6 +39,32 @@ export interface ExecutePrivateTokenTransferResult {
   txHash: string;
 }
 
+type ItUint256TransferPayload = {
+  ciphertext: { ciphertextHigh: bigint; ciphertextLow: bigint };
+  signature: string;
+};
+
+interface BuildItUint256ForTransferParams {
+  value: bigint;
+  tokenAddress: string;
+  functionSelector: string;
+  chainId: number;
+}
+
+interface SendPrivateTokenTransferParams {
+  chainId: number;
+  symbol: string;
+  recipient: string;
+  amount: string;
+  walletAddress: string;
+  provider?: EIP1193Provider | null;
+  sessionAesKey?: string | null;
+  hasSnap?: boolean;
+  buildItUint256ViaSnap?: (
+    params: BuildItUint256ForTransferParams,
+  ) => Promise<ItUint256TransferPayload | null>;
+}
+
 export function normalizeAesKeyHex(aesKey: string): string {
   try {
     return normalizeAesKey(aesKey);
@@ -74,25 +100,12 @@ export function resolvePrivateTokenTransferTarget(
   };
 }
 
-/**
- * Sends a private ERC-20 transfer (256-bit itUint256) to another address.
- *
- * Flow mirrors coti-snap transferERC20 (256-bit branch) and portal private approve:
- * encrypt + signMessage, encode transfer calldata, estimate gas, eth_sendTransaction.
- */
-export async function executePrivateTokenTransfer(
-  params: ExecutePrivateTokenTransferParams,
-): Promise<ExecutePrivateTokenTransferResult> {
-  const {
-    tokenAddress,
-    recipient,
-    amount,
-    decimals,
-    aesKey,
-    walletAddress,
-    provider: injectedProvider,
-  } = params;
-
+function validatePrivateTransferInputs(
+  tokenAddress: string,
+  recipient: string,
+  amount: string,
+  walletAddress: string,
+): void {
   if (!ethers.isAddress(tokenAddress)) {
     throw new Error('Invalid token contract address');
   }
@@ -105,16 +118,9 @@ export async function executePrivateTokenTransfer(
   if (!amount?.trim() || !Number.isFinite(Number(amount)) || Number(amount) <= 0) {
     throw new Error('Amount must be greater than zero');
   }
+}
 
-  const eip1193 = injectedProvider ?? getEthereumProvider();
-  if (!eip1193) {
-    throw new Error('No wallet found');
-  }
-
-  const normalizedAesKey = normalizeAesKeyHex(aesKey);
-  const provider = new ethers.BrowserProvider(eip1193);
-  const signer = await provider.getSigner();
-
+function parseTransferAmountWei(amount: string, decimals: number): bigint {
   let amountWei: bigint;
   try {
     amountWei = ethers.parseUnits(amount, decimals);
@@ -124,16 +130,18 @@ export async function executePrivateTokenTransfer(
   if (amountWei <= 0n) {
     throw new Error('Amount must be greater than zero');
   }
+  return amountWei;
+}
 
-  const transferSig = ethers.id(PRIVATE_ERC20_TRANSFER_256_SIG).slice(0, 10);
-  const itValue = await encryptValue256(
-    amountWei,
-    normalizedAesKey,
-    tokenAddress,
-    transferSig,
-    walletAddress,
-    signer,
-  );
+async function submitPrivateTokenTransferTx(params: {
+  tokenAddress: string;
+  recipient: string;
+  amount: string;
+  walletAddress: string;
+  itValue: ItUint256TransferPayload;
+  provider: EIP1193Provider;
+}): Promise<ExecutePrivateTokenTransferResult> {
+  const { tokenAddress, recipient, amount, walletAddress, itValue, provider: eip1193 } = params;
 
   const calldata = TRANSFER_INTERFACE.encodeFunctionData('transfer', [
     recipient,
@@ -163,6 +171,7 @@ export async function executePrivateTokenTransfer(
     amount,
   });
 
+  const browserProvider = new ethers.BrowserProvider(eip1193);
   const rawTxHash = (await eip1193.request({
     method: 'eth_sendTransaction',
     params: [
@@ -176,10 +185,129 @@ export async function executePrivateTokenTransfer(
   })) as string;
 
   logger.log('Waiting for private transfer tx', { txHash: shortHash(rawTxHash) });
-  const receipt = await provider.waitForTransaction(rawTxHash);
+  const receipt = await browserProvider.waitForTransaction(rawTxHash);
   if (!receipt || receipt.status !== 1) {
     throw new Error('Private token transfer failed');
   }
 
   return { txHash: rawTxHash };
+}
+
+/**
+ * Sends a private ERC-20 transfer (256-bit itUint256) to another address.
+ *
+ * Flow mirrors coti-snap transferERC20 (256-bit branch) and portal private approve:
+ * encrypt + signMessage, encode transfer calldata, estimate gas, eth_sendTransaction.
+ */
+export async function executePrivateTokenTransfer(
+  params: ExecutePrivateTokenTransferParams,
+): Promise<ExecutePrivateTokenTransferResult> {
+  const {
+    tokenAddress,
+    recipient,
+    amount,
+    decimals,
+    aesKey,
+    walletAddress,
+    provider: injectedProvider,
+  } = params;
+
+  validatePrivateTransferInputs(tokenAddress, recipient, amount, walletAddress);
+
+  const eip1193 = injectedProvider ?? getEthereumProvider();
+  if (!eip1193) {
+    throw new Error('No wallet found');
+  }
+
+  const normalizedAesKey = normalizeAesKeyHex(aesKey);
+  const provider = new ethers.BrowserProvider(eip1193);
+  const signer = await provider.getSigner();
+  const amountWei = parseTransferAmountWei(amount, decimals);
+  const transferSig = ethers.id(PRIVATE_ERC20_TRANSFER_256_SIG).slice(0, 10);
+  const itValue = await encryptValue256(
+    amountWei,
+    normalizedAesKey,
+    tokenAddress,
+    transferSig,
+    walletAddress,
+    signer,
+  );
+
+  return submitPrivateTokenTransferTx({
+    tokenAddress,
+    recipient,
+    amount,
+    walletAddress,
+    itValue,
+    provider: eip1193,
+  });
+}
+
+/**
+ * Plugin-owned private send — resolves token metadata and encrypts via session key
+ * or Snap without exposing the AES key to dApp code.
+ */
+export async function sendPrivateTokenTransfer(
+  params: SendPrivateTokenTransferParams,
+): Promise<ExecutePrivateTokenTransferResult> {
+  const {
+    chainId,
+    symbol,
+    recipient,
+    amount,
+    walletAddress,
+    provider: injectedProvider,
+    sessionAesKey,
+    hasSnap,
+    buildItUint256ViaSnap,
+  } = params;
+
+  const target = resolvePrivateTokenTransferTarget(chainId, symbol);
+  if (!target) {
+    throw new Error('This token is not supported for send on this network.');
+  }
+
+  validatePrivateTransferInputs(target.tokenAddress, recipient, amount, walletAddress);
+
+  const eip1193 = injectedProvider ?? getEthereumProvider();
+  if (!eip1193) {
+    throw new Error('No wallet found');
+  }
+
+  const browserProvider = new ethers.BrowserProvider(eip1193);
+  const signer = await browserProvider.getSigner();
+  const amountWei = parseTransferAmountWei(amount, target.decimals);
+  const transferSig = ethers.id(PRIVATE_ERC20_TRANSFER_256_SIG).slice(0, 10);
+
+  let itValue: ItUint256TransferPayload | null = null;
+  if (sessionAesKey) {
+    itValue = await encryptValue256(
+      amountWei,
+      normalizeAesKeyHex(sessionAesKey),
+      target.tokenAddress,
+      transferSig,
+      walletAddress,
+      signer,
+    );
+  } else if (hasSnap && buildItUint256ViaSnap) {
+    itValue = await buildItUint256ViaSnap({
+      value: amountWei,
+      tokenAddress: target.tokenAddress,
+      functionSelector: transferSig,
+      chainId,
+    });
+  }
+
+  if (!itValue) {
+    throw new Error('Private balances are locked. Unlock to send tokens.');
+  }
+
+  return submitPrivateTokenTransferTx({
+    tokenAddress: target.tokenAddress,
+    recipient,
+    amount,
+    walletAddress,
+    itValue,
+    provider: eip1193,
+  });
 }

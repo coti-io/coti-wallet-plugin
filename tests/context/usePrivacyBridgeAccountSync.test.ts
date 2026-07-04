@@ -94,6 +94,10 @@ function makeCore(overrides: Partial<PrivacyBridgeSessionCore> = {}): PrivacyBri
     handleKeyVerification: vi.fn().mockResolvedValue(undefined),
     clearSnapCache: vi.fn(),
     fetchPrivateBalance: vi.fn().mockResolvedValue('0'),
+    decryptCtUint64ViaSnap: vi.fn(),
+    decryptCtUint256ViaSnap: vi.fn(),
+    buildItUint256ViaSnap: vi.fn().mockResolvedValue(null),
+    hasAesKeyInSnap: vi.fn().mockResolvedValue(null),
     getAesKeyFromProvider: vi.fn().mockResolvedValue(null),
     ...overrides,
   } as PrivacyBridgeSessionCore;
