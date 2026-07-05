@@ -30,6 +30,10 @@ vi.mock('viem', () => ({
 import { WagmiRainbowKitProvider, getWagmiConfig, wagmiConfig } from '../../src/providers/WagmiRainbowKitProvider';
 import { eip6963MetaMaskWallet } from '../../src/providers/eip6963MetaMaskWallet';
 import { directTrustWallet } from '../../src/providers/directTrustWallet';
+import { mobileMetaMaskWallet } from '../../src/providers/mobileMetaMaskWallet';
+import { mobileRabbyWallet } from '../../src/providers/mobileRabbyWallet';
+import { mobileTrustWallet } from '../../src/providers/mobileTrustWallet';
+import { mobileOneKeyWallet } from '../../src/providers/mobileOneKeyWallet';
 import { configureCotiPlugin } from '../../src/config/plugin';
 import { resolveWalletConnectProjectId } from '../../src/config/walletConnect';
 import { CotiErrorCode, CotiPluginError, hasCotiErrorCode } from '../../src/errors';
@@ -45,6 +49,22 @@ import {
   coinbaseWallet,
   ledgerWallet,
 } from '@rainbow-me/rainbowkit/wallets';
+
+function getRecommendedWalletIds(projectId: string): string[] {
+  const groups = vi.mocked(connectorsForWallets).mock.calls.at(-1)?.[0];
+  const wallets = groups?.[0]?.wallets ?? [];
+  return wallets.map((wallet) => {
+    if (wallet === walletConnectWallet) return 'walletConnect';
+    if (wallet === metaMaskWallet) return 'metaMask';
+    if (wallet === eip6963MetaMaskWallet) return 'io.metamask';
+    if (wallet === trustWallet) return 'trust';
+    if (wallet === directTrustWallet) return 'trust-extension';
+    if (typeof wallet === 'function') {
+      return wallet({ projectId }).id;
+    }
+    return 'unknown';
+  });
+}
 
 describe('WagmiRainbowKitProvider', () => {
   it('exports wagmiConfig for backward compatibility', () => {
@@ -169,7 +189,7 @@ describe('WagmiRainbowKitProvider', () => {
     configureCotiPlugin({ walletConnectProjectId: undefined });
   });
 
-  it('uses a reduced mobile wallet list (WalletConnect, MetaMask, Rabby, Trust, OneKey)', () => {
+  it('uses a reduced mobile wallet list (MetaMask, Rabby, Trust, OneKey, WalletConnect)', () => {
     const originalUserAgent = navigator.userAgent;
     Object.defineProperty(navigator, 'userAgent', {
       configurable: true,
@@ -184,11 +204,18 @@ describe('WagmiRainbowKitProvider', () => {
       [
         {
           groupName: 'Recommended',
-          wallets: [walletConnectWallet, metaMaskWallet, rabbyWallet, trustWallet, oneKeyWallet],
+          wallets: expect.any(Array),
         },
       ],
       expect.objectContaining({ projectId: 'mobile-wallet-test' }),
     );
+    expect(getRecommendedWalletIds('mobile-wallet-test')).toEqual([
+      mobileMetaMaskWallet({ projectId: 'mobile-wallet-test' }).id,
+      mobileRabbyWallet({ projectId: 'mobile-wallet-test' }).id,
+      mobileTrustWallet({ projectId: 'mobile-wallet-test' }).id,
+      mobileOneKeyWallet({ projectId: 'mobile-wallet-test' }).id,
+      'walletConnect',
+    ]);
 
     Object.defineProperty(navigator, 'userAgent', {
       configurable: true,
@@ -212,7 +239,7 @@ describe('WagmiRainbowKitProvider', () => {
       [
         {
           groupName: 'Recommended',
-          wallets: [metaMaskWallet, rabbyWallet, trustWallet, oneKeyWallet, walletConnectWallet],
+          wallets: expect.any(Array),
         },
         {
           groupName: 'Other',
@@ -221,6 +248,13 @@ describe('WagmiRainbowKitProvider', () => {
       ],
       expect.objectContaining({ projectId: 'desktop-wallet-test' }),
     );
+    expect(getRecommendedWalletIds('desktop-wallet-test')).toEqual([
+      'metaMask',
+      mobileRabbyWallet({ projectId: 'desktop-wallet-test' }).id,
+      'trust',
+      mobileOneKeyWallet({ projectId: 'desktop-wallet-test' }).id,
+      'walletConnect',
+    ]);
 
     Object.defineProperty(navigator, 'userAgent', {
       configurable: true,
@@ -245,19 +279,13 @@ describe('WagmiRainbowKitProvider', () => {
     );
 
     expect(screen.getByTestId('eip6963-child')).toBeDefined();
-    expect(connectorsForWallets).toHaveBeenCalledWith(
-      [
-        {
-          groupName: 'Recommended',
-          wallets: [eip6963MetaMaskWallet, rabbyWallet, trustWallet, oneKeyWallet, walletConnectWallet],
-        },
-        {
-          groupName: 'Other',
-          wallets: [coinbaseWallet, ledgerWallet],
-        },
-      ],
-      expect.objectContaining({ projectId: 'eip6963-wallet-test' }),
-    );
+    expect(getRecommendedWalletIds('eip6963-wallet-test')).toEqual([
+      'io.metamask',
+      mobileRabbyWallet({ projectId: 'eip6963-wallet-test' }).id,
+      'trust',
+      mobileOneKeyWallet({ projectId: 'eip6963-wallet-test' }).id,
+      'walletConnect',
+    ]);
 
     Object.defineProperty(navigator, 'userAgent', {
       configurable: true,
@@ -282,19 +310,13 @@ describe('WagmiRainbowKitProvider', () => {
     );
 
     expect(screen.getByTestId('direct-trust-child')).toBeDefined();
-    expect(connectorsForWallets).toHaveBeenCalledWith(
-      [
-        {
-          groupName: 'Recommended',
-          wallets: [metaMaskWallet, rabbyWallet, directTrustWallet, oneKeyWallet, walletConnectWallet],
-        },
-        {
-          groupName: 'Other',
-          wallets: [coinbaseWallet, ledgerWallet],
-        },
-      ],
-      expect.objectContaining({ projectId: 'direct-trust-wallet-test' }),
-    );
+    expect(getRecommendedWalletIds('direct-trust-wallet-test')).toEqual([
+      'metaMask',
+      mobileRabbyWallet({ projectId: 'direct-trust-wallet-test' }).id,
+      'trust-extension',
+      mobileOneKeyWallet({ projectId: 'direct-trust-wallet-test' }).id,
+      'walletConnect',
+    ]);
 
     Object.defineProperty(navigator, 'userAgent', {
       configurable: true,

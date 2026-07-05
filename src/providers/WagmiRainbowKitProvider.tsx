@@ -27,8 +27,16 @@ import { getPluginConfig } from '../config/plugin';
 import { resolveWalletConnectProjectId } from '../config/walletConnect';
 import { eip6963MetaMaskWallet } from './eip6963MetaMaskWallet';
 import { directTrustWallet } from './directTrustWallet';
+import { mobileMetaMaskWallet } from './mobileMetaMaskWallet';
 import { mobileRabbyWallet } from './mobileRabbyWallet';
+import { mobileTrustWallet } from './mobileTrustWallet';
 import { mobileOneKeyWallet } from './mobileOneKeyWallet';
+
+export interface WagmiConfigOptions {
+  useEip6963MetaMask?: boolean;
+  useDirectTrustWallet?: boolean;
+  multiInjectedProviderDiscovery?: boolean;
+}
 
 /** RainbowKit-compatible mobile detection (iOS, Android, iPad). */
 const isMobileBrowser = (): boolean => {
@@ -40,13 +48,14 @@ const isMobileBrowser = (): boolean => {
   );
 };
 
-function getWalletGroups(projectId: string, useEip6963MetaMask = false, useDirectTrustWallet = false) {
-  const metaMaskConnector = useEip6963MetaMask ? eip6963MetaMaskWallet : metaMaskWallet;
-  const trustConnector = useDirectTrustWallet ? directTrustWallet : trustWallet;
-
-  // mobileRabbyWallet and mobileOneKeyWallet are WalletConnect-backed on mobile
-  // (no injected extension present), so they always appear in the Recommended list.
+function getWalletGroups(
+  projectId: string,
+  useEip6963MetaMask = false,
+  useDirectTrustWallet = false,
+) {
+  const metaMaskConnector = () => mobileMetaMaskWallet({ projectId });
   const rabbyConnector = () => mobileRabbyWallet({ projectId });
+  const trustConnector = () => mobileTrustWallet({ projectId });
   const oneKeyConnector = () => mobileOneKeyWallet({ projectId });
 
   if (isMobileBrowser()) {
@@ -58,10 +67,13 @@ function getWalletGroups(projectId: string, useEip6963MetaMask = false, useDirec
     ];
   }
 
+  const desktopMetaMask = useEip6963MetaMask ? eip6963MetaMaskWallet : metaMaskWallet;
+  const desktopTrust = useDirectTrustWallet ? directTrustWallet : trustWallet;
+
   return [
     {
       groupName: 'Recommended',
-      wallets: [metaMaskConnector, rabbyConnector, trustConnector, oneKeyConnector, walletConnectWallet],
+      wallets: [desktopMetaMask, rabbyConnector, desktopTrust, oneKeyConnector, walletConnectWallet],
     },
     {
       groupName: 'Other',
@@ -95,9 +107,13 @@ interface WagmiRainbowKitProviderProps {
 
 function createWagmiConfig(
   walletConnectProjectId?: string,
-  useEip6963MetaMask = false,
-  useDirectTrustWallet = false,
+  options: WagmiConfigOptions = {},
 ) {
+  const {
+    useEip6963MetaMask = false,
+    useDirectTrustWallet = false,
+    multiInjectedProviderDiscovery = true,
+  } = options;
   const projectId = resolveWalletConnectProjectId(walletConnectProjectId);
 
   const connectors = connectorsForWallets(
@@ -116,7 +132,7 @@ function createWagmiConfig(
   return createConfig({
     chains: [sepolia, cotiTestnet, cotiMainnet, avalancheFuji],
     connectors,
-    multiInjectedProviderDiscovery: true,
+    multiInjectedProviderDiscovery,
     ssr: false,
     transports: {
       [sepolia.id]: sepoliaTransport,
@@ -129,22 +145,31 @@ function createWagmiConfig(
 
 const queryClient = new QueryClient();
 
-function getWagmiConfigCacheKey(walletConnectProjectId?: string): string {
+function getWagmiConfigCacheKey(
+  walletConnectProjectId?: string,
+  options: WagmiConfigOptions = {},
+): string {
   const pluginConfig = getPluginConfig();
   const projectId = resolveWalletConnectProjectId(walletConnectProjectId);
   const sepoliaRpc = pluginConfig.sepoliaRpcUrl ?? `${SEPOLIA_RPC}|${SEPOLIA_RPC_FALLBACK}`;
   const mobile = isMobileBrowser();
-  return `${projectId}|${sepoliaRpc}|${mobile ? 'mobile' : 'desktop'}`;
+  const eip6963 = options.useEip6963MetaMask ? '1' : '0';
+  const directTrust = options.useDirectTrustWallet ? '1' : '0';
+  const mipd = options.multiInjectedProviderDiscovery === false ? '0' : '1';
+  return `${projectId}|${sepoliaRpc}|${mobile ? 'mobile' : 'desktop'}|${eip6963}|${directTrust}|${mipd}`;
 }
 
 let cachedWagmiConfig: { key: string; config: Config } | undefined;
 
-function getCachedWagmiConfig(walletConnectProjectId?: string): Config {
-  const key = getWagmiConfigCacheKey(walletConnectProjectId);
+function getCachedWagmiConfig(
+  walletConnectProjectId?: string,
+  options: WagmiConfigOptions = {},
+): Config {
+  const key = getWagmiConfigCacheKey(walletConnectProjectId, options);
   if (cachedWagmiConfig?.key === key) {
     return cachedWagmiConfig.config;
   }
-  const config = createWagmiConfig(walletConnectProjectId);
+  const config = createWagmiConfig(walletConnectProjectId, options);
   cachedWagmiConfig = { key, config };
   return config;
 }
@@ -154,8 +179,11 @@ function getCachedWagmiConfig(walletConnectProjectId?: string): Config {
  * Returns a stable instance for unchanged plugin settings (safe for `wagmiConfig` and render).
  * Prefer {@link WagmiRainbowKitProvider} in React apps; use this for non-React wagmi setup.
  */
-export function getWagmiConfig(walletConnectProjectId?: string) {
-  return getCachedWagmiConfig(walletConnectProjectId);
+export function getWagmiConfig(
+  walletConnectProjectId?: string,
+  options: WagmiConfigOptions = {},
+) {
+  return getCachedWagmiConfig(walletConnectProjectId, options);
 }
 
 /**
@@ -185,7 +213,10 @@ export function WagmiRainbowKitProvider({
 }: WagmiRainbowKitProviderProps) {
   const pluginConfig = getPluginConfig();
   const config = useMemo(
-    () => createWagmiConfig(walletConnectProjectId, useEip6963MetaMask, useDirectTrustWallet),
+    () => createWagmiConfig(walletConnectProjectId, {
+      useEip6963MetaMask,
+      useDirectTrustWallet,
+    }),
     [
       walletConnectProjectId,
       useEip6963MetaMask,
