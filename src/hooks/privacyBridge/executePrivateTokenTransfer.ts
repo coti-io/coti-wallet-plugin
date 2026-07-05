@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { normalizeAesKey } from '@coti-io/coti-sdk-typescript';
+import { normalizeAesKey } from '../../crypto/aesKey';
 import { getEthereumProvider, type EIP1193Provider } from '../../lib/ethereum';
 import { logger } from '../../lib/logger';
 import { CONTRACT_ADDRESSES } from '../../contracts/config';

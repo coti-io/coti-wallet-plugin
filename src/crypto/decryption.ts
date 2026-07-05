@@ -6,8 +6,8 @@
  */
 
 import {
-  decryptCtUint256 as sdkDecryptCtUint256,
   decryptUint,
+  decryptUint256,
 } from '@coti-io/coti-sdk-typescript';
 import type { CtUint64, CtUint256 } from '../types/ciphertext';
 import { isCtUint256, isZeroCtUint256 } from '../types/ciphertext';
@@ -148,7 +148,28 @@ export function decryptCtUint256(
       return 0n;
     }
 
-    const decrypted = sdkDecryptCtUint256(ciphertext, normalizeAesKey(aesKey));
+    // Normalize to the flat { ciphertextHigh, ciphertextLow } shape that
+    // decryptUint256 (v1.0.6+) expects. The nested on-chain shape stores the
+    // same two 256-bit limbs in { high: { high, low }, low: { high, low } }.
+    let flat: { ciphertextHigh: bigint; ciphertextLow: bigint };
+    const ct = ciphertext as Record<string, unknown>;
+    if ('ciphertextHigh' in ct && 'ciphertextLow' in ct) {
+      flat = { ciphertextHigh: ct.ciphertextHigh as bigint, ciphertextLow: ct.ciphertextLow as bigint };
+    } else if ('high' in ct && 'low' in ct) {
+      // Nested shape: reconstruct two uint256 values from the four limbs.
+      const h = ct.high as Record<string, bigint>;
+      const l = ct.low as Record<string, bigint>;
+      // Reconstruct two uint256 values from the four 128-bit limbs
+      flat = {
+        ciphertextHigh: (BigInt(h.high ?? 0n) << 128n) | BigInt(h.low ?? 0n),
+        ciphertextLow:  (BigInt(l.high ?? 0n) << 128n) | BigInt(l.low ?? 0n),
+      };
+    } else {
+      // Tuple/array shape [ciphertextHigh, ciphertextLow]
+      const arr = ciphertext as unknown as (bigint | number | string)[];
+      flat = { ciphertextHigh: BigInt(arr[0] ?? 0), ciphertextLow: BigInt(arr[1] ?? 0) };
+    }
+    const decrypted = decryptUint256(flat, normalizeAesKey(aesKey));
     if (
       isInsaneDecryptedValue(
         decrypted,

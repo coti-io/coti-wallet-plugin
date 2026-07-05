@@ -1,5 +1,5 @@
 import { ethers } from "ethers";
-import { normalizeAesKey as normalizeSdkAesKey } from "@coti-io/coti-sdk-typescript";
+import { normalizeAesKey as normalizeSdkAesKey } from "./aesKey";
 
 const VAULT_PREFIX = "pod:aes-key";
 const SIGN_MESSAGE = "COTI Privacy Portal: unlock local AES key cache";
