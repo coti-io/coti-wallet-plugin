@@ -4,7 +4,6 @@ import { createConfig, http, fallback, WagmiProvider, type Config } from 'wagmi'
 import { connectorsForWallets } from '@rainbow-me/rainbowkit';
 import {
   metaMaskWallet,
-  coinbaseWallet,
   trustWallet,
 } from '@rainbow-me/rainbowkit/wallets';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -72,10 +71,6 @@ function getWalletGroups(
     {
       groupName: 'Recommended',
       wallets: [desktopMetaMask, rabbyConnector, desktopTrust, oneKeyConnector],
-    },
-    {
-      groupName: 'Other',
-      wallets: [coinbaseWallet],
     },
   ];
 }

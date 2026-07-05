@@ -46,7 +46,6 @@ import {
   oneKeyWallet,
   walletConnectWallet,
   trustWallet,
-  coinbaseWallet,
 } from '@rainbow-me/rainbowkit/wallets';
 
 function getRecommendedWalletIds(projectId: string): string[] {
@@ -238,10 +237,6 @@ describe('WagmiRainbowKitProvider', () => {
         {
           groupName: 'Recommended',
           wallets: expect.any(Array),
-        },
-        {
-          groupName: 'Other',
-          wallets: [coinbaseWallet],
         },
       ],
       expect.objectContaining({ projectId: 'desktop-wallet-test' }),
