@@ -208,7 +208,7 @@ export const usePrivacyBridgeAllowance = ({
                             };
                             const decryptedVal = sessionAesKey
                                 ? decryptCtUint256(ciphertext, sessionAesKey, { decimals: privateDecimals })
-                                : await decryptCtUint256ViaSnap(ciphertext, currentChainId);
+                                : await decryptCtUint256ViaSnap(ciphertext, currentChainId, walletAddress);
 
                             if (decryptedVal === null) {
                                 setAllowance('0');
@@ -439,6 +439,7 @@ export const usePrivacyBridgeAllowance = ({
                             tokenAddress: privateTokenAddress,
                             functionSelector: approveSig,
                             chainId: currentChainId,
+                            accountAddress: walletAddress,
                         })
                         : null;
                 if (!itValue) {

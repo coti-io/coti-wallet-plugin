@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAccount } from 'wagmi';
 import { getPluginConfig } from '../config/plugin';
+import { isMetaMaskMobileBrowser } from '../lib/metaMaskMobile';
 
 /**
  * Normalized wallet type derived from wagmi's stable `connector.id`.
@@ -97,6 +98,11 @@ export function useWalletType(): WalletTypeInfo {
     let cancelled = false;
 
     if (walletType !== 'metamask' || !connector) {
+      setIsMetaMaskWithSnap(false);
+      return;
+    }
+
+    if (isMetaMaskMobileBrowser()) {
       setIsMetaMaskWithSnap(false);
       return;
     }

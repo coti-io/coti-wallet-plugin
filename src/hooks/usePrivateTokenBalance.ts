@@ -9,8 +9,8 @@ import type { CtUint256 } from '../types/ciphertext';
 import { isZeroCtUint256 } from '../types/ciphertext';
 
 export interface PrivateBalanceDecryptOptions {
-    decryptCtUint64?: (value: bigint | string | number, chainId?: number | string) => Promise<bigint | null>;
-    decryptCtUint256?: (value: CtUint256, chainId?: number | string) => Promise<bigint | null>;
+    decryptCtUint64?: (value: bigint | string | number, chainId?: number | string, accountAddress?: string) => Promise<bigint | null>;
+    decryptCtUint256?: (value: CtUint256, chainId?: number | string, accountAddress?: string) => Promise<bigint | null>;
 }
 
 /**
@@ -126,7 +126,7 @@ export const usePrivateTokenBalance = () => {
 
                  const decryptedVal = aesKey
                     ? decryptCtUint64(encryptedBalance, aesKey, { decimals })
-                    : await decryptOptions?.decryptCtUint64?.(encryptedBalance, _readChainId) ?? null;
+                    : await decryptOptions?.decryptCtUint64?.(encryptedBalance, _readChainId, userAddress) ?? null;
                  if (decryptedVal === null) {
                     throw new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch: Error decrypting. Re-onboarding required.');
                  }
@@ -167,7 +167,7 @@ export const usePrivateTokenBalance = () => {
 
                      const decryptedVal = aesKey
                         ? decryptCtUint256(nestedBalance, aesKey, { decimals })
-                        : await decryptOptions?.decryptCtUint256?.(nestedBalance, _readChainId) ?? null;
+                        : await decryptOptions?.decryptCtUint256?.(nestedBalance, _readChainId, userAddress) ?? null;
                      if (decryptedVal === null) {
                          throw new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch: Error decrypting. Re-onboarding required.');
                      }
@@ -180,7 +180,7 @@ export const usePrivateTokenBalance = () => {
 
                      const decryptedVal = aesKey
                         ? decryptCtUint256(flatBalance, aesKey, { decimals })
-                        : await decryptOptions?.decryptCtUint256?.(flatBalance, _readChainId) ?? null;
+                        : await decryptOptions?.decryptCtUint256?.(flatBalance, _readChainId, userAddress) ?? null;
                      if (decryptedVal === null) {
                          throw new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch: Error decrypting. Re-onboarding required.');
                      }

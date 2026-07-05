@@ -36,6 +36,8 @@ export interface OnboardModalProps {
   snapError?: string | null;
   /** Whether encrypted AES backup should be saved after contract onboarding */
   saveBackup?: boolean;
+  /** When false, hides the encrypted-backup checkbox (e.g. MetaMask Snap stores the key). */
+  showSaveBackupOption?: boolean;
   /** Called when the encrypted-backup checkbox changes */
   onSaveBackupChange?: (saveBackup: boolean) => void;
   /** Called when the user manually submits an AES key instead of onboarding */
@@ -690,12 +692,9 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
   walletType,
   currentStep = 'idle',
   aesKey,
-  hasSnap,
   debugTrace,
-  onInstallSnap,
-  isInstallingSnap = false,
-  snapError,
   saveBackup = true,
+  showSaveBackupOption = true,
   onSaveBackupChange,
   onManualAesKeySubmit,
   warning,
@@ -707,7 +706,6 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
   const [manualAesKey, setManualAesKey] = useState('');
   const [manualAesKeyError, setManualAesKeyError] = useState<string | null>(null);
   const [isSubmittingManualKey, setIsSubmittingManualKey] = useState(false);
-  const [isInstallingSnapLocal, setIsInstallingSnapLocal] = useState(false);
   const [showBackupTooltip, setShowBackupTooltip] = useState(false);
   const styles = mergeTheme(theme);
   const warningStyles = getWarningStyles(styles);
@@ -721,7 +719,6 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
       setManualAesKey('');
       setManualAesKeyError(null);
       setIsSubmittingManualKey(false);
-      setIsInstallingSnapLocal(false);
       setShowBackupTooltip(false);
     }
   }, [isOpen]);
@@ -746,9 +743,6 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
       </div>
     );
   };
-  const canInstallSnap = walletType === 'metamask' && !hasSnap && !!onInstallSnap;
-  const snapInstallInProgress = isInstallingSnap || isInstallingSnapLocal;
-
   // Handle copy to clipboard
   const handleCopy = async () => {
     if (!aesKey) return;
@@ -789,17 +783,6 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
       setManualAesKeyError(err?.message || 'Could not save AES key.');
     } finally {
       setIsSubmittingManualKey(false);
-    }
-  };
-
-  const handleInstallSnap = async () => {
-    if (!onInstallSnap || snapInstallInProgress) return;
-
-    setIsInstallingSnapLocal(true);
-    try {
-      await onInstallSnap();
-    } finally {
-      setIsInstallingSnapLocal(false);
     }
   };
 
@@ -870,6 +853,7 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
               </p>
 
               <div style={styles.checkboxRow}>
+                {showSaveBackupOption && (
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <input
                     type="checkbox"
@@ -881,6 +865,8 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
                     Save encrypted backup
                   </span>
                 </label>
+                )}
+                {showSaveBackupOption && (
                 <span style={styles.tooltipWrap}>
                   <button
                     type="button"
@@ -900,29 +886,13 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
                     </span>
                   )}
                 </span>
+                )}
               </div>
 
               {warning && (
                 <div style={warningStyles.box}>
                   <p style={warningStyles.text}>{warning}</p>
                 </div>
-              )}
-
-              {canInstallSnap && snapError && (
-                <div style={styles.errorBox}>
-                  <p style={styles.errorText}>{snapError}</p>
-                </div>
-              )}
-
-              {canInstallSnap && (
-                <button
-                  type="button"
-                  onClick={handleInstallSnap}
-                  disabled={snapInstallInProgress}
-                  style={snapInstallInProgress ? styles.primaryButtonDisabled : styles.primaryButton}
-                >
-                  {snapInstallInProgress ? 'Installing COTI Snap...' : 'Install COTI Snap'}
-                </button>
               )}
 
               <div style={styles.actionRow}>

@@ -1,5 +1,5 @@
 // Configuration
-export { configureCotiPlugin, getPluginConfig } from './config/plugin';
+export { configureCotiPlugin, getPluginConfig, getSnapRequestParams } from './config/plugin';
 export type {
   CotiPluginConfig,
   EncryptedAesBackup,
@@ -151,6 +151,11 @@ export type {
   OnboardingStepInfo,
   OnboardingProgressCallback,
 } from './hooks/useAesKeyProvider';
+export { usePrivateUnlockFlow } from './hooks/usePrivateUnlockFlow';
+export type {
+  UsePrivateUnlockFlowOptions,
+  UsePrivateUnlockFlowResult,
+} from './hooks/usePrivateUnlockFlow';
 
 // Components — Onboarding
 export { OnboardModal, onboardModalDefaultStyles } from './components/OnboardModal';

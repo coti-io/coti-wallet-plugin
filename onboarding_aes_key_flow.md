@@ -44,7 +44,7 @@ The example still keeps the active AES key in memory. LocalStorage is only a sam
 
 Manual AES key input uses the same encrypted backup helper as contract onboarding when `Save encrypted backup` is checked: the user signs the backup context, the key is encrypted with `encryptAesKeyBackup`, and the encrypted blob is saved through the configured API/localStorage path.
 
-`npm run dev:onboarding` starts the local mock grant server and explicitly sets `VITE_GRANT_API_URL_TESTNET=http://localhost:8787` for that dev session.
+`npm run dev:local-snap` in `examples/` starts a local `coti-snap` server and the wallet example with `VITE_SNAP_ID=local:http://localhost:8080`.
 
 ## Key Components
 

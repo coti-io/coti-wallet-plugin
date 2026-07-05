@@ -15,6 +15,14 @@ import {
   sendPrivateTokenTransfer,
   type ExecutePrivateTokenTransferResult,
 } from '../../hooks/privacyBridge/executePrivateTokenTransfer';
+import {
+  decryptPrivateCtUint256,
+  encryptPrivateCtUint256,
+  parseCtUint256Json,
+  parsePrivateAmountToWei,
+  formatPrivateAmountFromWei,
+  serializeCtUint256,
+} from '../../hooks/privacyBridge/privateValueCrypto';
 
 interface UsePrivacyBridgeUnlockSessionOptions {
   core: PrivacyBridgeSessionCore;
@@ -43,7 +51,6 @@ export const usePrivacyBridgeUnlockSession = ({
     setPrivateTokens,
     wagmiSyncRef,
     hasAesKeyInSnap,
-    getAesKeyFromProvider,
   } = core;
 
   const { wagmiChainId } = network;
@@ -129,7 +136,7 @@ export const usePrivacyBridgeUnlockSession = ({
       return { unlockOptions, checkSnap: true, keyForUnlock: undefined };
     }
 
-    const snapHasKey = await hasAesKeyInSnap();
+    const snapHasKey = await hasAesKeyInSnap(walletAddress!);
     if (snapHasKey === true) {
       logger.log('Snap AES key present — unlock via Snap-side decrypt');
       return {
@@ -140,22 +147,9 @@ export const usePrivacyBridgeUnlockSession = ({
     }
 
     if (snapHasKey === false) {
-      logger.log('Snap installed but no AES key — hydrating Snap from encrypted backup');
-      await getAesKeyFromProvider(walletAddress!, aesKeyOptions?.onProgress, {
-        ...aesKeyOptions,
-        restoreOnly: true,
-        hydrateSnapFromBackup: true,
-      });
-      const afterHydrate = await hasAesKeyInSnap();
-      if (afterHydrate !== true) {
-        logger.log('Snap hydration failed — no AES key available for unlock');
-        return { unlockOptions, checkSnap: false, keyForUnlock: undefined, failed: true };
-      }
-      return {
-        unlockOptions: { ...unlockOptions, snapSideDecrypt: true },
-        checkSnap: false,
-        keyForUnlock: undefined,
-      };
+      logger.log(
+        'Snap installed but no AES key for this account — restoring from local backup without Snap persist',
+      );
     }
 
     return { unlockOptions, checkSnap: true, keyForUnlock: undefined };
@@ -166,7 +160,6 @@ export const usePrivacyBridgeUnlockSession = ({
     walletTypeInfo.isMetaMaskWithSnap,
     hasSnap,
     hasAesKeyInSnap,
-    getAesKeyFromProvider,
   ]);
 
   const refreshPrivateBalances = useCallback(async (aesKeyOptions?: AesKeyProviderOptions) => {
@@ -193,6 +186,20 @@ export const usePrivacyBridgeUnlockSession = ({
       logger.log('Private balance fetch completed', { success });
 
       if (!success) {
+        const validatedKey = getValidatedAesKeyForUnlock(walletAddress);
+        if (validatedKey) {
+          logger.log('Unlock validated AES key present — treating unlock as successful');
+          setSessionAesKey(validatedKey, walletAddress);
+          setArePrivateBalancesHidden(false);
+          setSnapError(null);
+          return true;
+        }
+
+        if (aesKeyOptions?.forceContractOnboarding) {
+          logger.log('Forced contract onboarding did not complete — skipping interactive retry');
+          return false;
+        }
+
         keyForUnlock =
           keyForUnlock ?? getValidatedAesKeyForUnlock(walletAddress) ?? undefined;
         logger.log('First private balance fetch failed, retrying after 1.5s');
@@ -340,6 +347,90 @@ export const usePrivacyBridgeUnlockSession = ({
     refreshPrivateBalances,
   ]);
 
+  const resolveActiveAesKey = useCallback((): string | null => {
+    return core.sessionAesKey ?? (walletAddress ? getValidatedAesKeyForUnlock(walletAddress) : null);
+  }, [core.sessionAesKey, walletAddress]);
+
+  const encryptPrivateValue = useCallback(async (params: {
+    amount: string;
+    decimals?: number;
+  }): Promise<{ ciphertext: string }> => {
+    const activeAesKey = resolveActiveAesKey();
+    if (!activeAesKey && !core.hasSnap) {
+      throw new Error('Unlock private balances before encrypting values.');
+    }
+
+    const decimals = params.decimals ?? 18;
+    const chainIdNum = Number(currentChainId);
+    if (!Number.isFinite(chainIdNum) || chainIdNum <= 0) {
+      throw new Error('Network not available');
+    }
+
+    const wei = parsePrivateAmountToWei(params.amount, decimals);
+
+    if (core.hasSnap) {
+      const ciphertext = await core.encryptUint256ViaSnap(wei, chainIdNum, walletAddress);
+      if (!ciphertext) {
+        throw new Error('Snap encrypt was cancelled or failed.');
+      }
+      return { ciphertext: serializeCtUint256(ciphertext) };
+    }
+
+    if (!activeAesKey) {
+      throw new Error('AES key not available for encrypt.');
+    }
+
+    const encrypted = encryptPrivateCtUint256({
+      amount: params.amount,
+      decimals,
+      aesKey: activeAesKey,
+    });
+    return { ciphertext: serializeCtUint256(encrypted) };
+  }, [core.encryptUint256ViaSnap, core.hasSnap, currentChainId, resolveActiveAesKey]);
+
+  const decryptPrivateValue = useCallback(async (params: {
+    ciphertext: string;
+    decimals?: number;
+  }): Promise<{ amount: string }> => {
+    const activeAesKey = resolveActiveAesKey();
+    if (!activeAesKey && !core.hasSnap) {
+      throw new Error('Unlock private balances before decrypting values.');
+    }
+
+    const decimals = params.decimals ?? 18;
+    const chainIdNum = Number(currentChainId);
+    if (!Number.isFinite(chainIdNum) || chainIdNum <= 0) {
+      throw new Error('Network not available');
+    }
+
+    const parsed = parseCtUint256Json(params.ciphertext);
+
+    if (core.hasSnap) {
+      const wei = await core.decryptCtUint256ViaSnap(parsed, chainIdNum, walletAddress);
+      if (wei === null) {
+        throw new Error('Snap decrypt was cancelled or failed.');
+      }
+      return { amount: formatPrivateAmountFromWei(wei, decimals) };
+    }
+
+    if (!activeAesKey) {
+      throw new Error('AES key not available for decrypt.');
+    }
+
+    return {
+      amount: decryptPrivateCtUint256({
+        ciphertext: parsed,
+        decimals,
+        aesKey: activeAesKey,
+      }),
+    };
+  }, [
+    core.decryptCtUint256ViaSnap,
+    core.hasSnap,
+    currentChainId,
+    resolveActiveAesKey,
+  ]);
+
   const lockPrivateBalances = () => {
     logger.log('Locking private balances (AES key preserved in session for re-unlock)');
     setArePrivateBalancesHidden(true);
@@ -350,7 +441,7 @@ export const usePrivacyBridgeUnlockSession = ({
     setPrivateTokens(getInitialPrivateTokens(currentChainId));
   };
 
-  const isPrivateUnlocked = !arePrivateBalancesHidden && (!!core.sessionAesKey || core.hasSnap);
+  const isPrivateUnlocked = !arePrivateBalancesHidden;
 
   return {
     handleOnboard,
@@ -360,6 +451,8 @@ export const usePrivacyBridgeUnlockSession = ({
     refreshPrivateBalances,
     lockPrivateBalances,
     sendPrivateToken,
+    encryptPrivateValue,
+    decryptPrivateValue,
     isPrivateUnlocked,
     handleVerifyKeys: handleKeyVerification,
   };

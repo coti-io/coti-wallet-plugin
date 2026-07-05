@@ -352,7 +352,8 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
               logger.log('✅ AES key restored from encrypted backup');
 
               if (
-                walletTypeInfo.walletType === 'metamask'
+                options.hydrateSnapFromBackup
+                && walletTypeInfo.walletType === 'metamask'
                 && canPersistAesKeyToSnap()
               ) {
                 emitStep('persisting-key');
@@ -361,16 +362,16 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
                   logger.warn('⚠️ Restored AES key but could not persist it to Snap');
                 }
 
-                if (options.hydrateSnapFromBackup) {
-                  if (saved) {
-                    emitStep('complete');
-                  } else {
-                    emitStep('idle');
-                  }
-                  // Dedicated hydrate path keeps the raw AES key out of dapp session state.
-                  return null;
+                if (saved) {
+                  emitStep('complete');
+                } else {
+                  emitStep('idle');
                 }
-              } else if (
+                // Dedicated hydrate path keeps the raw AES key out of dapp session state.
+                return null;
+              }
+
+              if (
                 options.hydrateSnapFromBackup
                 && walletTypeInfo.walletType === 'metamask'
               ) {
@@ -567,9 +568,10 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         // Step: Persist key (MetaMask Snap) or finalize
         emitStep('persisting-key');
 
+        let savedToSnap = false;
         if (aesKey && walletTypeInfo.walletType === 'metamask' && canPersistAesKeyToSnap()) {
-          const saved = await saveAESKeyToSnap(aesKey, address);
-          if (!saved) {
+          savedToSnap = await saveAESKeyToSnap(aesKey, address);
+          if (!savedToSnap) {
             logger.warn('⚠️ AES key retrieved but could not persist to Snap');
           }
         } else if (aesKey && walletTypeInfo.walletType === 'metamask') {
@@ -579,10 +581,16 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           );
         }
 
+        const skipEncryptedBackupForSnap =
+          walletTypeInfo.walletType === 'metamask'
+          && canPersistAesKeyToSnap()
+          && savedToSnap;
+
         if (
           aesKey &&
           isValidAesKey(aesKey) &&
           options.saveBackup &&
+          !skipEncryptedBackupForSnap &&
           servicesEnabled &&
           (services?.saveEncryptedAesBackup || services?.replaceEncryptedAesBackup)
         ) {

@@ -49,6 +49,7 @@ interface BuildItUint256ForTransferParams {
   tokenAddress: string;
   functionSelector: string;
   chainId: number;
+  accountAddress?: string;
 }
 
 interface SendPrivateTokenTransferParams {
@@ -295,6 +296,7 @@ export async function sendPrivateTokenTransfer(
       tokenAddress: target.tokenAddress,
       functionSelector: transferSig,
       chainId,
+      accountAddress: walletAddress,
     });
   }
 

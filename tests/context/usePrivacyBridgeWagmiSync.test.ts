@@ -290,3 +290,53 @@ describe('usePrivacyBridgeWagmiSync — snap status on connect', () => {
     expect(checkSnapStatus).not.toHaveBeenCalled();
   });
 });
+
+describe('usePrivacyBridgeWagmiSync — account switch', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    h.updateAccountState.mockResolvedValue(true);
+    h.wagmiAccount.address = '0xnew456';
+    h.wagmiAccount.isConnected = true;
+    h.wagmiAccount.chainId = 7082400;
+  });
+
+  it('locks private balances and clears session key when wagmi account changes', async () => {
+    const setSessionAesKey = vi.fn();
+    const setArePrivateBalancesHidden = vi.fn();
+    const setPrivateTokens = vi.fn();
+    const clearSnapCache = vi.fn();
+
+    const core = makeCore({
+      isConnected: true,
+      walletAddress: '0xabc123',
+      sessionAesKey: 'a'.repeat(32),
+      arePrivateBalancesHidden: false,
+      setSessionAesKey,
+      setArePrivateBalancesHidden,
+      setPrivateTokens,
+      clearSnapCache,
+    });
+    const network = makeNetwork({
+      wagmiAddress: '0xnew456',
+      wagmiConnected: true,
+      wagmiChainId: 7082400,
+    });
+    const accountSync = makeAccountSync();
+
+    renderHook(() => usePrivacyBridgeWagmiSync({ core, network, accountSync }));
+
+    await vi.waitFor(() => {
+      expect(setSessionAesKey).toHaveBeenCalledWith(null);
+      expect(clearSnapCache).toHaveBeenCalled();
+      expect(setArePrivateBalancesHidden).toHaveBeenCalledWith(true);
+      expect(setPrivateTokens).toHaveBeenCalled();
+      expect(h.updateAccountState).toHaveBeenCalledWith(
+        '0xnew456',
+        false,
+        false,
+        undefined,
+        7082400,
+      );
+    });
+  });
+});

@@ -311,6 +311,31 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       });
       expect(snapState.saveAESKeyToSnap).not.toHaveBeenCalled();
     });
+
+    it('does not save encrypted backup when MetaMask Snap persist succeeds', async () => {
+      snapState.getAESKeyFromSnap.mockRejectedValue(
+        new CotiPluginError(CotiErrorCode.SNAP_CONNECT_FAILED, 'no snap'),
+      );
+      snapState.saveAESKeyToSnap.mockResolvedValue(true);
+      wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
+      wagmiState.chainId = COTI_TESTNET;
+      const saveEncryptedAesBackup = vi.fn().mockResolvedValue(undefined);
+      configureCotiPlugin({
+        onboardingServices: {
+          mode: 'custom',
+          saveEncryptedAesBackup,
+        },
+      });
+
+      const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'metamask' })));
+
+      await act(async () => {
+        await result.current.getAesKey(ADDR, undefined, { saveBackup: true });
+      });
+
+      expect(snapState.saveAESKeyToSnap).toHaveBeenCalledWith(VALID_KEY, ADDR);
+      expect(saveEncryptedAesBackup).not.toHaveBeenCalled();
+    });
   });
 
   // ─── Contract route, no chain switch (already on COTI) ───────────────────
@@ -385,7 +410,7 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       expect(signer.generateOrRecoverAes).not.toHaveBeenCalled();
     });
 
-    it('persists a MetaMask backup restore to Snap before returning the key', async () => {
+    it('restores backup without persisting to Snap during restore-only unlock', async () => {
       const signer = makeSigner(VALID_KEY);
       const backup = await encryptAesKeyBackup(VALID_KEY, signer, {
         address: ADDR,
@@ -410,7 +435,7 @@ describe('useAesKeyProvider (full branch coverage)', () => {
 
       expect(key).toBe(VALID_KEY);
       expect(snapState.getAESKeyFromSnap).not.toHaveBeenCalled();
-      expect(snapState.saveAESKeyToSnap).toHaveBeenCalledWith(VALID_KEY, ADDR);
+      expect(snapState.saveAESKeyToSnap).not.toHaveBeenCalled();
       expect(signer.generateOrRecoverAes).not.toHaveBeenCalled();
     });
 
