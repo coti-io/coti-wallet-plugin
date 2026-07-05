@@ -47,7 +47,6 @@ import {
   walletConnectWallet,
   trustWallet,
   coinbaseWallet,
-  ledgerWallet,
 } from '@rainbow-me/rainbowkit/wallets';
 
 function getRecommendedWalletIds(projectId: string): string[] {
@@ -189,7 +188,7 @@ describe('WagmiRainbowKitProvider', () => {
     configureCotiPlugin({ walletConnectProjectId: undefined });
   });
 
-  it('uses a reduced mobile wallet list (MetaMask, Rabby, Trust, OneKey, WalletConnect)', () => {
+  it('uses a reduced mobile wallet list (MetaMask, Rabby, Trust, OneKey)', () => {
     const originalUserAgent = navigator.userAgent;
     Object.defineProperty(navigator, 'userAgent', {
       configurable: true,
@@ -214,7 +213,6 @@ describe('WagmiRainbowKitProvider', () => {
       mobileRabbyWallet({ projectId: 'mobile-wallet-test' }).id,
       mobileTrustWallet({ projectId: 'mobile-wallet-test' }).id,
       mobileOneKeyWallet({ projectId: 'mobile-wallet-test' }).id,
-      'walletConnect',
     ]);
 
     Object.defineProperty(navigator, 'userAgent', {
@@ -243,7 +241,7 @@ describe('WagmiRainbowKitProvider', () => {
         },
         {
           groupName: 'Other',
-          wallets: [coinbaseWallet, ledgerWallet],
+          wallets: [coinbaseWallet],
         },
       ],
       expect.objectContaining({ projectId: 'desktop-wallet-test' }),
@@ -253,7 +251,6 @@ describe('WagmiRainbowKitProvider', () => {
       mobileRabbyWallet({ projectId: 'desktop-wallet-test' }).id,
       'trust',
       mobileOneKeyWallet({ projectId: 'desktop-wallet-test' }).id,
-      'walletConnect',
     ]);
 
     Object.defineProperty(navigator, 'userAgent', {
@@ -284,7 +281,6 @@ describe('WagmiRainbowKitProvider', () => {
       mobileRabbyWallet({ projectId: 'eip6963-wallet-test' }).id,
       'trust',
       mobileOneKeyWallet({ projectId: 'eip6963-wallet-test' }).id,
-      'walletConnect',
     ]);
 
     Object.defineProperty(navigator, 'userAgent', {
@@ -315,7 +311,6 @@ describe('WagmiRainbowKitProvider', () => {
       mobileRabbyWallet({ projectId: 'direct-trust-wallet-test' }).id,
       'trust-extension',
       mobileOneKeyWallet({ projectId: 'direct-trust-wallet-test' }).id,
-      'walletConnect',
     ]);
 
     Object.defineProperty(navigator, 'userAgent', {

@@ -5,8 +5,6 @@ import { connectorsForWallets } from '@rainbow-me/rainbowkit';
 import {
   metaMaskWallet,
   coinbaseWallet,
-  walletConnectWallet,
-  ledgerWallet,
   trustWallet,
 } from '@rainbow-me/rainbowkit/wallets';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -62,7 +60,7 @@ function getWalletGroups(
     return [
       {
         groupName: 'Recommended',
-        wallets: [metaMaskConnector, rabbyConnector, trustConnector, oneKeyConnector, walletConnectWallet],
+        wallets: [metaMaskConnector, rabbyConnector, trustConnector, oneKeyConnector],
       },
     ];
   }
@@ -73,11 +71,11 @@ function getWalletGroups(
   return [
     {
       groupName: 'Recommended',
-      wallets: [desktopMetaMask, rabbyConnector, desktopTrust, oneKeyConnector, walletConnectWallet],
+      wallets: [desktopMetaMask, rabbyConnector, desktopTrust, oneKeyConnector],
     },
     {
       groupName: 'Other',
-      wallets: [coinbaseWallet, ledgerWallet],
+      wallets: [coinbaseWallet],
     },
   ];
 }
