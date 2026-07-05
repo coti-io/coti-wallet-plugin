@@ -36,6 +36,8 @@ export interface OnboardModalProps {
   snapError?: string | null;
   /** Whether encrypted AES backup should be saved after contract onboarding */
   saveBackup?: boolean;
+  /** When false, hides the encrypted-backup checkbox (e.g. MetaMask Snap stores the key). */
+  showSaveBackupOption?: boolean;
   /** Called when the encrypted-backup checkbox changes */
   onSaveBackupChange?: (saveBackup: boolean) => void;
   /** Called when the user manually submits an AES key instead of onboarding */
@@ -696,6 +698,7 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
   isInstallingSnap = false,
   snapError,
   saveBackup = true,
+  showSaveBackupOption = true,
   onSaveBackupChange,
   onManualAesKeySubmit,
   warning,
@@ -870,6 +873,7 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
               </p>
 
               <div style={styles.checkboxRow}>
+                {showSaveBackupOption && (
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <input
                     type="checkbox"
@@ -881,6 +885,8 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
                     Save encrypted backup
                   </span>
                 </label>
+                )}
+                {showSaveBackupOption && (
                 <span style={styles.tooltipWrap}>
                   <button
                     type="button"
@@ -900,6 +906,7 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
                     </span>
                   )}
                 </span>
+                )}
               </div>
 
               {warning && (

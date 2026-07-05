@@ -50,7 +50,7 @@ export interface PrivacyBridgeSessionCore {
   /** Probes Snap via wallet_getSnaps and updates hasSnap. Dedupes concurrent calls. */
   checkSnapStatus: () => Promise<boolean>;
   getAESKeyFromSnap: (accountAddress: string, options?: { skipCache?: boolean }) => Promise<string | null>;
-  hasAesKeyInSnap: () => Promise<boolean | null>;
+  hasAesKeyInSnap: (accountAddress?: string) => Promise<boolean | null>;
   connectToSnap: () => Promise<boolean>;
   requestSnapConnection: () => Promise<boolean>;
   handleManualOnboarding: () => Promise<string | null>;
@@ -68,6 +68,11 @@ export interface PrivacyBridgeSessionCore {
   ) => Promise<string>;
   decryptCtUint64ViaSnap: NonNullable<PrivateBalanceDecryptOptions['decryptCtUint64']>;
   decryptCtUint256ViaSnap: NonNullable<PrivateBalanceDecryptOptions['decryptCtUint256']>;
+  encryptUint256ViaSnap: (
+    value: bigint | string,
+    chainId?: number | string,
+    accountAddress?: string,
+  ) => Promise<{ ciphertextHigh: bigint; ciphertextLow: bigint } | null>;
   buildItUint256ViaSnap: (params: BuildItUint256ViaSnapParams) => Promise<SnapItUint256 | null>;
   getAesKeyFromProvider: (
     accountAddress: string,

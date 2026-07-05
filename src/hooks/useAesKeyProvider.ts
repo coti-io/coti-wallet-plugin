@@ -567,9 +567,10 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         // Step: Persist key (MetaMask Snap) or finalize
         emitStep('persisting-key');
 
+        let savedToSnap = false;
         if (aesKey && walletTypeInfo.walletType === 'metamask' && canPersistAesKeyToSnap()) {
-          const saved = await saveAESKeyToSnap(aesKey, address);
-          if (!saved) {
+          savedToSnap = await saveAESKeyToSnap(aesKey, address);
+          if (!savedToSnap) {
             logger.warn('⚠️ AES key retrieved but could not persist to Snap');
           }
         } else if (aesKey && walletTypeInfo.walletType === 'metamask') {
@@ -579,10 +580,16 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           );
         }
 
+        const skipEncryptedBackupForSnap =
+          walletTypeInfo.walletType === 'metamask'
+          && canPersistAesKeyToSnap()
+          && savedToSnap;
+
         if (
           aesKey &&
           isValidAesKey(aesKey) &&
           options.saveBackup &&
+          !skipEncryptedBackupForSnap &&
           servicesEnabled &&
           (services?.saveEncryptedAesBackup || services?.replaceEncryptedAesBackup)
         ) {

@@ -577,7 +577,7 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
       expect(h.balanceUpdater.updateAccountState).toHaveBeenCalledWith(
         WALLET_B,
         false,
-        true,
+        false,
         undefined,
         7082400,
       );

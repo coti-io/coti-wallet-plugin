@@ -32,7 +32,7 @@ export interface PrivacyBridgeUnlockContextValue {
   hasSnap: boolean;
   snapError: string | null;
   /** True/false when check succeeds; null when Snap is unavailable. */
-  hasAesKeyInSnap: () => Promise<boolean | null>;
+  hasAesKeyInSnap: (accountAddress?: string) => Promise<boolean | null>;
   connectToSnap: () => Promise<boolean>;
   requestSnapConnection: () => Promise<boolean>;
   /** Probes Snap via wallet_getSnaps, updates hasSnap, and returns the result. */
@@ -47,6 +47,16 @@ export interface PrivacyBridgeUnlockContextValue {
     recipient: string;
     amount: string;
   }) => Promise<{ txHash: string }>;
+  /** Encrypt a human-readable amount into ctUint256 JSON without exposing the AES key. */
+  encryptPrivateValue: (params: {
+    amount: string;
+    decimals?: number;
+  }) => Promise<{ ciphertext: string }>;
+  /** Decrypt ctUint256 JSON back to a human-readable amount without exposing the AES key. */
+  decryptPrivateValue: (params: {
+    ciphertext: string;
+    decimals?: number;
+  }) => Promise<{ amount: string }>;
   refreshPrivateBalances: (options?: AesKeyProviderOptions) => Promise<boolean>;
   lockPrivateBalances: () => void;
   handleOnboard: () => Promise<string | null>;

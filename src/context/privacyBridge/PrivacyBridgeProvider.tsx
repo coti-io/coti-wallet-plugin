@@ -102,6 +102,8 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
       isPrivateUnlocked: session.isPrivateUnlocked,
       unlockCachedAesKey: session.unlockCachedAesKey,
       sendPrivateToken: session.sendPrivateToken,
+      encryptPrivateValue: session.encryptPrivateValue,
+      decryptPrivateValue: session.decryptPrivateValue,
       refreshPrivateBalances: session.refreshPrivateBalances,
       lockPrivateBalances: session.lockPrivateBalances,
       handleOnboard: session.handleOnboard,

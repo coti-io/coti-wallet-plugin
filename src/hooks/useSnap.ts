@@ -11,6 +11,7 @@ import {
     assertMetaMaskActiveAccount,
     validateAesKeyRoundTrip,
 } from '../crypto/aesKeyValidation';
+import { guardedEthAccounts } from '../lib/metaMaskMobile';
 import type { CtUint256 } from '../types/ciphertext';
 
 export interface GetAESKeyFromSnapOptions {
@@ -23,6 +24,7 @@ export interface BuildItUint256ViaSnapParams {
     tokenAddress: string;
     functionSelector: string;
     chainId?: number | string;
+    accountAddress?: string;
 }
 
 export interface SnapItUint256 {
@@ -125,10 +127,28 @@ function parseSnapItUint256(value: unknown): SnapItUint256 | null {
 
 async function ensureSnapWalletAccounts(provider: MetaMaskInpageProvider): Promise<void> {
     try {
-        await provider.request({ method: 'eth_requestAccounts' });
+        const accounts = await guardedEthAccounts(provider);
+        if (accounts.length > 0) return;
+        throw new CotiPluginError(
+            CotiErrorCode.AES_KEY_MISSING,
+            'No MetaMask account is connected for Snap key access',
+        );
     } catch (error) {
-        logger.warn('⚠️ eth_requestAccounts before Snap RPC failed:', getErrorMessage(error));
+        logger.warn('⚠️ eth_accounts before Snap RPC failed:', getErrorMessage(error));
+        throw error;
     }
+}
+
+async function getCotiChainId(provider: MetaMaskInpageProvider): Promise<number> {
+    const COTI_MAINNET_ID = 2632500;
+    const COTI_TESTNET_ID = 7082400;
+    const rawChainIdHex = await provider.request({ method: 'eth_chainId' }) as string;
+    const rawChainId = parseInt(rawChainIdHex, 16);
+    return rawChainId === COTI_MAINNET_ID ? COTI_MAINNET_ID : COTI_TESTNET_ID;
+}
+
+function aesKeyCacheKey(accountAddress: string, cotiChainId: number): string {
+    return `${accountAddress.toLowerCase()}:${cotiChainId}`;
 }
 
 async function prepareSnapForKeyAccess(
@@ -151,7 +171,7 @@ async function prepareSnapForKeyAccess(
 
 export const useSnap = (setSnapError?: (error: string | null) => void) => {
     const isSnapRequestPending = useRef(false);
-    const { connector } = useAccount();
+    const { address: connectedAddress, connector } = useAccount();
 
     /**
      * Resolves the MetaMask provider for Snap RPCs.
@@ -398,30 +418,35 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
     const decryptCtUint64ViaSnap = useCallback(async (
         value: bigint | string | number,
         chainId?: number | string,
+        accountAddress?: string,
     ): Promise<bigint | null> => {
         const result = await invokeSnapOperation<string | null>('decrypt', {
             type: 'ctUint64',
             value: value.toString(),
             chainId: toSnapChainId(chainId),
+            address: accountAddress ?? connectedAddress,
         });
         return result == null ? null : BigInt(result);
-    }, [invokeSnapOperation]);
+    }, [connectedAddress, invokeSnapOperation]);
 
     const decryptCtUint256ViaSnap = useCallback(async (
         value: CtUint256,
         chainId?: number | string,
+        accountAddress?: string,
     ): Promise<bigint | null> => {
         const result = await invokeSnapOperation<string | null>('decrypt', {
             type: 'ctUint256',
             value: stringifyBigInts(value),
             chainId: toSnapChainId(chainId),
+            address: accountAddress ?? connectedAddress,
         });
         return result == null ? null : BigInt(result);
-    }, [invokeSnapOperation]);
+    }, [connectedAddress, invokeSnapOperation]);
 
     const encryptUint256ViaSnap = useCallback(async (
         value: bigint | string,
         chainId?: number | string,
+        accountAddress?: string,
     ): Promise<{ ciphertextHigh: bigint; ciphertextLow: bigint } | null> => {
         const result = await invokeSnapOperation<{
             ciphertextHigh: string | number | bigint;
@@ -430,13 +455,14 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
             type: 'uint256',
             value: value.toString(),
             chainId: toSnapChainId(chainId),
+            address: accountAddress ?? connectedAddress,
         });
         if (!result) return null;
         return {
             ciphertextHigh: BigInt(result.ciphertextHigh),
             ciphertextLow: BigInt(result.ciphertextLow),
         };
-    }, [invokeSnapOperation]);
+    }, [connectedAddress, invokeSnapOperation]);
 
     const buildItUint256ViaSnap = useCallback(async (
         params: BuildItUint256ViaSnapParams,
@@ -446,9 +472,10 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
             tokenAddress: params.tokenAddress,
             functionSelector: params.functionSelector,
             chainId: toSnapChainId(params.chainId),
+            address: params.accountAddress ?? connectedAddress,
         });
         return parseSnapItUint256(result?.value);
-    }, [invokeSnapOperation]);
+    }, [connectedAddress, invokeSnapOperation]);
 
     /**
      * Get AES key from COTI Snap.
@@ -462,12 +489,6 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
 
         const skipCache = options?.skipCache === true;
 
-        // Return cached key if available (unless a fresh fetch was requested)
-        if (!skipCache && globalAESKeyCache[accountAddress.toLowerCase()]) {
-            logger.log('🔑 Returning globally cached AES key');
-            return globalAESKeyCache[accountAddress.toLowerCase()];
-        }
-
         if (isSnapRequestPending.current) {
             logger.log('⏳ Snap request already pending, skipping concurrent call.');
             return null;
@@ -477,6 +498,23 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
         if (!provider) {
             logger.log('❌ No MetaMask provider available');
             return null;
+        }
+
+        const cotiChainId = await getCotiChainId(provider);
+
+        // Return cached key if available (unless a fresh fetch was requested)
+        if (!skipCache && accountAddress) {
+            const cacheKey = aesKeyCacheKey(accountAddress, cotiChainId);
+            const cachedKey = globalAESKeyCache[cacheKey];
+            if (cachedKey) {
+                try {
+                    await assertMetaMaskActiveAccount(provider, accountAddress);
+                    logger.log('🔑 Returning globally cached AES key');
+                    return cachedKey;
+                } catch {
+                    delete globalAESKeyCache[cacheKey];
+                }
+            }
         }
 
         const installed = await isSnapInstalled();
@@ -504,12 +542,6 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
             isSnapRequestPending.current = true;
             logger.log('🔑 Requesting AES key from COTI Snap...');
 
-            const COTI_MAINNET_ID = 2632500;
-            const COTI_TESTNET_ID = 7082400;
-            const rawChainIdHex = await provider.request({ method: 'eth_chainId' }) as string;
-            const rawChainId = parseInt(rawChainIdHex, 16);
-            const cotiChainId = rawChainId === COTI_MAINNET_ID ? COTI_MAINNET_ID : COTI_TESTNET_ID;
-
             let hasKey: boolean;
             try {
                 hasKey = await provider.request({
@@ -518,7 +550,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
                         snapId: getSnapId(),
                         request: {
                             method: 'has-aes-key',
-                            params: { chainId: cotiChainId },
+                            params: { chainId: cotiChainId, address: accountAddress },
                         },
                     },
                 }) as boolean;
@@ -547,7 +579,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
 
             while (retries > 0) {
                 try {
-                    logger.log(`🔑 Requesting AES key for COTI chainId: ${cotiChainId} (wallet chainId: ${rawChainId})`);
+                    logger.log(`🔑 Requesting AES key for COTI chainId: ${cotiChainId}`);
 
                     // Directly request the key (User preference to force fetch)
                     // Explicitly passing chainId to bypass sync state issues
@@ -557,7 +589,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
                             snapId: getSnapId(),
                             request: {
                                 method: 'get-aes-key',
-                                params: { chainId: cotiChainId }
+                                params: { chainId: cotiChainId, address: accountAddress }
                             }
                         }
                     });
@@ -586,7 +618,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
 
                     logger.log('✅ AES key received from snap and passed round-trip validation');
 
-                    globalAESKeyCache[accountAddress.toLowerCase()] = snapKey;
+                    globalAESKeyCache[aesKeyCacheKey(accountAddress, cotiChainId)] = snapKey;
                     return snapKey;
 
                 } catch (error: any) {
@@ -630,7 +662,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
      * Read-only check: whether the Snap has an AES key stored for the active account.
      * Does not prompt the user. Returns null when the Snap is unavailable.
      */
-    const hasAesKeyInSnap = useCallback(async (): Promise<boolean | null> => {
+    const hasAesKeyInSnap = useCallback(async (accountAddress?: string): Promise<boolean | null> => {
         const provider = await resolveProvider();
         if (!provider) return null;
 
@@ -640,11 +672,15 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
         await prepareSnapForKeyAccess(provider, getSnapId());
         await syncEnvironment();
 
-        const COTI_MAINNET_ID = 2632500;
-        const COTI_TESTNET_ID = 7082400;
-        const rawChainIdHex = await provider.request({ method: 'eth_chainId' }) as string;
-        const rawChainId = parseInt(rawChainIdHex, 16);
-        const cotiChainId = rawChainId === COTI_MAINNET_ID ? COTI_MAINNET_ID : COTI_TESTNET_ID;
+        if (accountAddress) {
+            try {
+                await assertMetaMaskActiveAccount(provider, accountAddress);
+            } catch {
+                return false;
+            }
+        }
+
+        const cotiChainId = await getCotiChainId(provider);
 
         try {
             return await provider.request({
@@ -653,7 +689,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
                     snapId: getSnapId(),
                     request: {
                         method: 'has-aes-key',
-                        params: { chainId: cotiChainId },
+                        params: { chainId: cotiChainId, address: accountAddress },
                     },
                 },
             }) as boolean;
@@ -678,11 +714,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
                 await assertMetaMaskActiveAccount(provider, accountAddress);
             }
 
-            const COTI_MAINNET_ID = 2632500;
-            const COTI_TESTNET_ID = 7082400;
-            const rawChainIdHex = await provider.request({ method: 'eth_chainId' }) as string;
-            const rawChainId = parseInt(rawChainIdHex, 16);
-            const cotiChainId = rawChainId === COTI_MAINNET_ID ? COTI_MAINNET_ID : COTI_TESTNET_ID;
+            const cotiChainId = await getCotiChainId(provider);
 
             logger.log('💾 Saving AES key to Snap...');
             await provider.request({
@@ -691,12 +723,14 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
                     snapId: getSnapId(),
                     request: {
                         method: 'set-aes-key',
-                        params: { newUserAesKey: key, chainId: cotiChainId },
+                        params: { newUserAesKey: key, chainId: cotiChainId, address: accountAddress },
                     },
                 },
             });
             logger.log('✅ AES key saved to Snap successfully');
-            globalAESKeyCache[accountAddress.toLowerCase()] = key; // Update Cache
+            if (accountAddress) {
+                globalAESKeyCache[aesKeyCacheKey(accountAddress, cotiChainId)] = key;
+            }
             if (setSnapError) setSnapError(null);
             return true;
         } catch (err: any) {
