@@ -6,9 +6,7 @@ import {
   metaMaskWallet,
   coinbaseWallet,
   walletConnectWallet,
-  rabbyWallet,
   ledgerWallet,
-  oneKeyWallet,
   trustWallet,
 } from '@rainbow-me/rainbowkit/wallets';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -29,6 +27,8 @@ import { getPluginConfig } from '../config/plugin';
 import { resolveWalletConnectProjectId } from '../config/walletConnect';
 import { eip6963MetaMaskWallet } from './eip6963MetaMaskWallet';
 import { directTrustWallet } from './directTrustWallet';
+import { mobileRabbyWallet } from './mobileRabbyWallet';
+import { mobileOneKeyWallet } from './mobileOneKeyWallet';
 
 /** RainbowKit-compatible mobile detection (iOS, Android, iPad). */
 const isMobileBrowser = (): boolean => {
@@ -40,15 +40,20 @@ const isMobileBrowser = (): boolean => {
   );
 };
 
-function getWalletGroups(useEip6963MetaMask = false, useDirectTrustWallet = false) {
+function getWalletGroups(projectId: string, useEip6963MetaMask = false, useDirectTrustWallet = false) {
   const metaMaskConnector = useEip6963MetaMask ? eip6963MetaMaskWallet : metaMaskWallet;
   const trustConnector = useDirectTrustWallet ? directTrustWallet : trustWallet;
+
+  // mobileRabbyWallet and mobileOneKeyWallet are WalletConnect-backed on mobile
+  // (no injected extension present), so they always appear in the Recommended list.
+  const rabbyConnector = () => mobileRabbyWallet({ projectId });
+  const oneKeyConnector = () => mobileOneKeyWallet({ projectId });
 
   if (isMobileBrowser()) {
     return [
       {
         groupName: 'Recommended',
-        wallets: [walletConnectWallet, metaMaskConnector, rabbyWallet, trustConnector, oneKeyWallet],
+        wallets: [metaMaskConnector, rabbyConnector, trustConnector, oneKeyConnector, walletConnectWallet],
       },
     ];
   }
@@ -56,7 +61,7 @@ function getWalletGroups(useEip6963MetaMask = false, useDirectTrustWallet = fals
   return [
     {
       groupName: 'Recommended',
-      wallets: [metaMaskConnector, rabbyWallet, trustConnector, oneKeyWallet, walletConnectWallet],
+      wallets: [metaMaskConnector, rabbyConnector, trustConnector, oneKeyConnector, walletConnectWallet],
     },
     {
       groupName: 'Other',
@@ -96,7 +101,7 @@ function createWagmiConfig(
   const projectId = resolveWalletConnectProjectId(walletConnectProjectId);
 
   const connectors = connectorsForWallets(
-    getWalletGroups(useEip6963MetaMask, useDirectTrustWallet),
+    getWalletGroups(projectId, useEip6963MetaMask, useDirectTrustWallet),
     {
       appName: 'COTI Wallet Plugin',
       projectId,
