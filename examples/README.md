@@ -33,6 +33,22 @@ npm run dev
 
 Opens at http://localhost:5173
 
+### Local Snap development
+
+To run against a local `coti-snap` server (same flow as `testing-harness`):
+
+```bash
+# Requires coti-snap cloned as ../coti-snap with yarn install done
+npm run dev:local-snap
+```
+
+This starts:
+- `coti-snap` watch server at http://localhost:8080
+- Snap companion dApp at http://localhost:8000
+- Wallet example at http://localhost:5173 with `VITE_SNAP_ID=local:http://localhost:8080`
+
+Override the snap checkout path with `COTI_SNAP_ROOT` if needed.
+
 ## What It Does
 
 1. **Connect Wallet** — Click to open RainbowKit modal (MetaMask, Coinbase, WalletConnect, etc.)

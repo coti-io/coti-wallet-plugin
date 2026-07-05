@@ -106,6 +106,10 @@ describe('Wallet Type Detection (README: Multi-Wallet Support)', () => {
   describe('useWalletType hook', () => {
     beforeEach(() => {
       useAccountMock.mockReset();
+      Object.defineProperty(navigator, 'userAgent', {
+        configurable: true,
+        value: 'Mozilla/5.0',
+      });
     });
 
     it('returns disconnected state when no connector is present', () => {
@@ -148,6 +152,24 @@ describe('Wallet Type Detection (README: Multi-Wallet Support)', () => {
 
       const { result } = renderHook(() => useWalletType());
       await waitFor(() => expect(result.current.isMetaMaskWithSnap).toBe(true));
+    });
+
+    it('does not support Snap on MetaMask Mobile', async () => {
+      Object.defineProperty(navigator, 'userAgent', {
+        configurable: true,
+        value: 'MetaMaskMobile/7.0',
+      });
+      const request = vi.fn().mockResolvedValue({ [SNAP_ID]: { version: '1.0.0' } });
+      const getProvider = vi.fn().mockResolvedValue({ request });
+      useAccountMock.mockReturnValue({
+        connector: { id: 'metaMask', getProvider },
+      });
+
+      const { result } = renderHook(() => useWalletType());
+
+      expect(result.current.walletType).toBe('metamask');
+      expect(result.current.isMetaMaskWithSnap).toBe(false);
+      expect(getProvider).not.toHaveBeenCalled();
     });
 
     it('leaves snap false when the snap is not installed', async () => {

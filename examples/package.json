@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:onboarding": "node scripts/onboarding-dev.mjs",
+    "dev:local-snap": "node scripts/local-snap-dev.mjs",
     "build": "tsc && vite build",
     "preview": "vite preview"
   },

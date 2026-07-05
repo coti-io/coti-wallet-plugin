@@ -1,5 +1,5 @@
 // Configuration
-export { configureCotiPlugin, getPluginConfig } from './config/plugin';
+export { configureCotiPlugin, getPluginConfig, getSnapRequestParams } from './config/plugin';
 export type {
   CotiPluginConfig,
   EncryptedAesBackup,

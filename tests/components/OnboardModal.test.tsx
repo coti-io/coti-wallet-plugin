@@ -284,9 +284,9 @@ describe('OnboardModal', () => {
       expect(onConfirm).not.toHaveBeenCalled();
     });
 
-    it('shows install snap only for metamask without snap and does not start onboarding after install', async () => {
+    it('does not show a Snap install button in the modal', () => {
       const onConfirm = vi.fn();
-      const onInstallSnap = vi.fn().mockResolvedValue(true);
+      const onInstallSnap = vi.fn();
 
       render(
         <OnboardModal
@@ -298,11 +298,7 @@ describe('OnboardModal', () => {
         />
       );
 
-      fireEvent.click(screen.getByText('Install COTI Snap'));
-
-      await waitFor(() => {
-        expect(onInstallSnap).toHaveBeenCalledTimes(1);
-      });
+      expect(screen.queryByText('Install COTI Snap')).not.toBeInTheDocument();
       expect(onConfirm).not.toHaveBeenCalled();
       expect(screen.getByText('Begin Onboarding')).toBeInTheDocument();
     });

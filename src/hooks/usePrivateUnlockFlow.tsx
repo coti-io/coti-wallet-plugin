@@ -3,6 +3,7 @@ import { OnboardModal, type OnboardModalTheme } from '../components/OnboardModal
 import { usePrivacyBridgeUnlock, usePrivacyBridgeWallet } from '../context/privacyBridge/contexts';
 import { useWalletType } from './useWalletType';
 import type { OnboardingStep } from './useAesKeyProvider';
+import { isMetaMaskMobileBrowser } from '../lib/metaMaskMobile';
 
 export interface UsePrivateUnlockFlowOptions {
   theme?: OnboardModalTheme;
@@ -53,11 +54,14 @@ export function usePrivateUnlockFlow(
   const unlockRequestIdRef = useRef(0);
   const pendingActionRef = useRef<(() => void | Promise<void>) | null>(null);
   const prevWalletAddressRef = useRef(wallet.walletAddress);
+  const snapConnectedInModalRef = useRef(false);
 
   const connectedAddress = wallet.walletAddress || '';
   const isMetaMaskWallet = walletTypeInfo.walletType === 'metamask';
+  const canAttemptSnapInstall =
+    isMetaMaskWallet && !isMetaMaskMobileBrowser();
   const usesSnapStorage =
-    isMetaMaskWallet && (walletTypeInfo.isMetaMaskWithSnap || snapConnectedInModal);
+    canAttemptSnapInstall && (walletTypeInfo.isMetaMaskWithSnap || snapConnectedInModal);
   const hasConnectedSnap = usesSnapStorage;
 
   const isActiveUnlockRequest = useCallback(
@@ -105,6 +109,7 @@ export function usePrivateUnlockFlow(
     if (!wallet.isConnected) {
       setPendingUnlockAfterConnect(false);
       setSnapConnectedInModal(false);
+      snapConnectedInModalRef.current = false;
       setSnapInstallError(null);
     }
   }, [wallet.isConnected]);
@@ -125,23 +130,24 @@ export function usePrivateUnlockFlow(
   }, [dismissOnboardModal, wallet.walletAddress]);
 
   const connectSnap = useCallback(async () => {
+    if (!canAttemptSnapInstall) return false;
+
     setModalError(null);
     setSnapInstallError(null);
     setIsInstallingSnap(true);
     try {
       const connected = await unlock.requestSnapConnection();
       if (!connected) return false;
+      snapConnectedInModalRef.current = true;
       setSnapConnectedInModal(true);
       return true;
-    } catch (error) {
-      setSnapInstallError(
-        error instanceof Error ? error.message : 'Could not install COTI Snap.',
-      );
+    } catch {
+      setSnapInstallError(null);
       return false;
     } finally {
       setIsInstallingSnap(false);
     }
-  }, [unlock]);
+  }, [canAttemptSnapInstall, unlock]);
 
   const completeUnlock = useCallback(async (requestId: number) => {
     if (!isActiveUnlockRequest(requestId)) return false;
@@ -238,9 +244,16 @@ export function usePrivateUnlockFlow(
     setIsUnlocking(true);
     setCurrentStep('signing-transaction');
     try {
+      let useSnapStorageForOnboarding =
+        usesSnapStorage || snapConnectedInModalRef.current;
+
+      if (!useSnapStorageForOnboarding && canAttemptSnapInstall) {
+        useSnapStorageForOnboarding = await connectSnap();
+      }
+
       const ok = await unlock.refreshPrivateBalances({
         forceContractOnboarding: true,
-        saveBackup: usesSnapStorage ? false : saveBackup,
+        saveBackup: useSnapStorageForOnboarding ? false : saveBackup,
         onProgress: setCurrentStep,
       });
       if (!ok) {
@@ -259,7 +272,7 @@ export function usePrivateUnlockFlow(
     } finally {
       setIsUnlocking(false);
     }
-  }, [connectedAddress, notifyUnlocked, runPendingAction, saveBackup, unlock, usesSnapStorage]);
+  }, [canAttemptSnapInstall, connectSnap, connectedAddress, notifyUnlocked, runPendingAction, saveBackup, unlock, usesSnapStorage]);
 
   const openUnlockFlow = useCallback(async () => {
     if (!wallet.isConnected) {

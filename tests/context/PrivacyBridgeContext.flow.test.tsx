@@ -918,6 +918,25 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
       expect(latest!.isPrivateUnlocked).toBe(false);
     });
 
+    it('does not retry forced contract onboarding after a soft failure', async () => {
+      h.balanceUpdater.updateAccountState.mockClear();
+      h.balanceUpdater.updateAccountState.mockResolvedValue(false);
+
+      await expect(
+        latest!.refreshPrivateBalances({ forceContractOnboarding: true }),
+      ).resolves.toBe(false);
+
+      expect(h.balanceUpdater.updateAccountState).toHaveBeenCalledTimes(1);
+      expect(h.balanceUpdater.updateAccountState).toHaveBeenCalledWith(
+        WALLET_A,
+        true,
+        true,
+        undefined,
+        7082400,
+        { validateOnUnlock: true, forceContractOnboarding: true },
+      );
+    });
+
     it('passes wagmi chain override during refresh when synced via RainbowKit', async () => {
       await connectWagmi(WALLET_A, 11155111);
       h.balanceUpdater.updateAccountState.mockClear();

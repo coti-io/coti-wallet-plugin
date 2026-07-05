@@ -6,6 +6,9 @@ const mockRefreshPrivateBalances = vi.fn();
 const mockLockPrivateBalances = vi.fn();
 const mockUnlockCachedAesKey = vi.fn();
 const mockHandleConnect = vi.fn();
+const mockRequestSnapConnection = vi.fn();
+let mockWalletType = 'rabby';
+let mockIsMetaMaskWithSnap = false;
 
 vi.mock('../../src/context/privacyBridge/contexts', () => ({
   usePrivacyBridgeUnlock: () => ({
@@ -15,7 +18,7 @@ vi.mock('../../src/context/privacyBridge/contexts', () => ({
     refreshPrivateBalances: mockRefreshPrivateBalances,
     lockPrivateBalances: mockLockPrivateBalances,
     saveManualAesKey: vi.fn(),
-    requestSnapConnection: vi.fn(),
+    requestSnapConnection: mockRequestSnapConnection,
     encryptPrivateValue: vi.fn(),
     decryptPrivateValue: vi.fn(),
   }),
@@ -28,10 +31,18 @@ vi.mock('../../src/context/privacyBridge/contexts', () => ({
 
 vi.mock('../../src/hooks/useWalletType', () => ({
   useWalletType: () => ({
-    walletType: 'rabby',
-    isMetaMaskWithSnap: false,
+    walletType: mockWalletType,
+    isMetaMaskWithSnap: mockIsMetaMaskWithSnap,
   }),
 }));
+
+vi.mock('../../src/lib/metaMaskMobile', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../src/lib/metaMaskMobile')>();
+  return {
+    ...actual,
+    isMetaMaskMobileBrowser: () => false,
+  };
+});
 
 vi.mock('../../src/components/OnboardModal', () => ({
   OnboardModal: ({ isOpen }: { isOpen: boolean }) =>
@@ -41,8 +52,11 @@ vi.mock('../../src/components/OnboardModal', () => ({
 describe('usePrivateUnlockFlow', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockWalletType = 'rabby';
+    mockIsMetaMaskWithSnap = false;
     mockUnlockCachedAesKey.mockRejectedValue(new Error('No cached AES key'));
     mockRefreshPrivateBalances.mockResolvedValue(false);
+    mockRequestSnapConnection.mockResolvedValue(false);
   });
 
   it('opens onboarding modal when restoreOnly fails without cancellation', async () => {
@@ -111,5 +125,55 @@ describe('usePrivateUnlockFlow', () => {
 
     expect(pendingAction).toHaveBeenCalledTimes(1);
     expect(result.current.showOnboardModal).toBe(false);
+  });
+
+  it('tries to install Snap before contract onboarding for MetaMask', async () => {
+    mockWalletType = 'metamask';
+    mockRequestSnapConnection.mockResolvedValueOnce(true);
+    mockRefreshPrivateBalances
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+
+    const { result } = renderHook(() => usePrivateUnlockFlow());
+
+    await act(async () => {
+      await result.current.openUnlockFlow();
+    });
+
+    await act(async () => {
+      await result.current.onboardModal.props.onConfirm();
+    });
+
+    expect(mockRequestSnapConnection).toHaveBeenCalledTimes(1);
+    expect(mockRefreshPrivateBalances).toHaveBeenLastCalledWith({
+      forceContractOnboarding: true,
+      saveBackup: false,
+      onProgress: expect.any(Function),
+    });
+  });
+
+  it('falls back to non-Snap onboarding when Snap install is rejected', async () => {
+    mockWalletType = 'metamask';
+    mockRequestSnapConnection.mockResolvedValueOnce(false);
+    mockRefreshPrivateBalances
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+
+    const { result } = renderHook(() => usePrivateUnlockFlow());
+
+    await act(async () => {
+      await result.current.openUnlockFlow();
+    });
+
+    await act(async () => {
+      await result.current.onboardModal.props.onConfirm();
+    });
+
+    expect(mockRequestSnapConnection).toHaveBeenCalledTimes(1);
+    expect(mockRefreshPrivateBalances).toHaveBeenLastCalledWith({
+      forceContractOnboarding: true,
+      saveBackup: true,
+      onProgress: expect.any(Function),
+    });
   });
 });

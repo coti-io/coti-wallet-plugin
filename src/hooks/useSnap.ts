@@ -3,7 +3,7 @@ import * as CotiSDK from '@coti-io/coti-sdk-typescript';
 const { generateRSAKeyPair, decryptRSA } = CotiSDK;
 import { MetaMaskInpageProvider } from '@metamask/providers';
 import { useAccount } from 'wagmi';
-import { getPluginConfig } from '../config/plugin';
+import { getPluginConfig, getSnapRequestParams } from '../config/plugin';
 import { getMetaMaskProvider } from '../lib/ethereum';
 import { CotiPluginError, CotiErrorCode } from '../errors';
 import { logger } from '../lib/logger';
@@ -287,9 +287,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
             logger.log('🔌 Requesting permission to connect to COTI Snap...');
             await provider.request({
                 method: 'wallet_requestSnaps',
-                params: {
-                    [getSnapId()]: {}
-                }
+                params: getSnapRequestParams(getSnapId()),
             });
             logger.log('✅ Connected to COTI Snap');
             if (setSnapError) setSnapError(null);

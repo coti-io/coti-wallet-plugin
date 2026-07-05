@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { configureCotiPlugin, getPluginConfig } from '../../src/config/plugin';
+import { configureCotiPlugin, getPluginConfig, getSnapRequestParams } from '../../src/config/plugin';
 
 describe('Plugin Configuration (README: Basic Setup)', () => {
   beforeEach(() => {
     // Reset to defaults
     configureCotiPlugin({
       snapId: 'npm:@coti-io/coti-snap',
+      snapVersion: undefined,
       defaultNetworkId: undefined,
       clearSessionKeyOnWagmiDisconnect: false,
     });
@@ -56,5 +57,33 @@ describe('Plugin Configuration (README: Basic Setup)', () => {
   it('allows enabling clearSessionKeyOnWagmiDisconnect', () => {
     configureCotiPlugin({ clearSessionKeyOnWagmiDisconnect: true });
     expect(getPluginConfig().clearSessionKeyOnWagmiDisconnect).toBe(true);
+  });
+
+  it('defaults snapVersion to undefined', () => {
+    expect(getPluginConfig().snapVersion).toBeUndefined();
+  });
+
+  it('allows overriding snapVersion', () => {
+    configureCotiPlugin({ snapVersion: '1.0.52' });
+    expect(getPluginConfig().snapVersion).toBe('1.0.52');
+  });
+
+  it('builds wallet_requestSnaps params without version by default', () => {
+    configureCotiPlugin({ snapId: 'npm:@coti-io/coti-snap', snapVersion: undefined });
+    expect(getSnapRequestParams()).toEqual({ 'npm:@coti-io/coti-snap': {} });
+  });
+
+  it('builds wallet_requestSnaps params with a pinned version', () => {
+    configureCotiPlugin({ snapVersion: '1.0.52' });
+    expect(getSnapRequestParams('npm:@coti-io/coti-snap')).toEqual({
+      'npm:@coti-io/coti-snap': { version: '1.0.52' },
+    });
+  });
+
+  it('prefers an explicit snapVersion argument over config', () => {
+    configureCotiPlugin({ snapVersion: '1.0.52' });
+    expect(getSnapRequestParams('npm:@coti-io/coti-snap', '1.0.51')).toEqual({
+      'npm:@coti-io/coti-snap': { version: '1.0.51' },
+    });
   });
 });

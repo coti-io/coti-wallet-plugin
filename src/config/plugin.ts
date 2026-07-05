@@ -44,6 +44,11 @@ export interface OnboardingServices {
 export interface CotiPluginConfig {
   /** The Snap ID for the COTI MetaMask Snap. Default: 'npm:@coti-io/coti-snap' */
   snapId: string;
+  /**
+   * Optional Snap version to request on install (`wallet_requestSnaps`).
+   * When unset, MetaMask installs the latest published version.
+   */
+  snapVersion?: string;
   /** If set, enforces a specific network chain ID (decimal string or hex). */
   defaultNetworkId?: string;
   /** Sepolia RPC URL for PoD portal operations. */
@@ -106,6 +111,18 @@ export function configureCotiPlugin(config: Partial<CotiPluginConfig>): void {
       ...config.onboardingServices,
     },
   };
+}
+
+/**
+ * Returns the params object for `wallet_requestSnaps`.
+ * Omits version when unset so MetaMask installs the latest Snap.
+ */
+export function getSnapRequestParams(
+  snapId: string = _config.snapId,
+  snapVersion?: string,
+): Record<string, Record<string, never> | { version: string }> {
+  const version = (snapVersion ?? _config.snapVersion)?.trim();
+  return version ? { [snapId]: { version } } : { [snapId]: {} };
 }
 
 /**

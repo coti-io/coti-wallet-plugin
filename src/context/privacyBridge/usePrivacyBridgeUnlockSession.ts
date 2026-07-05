@@ -51,7 +51,6 @@ export const usePrivacyBridgeUnlockSession = ({
     setPrivateTokens,
     wagmiSyncRef,
     hasAesKeyInSnap,
-    getAesKeyFromProvider,
   } = core;
 
   const { wagmiChainId } = network;
@@ -148,22 +147,9 @@ export const usePrivacyBridgeUnlockSession = ({
     }
 
     if (snapHasKey === false) {
-      logger.log('Snap installed but no AES key — hydrating Snap from encrypted backup');
-      await getAesKeyFromProvider(walletAddress!, aesKeyOptions?.onProgress, {
-        ...aesKeyOptions,
-        restoreOnly: true,
-        hydrateSnapFromBackup: true,
-      });
-      const afterHydrate = await hasAesKeyInSnap(walletAddress!);
-      if (afterHydrate !== true) {
-        logger.log('Snap hydration failed — no AES key available for unlock');
-        return { unlockOptions, checkSnap: false, keyForUnlock: undefined, failed: true };
-      }
-      return {
-        unlockOptions: { ...unlockOptions, snapSideDecrypt: true },
-        checkSnap: false,
-        keyForUnlock: undefined,
-      };
+      logger.log(
+        'Snap installed but no AES key for this account — restoring from local backup without Snap persist',
+      );
     }
 
     return { unlockOptions, checkSnap: true, keyForUnlock: undefined };
@@ -174,7 +160,6 @@ export const usePrivacyBridgeUnlockSession = ({
     walletTypeInfo.isMetaMaskWithSnap,
     hasSnap,
     hasAesKeyInSnap,
-    getAesKeyFromProvider,
   ]);
 
   const refreshPrivateBalances = useCallback(async (aesKeyOptions?: AesKeyProviderOptions) => {
@@ -201,6 +186,20 @@ export const usePrivacyBridgeUnlockSession = ({
       logger.log('Private balance fetch completed', { success });
 
       if (!success) {
+        const validatedKey = getValidatedAesKeyForUnlock(walletAddress);
+        if (validatedKey) {
+          logger.log('Unlock validated AES key present — treating unlock as successful');
+          setSessionAesKey(validatedKey, walletAddress);
+          setArePrivateBalancesHidden(false);
+          setSnapError(null);
+          return true;
+        }
+
+        if (aesKeyOptions?.forceContractOnboarding) {
+          logger.log('Forced contract onboarding did not complete — skipping interactive retry');
+          return false;
+        }
+
         keyForUnlock =
           keyForUnlock ?? getValidatedAesKeyForUnlock(walletAddress) ?? undefined;
         logger.log('First private balance fetch failed, retrying after 1.5s');

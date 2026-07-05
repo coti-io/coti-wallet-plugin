@@ -410,7 +410,7 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       expect(signer.generateOrRecoverAes).not.toHaveBeenCalled();
     });
 
-    it('persists a MetaMask backup restore to Snap before returning the key', async () => {
+    it('restores backup without persisting to Snap during restore-only unlock', async () => {
       const signer = makeSigner(VALID_KEY);
       const backup = await encryptAesKeyBackup(VALID_KEY, signer, {
         address: ADDR,
@@ -435,7 +435,7 @@ describe('useAesKeyProvider (full branch coverage)', () => {
 
       expect(key).toBe(VALID_KEY);
       expect(snapState.getAESKeyFromSnap).not.toHaveBeenCalled();
-      expect(snapState.saveAESKeyToSnap).toHaveBeenCalledWith(VALID_KEY, ADDR);
+      expect(snapState.saveAESKeyToSnap).not.toHaveBeenCalled();
       expect(signer.generateOrRecoverAes).not.toHaveBeenCalled();
     });
 

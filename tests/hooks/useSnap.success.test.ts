@@ -12,6 +12,7 @@ import {
 } from '../../src/hooks/useSnap';
 import { CotiErrorCode } from '../../src/errors';
 import * as CotiSDK from '@coti-io/coti-sdk-typescript';
+import { configureCotiPlugin } from '../../src/config/plugin';
 
 const SNAP_ID = 'npm:@coti-io/coti-snap';
 const ACCOUNT = '0x1234567890abcdef1234567890abcdef12345678';
@@ -95,7 +96,10 @@ describe('useSnap (success & lifecycle paths)', () => {
       const ok = await result.current.connectToSnap();
       expect(ok).toBe(true);
       expect(mockRequest).toHaveBeenCalledWith(
-        expect.objectContaining({ method: 'wallet_requestSnaps' }),
+        expect.objectContaining({
+          method: 'wallet_requestSnaps',
+          params: { [SNAP_ID]: {} },
+        }),
       );
       expect(mockRequest).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -105,6 +109,21 @@ describe('useSnap (success & lifecycle paths)', () => {
           }),
         }),
       );
+    });
+
+    it('requestSnapConnection passes a pinned snap version when configured', async () => {
+      configureCotiPlugin({ snapVersion: '1.0.52' });
+      const { result } = renderHook(() => useSnap());
+
+      await result.current.requestSnapConnection();
+
+      expect(mockRequest).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: 'wallet_requestSnaps',
+          params: { [SNAP_ID]: { version: '1.0.52' } },
+        }),
+      );
+      configureCotiPlugin({ snapVersion: undefined });
     });
 
     it('requestSnapConnection returns false and sets error on -32601', async () => {
