@@ -6,7 +6,9 @@ export default defineConfig({
   dts: true,
   splitting: false,
   sourcemap: true,
-  clean: true,
+  // Avoid wiping dist mid-watch rebuild — Vite HMR can reload index.mjs before
+  // index.mjs.map is rewritten, causing ENOENT source-map warnings.
+  clean: !process.argv.includes('--watch'),
   external: [
     'react',
     'react/jsx-runtime',
