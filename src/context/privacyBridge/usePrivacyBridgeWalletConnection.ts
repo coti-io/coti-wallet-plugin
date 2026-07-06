@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import { logger } from '../../lib/logger';
+import { forceWagmiSessionClear } from '../../lib/wagmiDisconnect';
 import { isMultipleWalletsError } from '../../utils/walletErrors';
 import {
   getInitialPublicTokens,
@@ -39,7 +40,13 @@ export const usePrivacyBridgeWalletConnection = ({
     setMetamaskDetected,
   } = core;
 
-  const { connectWallet, registerEthereumInitializedListener, wagmiConnected, wagmiDisconnect, wagmiDisconnectAsync } = network;
+  const {
+    connectWallet,
+    registerEthereumInitializedListener,
+    wagmiConnected,
+    wagmiConnector,
+    wagmiConfig,
+  } = network;
   const { updateAccountState, currentChainId } = accountSync;
 
   const handleConnectRef = useRef<() => Promise<void>>();
@@ -83,29 +90,14 @@ export const usePrivacyBridgeWalletConnection = ({
     if (wasConnected) {
       disconnectingRef.current = true;
     }
-    if (wagmiSyncRef.current || wagmiConnected) {
-      wagmiSyncRef.current = false;
-      try {
-        await wagmiDisconnectAsync();
-      } catch (err) {
-        logger.warn('wagmi disconnectAsync failed, falling back to disconnect:', err);
-        try {
-          wagmiDisconnect();
-        } catch {
-          /* plugin session clears below regardless */
-        }
-      }
-    }
 
-    if (window.ethereum && !wagmiConnected) {
-      try {
-        await (window.ethereum as any).request({
-          method: 'wallet_revokePermissions',
-          params: [{ eth_accounts: {} }],
-        });
-      } catch (err) {
-        logger.warn('wallet_revokePermissions failed (may not be supported):', err);
-      }
+    metamaskExplicitConnect.current = false;
+
+    const shouldClearWagmi = wagmiConnected || wagmiSyncRef.current || !!wagmiConnector;
+    wagmiSyncRef.current = false;
+
+    if (shouldClearWagmi) {
+      await forceWagmiSessionClear(wagmiConfig, wagmiConnector);
     }
 
     setIsConnected(false);
@@ -118,6 +110,7 @@ export const usePrivacyBridgeWalletConnection = ({
     setArePrivateBalancesHidden(true);
     setShowMultipleWalletsModal(false);
     clearSnapCache();
+    disconnectingRef.current = false;
     logger.log('Disconnected wallet');
   };
 

@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { useAccount as useWagmiAccount, useDisconnect as useWagmiDisconnect } from 'wagmi';
+import { useAccount as useWagmiAccount, useConfig } from 'wagmi';
 import { useMetamask } from '../../hooks/useMetamask';
 import { useNetworkEnforcer } from '../../hooks/useNetworkEnforcer';
 import { getWalletNetworkConfigs } from '../../chains';
@@ -31,7 +31,7 @@ export const usePrivacyBridgeNetworkSession = ({
 
   const { address: wagmiAddress, isConnected: wagmiConnected, chainId: wagmiChainId, connector: wagmiConnector } =
     useWagmiAccount();
-  const { disconnect: wagmiDisconnect, disconnectAsync: wagmiDisconnectAsync } = useWagmiDisconnect();
+  const wagmiConfig = useConfig();
 
   const switchNetworkViaWagmiProvider = useCallback(async (targetChainId: string): Promise<boolean> => {
     if (!wagmiConnector) {
@@ -169,8 +169,7 @@ export const usePrivacyBridgeNetworkSession = ({
     wagmiConnected,
     wagmiChainId,
     wagmiConnector,
-    wagmiDisconnect,
-    wagmiDisconnectAsync,
+    wagmiConfig,
     ...networkEnforcer,
   };
 };
