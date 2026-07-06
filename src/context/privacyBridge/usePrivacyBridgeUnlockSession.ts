@@ -59,9 +59,9 @@ export const usePrivacyBridgeUnlockSession = ({
     wagmiSyncRef,
     hasAesKeyInSnap,
     checkSnapStatus,
+    getAESKeyFromSnap,
     encryptUint256ViaSnap,
     decryptCtUint256ViaSnap,
-    buildItUint256ViaSnap,
   } = core;
 
   const { wagmiChainId } = network;
@@ -365,9 +365,9 @@ export const usePrivacyBridgeUnlockSession = ({
       recipient: params.recipient,
       amount: params.amount,
       walletAddress,
-      sessionAesKey: shouldUseLocalCrypto(strategy, sessionKey) ? sessionKey : undefined,
-      hasSnap: shouldUseSnapCrypto(strategy),
-      buildItUint256ViaSnap,
+      sessionAesKey: sessionKey,
+      hasSnap: strategy.snapInstalled,
+      getAESKeyFromSnap: strategy.snapInstalled ? getAESKeyFromSnap : undefined,
     });
 
     await refreshPrivateBalances();
@@ -376,7 +376,7 @@ export const usePrivacyBridgeUnlockSession = ({
     walletAddress,
     arePrivateBalancesHidden,
     currentChainId,
-    buildItUint256ViaSnap,
+    getAESKeyFromSnap,
     refreshPrivateBalances,
     resolveAesAccess,
     resolveSessionAesKey,

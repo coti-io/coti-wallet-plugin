@@ -44,14 +44,6 @@ type ItUint256TransferPayload = {
   signature: string;
 };
 
-interface BuildItUint256ForTransferParams {
-  value: bigint;
-  tokenAddress: string;
-  functionSelector: string;
-  chainId: number;
-  accountAddress?: string;
-}
-
 interface SendPrivateTokenTransferParams {
   chainId: number;
   symbol: string;
@@ -61,9 +53,7 @@ interface SendPrivateTokenTransferParams {
   provider?: EIP1193Provider | null;
   sessionAesKey?: string | null;
   hasSnap?: boolean;
-  buildItUint256ViaSnap?: (
-    params: BuildItUint256ForTransferParams,
-  ) => Promise<ItUint256TransferPayload | null>;
+  getAESKeyFromSnap?: (accountAddress: string) => Promise<string | null>;
 }
 
 export function normalizeAesKeyHex(aesKey: string): string {
@@ -260,7 +250,7 @@ export async function sendPrivateTokenTransfer(
     provider: injectedProvider,
     sessionAesKey,
     hasSnap,
-    buildItUint256ViaSnap,
+    getAESKeyFromSnap,
   } = params;
 
   const target = resolvePrivateTokenTransferTarget(chainId, symbol);
@@ -280,29 +270,26 @@ export async function sendPrivateTokenTransfer(
   const amountWei = parseTransferAmountWei(amount, target.decimals);
   const transferSig = ethers.id(PRIVATE_ERC20_TRANSFER_256_SIG).slice(0, 10);
 
-  let itValue: ItUint256TransferPayload | null = null;
-  if (sessionAesKey) {
-    itValue = await encryptValue256(
-      amountWei,
-      normalizeAesKeyHex(sessionAesKey),
-      target.tokenAddress,
-      transferSig,
-      walletAddress,
-      signer,
-    );
-  } else if (hasSnap && buildItUint256ViaSnap) {
-    itValue = await buildItUint256ViaSnap({
-      value: amountWei,
-      tokenAddress: target.tokenAddress,
-      functionSelector: transferSig,
-      chainId,
-      accountAddress: walletAddress,
-    });
+  let aesKey = sessionAesKey ? normalizeAesKeyHex(sessionAesKey) : null;
+  if (!aesKey && hasSnap && getAESKeyFromSnap) {
+    const snapKey = await getAESKeyFromSnap(walletAddress);
+    if (snapKey) {
+      aesKey = normalizeAesKeyHex(snapKey);
+    }
   }
 
-  if (!itValue) {
+  if (!aesKey) {
     throw new Error('Private balances are locked. Unlock to send tokens.');
   }
+
+  const itValue = await encryptValue256(
+    amountWei,
+    aesKey,
+    target.tokenAddress,
+    transferSig,
+    walletAddress,
+    signer,
+  );
 
   return submitPrivateTokenTransferTx({
     tokenAddress: target.tokenAddress,
