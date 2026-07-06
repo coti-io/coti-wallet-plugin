@@ -39,6 +39,10 @@ export interface PrivacyBridgeUnlockContextValue {
   checkSnapStatus: () => Promise<boolean>;
   /** Session-bound AES key when unlocked (null when locked or disconnected). */
   sessionAesKey: string | null;
+  /** COTI Testnet/Mainnet chain used for AES onboarding, Snap, and backup state. */
+  aesKeyChainId: number | undefined;
+  /** Set a session/connection AES key chain. Only COTI Testnet/Mainnet are accepted. */
+  setAesKeyChainId: (chainId: number | undefined) => void;
   isPrivateUnlocked: boolean;
   /** Re-unlock after lock without page refresh (uses in-memory session key internally). */
   unlockCachedAesKey: () => Promise<void>;

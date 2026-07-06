@@ -24,6 +24,8 @@ export enum CotiErrorCode {
   SNAP_DIALOG_REJECTED = 'SNAP_DIALOG_REJECTED',
   /** Snap is required but not available for the current wallet type. */
   SNAP_REQUIRED = 'SNAP_REQUIRED',
+  /** Snap key existence check failed after retry. */
+  SNAP_KEY_CHECK_FAILED = 'SNAP_KEY_CHECK_FAILED',
 
   // ─── AES Key / Onboarding ─────────────────────────────────────────────
   /** AES key does not match the on-chain account (decryption yields garbage). */

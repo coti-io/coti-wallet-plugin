@@ -73,6 +73,7 @@ const LOCAL_SNAP_AES_WRITE_ORIGINS =
 configureCotiPlugin({
   ...(LOCAL_SNAP_ID ? { snapId: LOCAL_SNAP_ID } : {}),
   ...(LOCAL_SNAP_VERSION ? { snapVersion: LOCAL_SNAP_VERSION } : {}),
+  aesKeyChainId: COTI_TESTNET_CHAIN_ID,
   additionalSnapAesWriteOrigins: LOCAL_SNAP_AES_WRITE_ORIGINS,
   debug: true,
   onboardingGrantMinBalanceWei: (
@@ -168,7 +169,7 @@ export default function App() {
   });
   const connectedAddress = wallet.walletAddress || address || '';
   const isMetaMaskWallet = walletTypeInfo.walletType === 'metamask';
-  const hasConnectedSnap = isMetaMaskWallet && walletTypeInfo.isMetaMaskWithSnap;
+  const hasConnectedSnap = isMetaMaskWallet && unlock.hasSnap;
   const tokenRows = useMemo(
     () => [
       ...publicTokens.map(token => ({ ...token, type: 'Public' })),
@@ -204,7 +205,8 @@ export default function App() {
       return;
     }
 
-    if (!walletTypeInfo.isMetaMaskWithSnap) {
+    const snapInstalled = unlock.hasSnap || await unlock.checkSnapStatus();
+    if (!snapInstalled) {
       setSnapAesKeyStatus('idle');
       return;
     }
@@ -223,7 +225,6 @@ export default function App() {
     isConnected,
     isMetaMaskWallet,
     unlock,
-    walletTypeInfo.isMetaMaskWithSnap,
   ]);
 
   useEffect(() => {
@@ -234,7 +235,7 @@ export default function App() {
     if (privateUnlock.isPrivateUnlocked) {
       void refreshSnapAesKeyStatus();
     }
-  }, [privateUnlock.isPrivateUnlocked, refreshSnapAesKeyStatus]);
+  }, [privateUnlock.isPrivateUnlocked, refreshSnapAesKeyStatus, unlock.hasSnap]);
 
   const performEncryptPrivateValue = useCallback(async () => {
     setCryptoStatus('Encrypting value...');
@@ -436,7 +437,7 @@ export default function App() {
               <button
                 onClick={() => {
                   privateUnlock.lockPrivateBalances();
-                  setSnapAesKeyStatus('idle');
+                  void refreshSnapAesKeyStatus();
                 }}
                 style={{ padding: '8px 16px', cursor: 'pointer' }}
               >
@@ -452,6 +453,74 @@ export default function App() {
           </div>
           {unlockStatus && <p style={{ fontSize: 12, marginTop: 8 }}>{unlockStatus}</p>}
         </div>
+      )}
+
+      {isConnected && (
+        <section style={{ marginTop: 16, padding: 16, border: '1px solid #ddd', borderRadius: 8 }}>
+          <h2 style={{ fontSize: 18, marginTop: 0 }}>Encrypt / Decrypt Private Value</h2>
+          <p style={{ fontSize: 13, color: '#666' }}>
+            Uses <code>encryptPrivateValue()</code> and <code>decryptPrivateValue()</code> from{' '}
+            <code>usePrivacyBridgeUnlock()</code>. If you are not onboarded yet, clicking either
+            button opens the onboarding modal first.
+          </p>
+
+          <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '2fr 1fr', marginBottom: 12 }}>
+            <label style={{ display: 'grid', gap: 4 }}>
+              <span style={{ fontSize: 12, color: '#555' }}>Plain amount</span>
+              <input
+                value={cryptoAmount}
+                onChange={event => setCryptoAmount(event.target.value)}
+                placeholder="1.0"
+                style={{ padding: 8 }}
+              />
+            </label>
+
+            <label style={{ display: 'grid', gap: 4 }}>
+              <span style={{ fontSize: 12, color: '#555' }}>Decimals</span>
+              <input
+                value={cryptoDecimals}
+                onChange={event => setCryptoDecimals(event.target.value)}
+                placeholder="18"
+                style={{ padding: 8 }}
+              />
+            </label>
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+            <button
+              onClick={() => void runEncryptPrivateValue()}
+              disabled={privateUnlock.isUnlocking}
+              style={{ padding: '8px 16px', cursor: privateUnlock.isUnlocking ? 'wait' : 'pointer' }}
+            >
+              {privateUnlock.isUnlocking ? 'Unlocking...' : 'Encrypt'}
+            </button>
+            <button
+              onClick={() => void runDecryptPrivateValue()}
+              disabled={privateUnlock.isUnlocking}
+              style={{ padding: '8px 16px', cursor: privateUnlock.isUnlocking ? 'wait' : 'pointer' }}
+            >
+              {privateUnlock.isUnlocking ? 'Unlocking...' : 'Decrypt'}
+            </button>
+          </div>
+
+          <label style={{ display: 'grid', gap: 4, marginBottom: 12 }}>
+            <span style={{ fontSize: 12, color: '#555' }}>ctUint256 ciphertext JSON</span>
+            <textarea
+              value={cryptoCiphertext}
+              onChange={event => setCryptoCiphertext(event.target.value)}
+              placeholder='{"ciphertextHigh":"...","ciphertextLow":"..."}'
+              rows={4}
+              style={{ padding: 8, fontFamily: 'monospace', fontSize: 12 }}
+            />
+          </label>
+
+          {cryptoDecrypted && (
+            <p style={{ fontSize: 12 }}>
+              Decrypted amount: <code>{cryptoDecrypted}</code>
+            </p>
+          )}
+          {cryptoStatus && <p style={{ fontSize: 12 }}>{cryptoStatus}</p>}
+        </section>
       )}
 
       {isConnected && (
@@ -610,74 +679,6 @@ export default function App() {
             Send Private Token
           </button>
           {privateSendStatus && <p style={{ fontSize: 12 }}>{privateSendStatus}</p>}
-        </section>
-      )}
-
-      {isConnected && (
-        <section style={{ marginTop: 16, padding: 16, border: '1px solid #ddd', borderRadius: 8 }}>
-          <h2 style={{ fontSize: 18, marginTop: 0 }}>Encrypt / Decrypt Private Value</h2>
-          <p style={{ fontSize: 13, color: '#666' }}>
-            Uses <code>encryptPrivateValue()</code> and <code>decryptPrivateValue()</code> from{' '}
-            <code>usePrivacyBridgeUnlock()</code>. If you are not onboarded yet, clicking either
-            button opens the onboarding modal first.
-          </p>
-
-          <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '2fr 1fr', marginBottom: 12 }}>
-            <label style={{ display: 'grid', gap: 4 }}>
-              <span style={{ fontSize: 12, color: '#555' }}>Plain amount</span>
-              <input
-                value={cryptoAmount}
-                onChange={event => setCryptoAmount(event.target.value)}
-                placeholder="1.0"
-                style={{ padding: 8 }}
-              />
-            </label>
-
-            <label style={{ display: 'grid', gap: 4 }}>
-              <span style={{ fontSize: 12, color: '#555' }}>Decimals</span>
-              <input
-                value={cryptoDecimals}
-                onChange={event => setCryptoDecimals(event.target.value)}
-                placeholder="18"
-                style={{ padding: 8 }}
-              />
-            </label>
-          </div>
-
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-            <button
-              onClick={() => void runEncryptPrivateValue()}
-              disabled={privateUnlock.isUnlocking}
-              style={{ padding: '8px 16px', cursor: privateUnlock.isUnlocking ? 'wait' : 'pointer' }}
-            >
-              {privateUnlock.isUnlocking ? 'Unlocking...' : 'Encrypt'}
-            </button>
-            <button
-              onClick={() => void runDecryptPrivateValue()}
-              disabled={privateUnlock.isUnlocking}
-              style={{ padding: '8px 16px', cursor: privateUnlock.isUnlocking ? 'wait' : 'pointer' }}
-            >
-              {privateUnlock.isUnlocking ? 'Unlocking...' : 'Decrypt'}
-            </button>
-          </div>
-
-          <label style={{ display: 'grid', gap: 4, marginBottom: 12 }}>
-            <span style={{ fontSize: 12, color: '#555' }}>ctUint256 ciphertext JSON</span>
-            <textarea
-              value={cryptoCiphertext}
-              onChange={event => setCryptoCiphertext(event.target.value)}
-              placeholder='{"ciphertextHigh":"...","ciphertextLow":"..."}'
-              rows={4}
-              style={{ padding: 8, fontFamily: 'monospace', fontSize: 12 }}
-            />
-          </label>
-
-          {cryptoDecrypted && (
-            <p style={{ fontSize: 12 }}>
-              Decrypted amount: <code>{cryptoDecrypted}</code>
-            </p>
-          )}
-          {cryptoStatus && <p style={{ fontSize: 12 }}>{cryptoStatus}</p>}
         </section>
       )}
 

@@ -52,6 +52,8 @@ export const usePrivacyBridgeSession = ({ modals }: UsePrivacyBridgeSessionOptio
     hasAesKeyInSnap: core.hasAesKeyInSnap,
     handleOnboard: unlock.handleOnboard,
     handleVerifyKeys: unlock.handleVerifyKeys,
+    aesKeyChainId: core.aesKeyChainId,
+    setAesKeyChainId: core.setAesKeyChainId,
     handleConnect,
     handleDisconnect,
     refreshPublicBalances: unlock.refreshPublicBalances,

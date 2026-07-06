@@ -3,6 +3,7 @@ import { useSnap } from '../../hooks/useSnap';
 import { usePrivateTokenBalance } from '../../hooks/usePrivateTokenBalance';
 import { useWalletType } from '../../hooks/useWalletType';
 import { useAesKeyProvider } from '../../hooks/useAesKeyProvider';
+import { assertAesKeyChainId } from '../../config/plugin';
 import {
   getInitialPublicTokens,
   getInitialPrivateTokens,
@@ -29,6 +30,7 @@ export const usePrivacyBridgeSessionCore = ({
   const [showSnapMissingModal, setShowSnapMissingModal] = useState(false);
   const [showCotiWalletAesKeyModal, setShowCotiWalletAesKeyModal] = useState(false);
   const [metamaskDetected, setMetamaskDetected] = useState(false);
+  const [aesKeyChainId, setAesKeyChainIdState] = useState<number | undefined>(undefined);
   const ethereumListenerRegistered = useRef(false);
   const wagmiSyncRef = useRef(false);
   const metamaskExplicitConnect = useRef(false);
@@ -86,6 +88,11 @@ export const usePrivacyBridgeSessionCore = ({
   const { getAesKey: getAesKeyFromProvider } = useAesKeyProvider(walletTypeInfo);
   const { fetchPrivateBalance } = usePrivateTokenBalance();
 
+  const setAesKeyChainId = useCallback((chainId: number | undefined) => {
+    assertAesKeyChainId(chainId);
+    setAesKeyChainIdState(chainId);
+  }, []);
+
   return {
     modals,
     isConnected,
@@ -111,6 +118,8 @@ export const usePrivacyBridgeSessionCore = ({
     metamaskExplicitConnect,
     sessionAesKey,
     setSessionAesKey,
+    aesKeyChainId,
+    setAesKeyChainId,
     arePrivateBalancesHidden,
     setArePrivateBalancesHidden,
     executeSnapCheck,

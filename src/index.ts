@@ -2,6 +2,7 @@
 export { configureCotiPlugin, getPluginConfig, getSnapRequestParams } from './config/plugin';
 export type {
   CotiPluginConfig,
+  AesKeyChainId,
   EncryptedAesBackup,
   GrantResult,
   OnboardingServiceRequest,
