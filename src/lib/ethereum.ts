@@ -30,12 +30,21 @@ const METAMASK_MISSING_PROVIDER: EIP1193Provider = {
 
 let eip6963MetaMaskProvider: EIP1193Provider | null = null;
 let eip6963RabbyProvider: EIP1193Provider | null = null;
+let eip6963TrustProvider: EIP1193Provider | null = null;
 let eip6963ListenerRegistered = false;
 
 const RABBY_MISSING_PROVIDER: EIP1193Provider = {
   request() {
     return Promise.reject(
       Object.assign(new Error('Rabby extension not found via EIP-6963'), { code: 4900 }),
+    );
+  },
+};
+
+const TRUST_MISSING_PROVIDER: EIP1193Provider = {
+  request() {
+    return Promise.reject(
+      Object.assign(new Error('Trust Wallet extension not found via EIP-6963'), { code: 4900 }),
     );
   },
 };
@@ -55,6 +64,9 @@ function registerEip6963Discovery(): void {
     if (info?.rdns === 'io.rabby') {
       eip6963RabbyProvider = provider;
     }
+    if (info?.rdns === 'com.trustwallet.app') {
+      eip6963TrustProvider = provider;
+    }
   }) as EventListener);
 
   window.dispatchEvent(new Event('eip6963:requestProvider'));
@@ -73,6 +85,23 @@ export function getEip6963MetaMaskProvider(): EIP1193Provider | null {
 export function getEip6963RabbyProvider(): EIP1193Provider | null {
   registerEip6963Discovery();
   return eip6963RabbyProvider;
+}
+
+export function getEip6963TrustProvider(): EIP1193Provider | null {
+  registerEip6963Discovery();
+  return eip6963TrustProvider;
+}
+
+/** True when the Trust browser extension is available (EIP-6963 or window.trustwallet). */
+export function isTrustWalletInstalled(): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  if ((window as unknown as { trustwallet?: EIP1193Provider }).trustwallet) {
+    return true;
+  }
+  requestEip6963Providers();
+  return !!getEip6963TrustProvider();
 }
 
 function findMetaMaskInProviders(providers: EIP1193Provider[]): EIP1193Provider | undefined {
@@ -149,6 +178,35 @@ export function resolveRabbyInjectedTarget(): InjectedWalletTarget {
     id: 'rabby',
     name: 'Rabby Wallet',
     provider: RABBY_MISSING_PROVIDER,
+  };
+}
+
+/**
+ * Resolves the Trust Wallet injected target for wagmi/RainbowKit.
+ * Never returns undefined — wagmi's injected() connector falls back to
+ * window.ethereum (often Rabby/MetaMask) when target() is undefined.
+ */
+export function resolveTrustInjectedTarget(): InjectedWalletTarget {
+  requestEip6963Providers();
+
+  const eip6963 = getEip6963TrustProvider();
+  if (eip6963) {
+    return { id: 'com.trustwallet.app', name: 'Trust Wallet', provider: eip6963 };
+  }
+
+  try {
+    const trust = (window as unknown as { trustwallet?: EIP1193Provider }).trustwallet;
+    if (trust) {
+      return { id: 'trust-extension', name: 'Trust Wallet', provider: trust };
+    }
+  } catch {
+    /* extension globals may throw when multiple wallets are installed */
+  }
+
+  return {
+    id: 'com.trustwallet.app',
+    name: 'Trust Wallet',
+    provider: TRUST_MISSING_PROVIDER,
   };
 }
 

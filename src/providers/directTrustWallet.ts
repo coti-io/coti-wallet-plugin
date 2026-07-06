@@ -1,23 +1,11 @@
 import { createConnector } from 'wagmi';
 import { injected } from 'wagmi/connectors';
 import type { Wallet } from '@rainbow-me/rainbowkit/wallets';
-
-function resolveDirectTrustWalletTarget() {
-  if (typeof window === 'undefined') {
-    return undefined;
-  }
-
-  const provider = window.trustwallet;
-  if (!provider) {
-    return undefined;
-  }
-
-  return { id: 'trust-extension', name: 'Trust Wallet', provider };
-}
+import { resolveTrustInjectedTarget } from '../lib/ethereum';
 
 /**
  * RainbowKit wallet factory that connects via the Trust Browser Extension's
- * window.trustwallet provider directly, instead of generic injection or WalletConnect.
+ * EIP-6963 provider (or window.trustwallet fallback).
  */
 export const directTrustWallet = (): Wallet => ({
   id: 'trust-extension',
@@ -32,7 +20,7 @@ export const directTrustWallet = (): Wallet => ({
     createConnector((config) => ({
       ...injected({
         target() {
-          return resolveDirectTrustWalletTarget();
+          return resolveTrustInjectedTarget();
         },
       })(config),
       ...walletDetails,

@@ -1,6 +1,7 @@
 import { createConnector } from 'wagmi';
 import { injected, walletConnect } from 'wagmi/connectors';
 import type { Wallet } from '@rainbow-me/rainbowkit/wallets';
+import { isTrustWalletInstalled, resolveTrustInjectedTarget } from '../lib/ethereum';
 
 function isMobileBrowser(): boolean {
   if (typeof navigator === 'undefined') return false;
@@ -17,8 +18,7 @@ function isMobileBrowser(): boolean {
  * Mobile deep link: https://link.trustwallet.com/wc?uri=<encoded-wc-uri>
  */
 export const mobileTrustWallet = ({ projectId }: { projectId: string }): Wallet => {
-  const isTrustInjected = typeof window !== 'undefined'
-    && !!(window as Record<string, unknown>).trustwallet;
+  const isTrustInjected = isTrustWalletInstalled();
 
   const mobile = isMobileBrowser();
   const shouldUseWalletConnect = mobile || !isTrustInjected;
@@ -97,11 +97,8 @@ export const mobileTrustWallet = ({ projectId }: { projectId: string }): Wallet 
           }))
         : createConnector((config) => ({
             ...injected({
-              target: {
-                id: 'trust-extension',
-                name: 'Trust Wallet',
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                provider: (window as any).trustwallet,
+              target() {
+                return resolveTrustInjectedTarget();
               },
             })(config),
             ...walletDetails,
