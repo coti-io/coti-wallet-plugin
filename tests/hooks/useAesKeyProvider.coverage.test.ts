@@ -585,6 +585,60 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       expect(result.current.onboardingError).toBeNull();
     });
 
+    it('continues onboarding when grant is submitted but balance never increases', async () => {
+      wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
+      wagmiState.chainId = COTI_TESTNET;
+      ethersState.getBalance.mockResolvedValue(0n);
+      const grantNativeCoti = vi.fn().mockResolvedValue({ status: 'submitted' });
+      const signer = makeSigner(VALID_KEY);
+      ethersState.signer = signer;
+      configureCotiPlugin({
+        onboardingServices: {
+          mode: 'custom',
+          grantNativeCoti,
+        },
+        onboardingGrantMinBalanceWei: 10,
+        onboardingGrantPollIntervalMs: 0,
+        onboardingGrantTimeoutMs: 50,
+      });
+
+      const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'rabby' })));
+
+      let key: string | null = null;
+      await act(async () => {
+        key = await result.current.getAesKey(ADDR);
+      });
+
+      expect(key).toBe(VALID_KEY);
+      expect(grantNativeCoti).toHaveBeenCalledWith({ address: ADDR, chainId: COTI_TESTNET });
+      expect(signer.generateOrRecoverAes).toHaveBeenCalled();
+      expect(ethersState.getBalance.mock.calls.length).toBeGreaterThan(2);
+      expect(result.current.onboardingError).toBeNull();
+    });
+
+    it('returns null without onboardingError when onboarding fails due to insufficient funds', async () => {
+      wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
+      wagmiState.chainId = COTI_TESTNET;
+      ethersState.getBalance.mockResolvedValue(0n);
+      ethersState.signer = makeSigner(VALID_KEY, {
+        generateThrows: new Error('insufficient funds for transfer'),
+      });
+      configureCotiPlugin({
+        onboardingServices: { mode: 'custom' },
+        onboardingGrantMinBalanceWei: 0,
+      });
+
+      const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'rabby' })));
+
+      let key: string | null = null;
+      await act(async () => {
+        key = await result.current.getAesKey(ADDR);
+      });
+
+      expect(key).toBeNull();
+      expect(result.current.onboardingError).toBeNull();
+    });
+
     it('saves an encrypted backup after onboarding when requested', async () => {
       wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
       wagmiState.chainId = COTI_TESTNET;

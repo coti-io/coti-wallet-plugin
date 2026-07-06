@@ -45,8 +45,8 @@ vi.mock('../../src/lib/metaMaskMobile', async importOriginal => {
 });
 
 vi.mock('../../src/components/OnboardModal', () => ({
-  OnboardModal: ({ isOpen }: { isOpen: boolean }) =>
-    isOpen ? <div data-testid="onboard-modal" /> : null,
+  OnboardModal: (props: { isOpen: boolean; currentStep?: string; onConfirm?: () => void }) =>
+    props.isOpen ? <div data-testid="onboard-modal" data-step={props.currentStep} /> : null,
 }));
 
 describe('usePrivateUnlockFlow', () => {
@@ -175,5 +175,25 @@ describe('usePrivateUnlockFlow', () => {
       saveBackup: true,
       onProgress: expect.any(Function),
     });
+  });
+
+  it('keeps the signing step visible when contract onboarding does not complete', async () => {
+    mockWalletType = 'rabby';
+    mockRefreshPrivateBalances
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(false);
+
+    const { result } = renderHook(() => usePrivateUnlockFlow());
+
+    await act(async () => {
+      await result.current.openUnlockFlow();
+    });
+
+    await act(async () => {
+      await result.current.onboardModal.props.onConfirm();
+    });
+
+    expect(result.current.showOnboardModal).toBe(true);
+    expect(result.current.onboardModal.props.currentStep).toBe('signing-transaction');
   });
 });
