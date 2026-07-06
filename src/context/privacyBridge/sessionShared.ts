@@ -41,6 +41,7 @@ export interface PrivacyBridgeSessionCore {
   setMetamaskDetected: Dispatch<SetStateAction<boolean>>;
   ethereumListenerRegistered: MutableRefObject<boolean>;
   wagmiSyncRef: MutableRefObject<boolean>;
+  disconnectingRef: MutableRefObject<boolean>;
   metamaskExplicitConnect: MutableRefObject<boolean>;
   sessionAesKey: string | null;
   setSessionAesKey: (key: string | null, keyWallet?: string) => void;

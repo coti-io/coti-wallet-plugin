@@ -34,6 +34,7 @@ export const usePrivacyBridgeWalletConnection = ({
     setArePrivateBalancesHidden,
     clearSnapCache,
     wagmiSyncRef,
+    disconnectingRef,
     setMetamaskDetected,
   } = core;
 
@@ -77,6 +78,7 @@ export const usePrivacyBridgeWalletConnection = ({
   handleConnectRef.current = handleConnect;
 
   const handleDisconnect = async () => {
+    disconnectingRef.current = true;
     if (wagmiSyncRef.current || wagmiConnected) {
       wagmiDisconnect();
       wagmiSyncRef.current = false;
@@ -104,6 +106,7 @@ export const usePrivacyBridgeWalletConnection = ({
     setShowMultipleWalletsModal(false);
     clearSnapCache();
     logger.log('Disconnected wallet');
+    disconnectingRef.current = false;
   };
 
   return { handleConnect, handleDisconnect };

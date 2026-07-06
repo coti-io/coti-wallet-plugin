@@ -33,6 +33,7 @@ export const usePrivacyBridgeSessionCore = ({
   const [aesKeyChainId, setAesKeyChainIdState] = useState<number | undefined>(undefined);
   const ethereumListenerRegistered = useRef(false);
   const wagmiSyncRef = useRef(false);
+  const disconnectingRef = useRef(false);
   const metamaskExplicitConnect = useRef(false);
   const snapCheckInFlightRef = useRef<Promise<boolean> | null>(null);
 
@@ -115,6 +116,7 @@ export const usePrivacyBridgeSessionCore = ({
     setMetamaskDetected,
     ethereumListenerRegistered,
     wagmiSyncRef,
+    disconnectingRef,
     metamaskExplicitConnect,
     sessionAesKey,
     setSessionAesKey,

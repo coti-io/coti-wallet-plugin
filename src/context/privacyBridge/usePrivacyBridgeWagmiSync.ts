@@ -29,6 +29,7 @@ export const usePrivacyBridgeWagmiSync = ({
     setWalletAddress,
     setHasSnap,
     wagmiSyncRef,
+    disconnectingRef,
     setSessionAesKey,
     setArePrivateBalancesHidden,
     setPrivateTokens,
@@ -47,7 +48,7 @@ export const usePrivacyBridgeWagmiSync = ({
   const { updateAccountState } = accountSync;
 
   useEffect(() => {
-    if (wagmiConnected && wagmiAddress && !isConnected) {
+    if (wagmiConnected && wagmiAddress && !isConnected && !disconnectingRef.current) {
       logger.log('RainbowKit connection detected, syncing to context', {
         address: truncateAddress(wagmiAddress),
         chainId: wagmiChainId,
