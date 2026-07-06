@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { configureCotiPlugin, getPluginConfig, getSnapRequestParams } from '../../src/config/plugin';
+import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID, SEPOLIA_CHAIN_ID } from '../../src/config/chains';
 
 describe('Plugin Configuration (README: Basic Setup)', () => {
   beforeEach(() => {
@@ -8,6 +9,7 @@ describe('Plugin Configuration (README: Basic Setup)', () => {
       snapId: 'npm:@coti-io/coti-snap',
       snapVersion: undefined,
       defaultNetworkId: undefined,
+      aesKeyChainId: undefined,
       clearSessionKeyOnWagmiDisconnect: false,
     });
   });
@@ -57,6 +59,20 @@ describe('Plugin Configuration (README: Basic Setup)', () => {
   it('allows enabling clearSessionKeyOnWagmiDisconnect', () => {
     configureCotiPlugin({ clearSessionKeyOnWagmiDisconnect: true });
     expect(getPluginConfig().clearSessionKeyOnWagmiDisconnect).toBe(true);
+  });
+
+  it('allows setting aesKeyChainId to COTI Testnet or Mainnet', () => {
+    configureCotiPlugin({ aesKeyChainId: COTI_TESTNET_CHAIN_ID });
+    expect(getPluginConfig().aesKeyChainId).toBe(COTI_TESTNET_CHAIN_ID);
+
+    configureCotiPlugin({ aesKeyChainId: COTI_MAINNET_CHAIN_ID });
+    expect(getPluginConfig().aesKeyChainId).toBe(COTI_MAINNET_CHAIN_ID);
+  });
+
+  it('throws when aesKeyChainId is not a COTI AES chain', () => {
+    expect(() => configureCotiPlugin({ aesKeyChainId: SEPOLIA_CHAIN_ID as never })).toThrow(
+      'Invalid aesKeyChainId',
+    );
   });
 
   it('defaults snapVersion to undefined', () => {

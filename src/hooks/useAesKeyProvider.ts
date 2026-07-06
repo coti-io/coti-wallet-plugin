@@ -12,6 +12,7 @@ import { decryptAesKeyBackup, encryptAesKeyBackup } from '../crypto/aesKeyBackup
 import { normalizeAesKey } from '../crypto/aesKey';
 import { muteChainUpdates, unmuteChainUpdates, isChainUpdatesMuted } from '../lib/chainMute';
 import { canPersistAesKeyToSnap } from '../lib/snapOrigins';
+import { resolveAesKeyChainId } from '../lib/aesAccessStrategy';
 import {
   formatOnboardingError,
   isMetaMaskMobileBrowser,
@@ -57,7 +58,7 @@ export interface OnboardingStepInfo {
 export const ONBOARDING_STEPS: OnboardingStepInfo[] = [
   { id: 'signing-transaction', label: 'Sign Transaction', description: 'Please sign the transaction in your wallet' },
   { id: 'retrieving-key', label: 'Execute Transaction', description: 'Please execute the next transaction in your wallet to generate or retrieve your AES Key' },
-  { id: 'validating-key', label: 'Validate Key', description: 'Validating AES key format' },
+  { id: 'persisting-key', label: 'Persisting Key', description: 'Persisting your AES encryption key' },
 ];
 
 /**
@@ -77,6 +78,8 @@ export interface AesKeyProviderOptions {
   restoreOnly?: boolean;
   /** Unlock via Snap typed decrypt RPC (no raw AES export). Used when AES is already stored in Snap. */
   snapSideDecrypt?: boolean;
+  /** COTI Testnet/Mainnet chain that owns the AES key for this flow. */
+  aesKeyChainId?: number;
   /** Decrypt encrypted backup blob, persist AES to Snap, return null (no raw key to dapp). */
   hydrateSnapFromBackup?: boolean;
   /** Receives contract-onboarding step updates for modal progress UI. */
@@ -338,7 +341,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         const services = config.onboardingServices;
         const servicesEnabled = isServiceEnabled(services?.mode);
         const isConnectedCotiChain = connectedChainId === COTI_MAINNET_CHAIN_ID || connectedChainId === COTI_TESTNET_CHAIN_ID;
-        const targetCotiChainId = isConnectedCotiChain && connectedChainId ? connectedChainId : COTI_TESTNET_CHAIN_ID;
+        const targetCotiChainId = resolveAesKeyChainId(connectedChainId, options.aesKeyChainId);
         const backupContext = { address, chainId: targetCotiChainId };
 
         if (servicesEnabled && services?.fetchEncryptedAesBackup) {
@@ -537,10 +540,6 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         const onboardInfo = signer.getUserOnboardInfo();
         const aesKey = onboardInfo?.aesKey ?? null;
 
-        // Step: Validate key format
-        emitStep('validating-key');
-        trace.push('step', 'validating-key');
-
         if (aesKey && !isValidAesKey(aesKey)) {
           logger.warn('⚠️ AES key from onboard contract failed format validation');
           setOnboardingError('Retrieved AES key has invalid format');
@@ -548,6 +547,8 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           // Still switch back before returning
         } else {
           logger.log('✅ AES key retrieved successfully:', aesKey?.length, 'characters');
+          emitStep('persisting-key');
+          trace.push('step', 'persisting-key');
         }
 
         // Step: Switch wallet back to original chain
@@ -566,8 +567,6 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         }
 
         // Step: Persist key (MetaMask Snap) or finalize
-        emitStep('persisting-key');
-
         let savedToSnap = false;
         if (aesKey && walletTypeInfo.walletType === 'metamask' && canPersistAesKeyToSnap()) {
           savedToSnap = await saveAESKeyToSnap(aesKey, address);

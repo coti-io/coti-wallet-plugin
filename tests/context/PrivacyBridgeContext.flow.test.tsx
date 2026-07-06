@@ -44,6 +44,7 @@ const h = vi.hoisted(() => ({
     clearSnapCache: vi.fn(),
     connectToSnap: vi.fn(async () => false),
     requestSnapConnection: vi.fn(async () => false),
+    hasAesKeyInSnap: vi.fn(async () => false as boolean | null),
   },
   balanceUpdater: {
     updateAccountState: vi.fn(async (account: string, _hasSnap: boolean, fetchPrivate?: boolean) => {
@@ -114,6 +115,7 @@ vi.mock('../../src/hooks/useSnap', () => ({
       isSnapInstalled: h.snap.isSnapInstalled,
       executeSnapCheck: h.snap.executeSnapCheck,
       getAESKeyFromSnap: vi.fn(async () => null),
+      hasAesKeyInSnap: h.snap.hasAesKeyInSnap,
       saveAESKeyToSnap: vi.fn(async () => undefined),
       connectToSnap: h.snap.connectToSnap,
       requestSnapConnection: h.snap.requestSnapConnection,
@@ -188,7 +190,7 @@ vi.mock('../../src/crypto/localAesKeyVault', async (importOriginal) => {
   return {
     ...actual,
     unlockCachedAesKey: (...args: unknown[]) => h.unlockCachedAesKeyFromVault(...(args as [])),
-    saveAesKeyLocally: (...args: unknown[]) => h.saveAesKeyLocally(...(args as [])),
+    saveAesKeyLocally: (...args: unknown[]) => h.saveAesKeyLocally(...(args as [string, string])),
   };
 });
 
@@ -244,6 +246,7 @@ function makePodRequest(overrides: Partial<PodPortalRequest> = {}): PodPortalReq
     wallet: WALLET_A,
     kind: 'deposit',
     chainId: SEPOLIA_CHAIN_ID,
+    sourceTxHash: '0xsource',
     token: 'p.MTT',
     amount: '1',
     status: 'pod-pending',
@@ -283,6 +286,7 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
     });
     h.snap.handleManualOnboarding.mockResolvedValue(null);
     h.snap.clearSnapCache.mockReset();
+    h.snap.hasAesKeyInSnap.mockResolvedValue(false);
 
     h.balanceUpdater.updateAccountState.mockImplementation(async (account: string, _hasSnap: boolean, fetchPrivate?: boolean) => {
       h.balanceUpdater.params?.setWalletAddress(account);
@@ -898,6 +902,30 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
       });
     });
 
+    it('does not onboard blindly when Snap AES key check is unknown', async () => {
+      h.balanceUpdater.updateAccountState.mockClear();
+      h.snap.isSnapInstalled.mockResolvedValue(true);
+      h.snap.hasAesKeyInSnap.mockResolvedValue(null);
+
+      await expect(latest!.refreshPrivateBalances()).rejects.toMatchObject({
+        code: CotiErrorCode.SNAP_KEY_CHECK_FAILED,
+        message: 'Could not check Snap AES key.',
+      });
+
+      expect(h.snap.hasAesKeyInSnap).toHaveBeenCalledTimes(2);
+      expect(h.balanceUpdater.updateAccountState).not.toHaveBeenCalled();
+    });
+
+    it('does not error when Snap is not installed and key probe is unavailable', async () => {
+      h.balanceUpdater.updateAccountState.mockClear();
+      h.snap.isSnapInstalled.mockResolvedValue(false);
+      h.snap.hasAesKeyInSnap.mockResolvedValue(null);
+
+      await expect(latest!.refreshPrivateBalances()).resolves.toBe(true);
+      expect(h.snap.hasAesKeyInSnap).not.toHaveBeenCalled();
+      expect(h.balanceUpdater.updateAccountState).toHaveBeenCalled();
+    });
+
     it('returns false on generic errors', async () => {
       h.balanceUpdater.updateAccountState.mockRejectedValueOnce(new Error('rpc down'));
       await expect(latest!.refreshPrivateBalances()).resolves.toBe(false);
@@ -949,7 +977,7 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
         true,
         undefined,
         11155111,
-        { validateOnUnlock: true },
+        { validateOnUnlock: true, forceContractOnboarding: true },
       );
     });
   });

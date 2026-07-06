@@ -621,11 +621,12 @@ function mapToVisibleStep(stepId: OnboardingStep): OnboardingStep {
     case 'switching-network':
     case 'creating-provider':
       return 'signing-transaction';
-    // Hidden steps that happen AFTER validating-key
+    // Hidden steps that happen AFTER retrieving-key
+    case 'validating-key':
     case 'restoring-network':
     case 'persisting-key':
     case 'saving-backup':
-      return 'validating-key';
+      return 'persisting-key';
     default:
       return stepId;
   }

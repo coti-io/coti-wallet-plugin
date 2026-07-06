@@ -44,6 +44,8 @@ export interface PrivacyBridgeSessionCore {
   metamaskExplicitConnect: MutableRefObject<boolean>;
   sessionAesKey: string | null;
   setSessionAesKey: (key: string | null, keyWallet?: string) => void;
+  aesKeyChainId: number | undefined;
+  setAesKeyChainId: (chainId: number | undefined) => void;
   arePrivateBalancesHidden: boolean;
   setArePrivateBalancesHidden: Dispatch<SetStateAction<boolean>>;
   executeSnapCheck: (onSnapFound: () => Promise<boolean>) => Promise<void>;

@@ -1,4 +1,7 @@
 import type { BigNumberish } from 'ethers';
+import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID } from '../chains';
+
+export type AesKeyChainId = typeof COTI_TESTNET_CHAIN_ID | typeof COTI_MAINNET_CHAIN_ID;
 
 export interface EncryptedAesBackup {
   version: 1;
@@ -71,6 +74,11 @@ export interface CotiPluginConfig {
   clearSessionKeyOnWagmiDisconnect?: boolean;
   /** Optional onboarding service hooks for grant and encrypted AES backup flows. */
   onboardingServices?: OnboardingServices;
+  /**
+   * COTI chain that owns AES onboarding state for this app/session.
+   * Only COTI Testnet and COTI Mainnet can hold AES keys.
+   */
+  aesKeyChainId?: AesKeyChainId;
   /** Native COTI threshold required before contract onboarding. Defaults to 0. */
   onboardingGrantMinBalanceWei?: BigNumberish;
   /** Polling interval after grant callback. Defaults to 2000ms. */
@@ -98,11 +106,25 @@ let _config: CotiPluginConfig = {
   additionalSnapAesWriteOrigins: [],
 };
 
+export function isAesKeyChainId(chainId: unknown): chainId is AesKeyChainId {
+  return chainId === COTI_TESTNET_CHAIN_ID || chainId === COTI_MAINNET_CHAIN_ID;
+}
+
+export function assertAesKeyChainId(chainId: unknown): asserts chainId is AesKeyChainId {
+  if (chainId === undefined) return;
+  if (!isAesKeyChainId(chainId)) {
+    throw new Error(
+      `Invalid aesKeyChainId: expected ${COTI_TESTNET_CHAIN_ID} or ${COTI_MAINNET_CHAIN_ID}, got ${String(chainId)}`,
+    );
+  }
+}
+
 /**
  * Configure the COTI Wallet Plugin at initialization time.
  * Call this before rendering any hooks.
  */
 export function configureCotiPlugin(config: Partial<CotiPluginConfig>): void {
+  assertAesKeyChainId(config.aesKeyChainId);
   _config = {
     ..._config,
     ...config,
