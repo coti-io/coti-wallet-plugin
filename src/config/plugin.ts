@@ -83,7 +83,7 @@ export interface CotiPluginConfig {
   onboardingGrantMinBalanceWei?: BigNumberish;
   /** Polling interval after grant callback. Defaults to 2000ms. */
   onboardingGrantPollIntervalMs?: number;
-  /** Max time to wait after grant callback. Defaults to 30000ms. */
+  /** Max time to wait after grant callback. Defaults to 60000ms. */
   onboardingGrantTimeoutMs?: number;
   /**
    * Additional origins allowed to call wallet_invokeSnap set-aes-key.
@@ -102,7 +102,7 @@ let _config: CotiPluginConfig = {
   onboardingServices: { mode: 'disabled' },
   onboardingGrantMinBalanceWei: 0,
   onboardingGrantPollIntervalMs: 2000,
-  onboardingGrantTimeoutMs: 30000,
+  onboardingGrantTimeoutMs: 60000,
   additionalSnapAesWriteOrigins: [],
 };
 

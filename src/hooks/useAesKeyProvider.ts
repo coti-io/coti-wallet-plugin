@@ -130,6 +130,28 @@ function isUserRejection(error: unknown): boolean {
   return false;
 }
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === 'object' && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string') return message;
+  }
+  return String(error);
+}
+
+/** Wallet/RPC errors where the wallet already surfaced insufficient gas or balance. */
+function isInsufficientFundsError(error: unknown): boolean {
+  const message = getErrorMessage(error).toLowerCase();
+  return (
+    message.includes('insufficient funds')
+    || message.includes('insufficient balance')
+    || message.includes('account balance is 0')
+    || message.includes('not enough coti')
+    || message.includes('not enough balance')
+    || message.includes('insufficient funds for transfer')
+  );
+}
+
 /** Validates that a string is a valid 32-character hex AES key. */
 export function isValidAesKey(key: string): boolean {
   try {
@@ -254,13 +276,15 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
       setOnboardingDebugTrace([]);
       setOnboardingWarning(null);
       setWasRestoreCancelled(false);
-      emitStep('idle');
+      const forceContractOnboarding = options?.forceContractOnboarding === true;
+      if (!forceContractOnboarding) {
+        emitStep('idle');
+      }
       let restoreBackupFailed = false;
 
       const trace = debugTraceRef.current;
       trace.push('start', `wallet=${walletTypeInfo.walletType} mobile=${isMetaMaskMobileBrowser()}`);
 
-      const forceContractOnboarding = options?.forceContractOnboarding === true;
       const skipSnapOnMetaMaskMobile =
         walletTypeInfo.walletType === 'metamask' && isMetaMaskMobileBrowser();
 
@@ -495,7 +519,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
               if (grantResult?.status !== 'skipped') {
                 emitStep('waiting-for-funds');
                 const pollIntervalMs = config.onboardingGrantPollIntervalMs ?? 2000;
-                const timeoutMs = config.onboardingGrantTimeoutMs ?? 30000;
+                const timeoutMs = config.onboardingGrantTimeoutMs ?? 60000;
                 const startedAt = Date.now();
 
                 while (nativeBalance < requiredBalanceWei && Date.now() - startedAt < timeoutMs) {
@@ -634,6 +658,12 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         // EIP-1193 error code 4001: user rejected the signature request
         if (isUserRejection(error)) {
           emitStep('idle');
+          return null;
+        }
+
+        if (isInsufficientFundsError(error)) {
+          logger.warn('[AesKeyProvider] Insufficient native COTI for onboarding; wallet surfaced the error');
+          emitStep('signing-transaction');
           return null;
         }
 
