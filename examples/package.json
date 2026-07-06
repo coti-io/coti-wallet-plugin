@@ -4,7 +4,8 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/dev.mjs",
+    "dev:vite": "vite",
     "dev:local-snap": "node scripts/local-snap-dev.mjs",
     "build": "tsc && vite build",
     "preview": "vite preview"
