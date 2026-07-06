@@ -177,7 +177,7 @@ describe('usePrivateUnlockFlow', () => {
     });
   });
 
-  it('keeps the signing step visible when contract onboarding does not complete', async () => {
+  it('returns to intro when contract onboarding does not complete', async () => {
     mockWalletType = 'rabby';
     mockRefreshPrivateBalances
       .mockResolvedValueOnce(false)
@@ -194,6 +194,6 @@ describe('usePrivateUnlockFlow', () => {
     });
 
     expect(result.current.showOnboardModal).toBe(true);
-    expect(result.current.onboardModal.props.currentStep).toBe('signing-transaction');
+    expect(result.current.onboardModal.props.currentStep).toBe('idle');
   });
 });
