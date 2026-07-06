@@ -71,6 +71,7 @@ export const usePrivacyBridgeSession = ({ modals }: UsePrivacyBridgeSessionOptio
     showCotiWalletAesKeyModal: core.showCotiWalletAesKeyModal,
     setShowCotiWalletAesKeyModal: core.setShowCotiWalletAesKeyModal,
     chainId: network.chainId,
+    currentChainId: network.currentChainId,
     switchNetwork: network.switchNetwork,
     networkName: network.networkName,
     isUnsupportedNetwork: network.isUnsupportedNetwork,

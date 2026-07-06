@@ -34,6 +34,7 @@ export const usePrivacyBridge = ({
   refreshPublicBalances,
   upsertPodRequest,
   sessionAesKey,
+  chainId,
 }: UsePrivacyBridgeProps) => {
   const allowance = usePrivacyBridgeAllowance({
     isConnected,
@@ -62,6 +63,8 @@ export const usePrivacyBridge = ({
 
   const gas = usePrivacyBridgeGas({
     isConnected,
+    walletAddress,
+    chainId,
     publicTokens,
     selectedTokenIndex,
     direction,

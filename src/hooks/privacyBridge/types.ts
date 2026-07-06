@@ -46,4 +46,6 @@ export interface UsePrivacyBridgeProps {
   upsertPodRequest?: (request: import('../../contracts/pod').PodPortalRequest) => void;
   /** When set, the Snap gate is bypassed — no Snap interaction needed for bridging. */
   sessionAesKey?: string | null;
+  /** Active chain id — avoids probing window.ethereum when multiple wallets are installed. */
+  chainId?: number;
 }

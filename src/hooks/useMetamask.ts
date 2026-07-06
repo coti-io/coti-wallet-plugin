@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { ethers } from 'ethers';
 import { getPluginConfig } from '../config/plugin';
-import { getEthereumProvider } from '../lib/ethereum';
+import { getMetaMaskProvider } from '../lib/ethereum';
 import { CotiPluginError, CotiErrorCode } from '../errors';
 import { logger } from '../lib/logger';
 import { truncateAddress } from '../lib/format';
@@ -67,8 +67,8 @@ export const useMetamask = ({
      * @returns True if successful, false otherwise.
      */
     const switchNetwork = async (targetChainId: string): Promise<boolean> => {
-        if (typeof window.ethereum === 'undefined') return false;
-        const eth = getEthereumProvider()!;
+        const eth = getMetaMaskProvider();
+        if (!eth) return false;
 
         try {
             // Try to switch to the network
@@ -132,11 +132,10 @@ export const useMetamask = ({
      * @returns `true` when an account was connected and `onConnect` completed; `false` on rejection, empty accounts, or provider errors.
      */
     const connectWallet = async (onConnect: (account: string) => Promise<void>): Promise<boolean> => {
-        if (!window.ethereum) {
+        const eth = getMetaMaskProvider();
+        if (!eth) {
             throw new CotiPluginError(CotiErrorCode.METAMASK_NOT_INSTALLED, 'MetaMask or compatible wallet not found');
         }
-
-        const eth = getEthereumProvider()!;
 
         try {
             // 1. Request Account Access
@@ -151,7 +150,7 @@ export const useMetamask = ({
             if (!accounts || accounts.length === 0) return false;
 
             // Check network, default to Mainnet if on wrong network
-            const provider = new ethers.BrowserProvider(window.ethereum);
+            const provider = new ethers.BrowserProvider(eth);
             const network = await provider.getNetwork();
 
             const envDefaultNetwork = getPluginConfig().defaultNetworkId;
@@ -195,9 +194,10 @@ export const useMetamask = ({
      * Useful for manual refreshes or periodic checks.
      */
     const refreshNetworkState = useCallback(async () => {
-        if (!window.ethereum) return;
+        const eth = getMetaMaskProvider();
+        if (!eth) return;
         try {
-            const provider = new ethers.BrowserProvider(window.ethereum);
+            const provider = new ethers.BrowserProvider(eth);
             await checkNetwork(provider);
 
             if (onNetworkChanged) {
@@ -211,8 +211,8 @@ export const useMetamask = ({
     // Handle initial check and event listeners
     useEffect(() => {
         const setup = () => {
-            if (typeof window.ethereum === 'undefined') return;
-            const eth = getEthereumProvider()!;
+            const eth = getMetaMaskProvider();
+            if (!eth) return;
 
             const handleAccountsChanged = (accounts: string[]) => {
                 if (accounts.length > 0) {

@@ -1,38 +1,6 @@
-import { createConnector } from 'wagmi';
 import { injected } from 'wagmi/connectors';
 import type { Wallet } from '@rainbow-me/rainbowkit/wallets';
-import {
-  getEip6963MetaMaskProvider,
-  getEthereumProvider,
-  type EIP1193Provider,
-} from '../lib/ethereum';
-
-function findMetaMaskInProviders(providers: EIP1193Provider[]): EIP1193Provider | undefined {
-  return providers.find(
-    (p) => p.isMetaMask && !p.isRabby && !p.isPhantom && !p.isTrust,
-  );
-}
-
-function resolveEip6963MetaMaskTarget() {
-  const eip6963 = getEip6963MetaMaskProvider();
-  if (eip6963) {
-    return { id: 'io.metamask', name: 'MetaMask', provider: eip6963 };
-  }
-
-  const eth = getEthereumProvider();
-  if (eth?.providers?.length) {
-    const mm = findMetaMaskInProviders(eth.providers);
-    if (mm) {
-      return { id: 'io.metamask', name: 'MetaMask', provider: mm };
-    }
-  }
-
-  if (eth) {
-    return { id: 'io.metamask', name: 'MetaMask', provider: eth };
-  }
-
-  return undefined;
-}
+import { resolveMetaMaskInjectedTarget } from '../lib/ethereum';
 
 /**
  * RainbowKit wallet factory that connects via EIP-6963-discovered MetaMask provider,
@@ -56,12 +24,20 @@ export const eip6963MetaMaskWallet = (): Wallet => ({
     browserExtension: 'https://metamask.io/download',
   },
   createConnector: (walletDetails) =>
-    createConnector((config) => ({
-      ...injected({
+    (config) => {
+      const base = injected({
         target() {
-          return resolveEip6963MetaMaskTarget();
+          return resolveMetaMaskInjectedTarget();
         },
-      })(config),
-      ...walletDetails,
-    })),
+      })(config);
+      return {
+        ...base,
+        ...walletDetails,
+        connect: base.connect.bind(base),
+        disconnect: base.disconnect.bind(base),
+        getProvider: base.getProvider.bind(base),
+        getAccounts: base.getAccounts.bind(base),
+        getChainId: base.getChainId.bind(base),
+      };
+    },
 });

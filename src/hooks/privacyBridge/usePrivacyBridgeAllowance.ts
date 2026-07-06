@@ -18,6 +18,7 @@ import { decryptCtUint256 } from '../../crypto/decryption';
 import { encryptValue256 } from './encryptValue256';
 import { shortHash } from './utils';
 import type { Token, ToastState } from './types';
+import { getMetaMaskProvider } from '../../lib/ethereum';
 import { useSnap } from '../useSnap';
 
 export interface UsePrivacyBridgeAllowanceOptions {
@@ -69,14 +70,15 @@ export const usePrivacyBridgeAllowance = ({
         logger.warn('[Approve] connector.getProvider() failed, falling back to window.ethereum', e);
       }
     }
-    return window.ethereum;
+    return getMetaMaskProvider() ?? window.ethereum;
   }, [connector]);
 
     const checkAllowance = useCallback(async () => {
-        if (!isConnected || !window.ethereum || !walletAddress) return;
+        if (!isConnected || !walletAddress) return;
 
         const token = publicTokens[selectedTokenIndex];
         const injectedProvider = await resolveInjectedProvider();
+        if (!injectedProvider) return;
         const provider = new ethers.BrowserProvider(injectedProvider);
         const network = await provider.getNetwork();
         const currentChainId = Number(network.chainId);
@@ -256,7 +258,7 @@ export const usePrivacyBridgeAllowance = ({
      * Sets `isApproving` to true during the process and shows toast notifications.
      */
     const handleApprove = async () => {
-        if (!isConnected || !window.ethereum) return;
+        if (!isConnected || !walletAddress) return;
 
         const token = publicTokens[selectedTokenIndex];
         if (direction === 'to-private' && (token?.isNative || (token?.symbol === 'COTI' && !token.addressKey))) return;

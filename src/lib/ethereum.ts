@@ -14,8 +14,31 @@ export interface EIP1193Provider {
   providers?: EIP1193Provider[];
 }
 
+export interface InjectedWalletTarget {
+  id: string;
+  name: string;
+  provider: EIP1193Provider;
+}
+
+const METAMASK_MISSING_PROVIDER: EIP1193Provider = {
+  request() {
+    return Promise.reject(
+      Object.assign(new Error('MetaMask extension not found via EIP-6963'), { code: 4900 }),
+    );
+  },
+};
+
 let eip6963MetaMaskProvider: EIP1193Provider | null = null;
+let eip6963RabbyProvider: EIP1193Provider | null = null;
 let eip6963ListenerRegistered = false;
+
+const RABBY_MISSING_PROVIDER: EIP1193Provider = {
+  request() {
+    return Promise.reject(
+      Object.assign(new Error('Rabby extension not found via EIP-6963'), { code: 4900 }),
+    );
+  },
+};
 
 function registerEip6963Discovery(): void {
   if (typeof window === 'undefined' || eip6963ListenerRegistered) {
@@ -28,6 +51,9 @@ function registerEip6963Discovery(): void {
     const provider = event?.detail?.provider;
     if (info?.rdns === 'io.metamask' || info?.rdns === 'io.metamask.flask') {
       eip6963MetaMaskProvider = provider;
+    }
+    if (info?.rdns === 'io.rabby') {
+      eip6963RabbyProvider = provider;
     }
   }) as EventListener);
 
@@ -44,6 +70,11 @@ export function getEip6963MetaMaskProvider(): EIP1193Provider | null {
   return eip6963MetaMaskProvider;
 }
 
+export function getEip6963RabbyProvider(): EIP1193Provider | null {
+  registerEip6963Discovery();
+  return eip6963RabbyProvider;
+}
+
 function findMetaMaskInProviders(providers: EIP1193Provider[]): EIP1193Provider | undefined {
   return providers.find(
     (p) =>
@@ -52,6 +83,73 @@ function findMetaMaskInProviders(providers: EIP1193Provider[]): EIP1193Provider 
       !p.isPhantom &&
       !p.isTrust,
   );
+}
+
+/** Ask installed extensions to re-announce via EIP-6963 (safe to call repeatedly). */
+export function requestEip6963Providers(): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('eip6963:requestProvider'));
+  }
+}
+
+/**
+ * Resolves the MetaMask injected target for wagmi/RainbowKit.
+ * Never returns undefined — wagmi's injected() connector falls back to
+ * window.ethereum (often Rabby) when target() is undefined.
+ */
+export function resolveMetaMaskInjectedTarget(): InjectedWalletTarget {
+  requestEip6963Providers();
+
+  const eip6963 = getEip6963MetaMaskProvider();
+  if (eip6963) {
+    return { id: 'io.metamask', name: 'MetaMask', provider: eip6963 };
+  }
+
+  try {
+    const eth = getEthereumProvider();
+    if (eth?.providers?.length) {
+      const mm = findMetaMaskInProviders(eth.providers);
+      if (mm) {
+        return { id: 'io.metamask', name: 'MetaMask', provider: mm };
+      }
+    }
+  } catch {
+    /* window.ethereum may throw when extensions fight over the global */
+  }
+
+  return {
+    id: 'io.metamask',
+    name: 'MetaMask',
+    provider: METAMASK_MISSING_PROVIDER,
+  };
+}
+
+/**
+ * Resolves the Rabby injected target for wagmi/RainbowKit.
+ * Never returns undefined — avoids wagmi falling back to a generic injected provider.
+ */
+export function resolveRabbyInjectedTarget(): InjectedWalletTarget {
+  requestEip6963Providers();
+
+  const eip6963 = getEip6963RabbyProvider();
+  if (eip6963) {
+    return { id: 'rabby', name: 'Rabby Wallet', provider: eip6963 };
+  }
+
+  try {
+    const eth = getEthereumProvider();
+    if (eth?.isRabby) {
+      return { id: 'rabby', name: 'Rabby Wallet', provider: eth };
+    }
+  } catch {
+    /* window.ethereum may throw when extensions fight over the global */
+  }
+
+  return {
+    id: 'rabby',
+    name: 'Rabby Wallet',
+    provider: RABBY_MISSING_PROVIDER,
+  };
 }
 
 /**
@@ -81,7 +179,7 @@ export function getMetaMaskProvider(): EIP1193Provider | null {
       return eth;
     }
 
-    return eth;
+    return null;
   } catch {
     return null;
   }

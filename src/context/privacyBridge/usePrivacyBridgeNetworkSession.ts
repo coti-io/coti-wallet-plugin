@@ -31,7 +31,7 @@ export const usePrivacyBridgeNetworkSession = ({
 
   const { address: wagmiAddress, isConnected: wagmiConnected, chainId: wagmiChainId, connector: wagmiConnector } =
     useWagmiAccount();
-  const { disconnect: wagmiDisconnect } = useWagmiDisconnect();
+  const { disconnect: wagmiDisconnect, disconnectAsync: wagmiDisconnectAsync } = useWagmiDisconnect();
 
   const switchNetworkViaWagmiProvider = useCallback(async (targetChainId: string): Promise<boolean> => {
     if (!wagmiConnector) {
@@ -170,6 +170,7 @@ export const usePrivacyBridgeNetworkSession = ({
     wagmiChainId,
     wagmiConnector,
     wagmiDisconnect,
+    wagmiDisconnectAsync,
     ...networkEnforcer,
   };
 };

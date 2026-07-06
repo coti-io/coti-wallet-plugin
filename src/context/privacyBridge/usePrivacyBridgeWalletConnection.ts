@@ -39,7 +39,7 @@ export const usePrivacyBridgeWalletConnection = ({
     setMetamaskDetected,
   } = core;
 
-  const { connectWallet, registerEthereumInitializedListener, wagmiConnected, wagmiDisconnect } = network;
+  const { connectWallet, registerEthereumInitializedListener, wagmiConnected, wagmiDisconnect, wagmiDisconnectAsync } = network;
   const { updateAccountState, currentChainId } = accountSync;
 
   const handleConnectRef = useRef<() => Promise<void>>();
@@ -84,8 +84,17 @@ export const usePrivacyBridgeWalletConnection = ({
       disconnectingRef.current = true;
     }
     if (wagmiSyncRef.current || wagmiConnected) {
-      wagmiDisconnect();
       wagmiSyncRef.current = false;
+      try {
+        await wagmiDisconnectAsync();
+      } catch (err) {
+        logger.warn('wagmi disconnectAsync failed, falling back to disconnect:', err);
+        try {
+          wagmiDisconnect();
+        } catch {
+          /* plugin session clears below regardless */
+        }
+      }
     }
 
     if (window.ethereum && !wagmiConnected) {

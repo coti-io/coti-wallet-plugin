@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { useAccount } from 'wagmi';
 import { ethers } from 'ethers';
 import { CONTRACT_ADDRESSES } from '../../contracts/config';
 import { estimatePodPortalGasFeeDisplay } from '../../chains/portal/podGasEstimate';
@@ -7,10 +8,13 @@ import { estimateBridgeFee } from '../useEstimateBridgeFees';
 import { getChainConfig, getPublicTokensForChain, getRpcUrlForChain } from '../../chains';
 import { resolveConfiguredAddress } from '../../chains/portal/helpers';
 import { logger } from '../../lib/logger';
+import type { EIP1193Provider } from '../../lib/ethereum';
 import type { Token } from './types';
 
 export interface UsePrivacyBridgeGasOptions {
   isConnected: boolean;
+  walletAddress?: string;
+  chainId?: number;
   publicTokens: Token[];
   selectedTokenIndex: number;
   direction: 'to-private' | 'to-public';
@@ -20,18 +24,21 @@ export interface UsePrivacyBridgeGasOptions {
 /** Gas display estimates and on-chain portal fee quotes. */
 export const usePrivacyBridgeGas = ({
   isConnected,
+  walletAddress,
+  chainId,
   publicTokens,
   selectedTokenIndex,
   direction,
   amount,
 }: UsePrivacyBridgeGasOptions) => {
+    const { connector } = useAccount();
     const [estimatedGasFee, setEstimatedGasFee] = useState<string | null>(null);
     const [isGasEstimating, setIsGasEstimating] = useState(false);
 
     // Gas Estimation Logic
     const updateGasFee = useCallback(async () => {
         const tokenSymbol = publicTokens[selectedTokenIndex]?.symbol || '';
-        if (!isConnected || !window.ethereum) {
+        if (!isConnected || !chainId) {
             setEstimatedGasFee(null);
             return;
         }
@@ -44,9 +51,9 @@ export const usePrivacyBridgeGas = ({
         setIsGasEstimating(true);
 
         try {
-            const provider = new ethers.BrowserProvider(window.ethereum);
-            const network = await provider.getNetwork();
-            const currentChainId = Number(network.chainId);
+            const currentChainId = chainId;
+            const rpcUrl = getRpcUrlForChain(currentChainId);
+            const readProvider = new ethers.JsonRpcProvider(rpcUrl, currentChainId);
             const addresses = CONTRACT_ADDRESSES[currentChainId];
 
             if (!addresses) {
@@ -104,18 +111,37 @@ export const usePrivacyBridgeGas = ({
             const decimals = direction === 'to-private' ? publicDecimals : privateDecimals;
             const amountWei = ethers.parseUnits(estimationAmount, decimals);
 
-            // Get current gas price
+            // Get current gas price via RPC — avoid window.ethereum (may be hijacked by Rabby).
             let gasPrice = 1000000000n; // 1 Gwei default
             try {
-                const gasPriceHex = await provider.send("eth_gasPrice", []);
+                const gasPriceHex = await readProvider.send("eth_gasPrice", []);
                 gasPrice = BigInt(gasPriceHex);
             } catch (err) {
                 logger.warn("⚠️ eth_gasPrice failed, using default (1 Gwei).");
             }
 
             if (chainConfig?.portalStrategy === 'pod-privacy-portal') {
+                if (!walletAddress) {
+                    setEstimatedGasFee(null);
+                    return;
+                }
+                let podProvider: ethers.BrowserProvider | null = null;
+                if (connector?.getProvider) {
+                    try {
+                        const injected = await connector.getProvider() as EIP1193Provider | undefined;
+                        if (injected?.request) {
+                            podProvider = new ethers.BrowserProvider(injected);
+                        }
+                    } catch {
+                        /* fall through */
+                    }
+                }
+                if (!podProvider) {
+                    setEstimatedGasFee(null);
+                    return;
+                }
                 const podDisplay = await estimatePodPortalGasFeeDisplay({
-                    provider,
+                    provider: podProvider,
                     currentChainId,
                     addresses,
                     symbol,
@@ -129,7 +155,7 @@ export const usePrivacyBridgeGas = ({
             }
 
             const cotiDisplay = await estimateCotiBridgeGasFeeDisplay({
-                provider,
+                provider: readProvider as unknown as ethers.BrowserProvider,
                 currentChainId,
                 bridgeAddress,
                 symbol,
@@ -137,6 +163,7 @@ export const usePrivacyBridgeGas = ({
                 amountWei,
                 gasPrice,
                 isErc20Token,
+                fromAddress: walletAddress,
             });
             setEstimatedGasFee(cotiDisplay);
 
@@ -146,7 +173,7 @@ export const usePrivacyBridgeGas = ({
         } finally {
             setIsGasEstimating(false);
         }
-    }, [direction, isConnected, selectedTokenIndex, publicTokens]);
+    }, [direction, isConnected, chainId, walletAddress, selectedTokenIndex, publicTokens, connector]);
 
     // Debounce estimation on dependency change
     useEffect(() => {
@@ -166,15 +193,11 @@ export const usePrivacyBridgeGas = ({
     const fetchPortalFee = useCallback(async () => {
         const requestId = ++feeRequestId.current;
 
-        if (!isConnected || !window.ethereum) {
+        if (!isConnected || !chainId) {
             setPortalFeeCoti(null);
             return;
         }
         try {
-            const provider = new ethers.BrowserProvider(window.ethereum);
-            const network = await provider.getNetwork();
-            const chainId = Number(network.chainId);
-
             const rpcUrl = getRpcUrlForChain(chainId);
             const rpcProvider = new ethers.JsonRpcProvider(rpcUrl);
 
@@ -219,7 +242,7 @@ export const usePrivacyBridgeGas = ({
                 setFeeDebugInfo(null);
             }
         }
-    }, [isConnected, publicTokens, selectedTokenIndex, direction, amount]);
+    }, [isConnected, chainId, publicTokens, selectedTokenIndex, direction, amount]);
 
     useEffect(() => {
         // Debounce portal fee calculation to avoid race conditions

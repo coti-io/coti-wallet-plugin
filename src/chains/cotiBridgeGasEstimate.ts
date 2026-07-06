@@ -16,8 +16,10 @@ export async function estimateCotiBridgeGasFeeDisplay(params: {
   amountWei: bigint;
   gasPrice: bigint;
   isErc20Token: boolean;
+  /** When set, avoids provider.getSigner() (which may hit a hijacked window.ethereum). */
+  fromAddress?: string;
 }): Promise<string> {
-  const { provider, currentChainId, bridgeAddress, symbol, direction, amountWei, gasPrice, isErc20Token } = params;
+  const { provider, currentChainId, bridgeAddress, symbol, direction, amountWei, gasPrice, isErc20Token, fromAddress } = params;
 
   let nativeCotiFee = 0n;
   if (isErc20Token) {
@@ -55,7 +57,7 @@ export async function estimateCotiBridgeGasFeeDisplay(params: {
 
   let gasLimit: bigint;
   try {
-    const walletAddr = await provider.getSigner().then(s => s.getAddress());
+    const walletAddr = fromAddress ?? await provider.getSigner().then(s => s.getAddress());
     // Use a direct COTI JsonRpcProvider for the display estimate rather than
     // window.ethereum. Routing through MetaMask makes it log every rejected RPC
     // (-32603) to the console even though we catch the error and fall back here.
