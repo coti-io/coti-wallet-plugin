@@ -663,7 +663,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
 
         if (isInsufficientFundsError(error)) {
           logger.warn('[AesKeyProvider] Insufficient native COTI for onboarding; wallet surfaced the error');
-          emitStep('signing-transaction');
+          emitStep('idle');
           return null;
         }
 

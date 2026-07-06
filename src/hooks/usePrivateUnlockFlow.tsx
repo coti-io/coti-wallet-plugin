@@ -257,7 +257,7 @@ export function usePrivateUnlockFlow(
         onProgress: setCurrentStep,
       });
       if (!ok) {
-        setCurrentStep('signing-transaction');
+        setCurrentStep('idle');
         return;
       }
 
