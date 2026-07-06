@@ -205,7 +205,6 @@ const defaultStyles = {
   },
   checkboxText: {
     fontSize: '11px',
-    color: 'rgba(255, 255, 255, 0.75)',
     lineHeight: 1.5,
   },
   tooltipWrap: {
