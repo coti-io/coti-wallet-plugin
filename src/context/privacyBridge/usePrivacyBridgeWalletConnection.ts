@@ -25,6 +25,7 @@ export const usePrivacyBridgeWalletConnection = ({
     modals: { setShowInstallModal, setShowMultipleWalletsModal },
     metamaskExplicitConnect,
     ethereumListenerRegistered,
+    isConnected,
     setIsConnected,
     setWalletAddress,
     setHasSnap,
@@ -78,7 +79,10 @@ export const usePrivacyBridgeWalletConnection = ({
   handleConnectRef.current = handleConnect;
 
   const handleDisconnect = async () => {
-    disconnectingRef.current = true;
+    const wasConnected = wagmiSyncRef.current || wagmiConnected || isConnected;
+    if (wasConnected) {
+      disconnectingRef.current = true;
+    }
     if (wagmiSyncRef.current || wagmiConnected) {
       wagmiDisconnect();
       wagmiSyncRef.current = false;

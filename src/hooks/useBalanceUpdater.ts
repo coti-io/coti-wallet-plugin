@@ -85,7 +85,11 @@ export const useBalanceUpdater = ({
 
             const hasChainOverride = typeof chainOverride === 'number';
             if (window.ethereum || hasChainOverride) {
-                const browserProvider = window.ethereum ? new ethers.BrowserProvider(window.ethereum) : null;
+                // When wagmi supplies chainOverride, read balances via RPC — do not
+                // probe window.ethereum (may be hijacked by another extension).
+                const browserProvider = window.ethereum && !hasChainOverride
+                    ? new ethers.BrowserProvider(window.ethereum)
+                    : null;
 
                 // Ensure network name is updated immediately when MetaMask is available.
                 if (browserProvider) {
