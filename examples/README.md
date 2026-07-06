@@ -5,18 +5,12 @@ Minimal React app demonstrating the `@coti-io/coti-wallet-plugin` library. Conne
 ## Prerequisites
 
 - Node.js 18+
-- The parent plugin must be built first (`npm run build` in the root directory)
 
 ## Setup
 
 ```bash
-# From the repository root
-npm run build
-
-# Then in the examples directory
 cd examples
 cp .env.example .env
-npm install
 ```
 
 Edit `.env` and add your WalletConnect project ID (get one at https://cloud.walletconnect.com):
@@ -30,6 +24,8 @@ VITE_WALLETCONNECT_PROJECT_ID=your_project_id_here
 ```bash
 npm run dev
 ```
+
+This installs dependencies in the plugin root and examples, rebuilds the wallet plugin, then starts Vite. Use `npm run dev:vite` to skip install/build and start Vite only.
 
 Opens at http://localhost:5173
 
