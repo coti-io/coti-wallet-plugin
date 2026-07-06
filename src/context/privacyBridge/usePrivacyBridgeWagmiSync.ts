@@ -66,6 +66,7 @@ export const usePrivacyBridgeWagmiSync = ({
     if (!wagmiConnected && wagmiSyncRef.current) {
       logger.log('RainbowKit disconnected, clearing context');
       wagmiSyncRef.current = false;
+      disconnectingRef.current = false;
       setIsConnected(false);
       setWalletAddress('');
       setHasSnap(false);

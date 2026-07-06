@@ -22,6 +22,7 @@ export const usePrivacyBridgeNetworkSession = ({
     walletAddress,
     hasSnap,
     wagmiSyncRef,
+    disconnectingRef,
     metamaskExplicitConnect,
     setSessionAesKey,
     setArePrivateBalancesHidden,
@@ -98,7 +99,7 @@ export const usePrivacyBridgeNetworkSession = ({
       // and usePrivacyBridgeWagmiSync resyncs account state). A full page reload
       // here would drop the wagmi connection (reconnectOnMount: false), forcing
       // the user to reconnect after every network switch.
-      if (wagmiSyncRef.current || wagmiConnected) {
+      if (wagmiSyncRef.current || wagmiConnected || disconnectingRef.current) {
         logger.log('Ignoring MetaMask chainChanged — wagmi is managing connection');
         return;
       }
@@ -109,7 +110,7 @@ export const usePrivacyBridgeNetworkSession = ({
       }
     },
     onAccountChanged: async account => {
-      if (wagmiSyncRef.current || wagmiConnected) {
+      if (wagmiSyncRef.current || wagmiConnected || disconnectingRef.current) {
         logger.log('Ignoring MetaMask accountsChanged — wagmi is managing connection');
         return;
       }
@@ -130,7 +131,7 @@ export const usePrivacyBridgeNetworkSession = ({
       await updateAccountStateRef.current?.(account, hasSnap, false);
     },
     onSnapCheck: async account => {
-      if (wagmiSyncRef.current || wagmiConnected) return;
+      if (wagmiSyncRef.current || wagmiConnected || disconnectingRef.current) return;
       if (!metamaskExplicitConnect.current && !isConnected) return;
 
       await executeSnapCheck(async () => {

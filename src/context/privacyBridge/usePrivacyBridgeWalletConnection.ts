@@ -106,7 +106,6 @@ export const usePrivacyBridgeWalletConnection = ({
     setShowMultipleWalletsModal(false);
     clearSnapCache();
     logger.log('Disconnected wallet');
-    disconnectingRef.current = false;
   };
 
   return { handleConnect, handleDisconnect };
