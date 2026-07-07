@@ -655,15 +655,26 @@ export async function executePodPortalTransaction(params: {
       chainId,
     );
     const depositValue = isNativeDeposit ? amountWei + quote.totalFeeWei : quote.totalFeeWei;
-    const tx = isNativeDeposit
-      ? await portal.depositNative(wallet, amountWei, quote.callbackFeeWei, {
-          value: depositValue,
-          gasPrice: quote.gasPrice,
-        })
-      : await portal.deposit(wallet, amountWei, quote.callbackFeeWei, {
-          value: quote.totalFeeWei,
-          gasPrice: quote.gasPrice,
-        });
+    const depositOverrides: { value: bigint; gasPrice: bigint; gasLimit?: bigint } = {
+      value: isNativeDeposit ? depositValue : quote.totalFeeWei,
+      gasPrice: quote.gasPrice,
+    };
+    try {
+      const estimated = await portal[depositMethod].estimateGas(
+        wallet, amountWei, quote.callbackFeeWei, depositOverrides,
+      );
+      depositOverrides.gasLimit = (estimated * 130n) / 100n;
+    } catch (estErr: unknown) {
+      // Estimation reverting means the tx would fail — but aborting here leaves the
+      // user with no tx hash to inspect. Broadcast with a fixed limit instead so the
+      // revert lands on-chain and the explorer link can show the actual reason.
+      logger.warn(
+        `⚠️ PoD ${depositMethod} gas estimation reverted — broadcasting with fallback gas limit so the revert is inspectable on-chain`,
+        (estErr as Error)?.message,
+      );
+      depositOverrides.gasLimit = 2_000_000n;
+    }
+    const tx = await portal[depositMethod](wallet, amountWei, quote.callbackFeeWei, depositOverrides);
 
     onProgress?.("transfer-start", tx.hash);
 
@@ -755,7 +766,7 @@ export async function executePodPortalTransaction(params: {
     chainId,
   );
   const totalValue = transferQuote.totalFeeWei + burnQuote.totalFeeWei;
-  const tx = await portal.requestWithdrawWithPermit(
+  const withdrawArgs = [
     wallet,
     amountWei,
     transferQuote.totalFeeWei,
@@ -766,8 +777,27 @@ export async function executePodPortalTransaction(params: {
     withdrawPermit.v,
     withdrawPermit.r,
     withdrawPermit.s,
-    { value: totalValue, gasPrice: sharedGasPrice },
-  );
+  ] as const;
+  const withdrawOverrides: { value: bigint; gasPrice: bigint; gasLimit?: bigint } = {
+    value: totalValue,
+    gasPrice: sharedGasPrice,
+  };
+  try {
+    const estimated = await portal.requestWithdrawWithPermit.estimateGas(
+      ...withdrawArgs, withdrawOverrides,
+    );
+    withdrawOverrides.gasLimit = (estimated * 130n) / 100n;
+  } catch (estErr: unknown) {
+    // Estimation reverting means the tx would fail — but aborting here leaves the
+    // user with no tx hash to inspect. Broadcast with a fixed limit instead so the
+    // revert lands on-chain and the explorer link can show the actual reason.
+    logger.warn(
+      "⚠️ PoD withdraw gas estimation reverted — broadcasting with fallback gas limit so the revert is inspectable on-chain",
+      (estErr as Error)?.message,
+    );
+    withdrawOverrides.gasLimit = 3_000_000n;
+  }
+  const tx = await portal.requestWithdrawWithPermit(...withdrawArgs, withdrawOverrides);
 
   onProgress?.("transfer-start", tx.hash);
 
