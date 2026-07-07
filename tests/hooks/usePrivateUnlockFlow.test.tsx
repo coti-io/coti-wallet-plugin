@@ -9,10 +9,12 @@ const mockHandleConnect = vi.fn();
 const mockRequestSnapConnection = vi.fn();
 let mockWalletType = 'rabby';
 let mockIsMetaMaskWithSnap = false;
+let mockSessionAesKey: string | null = null;
 
 vi.mock('../../src/context/privacyBridge/contexts', () => ({
   usePrivacyBridgeUnlock: () => ({
     isPrivateUnlocked: false,
+    sessionAesKey: mockSessionAesKey,
     unlockCachedAesKey: mockUnlockCachedAesKey,
     sendPrivateToken: vi.fn(),
     refreshPrivateBalances: mockRefreshPrivateBalances,
@@ -45,7 +47,7 @@ vi.mock('../../src/lib/metaMaskMobile', async importOriginal => {
 });
 
 vi.mock('../../src/components/OnboardModal', () => ({
-  OnboardModal: (props: { isOpen: boolean; currentStep?: string; onConfirm?: () => void }) =>
+  OnboardModal: (props: { isOpen: boolean; currentStep?: string; aesKey?: string | null; onConfirm?: () => void; onClose?: () => void }) =>
     props.isOpen ? <div data-testid="onboard-modal" data-step={props.currentStep} /> : null,
 }));
 
@@ -54,6 +56,7 @@ describe('usePrivateUnlockFlow', () => {
     vi.clearAllMocks();
     mockWalletType = 'rabby';
     mockIsMetaMaskWithSnap = false;
+    mockSessionAesKey = null;
     mockUnlockCachedAesKey.mockRejectedValue(new Error('No cached AES key'));
     mockRefreshPrivateBalances.mockResolvedValue(false);
     mockRequestSnapConnection.mockResolvedValue(false);
@@ -132,7 +135,10 @@ describe('usePrivateUnlockFlow', () => {
     mockRequestSnapConnection.mockResolvedValueOnce(true);
     mockRefreshPrivateBalances
       .mockResolvedValueOnce(false)
-      .mockResolvedValueOnce(true);
+      .mockImplementationOnce(async () => {
+        mockSessionAesKey = 'a'.repeat(32);
+        return true;
+      });
 
     const { result } = renderHook(() => usePrivateUnlockFlow());
 
@@ -157,7 +163,10 @@ describe('usePrivateUnlockFlow', () => {
     mockRequestSnapConnection.mockResolvedValueOnce(false);
     mockRefreshPrivateBalances
       .mockResolvedValueOnce(false)
-      .mockResolvedValueOnce(true);
+      .mockImplementationOnce(async () => {
+        mockSessionAesKey = 'b'.repeat(32);
+        return true;
+      });
 
     const { result } = renderHook(() => usePrivateUnlockFlow());
 
@@ -175,6 +184,41 @@ describe('usePrivateUnlockFlow', () => {
       saveBackup: true,
       onProgress: expect.any(Function),
     });
+  });
+
+  it('keeps success screen open with AES key after contract onboarding until dismissed', async () => {
+    const onUnlocked = vi.fn();
+    const pendingAction = vi.fn();
+    mockRefreshPrivateBalances
+      .mockResolvedValueOnce(false)
+      .mockImplementationOnce(async () => {
+        mockSessionAesKey = 'c'.repeat(32);
+        return true;
+      });
+
+    const { result } = renderHook(() => usePrivateUnlockFlow({ onUnlocked }));
+
+    await act(async () => {
+      await result.current.ensurePrivateUnlocked(pendingAction);
+    });
+
+    await act(async () => {
+      await result.current.onboardModal.props.onConfirm();
+    });
+
+    expect(result.current.showOnboardModal).toBe(true);
+    expect(result.current.onboardModal.props.currentStep).toBe('complete');
+    expect(result.current.onboardModal.props.aesKey).toBe('c'.repeat(32));
+    expect(onUnlocked).not.toHaveBeenCalled();
+    expect(pendingAction).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await result.current.onboardModal.props.onClose();
+    });
+
+    expect(result.current.showOnboardModal).toBe(false);
+    expect(onUnlocked).toHaveBeenCalledTimes(1);
+    expect(pendingAction).toHaveBeenCalledTimes(1);
   });
 
   it('returns to intro when contract onboarding does not complete', async () => {

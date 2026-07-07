@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { useAccount as useWagmiAccount, useConfig } from 'wagmi';
 import { useMetamask } from '../../hooks/useMetamask';
 import { useNetworkEnforcer } from '../../hooks/useNetworkEnforcer';
-import { getWalletNetworkConfigs } from '../../chains';
+import { getNetworkNameForChain, getWalletNetworkConfigs } from '../../chains';
 import { logger } from '../../lib/logger';
 import { truncateAddress } from '../../lib/format';
 import type { PrivacyBridgeSessionCore, UpdateAccountStateRef } from './sessionShared';
@@ -87,7 +87,7 @@ export const usePrivacyBridgeNetworkSession = ({
     connectWallet,
     checkNetwork,
     switchNetwork: metamaskSwitchNetwork,
-    networkName,
+    networkName: metamaskNetworkName,
     COTI_MAINNET_ID,
     COTI_TESTNET_ID,
     SEPOLIA_ID,
@@ -153,6 +153,10 @@ export const usePrivacyBridgeNetworkSession = ({
 
   const networkEnforcer = useNetworkEnforcer(chainId, switchNetwork);
   const currentChainId = chainId ? Number(chainId) : undefined;
+  const networkName = useMemo(
+    () => (chainId ? getNetworkNameForChain(chainId) : metamaskNetworkName),
+    [chainId, metamaskNetworkName],
+  );
 
   return {
     connectWallet,

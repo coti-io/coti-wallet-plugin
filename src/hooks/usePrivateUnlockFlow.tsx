@@ -99,6 +99,17 @@ export function usePrivateUnlockFlow(
     }
   }, [onUnlocked]);
 
+  const finishSuccessfulOnboarding = useCallback(async () => {
+    setShowOnboardModal(false);
+    setCurrentStep('idle');
+    setModalError(null);
+    setSnapInstallError(null);
+    setIsUnlockInProgress(false);
+    setIsUnlocking(false);
+    await notifyUnlocked();
+    await runPendingAction();
+  }, [notifyUnlocked, runPendingAction]);
+
   useEffect(() => {
     if (usesSnapStorage) {
       setSaveBackup(false);
@@ -261,18 +272,23 @@ export function usePrivateUnlockFlow(
         return;
       }
 
-      setShowOnboardModal(false);
       setCurrentStep('complete');
       setIsUnlockInProgress(false);
-      await notifyUnlocked();
-      await runPendingAction();
     } catch (error) {
       setCurrentStep('error');
       setModalError(error instanceof Error ? error.message : 'Onboarding failed.');
     } finally {
       setIsUnlocking(false);
     }
-  }, [canAttemptSnapInstall, connectSnap, connectedAddress, notifyUnlocked, runPendingAction, saveBackup, unlock, usesSnapStorage]);
+  }, [canAttemptSnapInstall, connectSnap, connectedAddress, saveBackup, unlock, usesSnapStorage]);
+
+  const handleOnboardModalClose = useCallback(() => {
+    if (currentStep === 'complete') {
+      void finishSuccessfulOnboarding();
+      return;
+    }
+    dismissOnboardModal();
+  }, [currentStep, dismissOnboardModal, finishSuccessfulOnboarding]);
 
   const openUnlockFlow = useCallback(async () => {
     if (!wallet.isConnected) {
@@ -325,12 +341,13 @@ export function usePrivateUnlockFlow(
   const onboardModal = (
     <OnboardModal
       isOpen={showOnboardModal}
-      onClose={dismissOnboardModal}
+      onClose={handleOnboardModalClose}
       onConfirm={beginOnboarding}
       isLoading={isUnlocking}
       error={modalError}
       walletType={walletTypeInfo.walletType}
       currentStep={currentStep}
+      aesKey={currentStep === 'complete' ? unlock.sessionAesKey : null}
       hasSnap={hasConnectedSnap}
       onInstallSnap={connectSnap}
       isInstallingSnap={isInstallingSnap}
