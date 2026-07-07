@@ -11,7 +11,17 @@ import {
   usePrivateUnlockFlow,
   useWalletType,
   type EncryptedAesBackup,
+  type OnboardModalTheme,
 } from '@coti-io/coti-wallet-plugin';
+
+const ONBOARD_MODAL_THEME: OnboardModalTheme = {
+  checkboxText: {
+    color: 'rgba(255, 255, 255, 0.86)',
+  },
+  tooltipButton: {
+    color: 'rgba(255, 255, 255, 0.86)',
+  },
+};
 
 const COTI_TESTNET_CHAIN_ID = 7082400;
 const COTI_MAINNET_CHAIN_ID = 2632500;
@@ -160,6 +170,7 @@ export default function App() {
   const [unlockStatus, setUnlockStatus] = useState<string | null>(null);
 
   const privateUnlock = usePrivateUnlockFlow({
+    theme: ONBOARD_MODAL_THEME,
     warning:
       'The example dApp never stores or receives the AES key. Onboarding, backup restore, Snap storage, and decrypt/encrypt operations stay inside the plugin.',
     onRestoreCancelled: () => {
