@@ -12,7 +12,7 @@ const cotiTokenConfigs = (supportedChainIds: number[]): TokenConfig[] => [
   { symbol: "USDC.e", name: "Bridged USDC", icon: "/icons/USDC.svg", decimals: 6, isPrivate: false, addressKey: "USDC_E", bridgeAddressKey: "PrivacyBridgeUSDCe", timeout: 1800, supportedChainIds },
   { symbol: "WADA", name: "Wrapped ADA", icon: "/icons/wADA.svg", decimals: 6, isPrivate: false, addressKey: "WADA", bridgeAddressKey: "PrivacyBridgeWADA", timeout: 1800, supportedChainIds },
   { symbol: "gCOTI", name: "gCOTI", icon: "/icons/gcoti.svg", decimals: 18, isPrivate: false, addressKey: "gCOTI", bridgeAddressKey: "PrivacyBridgegCOTI", timeout: 1800, supportedChainIds },
-  { symbol: "NIGHT", name: "NIGHT", icon: "https://coti.io/icons/midnight.png", decimals: 18, isPrivate: false, addressKey: "NIGHT", bridgeAddressKey: "PrivacyBridgeNight", timeout: 1800, supportedChainIds },
+  { symbol: "NIGHT", name: "NIGHT", icon: "https://coti.io/icons/midnight.png", decimals: 6, isPrivate: false, addressKey: "NIGHT", bridgeAddressKey: "PrivacyBridgeNight", timeout: 1800, supportedChainIds },
   { symbol: "p.COTI", name: "p.COTI", icon: "/icons/coti.svg", decimals: 18, isPrivate: true, addressKey: "PrivateCoti", bridgeAddressKey: "PrivacyBridgeCotiNative", timeout: 1800, supportedChainIds },
   { symbol: "p.WETH", name: "p.WETH", icon: "/icons/wETH.svg", decimals: 18, isPrivate: true, addressKey: "p.WETH", bridgeAddressKey: "PrivacyBridgeWETH", timeout: 1800, supportedChainIds },
   { symbol: "p.WBTC", name: "p.WBTC", icon: "/icons/wBTC.svg", decimals: 8, isPrivate: true, addressKey: "p.WBTC", bridgeAddressKey: "PrivacyBridgeWBTC", timeout: 1800, supportedChainIds },
@@ -20,7 +20,7 @@ const cotiTokenConfigs = (supportedChainIds: number[]): TokenConfig[] => [
   { symbol: "p.USDC.e", name: "p.USDC.e", icon: "/icons/USDC.svg", decimals: 6, isPrivate: true, addressKey: "p.USDC_E", bridgeAddressKey: "PrivacyBridgeUSDCe", timeout: 1800, supportedChainIds },
   { symbol: "p.WADA", name: "p.WADA", icon: "/icons/wADA.svg", decimals: 6, isPrivate: true, addressKey: "p.WADA", bridgeAddressKey: "PrivacyBridgeWADA", timeout: 1800, supportedChainIds },
   { symbol: "p.gCOTI", name: "p.gCOTI", icon: "/icons/gcoti.svg", decimals: 18, isPrivate: true, addressKey: "p.gCOTI", bridgeAddressKey: "PrivacyBridgegCOTI", timeout: 1800, supportedChainIds },
-  { symbol: "p.NIGHT", name: "p.NIGHT", icon: "https://coti.io/icons/midnight.png", decimals: 18, isPrivate: true, addressKey: "p.NIGHT", bridgeAddressKey: "PrivacyBridgeNight", timeout: 1800, supportedChainIds },
+  { symbol: "p.NIGHT", name: "p.NIGHT", icon: "https://coti.io/icons/midnight.png", decimals: 6, isPrivate: true, addressKey: "p.NIGHT", bridgeAddressKey: "PrivacyBridgeNight", timeout: 1800, supportedChainIds },
 ];
 
 /** PoD inbox on COTI testnet (same deployment as Sepolia/Fuji). */
