@@ -3,6 +3,7 @@ import { OnboardModal, type OnboardModalTheme } from '../../components/OnboardMo
 import { usePrivacyBridgeUnlock, usePrivacyBridgeWallet } from '../privacyBridge/contexts';
 import { isMetaMaskMobileBrowser } from '../../lib/metaMaskMobile';
 import type { OnboardingStep } from '../../hooks/useAesKeyProvider';
+import { isSnapInstallEnabled } from '../../config/plugin';
 import { useWalletType } from '../../hooks/useWalletType';
 
 export interface PrivateUnlockControllerOptions {
@@ -58,7 +59,8 @@ export function usePrivateUnlockController(
 
   const connectedAddress = wallet.walletAddress || '';
   const isMetaMaskWallet = walletTypeInfo.walletType === 'metamask';
-  const canAttemptSnapInstall = isMetaMaskWallet && !isMetaMaskMobileBrowser();
+  const canAttemptSnapInstall =
+    isMetaMaskWallet && !isMetaMaskMobileBrowser() && isSnapInstallEnabled();
   const usesSnapStorage =
     canAttemptSnapInstall && (walletTypeInfo.isMetaMaskWithSnap || snapConnectedInModal);
   const hasConnectedSnap = usesSnapStorage;

@@ -1,5 +1,10 @@
 // Configuration
-export { configureCotiPlugin, getPluginConfig, getSnapRequestParams } from './config/plugin';
+export {
+  configureCotiPlugin,
+  getPluginConfig,
+  getSnapRequestParams,
+  isSnapInstallEnabled,
+} from './config/plugin';
 export type {
   CotiPluginConfig,
   AesKeyChainId,

@@ -3,7 +3,7 @@ import * as CotiSDK from '@coti-io/coti-sdk-typescript';
 const { generateRSAKeyPair, decryptRSA } = CotiSDK;
 import { MetaMaskInpageProvider } from '@metamask/providers';
 import { useAccount } from 'wagmi';
-import { getPluginConfig, getSnapRequestParams } from '../config/plugin';
+import { getPluginConfig, getSnapRequestParams, isSnapInstallEnabled } from '../config/plugin';
 import { getMetaMaskProvider } from '../lib/ethereum';
 import { CotiPluginError, CotiErrorCode } from '../errors';
 import { logger } from '../lib/logger';
@@ -274,6 +274,11 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
      * Returns false immediately for wallets that don't support snaps.
      */
     const connectToSnap = useCallback(async (): Promise<boolean> => {
+        if (!isSnapInstallEnabled()) {
+            logger.log('ℹ️ Snap install disabled via plugin config');
+            return false;
+        }
+
         const provider = await resolveProvider();
         if (!provider) {
             logger.log('❌ No MetaMask provider available for Snap install');

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { configureCotiPlugin, getPluginConfig, getSnapRequestParams } from '../../src/config/plugin';
+import { configureCotiPlugin, getPluginConfig, getSnapRequestParams, isSnapInstallEnabled } from '../../src/config/plugin';
 import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID, SEPOLIA_CHAIN_ID } from '../../src/config/chains';
 
 describe('Plugin Configuration (README: Basic Setup)', () => {
@@ -8,6 +8,7 @@ describe('Plugin Configuration (README: Basic Setup)', () => {
     configureCotiPlugin({
       snapId: 'npm:@coti-io/coti-snap',
       snapVersion: undefined,
+      snapInstallEnabled: true,
       defaultNetworkId: undefined,
       aesKeyChainId: undefined,
       clearSessionKeyOnWagmiDisconnect: false,
@@ -101,5 +102,16 @@ describe('Plugin Configuration (README: Basic Setup)', () => {
     expect(getSnapRequestParams('npm:@coti-io/coti-snap', '1.0.51')).toEqual({
       'npm:@coti-io/coti-snap': { version: '1.0.51' },
     });
+  });
+
+  it('defaults snapInstallEnabled to true', () => {
+    expect(getPluginConfig().snapInstallEnabled).toBe(true);
+    expect(isSnapInstallEnabled()).toBe(true);
+  });
+
+  it('allows disabling snap install', () => {
+    configureCotiPlugin({ snapInstallEnabled: false });
+    expect(getPluginConfig().snapInstallEnabled).toBe(false);
+    expect(isSnapInstallEnabled()).toBe(false);
   });
 });
