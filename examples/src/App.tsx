@@ -8,20 +8,10 @@ import {
   usePrivacyBridgeTokens,
   usePrivacyBridgeUnlock,
   usePrivacyBridgeWallet,
-  usePrivateUnlockFlow,
+  usePrivateUnlock,
   useWalletType,
   type EncryptedAesBackup,
-  type OnboardModalTheme,
 } from '@coti-io/coti-wallet-plugin';
-
-const ONBOARD_MODAL_THEME: OnboardModalTheme = {
-  checkboxText: {
-    color: 'rgba(255, 255, 255, 0.86)',
-  },
-  tooltipButton: {
-    color: 'rgba(255, 255, 255, 0.86)',
-  },
-};
 
 const COTI_TESTNET_CHAIN_ID = 7082400;
 const COTI_MAINNET_CHAIN_ID = 2632500;
@@ -169,15 +159,7 @@ export default function App() {
   const [cryptoDecrypted, setCryptoDecrypted] = useState('');
   const [unlockStatus, setUnlockStatus] = useState<string | null>(null);
 
-  const privateUnlock = usePrivateUnlockFlow({
-    theme: ONBOARD_MODAL_THEME,
-    warning:
-      'The example dApp never stores or receives the AES key. Onboarding, backup restore, Snap storage, and decrypt/encrypt operations stay inside the plugin.',
-    onRestoreCancelled: () => {
-      setUnlockStatus('User canceled');
-      setCryptoStatus('User canceled');
-    },
-  });
+  const privateUnlock = usePrivateUnlock();
   const connectedAddress = wallet.walletAddress || address || '';
   const isMetaMaskWallet = walletTypeInfo.walletType === 'metamask';
   const hasConnectedSnap = isMetaMaskWallet && unlock.hasSnap;
@@ -243,10 +225,10 @@ export default function App() {
   }, [refreshSnapAesKeyStatus]);
 
   useEffect(() => {
-    if (privateUnlock.isPrivateUnlocked) {
+    if (privateUnlock.isUnlocked) {
       void refreshSnapAesKeyStatus();
     }
-  }, [privateUnlock.isPrivateUnlocked, refreshSnapAesKeyStatus, unlock.hasSnap]);
+  }, [privateUnlock.isUnlocked, refreshSnapAesKeyStatus, unlock.hasSnap]);
 
   const performEncryptPrivateValue = useCallback(async () => {
     setCryptoStatus('Encrypting value...');
@@ -257,7 +239,7 @@ export default function App() {
         throw new Error('Decimals must be an integer between 0 and 36.');
       }
 
-      const result = await privateUnlock.encryptPrivateValue({
+      const result = await unlock.encryptPrivateValue({
         amount: cryptoAmount,
         decimals,
       });
@@ -266,7 +248,7 @@ export default function App() {
     } catch (error) {
       setCryptoStatus(error instanceof Error ? error.message : 'Encrypt failed.');
     }
-  }, [cryptoAmount, cryptoDecimals, privateUnlock]);
+  }, [cryptoAmount, cryptoDecimals, unlock]);
 
   const performDecryptPrivateValue = useCallback(async () => {
     setCryptoStatus('Decrypting value...');
@@ -276,7 +258,7 @@ export default function App() {
         throw new Error('Decimals must be an integer between 0 and 36.');
       }
 
-      const result = await privateUnlock.decryptPrivateValue({
+      const result = await unlock.decryptPrivateValue({
         ciphertext: cryptoCiphertext,
         decimals,
       });
@@ -285,11 +267,11 @@ export default function App() {
     } catch (error) {
       setCryptoStatus(error instanceof Error ? error.message : 'Decrypt failed.');
     }
-  }, [cryptoCiphertext, cryptoDecimals, privateUnlock]);
+  }, [cryptoCiphertext, cryptoDecimals, unlock]);
 
   const handleDisconnect = useCallback(() => {
-    privateUnlock.resetUnlockUi();
-    privateUnlock.lockPrivateBalances();
+    privateUnlock.reset();
+    privateUnlock.lock();
     setSnapAesKeyStatus('idle');
     wallet.handleDisconnect().catch(() => undefined);
   }, [privateUnlock, wallet]);
@@ -328,7 +310,7 @@ export default function App() {
       setPortalStatus('No portal token available on this network.');
       return;
     }
-    if (direction === 'to-public' && !privateUnlock.isPrivateUnlocked) {
+    if (direction === 'to-public' && !privateUnlock.isUnlocked) {
       setPortalStatus('Unlock private balances before portal out.');
       return;
     }
@@ -348,7 +330,7 @@ export default function App() {
     selectedPortalToken,
     swap,
     syncSwapForm,
-    privateUnlock.isPrivateUnlocked,
+    privateUnlock.isUnlocked,
   ]);
 
   const approvePortalOut = useCallback(async () => {
@@ -363,13 +345,13 @@ export default function App() {
   }, [swap, syncSwapForm]);
 
   const sendPrivateToken = useCallback(async () => {
-    if (!privateUnlock.isPrivateUnlocked) {
+    if (!privateUnlock.isUnlocked) {
       setPrivateSendStatus('Unlock private balances before private send.');
       return;
     }
     setPrivateSendStatus('Private send started...');
     try {
-      const result = await privateUnlock.sendPrivateToken({
+      const result = await unlock.sendPrivateToken({
         symbol: privateSendSymbol,
         recipient: privateSendRecipient,
         amount: privateSendAmount,
@@ -382,7 +364,8 @@ export default function App() {
     privateSendAmount,
     privateSendRecipient,
     privateSendSymbol,
-    privateUnlock,
+    privateUnlock.isUnlocked,
+    unlock,
   ]);
 
   const runEncryptPrivateValue = useCallback(async () => {
@@ -392,7 +375,7 @@ export default function App() {
     }
 
     setCryptoStatus('Checking onboarding status...');
-    await privateUnlock.ensurePrivateUnlocked(performEncryptPrivateValue);
+    await privateUnlock.requireUnlock(performEncryptPrivateValue);
   }, [cryptoAmount, performEncryptPrivateValue, privateUnlock]);
 
   const runDecryptPrivateValue = useCallback(async () => {
@@ -402,7 +385,7 @@ export default function App() {
     }
 
     setCryptoStatus('Checking onboarding status...');
-    await privateUnlock.ensurePrivateUnlocked(performDecryptPrivateValue);
+    await privateUnlock.requireUnlock(performDecryptPrivateValue);
   }, [cryptoCiphertext, performDecryptPrivateValue, privateUnlock]);
 
   return (
@@ -433,11 +416,11 @@ export default function App() {
           )}
 
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            {!privateUnlock.isPrivateUnlocked ? (
+            {!privateUnlock.isUnlocked ? (
               <button
                 onClick={() => {
                   setUnlockStatus(null);
-                  void privateUnlock.openUnlockFlow();
+                  void privateUnlock.unlock();
                 }}
                 disabled={privateUnlock.isUnlocking}
                 style={{ padding: '8px 16px', cursor: privateUnlock.isUnlocking ? 'wait' : 'pointer' }}
@@ -447,7 +430,7 @@ export default function App() {
             ) : (
               <button
                 onClick={() => {
-                  privateUnlock.lockPrivateBalances();
+                  privateUnlock.lock();
                   void refreshSnapAesKeyStatus();
                 }}
                 style={{ padding: '8px 16px', cursor: 'pointer' }}
@@ -558,7 +541,7 @@ export default function App() {
                 <td style={{ padding: 8 }}>{token.name}</td>
                 <td style={{ padding: 8 }}>{token.type}</td>
                 <td style={{ padding: 8, fontFamily: 'monospace' }}>
-                  {token.isPrivate && !privateUnlock.isPrivateUnlocked ? 'Locked' : token.balance}
+                  {token.isPrivate && !privateUnlock.isUnlocked ? 'Locked' : token.balance}
                 </td>
               </tr>
             ))}
@@ -611,7 +594,7 @@ export default function App() {
             </button>
             <button
               onClick={() => void runPortalSwap('to-public')}
-              disabled={swap.isBridgingLoading || !portalAmount || !privateUnlock.isPrivateUnlocked}
+              disabled={swap.isBridgingLoading || !portalAmount || !privateUnlock.isUnlocked}
               style={{ padding: '8px 16px', cursor: swap.isBridgingLoading ? 'wait' : 'pointer' }}
             >
               Portal Out
@@ -619,7 +602,7 @@ export default function App() {
             {swap.isApprovalNeeded && (
               <button
                 onClick={() => void approvePortalOut()}
-                disabled={swap.isApproving || !privateUnlock.isPrivateUnlocked}
+                disabled={swap.isApproving || !privateUnlock.isUnlocked}
                 style={{ padding: '8px 16px', cursor: swap.isApproving ? 'wait' : 'pointer' }}
               >
                 {swap.isApproving ? 'Approving...' : 'Approve Private Spend'}
@@ -684,16 +667,14 @@ export default function App() {
 
           <button
             onClick={() => void sendPrivateToken()}
-            disabled={!privateUnlock.isPrivateUnlocked || !privateSendSymbol || !privateSendRecipient || !privateSendAmount}
-            style={{ padding: '8px 16px', cursor: privateUnlock.isPrivateUnlocked ? 'pointer' : 'not-allowed' }}
+            disabled={!privateUnlock.isUnlocked || !privateSendSymbol || !privateSendRecipient || !privateSendAmount}
+            style={{ padding: '8px 16px', cursor: privateUnlock.isUnlocked ? 'pointer' : 'not-allowed' }}
           >
             Send Private Token
           </button>
           {privateSendStatus && <p style={{ fontSize: 12 }}>{privateSendStatus}</p>}
         </section>
       )}
-
-      {privateUnlock.onboardModal}
     </div>
   );
 }

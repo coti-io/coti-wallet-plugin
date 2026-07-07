@@ -1,4 +1,5 @@
 export { PrivacyBridgeProvider } from './PrivacyBridgeProvider';
+export type { PrivacyBridgeProviderProps } from './PrivacyBridgeProvider';
 export {
   usePrivacyBridgeContext,
   usePrivacyBridgeWallet,
