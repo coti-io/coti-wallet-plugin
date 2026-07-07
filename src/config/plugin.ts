@@ -52,6 +52,12 @@ export interface CotiPluginConfig {
    * When unset, MetaMask installs the latest published version.
    */
   snapVersion?: string;
+  /**
+   * When false, the plugin will not call `wallet_requestSnaps` to install or
+   * reconnect the Snap. An already-installed Snap can still be used for AES
+   * key retrieval. Default: true.
+   */
+  snapInstallEnabled?: boolean;
   /** If set, enforces a specific network chain ID (decimal string or hex). */
   defaultNetworkId?: string;
   /** Sepolia RPC URL for PoD portal operations. */
@@ -96,6 +102,7 @@ export interface CotiPluginConfig {
 
 let _config: CotiPluginConfig = {
   snapId: 'npm:@coti-io/coti-snap',
+  snapInstallEnabled: true,
   defaultNetworkId: undefined,
   debug: false,
   clearSessionKeyOnWagmiDisconnect: false,
@@ -152,4 +159,9 @@ export function getSnapRequestParams(
  */
 export function getPluginConfig(): Readonly<CotiPluginConfig> {
   return _config;
+}
+
+/** Whether `wallet_requestSnaps` install/connect is allowed for this app. */
+export function isSnapInstallEnabled(): boolean {
+  return getPluginConfig().snapInstallEnabled !== false;
 }

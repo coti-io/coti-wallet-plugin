@@ -126,6 +126,19 @@ describe('useSnap (success & lifecycle paths)', () => {
       configureCotiPlugin({ snapVersion: undefined });
     });
 
+    it('requestSnapConnection returns false when snap install is disabled', async () => {
+      configureCotiPlugin({ snapInstallEnabled: false });
+      const setSnapError = vi.fn();
+      const { result } = renderHook(() => useSnap(setSnapError));
+
+      const ok = await result.current.requestSnapConnection();
+
+      expect(ok).toBe(false);
+      expect(setSnapError).not.toHaveBeenCalled();
+      expect(mockRequest).not.toHaveBeenCalled();
+      configureCotiPlugin({ snapInstallEnabled: true });
+    });
+
     it('requestSnapConnection returns false and sets error on -32601', async () => {
       mockRequest.mockRejectedValue({ code: -32601 });
       const setSnapError = vi.fn();
