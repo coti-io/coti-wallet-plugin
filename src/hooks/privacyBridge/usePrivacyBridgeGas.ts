@@ -99,7 +99,8 @@ export const usePrivacyBridgeGas = ({
             const isUsdcE = symbol === 'USDC.e';
             const isWada = symbol === 'WADA';
             const isGCoti = symbol === 'gCOTI';
-            const isErc20Token = isWeth || isWbtc || isUsdt || isUsdcE || isWada || isGCoti;
+            const isNight = symbol === 'NIGHT';
+            const isErc20Token = isWeth || isWbtc || isUsdt || isUsdcE || isWada || isGCoti || isNight;
 
             let publicDecimals = pubTok?.decimals ?? 18;
             let privateDecimals = pubTok?.decimals ?? 18;

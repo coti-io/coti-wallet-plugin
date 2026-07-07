@@ -301,6 +301,11 @@ export const usePrivacyBridgeExecutor = ({
                             logger.warn("⚠️ Could not compute dynamic fee, defaulting to 0:", e);
                         }
 
+                        // The bridge enforces strict equality between these timestamps and the
+                        // on-chain oracle rows — submitting 0,0 always reverts (OracleTimestampMismatch).
+                        if (cotiOracleTimestamp === 0n || tokenOracleTimestamp === 0n) {
+                            throw new Error(`Could not load oracle price data for the ${txPublicToken.symbol} portal fee. Please try again.`);
+                        }
 
                         logger.log('ERC20 deposit prepared', { token: txPublicToken.symbol });
 
@@ -362,6 +367,12 @@ export const usePrivacyBridgeExecutor = ({
                             });
                         } catch (e) {
                             logger.warn("⚠️ Could not fetch oracle timestamp:", e);
+                        }
+
+                        // The bridge enforces strict equality between these timestamps and the
+                        // on-chain oracle rows — submitting 0,0 always reverts (OracleTimestampMismatch).
+                        if (cotiOracleTimestamp === 0n) {
+                            throw new Error('Could not load oracle price data for the COTI portal fee. Please try again.');
                         }
 
                         // Default fallback 12M — native COTI bridge.deposit() triggers MPC operations.
@@ -458,6 +469,12 @@ export const usePrivacyBridgeExecutor = ({
                         } catch (e) {
                             logger.warn("⚠️ Could not fetch oracle timestamps for withdraw:", e);
                         }
+                    }
+
+                    // The bridge enforces strict equality between these timestamps and the
+                    // on-chain oracle rows — submitting 0,0 always reverts (OracleTimestampMismatch).
+                    if (cotiOracleTimestamp === 0n || tokenOracleTimestamp === 0n) {
+                        throw new Error(`Could not load oracle price data for the ${txPublicToken.symbol} portal fee. Please try again.`);
                     }
 
                     logger.log("🔄 Executing Withdraw via bridge.withdraw()...");

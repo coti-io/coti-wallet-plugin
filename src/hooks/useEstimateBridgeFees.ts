@@ -36,6 +36,7 @@ const TOKEN_META: Record<string, TokenMeta> = {
   'USDC.e': { bridgeAddressKey: 'PrivacyBridgeUSDCe',      decimals: 6,  isNative: false },
   WADA:     { bridgeAddressKey: 'PrivacyBridgeWADA',       decimals: 6,  isNative: false },
   gCOTI:    { bridgeAddressKey: 'PrivacyBridgegCOTI',      decimals: 18, isNative: false },
+  NIGHT:    { bridgeAddressKey: 'PrivacyBridgeNight',      decimals: 6,  isNative: false },
 };
 
 export async function estimateBridgeFee(
