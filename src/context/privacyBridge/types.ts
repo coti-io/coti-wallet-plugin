@@ -37,14 +37,15 @@ export interface PrivacyBridgeUnlockContextValue {
   requestSnapConnection: () => Promise<boolean>;
   /** Probes Snap via wallet_getSnaps, updates hasSnap, and returns the result. */
   checkSnapStatus: () => Promise<boolean>;
-  /** Session-bound AES key when unlocked (null when locked or disconnected). */
+  /** Session-bound AES key. Locking hides balances but may keep this key in memory. */
   sessionAesKey: string | null;
   /** COTI Testnet/Mainnet chain used for AES onboarding, Snap, and backup state. */
   aesKeyChainId: number | undefined;
   /** Set a session/connection AES key chain. Only COTI Testnet/Mainnet are accepted. */
   setAesKeyChainId: (chainId: number | undefined) => void;
+  /** True when private balances are visible. This is not the same as key existence. */
   isPrivateUnlocked: boolean;
-  /** Re-unlock after lock without page refresh (uses in-memory session key internally). */
+  /** Low-level primitive. App UI should use usePrivateUnlock().unlock()/requireUnlock(). */
   unlockCachedAesKey: () => Promise<void>;
   sendPrivateToken: (params: {
     symbol: string;
@@ -61,7 +62,9 @@ export interface PrivacyBridgeUnlockContextValue {
     ciphertext: string;
     decimals?: number;
   }) => Promise<{ amount: string }>;
+  /** Low-level balance/key refresh primitive. App UI should not orchestrate unlock with this. */
   refreshPrivateBalances: (options?: AesKeyProviderOptions) => Promise<boolean>;
+  /** Hides private balances but intentionally keeps the session AES key when available. */
   lockPrivateBalances: () => void;
   handleOnboard: () => Promise<string | null>;
   saveManualAesKey: (aesKey: string) => Promise<void>;

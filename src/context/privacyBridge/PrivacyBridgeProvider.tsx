@@ -14,8 +14,20 @@ import {
   PrivacyBridgeWalletContext,
 } from './contexts';
 import { mergePrivacyBridgeSlices, type PrivacyBridgeContextSlices } from './types';
+import {
+  PrivateUnlockProvider,
+  type PrivateUnlockProviderOptions,
+} from '../privateUnlock';
 
-export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export interface PrivacyBridgeProviderProps {
+  children: React.ReactNode;
+  privateUnlock?: PrivateUnlockProviderOptions;
+}
+
+export const PrivacyBridgeProvider: React.FC<PrivacyBridgeProviderProps> = ({
+  children,
+  privateUnlock,
+}) => {
   const modals = usePrivacyBridgeModalsState();
   const session = usePrivacyBridgeSession({ modals });
 
@@ -178,7 +190,11 @@ export const PrivacyBridgeProvider: React.FC<{ children: React.ReactNode }> = ({
             <PrivacyBridgeSwapContext.Provider value={slices.swap}>
               <PrivacyBridgePodContext.Provider value={slices.pod}>
                 <PrivacyBridgeModalsContext.Provider value={slices.modals}>
-                  <PrivacyBridgeContext.Provider value={legacyValue}>{children}</PrivacyBridgeContext.Provider>
+                  <PrivacyBridgeContext.Provider value={legacyValue}>
+                    <PrivateUnlockProvider options={privateUnlock}>
+                      {children}
+                    </PrivateUnlockProvider>
+                  </PrivacyBridgeContext.Provider>
                 </PrivacyBridgeModalsContext.Provider>
               </PrivacyBridgePodContext.Provider>
             </PrivacyBridgeSwapContext.Provider>

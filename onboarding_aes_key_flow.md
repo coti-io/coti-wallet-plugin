@@ -6,6 +6,16 @@ Onboarding retrieves or restores the wallet-bound AES key used to decrypt privat
 
 The current flow is implemented by `useAesKeyProvider` in `src/hooks/useAesKeyProvider.ts`.
 
+Application UI should use the provider-level private unlock controller:
+
+```tsx
+<PrivacyBridgeProvider privateUnlock={{ theme, warning }}>
+  <App />
+</PrivacyBridgeProvider>
+```
+
+Then call `usePrivateUnlock().unlock()`, `usePrivateUnlock().lock()`, or `usePrivateUnlock().requireUnlock(action)` from app components. Do not orchestrate unlock directly with `unlockCachedAesKey()`, `refreshPrivateBalances({ restoreOnly: true })`, or a locally owned `OnboardModal`.
+
 ## Routes
 
 | Wallet | First route | Fallback |
@@ -64,7 +74,7 @@ Manual AES key input uses the same encrypted backup helper as contract onboardin
 2. Encrypted backups are optional and host-defined through `configureCotiPlugin`.
 3. Backup restore requires a wallet signature, so a stored blob alone is not enough to recover the AES key.
 4. Manual AES key input is session-only unless the host separately persists it.
-5. `unlockCachedAesKey()` in the PrivacyBridge compatibility surface still reports no cached key; legacy `localAesKeyVault` is exported but not used by the current PrivacyBridge unlock flow.
+5. Locking private balances hides balances but keeps the session AES key in memory for the browser session, so `usePrivateUnlock().unlock()` can silently restore after lock without reopening onboarding.
 
 ## Error Handling
 

@@ -123,6 +123,7 @@ export {
 } from './context/privacyBridge';
 export type {
   PrivacyBridgeContextType,
+  PrivacyBridgeProviderProps,
   PrivacyBridgeWalletContextValue,
   PrivacyBridgeNetworkContextValue,
   PrivacyBridgeUnlockContextValue,
@@ -131,6 +132,15 @@ export type {
   PrivacyBridgePodContextValue,
   PrivacyBridgeModalsContextValue,
 } from './context/privacyBridge';
+export {
+  PrivateUnlockProvider,
+  usePrivateUnlock,
+} from './context/privateUnlock';
+export type {
+  PrivateUnlockControllerValue,
+  PrivateUnlockProviderOptions,
+  PrivateUnlockProviderProps,
+} from './context/privateUnlock';
 
 // Providers — Multi-Wallet Support
 export {
@@ -152,12 +162,6 @@ export type {
   OnboardingStepInfo,
   OnboardingProgressCallback,
 } from './hooks/useAesKeyProvider';
-export { usePrivateUnlockFlow } from './hooks/usePrivateUnlockFlow';
-export type {
-  UsePrivateUnlockFlowOptions,
-  UsePrivateUnlockFlowResult,
-} from './hooks/usePrivateUnlockFlow';
-
 // Components — Onboarding
 export { OnboardModal, onboardModalDefaultStyles } from './components/OnboardModal';
 export type { OnboardModalProps, OnboardModalTheme } from './components/OnboardModal';
