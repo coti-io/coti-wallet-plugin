@@ -92,6 +92,9 @@ export const usePrivacyBridgeExecutor = ({
     ) => {
         logger.log(`🚀 Initiating swap transaction: ${txAmount} (Direction: ${txDirection}, Token Index: ${txTokenIndex})`);
         setIsBridgingLoading(true);
+        // Captured outside the try block's scope so the catch handler below can still
+        // report the broadcast tx hash even when the thrown error doesn't carry one.
+        let capturedTxHash: string | undefined;
         try {
             if (!window.ethereum) throw new Error("No wallet found");
 
@@ -581,6 +584,7 @@ export const usePrivacyBridgeExecutor = ({
 
 
             logger.log('Transaction sent', { txHash: shortHash(tx.hash) });
+            capturedTxHash = tx.hash;
             onProgress?.('transfer-start', tx.hash);
 
             // Show processing toast now that we have the tx
@@ -717,7 +721,7 @@ export const usePrivacyBridgeExecutor = ({
                 const revertData = error.data || error.error?.data;
                 const errorName = error.errorName || error.revert?.name;
                 const gasUsed = error.receipt?.gasUsed ? Number(error.receipt.gasUsed) : 0;
-                const failedTxHash = error.receipt?.hash || error.transaction?.hash || '';
+                const failedTxHash = error.receipt?.hash || error.transaction?.hash || capturedTxHash || '';
                 logger.warn(`⚠️ CALL_EXCEPTION on-chain revert. Error: ${errorName || 'unknown'}, Gas used: ${gasUsed}`);
 
                 const throwRevertError = (message: string): never => {
