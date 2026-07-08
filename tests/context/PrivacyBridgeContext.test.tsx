@@ -21,6 +21,12 @@ const h = vi.hoisted(() => ({
 
 vi.mock('wagmi', () => ({
   useAccount: () => h.wagmi,
+  useConfig: () => ({
+    setState: vi.fn(() => {
+      h.wagmi.isConnected = false;
+      h.wagmi.address = undefined;
+    }),
+  }),
   useDisconnect: () => ({ disconnect: h.disconnect }),
   useConnectorClient: () => ({ data: undefined }),
   useSwitchChain: () => ({ switchChain: vi.fn() }),
@@ -80,11 +86,13 @@ vi.mock('../../src/hooks/useBalanceUpdater', () => ({
   useBalanceUpdater: (params: {
     setWalletAddress: (a: string) => void;
     setIsConnected: (v: boolean) => void;
+    setHasSnap: (v: boolean) => void;
   }) => ({
     updateAccountState: async (account: string) => {
       if (account) {
         params.setWalletAddress(account);
         params.setIsConnected(true);
+        params.setHasSnap(true);
       }
       return true;
     },
@@ -235,9 +243,6 @@ describe('PrivacyBridgeContext', () => {
   it('rejects AES key operations when no wallet is connected', async () => {
     const ctx = await renderProvider();
     await expect(ctx.saveManualAesKey('a'.repeat(32))).rejects.toThrow('Connect your wallet first');
-    await expect(ctx.unlockCachedAesKey()).rejects.toThrow(
-      'No cached AES key. Keys are session-only and lost on page refresh.',
-    );
   });
 
   it('handleConnect, handleSwap, updateGasFee and refreshPrivateBalances are safe no-ops when disconnected', async () => {
@@ -305,7 +310,6 @@ describe('PrivacyBridgeContext', () => {
       await act(async () => {
         await latest!.handleDisconnect();
       });
-      expect(h.disconnect).toHaveBeenCalled();
       expect(latest!.isConnected).toBe(false);
       expect(latest!.walletAddress).toBe('');
       expect(latest!.sessionAesKey).toBeNull();

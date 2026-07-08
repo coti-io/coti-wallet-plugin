@@ -184,14 +184,6 @@ export function usePrivateUnlockController(
     setCurrentStep('restoring-backup');
 
     try {
-      try {
-        await unlock.unlockCachedAesKey();
-        if (!isActiveUnlockRequest(requestId)) return false;
-        return completeUnlock(requestId);
-      } catch {
-        // No cached session key — continue restore / modal flow.
-      }
-
       let restoreCancelled = false;
       if (await unlock.refreshPrivateBalances({
         restoreOnly: true,

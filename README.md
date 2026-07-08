@@ -129,10 +129,9 @@ Contract onboarding always ends on plugin success screen. User can reveal/copy r
 ### Do not
 
 - Do not render `OnboardModal` for unlock in app pages.
-- Do not call `unlockCachedAesKey()` directly from app UI.
 - Do not call `refreshPrivateBalances({ restoreOnly: true })` as custom unlock flow.
 - Do not infer key existence from `isPrivateUnlocked`; it only means private balances visible.
-- Do not clear/recreate unlock state on every lock. Lock is UI hide, not key wipe.
+- Do not delete Snap-stored keys or encrypted backups on lock. Lock only clears plaintext session state.
 
 ## Installation
 

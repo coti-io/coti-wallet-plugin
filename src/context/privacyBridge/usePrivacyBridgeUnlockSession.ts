@@ -94,21 +94,6 @@ export const usePrivacyBridgeUnlockSession = ({
     if (success) setArePrivateBalancesHidden(false);
   };
 
-  const unlockCachedAesKey = async () => {
-    // If the session key is still in memory (user locked without page reload), reuse it.
-    const existingKey = sessionAesKey;
-    if (existingKey && walletAddress) {
-      const chainOverride = wagmiSyncRef.current ? wagmiChainId : undefined;
-      const success = await updateAccountState(walletAddress, false, true, existingKey, chainOverride);
-      if (success) {
-        setArePrivateBalancesHidden(false);
-        return;
-      }
-    }
-    // No in-memory key and no localStorage fallback — caller must re-onboard.
-    throw new Error('No cached AES key. Keys are session-only and lost on page refresh.');
-  };
-
   const refreshPublicBalances = useCallback(async () => {
     if (!walletAddress) return false;
 
@@ -481,7 +466,6 @@ export const usePrivacyBridgeUnlockSession = ({
   return {
     handleOnboard,
     saveManualAesKey,
-    unlockCachedAesKey,
     refreshPublicBalances,
     refreshPrivateBalances,
     lockPrivateBalances,

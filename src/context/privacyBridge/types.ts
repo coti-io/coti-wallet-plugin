@@ -45,8 +45,6 @@ export interface PrivacyBridgeUnlockContextValue {
   setAesKeyChainId: (chainId: number | undefined) => void;
   /** True when private balances are visible. This is not the same as key existence. */
   isPrivateUnlocked: boolean;
-  /** Low-level primitive. App UI should use usePrivateUnlock().unlock()/requireUnlock(). */
-  unlockCachedAesKey: () => Promise<void>;
   sendPrivateToken: (params: {
     symbol: string;
     recipient: string;
@@ -64,7 +62,7 @@ export interface PrivacyBridgeUnlockContextValue {
   }) => Promise<{ amount: string }>;
   /** Low-level balance/key refresh primitive. App UI should not orchestrate unlock with this. */
   refreshPrivateBalances: (options?: AesKeyProviderOptions) => Promise<boolean>;
-  /** Hides private balances but intentionally keeps the session AES key when available. */
+  /** Hides private balances and clears plaintext AES session state. */
   lockPrivateBalances: () => void;
   handleOnboard: () => Promise<string | null>;
   saveManualAesKey: (aesKey: string) => Promise<void>;

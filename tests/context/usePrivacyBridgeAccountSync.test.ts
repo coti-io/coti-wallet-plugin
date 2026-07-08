@@ -21,10 +21,6 @@ vi.mock('../../src/lib/chainMute', () => ({
   unmuteChainUpdates: vi.fn(),
 }));
 
-vi.mock('../../src/crypto/localAesKeyVault', () => ({
-  unlockCachedAesKey: vi.fn().mockResolvedValue(null),
-}));
-
 vi.mock('../../src/chains', () => ({
   getUnlockStrategyForChain: vi.fn().mockReturnValue('snap'),
 }));

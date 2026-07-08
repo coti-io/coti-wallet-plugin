@@ -115,7 +115,6 @@ export const PrivacyBridgeProvider: React.FC<PrivacyBridgeProviderProps> = ({
       aesKeyChainId: session.aesKeyChainId,
       setAesKeyChainId: session.setAesKeyChainId,
       isPrivateUnlocked: session.isPrivateUnlocked,
-      unlockCachedAesKey: session.unlockCachedAesKey,
       sendPrivateToken: session.sendPrivateToken,
       encryptPrivateValue: session.encryptPrivateValue,
       decryptPrivateValue: session.decryptPrivateValue,
