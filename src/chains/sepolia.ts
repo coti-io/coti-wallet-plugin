@@ -28,6 +28,7 @@ export const sepoliaChain: ChainConfig = {
   unlockStrategy: "manual-aes-key",
   portalStrategy: "pod-privacy-portal",
   podInboxAddress: POD_TESTNET_INBOX_ADDRESS,
+  priceOracleAddress: "0x7eecdceec31d285aee99c7960b405f63593903d1",
   addresses: {
     MTT,
     WETH,

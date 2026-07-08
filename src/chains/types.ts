@@ -52,6 +52,8 @@ export interface ChainConfig {
   explorerBaseUrl: string;
   /** PoD inbox on this host chain (for fee quotes and request tracking). */
   podInboxAddress?: string;
+  /** PoDPriceOracle on this host chain (live USD prices; Band on Sepolia, Chainlink on Fuji). */
+  priceOracleAddress?: string;
   addresses: Record<string, string>;
   tokens: TokenConfig[];
   unlockStrategy: UnlockStrategy;

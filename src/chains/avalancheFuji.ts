@@ -29,6 +29,7 @@ export const avalancheFujiChain: ChainConfig = {
   rpcFallbackUrls: [AVALANCHE_FUJI_RPC_FALLBACK_URL],
   explorerBaseUrl: "https://testnet.snowtrace.io",
   podInboxAddress: AVALANCHE_FUJI_INBOX,
+  priceOracleAddress: "0xb06340c020274ef5d92f664070966402a4d27712",
   unlockStrategy: "manual-aes-key",
   portalStrategy: "pod-privacy-portal",
   addresses: {

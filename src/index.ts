@@ -78,6 +78,7 @@ export { estimatePodPortalGasFeeDisplay } from './chains/portal/podGasEstimate';
 export { resolvePodRequestStatus } from './chains/portal/podRequestStatus';
 export { executePodPortalTransaction, signPodWithdrawPermit, getPodInboxAddress, getPodSdkConfig, getSepoliaGasPrice, quotePortalDepositFees, quotePortalWithdrawFees, quotePortalPodRequest } from './chains/portal/executePodPortalTransaction';
 export type { PodWithdrawPermit, PortalDepositFeeQuote, PortalWithdrawFeeQuote } from './chains/portal/executePodPortalTransaction';
+export { fetchPodOracleTokenUsdPrice, POD_PRICE_ORACLE_ABI } from './chains/podPriceOracle';
 
 // Contracts
 export { CONTRACT_ADDRESSES, SUPPORTED_TOKENS, MINIMUM_PORTAL_IN_AMOUNTS, ERC20_ABI, getPublicTokensForChain, getPrivateTokensForChain } from './contracts/config';
