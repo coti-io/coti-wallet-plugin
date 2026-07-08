@@ -34,6 +34,7 @@ import { mobileMetaMaskWallet } from '../../src/providers/mobileMetaMaskWallet';
 import { mobileRabbyWallet } from '../../src/providers/mobileRabbyWallet';
 import { mobileTrustWallet } from '../../src/providers/mobileTrustWallet';
 import { mobileOneKeyWallet } from '../../src/providers/mobileOneKeyWallet';
+import { mobileZerionWallet } from '../../src/providers/mobileZerionWallet';
 import { configureCotiPlugin } from '../../src/config/plugin';
 import { resolveWalletConnectProjectId } from '../../src/config/walletConnect';
 import { CotiErrorCode, CotiPluginError, hasCotiErrorCode } from '../../src/errors';
@@ -187,7 +188,7 @@ describe('WagmiRainbowKitProvider', () => {
     configureCotiPlugin({ walletConnectProjectId: undefined });
   });
 
-  it('uses a reduced mobile wallet list (MetaMask, Rabby, Trust, OneKey)', () => {
+  it('uses a reduced mobile wallet list (MetaMask, Rabby, Trust, OneKey, Zerion)', () => {
     const originalUserAgent = navigator.userAgent;
     Object.defineProperty(navigator, 'userAgent', {
       configurable: true,
@@ -212,6 +213,7 @@ describe('WagmiRainbowKitProvider', () => {
       mobileRabbyWallet({ projectId: 'mobile-wallet-test' }).id,
       mobileTrustWallet({ projectId: 'mobile-wallet-test' }).id,
       mobileOneKeyWallet({ projectId: 'mobile-wallet-test' }).id,
+      mobileZerionWallet({ projectId: 'mobile-wallet-test' }).id,
     ]);
 
     Object.defineProperty(navigator, 'userAgent', {
@@ -246,6 +248,7 @@ describe('WagmiRainbowKitProvider', () => {
       mobileRabbyWallet({ projectId: 'desktop-wallet-test' }).id,
       'trust',
       mobileOneKeyWallet({ projectId: 'desktop-wallet-test' }).id,
+      mobileZerionWallet({ projectId: 'desktop-wallet-test' }).id,
     ]);
 
     Object.defineProperty(navigator, 'userAgent', {
@@ -276,6 +279,7 @@ describe('WagmiRainbowKitProvider', () => {
       mobileRabbyWallet({ projectId: 'eip6963-wallet-test' }).id,
       'trust',
       mobileOneKeyWallet({ projectId: 'eip6963-wallet-test' }).id,
+      mobileZerionWallet({ projectId: 'eip6963-wallet-test' }).id,
     ]);
 
     Object.defineProperty(navigator, 'userAgent', {
@@ -306,6 +310,7 @@ describe('WagmiRainbowKitProvider', () => {
       mobileRabbyWallet({ projectId: 'direct-trust-wallet-test' }).id,
       'trust-extension',
       mobileOneKeyWallet({ projectId: 'direct-trust-wallet-test' }).id,
+      mobileZerionWallet({ projectId: 'direct-trust-wallet-test' }).id,
     ]);
 
     Object.defineProperty(navigator, 'userAgent', {

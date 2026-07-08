@@ -28,6 +28,7 @@ import { mobileMetaMaskWallet } from './mobileMetaMaskWallet';
 import { mobileRabbyWallet } from './mobileRabbyWallet';
 import { mobileTrustWallet } from './mobileTrustWallet';
 import { mobileOneKeyWallet } from './mobileOneKeyWallet';
+import { mobileZerionWallet } from './mobileZerionWallet';
 
 export interface WagmiConfigOptions {
   useEip6963MetaMask?: boolean;
@@ -54,12 +55,13 @@ function getWalletGroups(
   const rabbyConnector = () => mobileRabbyWallet({ projectId });
   const trustConnector = () => mobileTrustWallet({ projectId });
   const oneKeyConnector = () => mobileOneKeyWallet({ projectId });
+  const zerionConnector = () => mobileZerionWallet({ projectId });
 
   if (isMobileBrowser()) {
     return [
       {
         groupName: 'Recommended',
-        wallets: [metaMaskConnector, rabbyConnector, trustConnector, oneKeyConnector],
+        wallets: [metaMaskConnector, rabbyConnector, trustConnector, oneKeyConnector, zerionConnector],
       },
     ];
   }
@@ -70,7 +72,7 @@ function getWalletGroups(
   return [
     {
       groupName: 'Recommended',
-      wallets: [desktopMetaMask, rabbyConnector, desktopTrust, oneKeyConnector],
+      wallets: [desktopMetaMask, rabbyConnector, desktopTrust, oneKeyConnector, zerionConnector],
     },
   ];
 }

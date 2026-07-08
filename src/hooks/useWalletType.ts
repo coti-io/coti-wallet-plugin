@@ -7,7 +7,7 @@ import { isMetaMaskMobileBrowser } from '../lib/metaMaskMobile';
  * Normalized wallet type derived from wagmi's stable `connector.id`.
  * Uses connector.id (wagmi-controlled) — NOT window.ethereum.isMetaMask.
  */
-export type WalletType = 'metamask' | 'coinbase' | 'walletconnect' | 'rainbow' | 'phantom' | 'trust' | 'rabby' | 'ledger' | 'unknown';
+export type WalletType = 'metamask' | 'coinbase' | 'walletconnect' | 'rainbow' | 'phantom' | 'trust' | 'rabby' | 'zerion' | 'ledger' | 'unknown';
 
 /**
  * Information about the connected wallet type and its capabilities.
@@ -40,6 +40,7 @@ const CONNECTOR_ID_TO_WALLET_TYPE: Record<string, WalletType> = {
   'trust-extension': 'trust',
   trustWallet: 'trust',
   rabby: 'rabby',
+  zerion: 'zerion',
   ledger: 'ledger',
 };
 
@@ -62,6 +63,7 @@ export function mapConnectorIdToWalletType(connectorId: string | undefined): Wal
   if (lower.includes('phantom')) return 'phantom';
   if (lower.includes('trust')) return 'trust';
   if (lower.includes('rabby')) return 'rabby';
+  if (lower.includes('zerion')) return 'zerion';
   if (lower.includes('rainbow')) return 'rainbow';
   if (lower.includes('ledger')) return 'ledger';
   return 'unknown';

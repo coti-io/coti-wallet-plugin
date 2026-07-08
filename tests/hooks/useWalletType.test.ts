@@ -52,6 +52,10 @@ describe('Wallet Type Detection (README: Multi-Wallet Support)', () => {
       expect(mapConnectorIdToWalletType('rabby')).toBe('rabby');
     });
 
+    it('maps "zerion" to zerion', () => {
+      expect(mapConnectorIdToWalletType('zerion')).toBe('zerion');
+    });
+
     it('maps "ledger" to ledger', () => {
       expect(mapConnectorIdToWalletType('ledger')).toBe('ledger');
     });
@@ -79,6 +83,10 @@ describe('Wallet Type Detection (README: Multi-Wallet Support)', () => {
 
     it('partial match: "io.rabby.extension" resolves to rabby', () => {
       expect(mapConnectorIdToWalletType('io.rabby.extension')).toBe('rabby');
+    });
+
+    it('partial match: "io.zerion.wallet" resolves to zerion', () => {
+      expect(mapConnectorIdToWalletType('io.zerion.wallet')).toBe('zerion');
     });
 
     it('partial match: "app.rainbow.me" resolves to rainbow', () => {
