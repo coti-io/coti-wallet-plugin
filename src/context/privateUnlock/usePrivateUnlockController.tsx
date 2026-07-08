@@ -181,7 +181,6 @@ export function usePrivateUnlockController(
 
     setModalError(null);
     setIsUnlocking(true);
-    setCurrentStep('restoring-backup');
 
     try {
       let restoreCancelled = false;
@@ -191,6 +190,11 @@ export function usePrivateUnlockController(
           restoreCancelled = true;
           pendingActionRef.current = null;
           onRestoreCancelled?.();
+        },
+        onProgress: (step) => {
+          if (step === 'restoring-backup') {
+            setCurrentStep(step);
+          }
         },
       })) {
         if (!isActiveUnlockRequest(requestId)) return false;

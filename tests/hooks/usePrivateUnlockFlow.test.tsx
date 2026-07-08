@@ -69,6 +69,7 @@ describe('usePrivateUnlockFlow', () => {
     expect(mockRefreshPrivateBalances).toHaveBeenCalledWith({
       restoreOnly: true,
       onRestoreCancelled: expect.any(Function),
+      onProgress: expect.any(Function),
     });
     expect(result.current.showOnboardModal).toBe(true);
   });

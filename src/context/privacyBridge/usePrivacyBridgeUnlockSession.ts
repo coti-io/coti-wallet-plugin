@@ -164,6 +164,7 @@ export const usePrivacyBridgeUnlockSession = ({
         unlockOptions,
         checkSnap: !sessionKey,
         keyForUnlock: sessionKey,
+        accessMode: 'onboard' as const,
       };
     }
 
@@ -181,8 +182,22 @@ export const usePrivacyBridgeUnlockSession = ({
       if (plan.failed === true) {
         return false;
       }
-      const { unlockOptions, checkSnap, keyForUnlock: initialKeyForUnlock } = plan;
+      const {
+        unlockOptions,
+        checkSnap,
+        keyForUnlock: initialKeyForUnlock,
+        accessMode,
+      } = plan;
       let keyForUnlock = initialKeyForUnlock;
+
+      if (
+        aesKeyOptions?.restoreOnly
+        && accessMode === 'onboard'
+        && !keyForUnlock
+      ) {
+        logger.log('Restore-only probe: account needs onboarding — skipping balance fetch');
+        return false;
+      }
 
       let success = await updateAccountState(
         walletAddress,
@@ -206,6 +221,11 @@ export const usePrivacyBridgeUnlockSession = ({
 
         if (aesKeyOptions?.forceContractOnboarding) {
           logger.log('Forced contract onboarding did not complete — skipping interactive retry');
+          return false;
+        }
+
+        if (aesKeyOptions?.restoreOnly) {
+          logger.log('Restore-only unlock did not complete — skipping retry');
           return false;
         }
 

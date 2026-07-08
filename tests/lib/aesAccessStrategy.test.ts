@@ -216,4 +216,34 @@ describe('resolveAesAccessStrategy', () => {
     expect(strategy.mode).toBe('onboard');
     expect(hasAesKeyInSnap).toHaveBeenCalledTimes(2);
   });
+
+  it('probes Snap key and encrypted backup in parallel when Snap is installed', async () => {
+    const fetchEncryptedAesBackup = vi.fn().mockImplementation(async () => {
+      await new Promise(resolve => setTimeout(resolve, 20));
+      return null;
+    });
+    const hasAesKeyInSnap = vi.fn().mockImplementation(async () => {
+      await new Promise(resolve => setTimeout(resolve, 20));
+      return false;
+    });
+    configureCotiPlugin({
+      onboardingServices: { mode: 'custom', fetchEncryptedAesBackup },
+    });
+
+    const startedAt = Date.now();
+    const strategy = await resolveAesAccessStrategy({
+      address: '0xabc',
+      chainId: COTI_TESTNET_CHAIN_ID,
+      snapInstalled: true,
+      hasAesKeyInSnap,
+      confirmSnapInstalled: vi.fn().mockResolvedValue(true),
+      snapKeyProbeRetries: 0,
+    });
+    const elapsed = Date.now() - startedAt;
+
+    expect(strategy.mode).toBe('onboard');
+    expect(fetchEncryptedAesBackup).toHaveBeenCalledTimes(1);
+    expect(hasAesKeyInSnap).toHaveBeenCalledTimes(1);
+    expect(elapsed).toBeLessThan(35);
+  });
 });

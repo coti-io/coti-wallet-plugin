@@ -924,6 +924,18 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
       );
     });
 
+    it('skips balance fetch and retry for restore-only onboard probe', async () => {
+      h.balanceUpdater.updateAccountState.mockClear();
+      h.snap.isSnapInstalled.mockResolvedValue(false);
+      h.snap.hasAesKeyInSnap.mockResolvedValue(false);
+
+      await expect(
+        latest!.refreshPrivateBalances({ restoreOnly: true }),
+      ).resolves.toBe(false);
+
+      expect(h.balanceUpdater.updateAccountState).not.toHaveBeenCalled();
+    });
+
     it('passes wagmi chain override during refresh when synced via RainbowKit', async () => {
       await connectWagmi(WALLET_A, 11155111);
       h.balanceUpdater.updateAccountState.mockClear();

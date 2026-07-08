@@ -127,17 +127,25 @@ export async function resolveAesAccessStrategy(
   input: ResolveAesAccessStrategyInput,
 ): Promise<AesAccessStrategy> {
   const aesKeyChainId = resolveAesKeyChainId(input.chainId, input.aesKeyChainId);
-  const snapHasKey = input.snapInstalled
-    ? await probeSnapKeyWithRetry(
-      input.hasAesKeyInSnap,
-      input.address,
-      input.snapKeyProbeRetries ?? 1,
-      input.confirmSnapInstalled,
-    )
-    : false;
-  const hasEncryptedBackup = snapHasKey
-    ? false
-    : await probeLocalBackup(input.address, aesKeyChainId);
+  let snapHasKey = false;
+  let hasEncryptedBackup = false;
+
+  if (input.snapInstalled) {
+    const backupProbe = probeLocalBackup(input.address, aesKeyChainId);
+    const [snapResult, backupResult] = await Promise.all([
+      probeSnapKeyWithRetry(
+        input.hasAesKeyInSnap,
+        input.address,
+        input.snapKeyProbeRetries ?? 1,
+        input.confirmSnapInstalled,
+      ),
+      backupProbe,
+    ]);
+    snapHasKey = snapResult;
+    hasEncryptedBackup = snapHasKey ? false : backupResult;
+  } else {
+    hasEncryptedBackup = await probeLocalBackup(input.address, aesKeyChainId);
+  }
   const mode = resolveAesAccessMode({
     snapInstalled: input.snapInstalled,
     snapHasKey,
@@ -167,6 +175,7 @@ export interface AesUnlockPlan {
   unlockOptions: AesKeyProviderOptions & { validateOnUnlock: true };
   checkSnap: boolean;
   keyForUnlock?: string;
+  accessMode?: AesAccessMode;
 }
 
 /** Maps a resolved strategy to balance-updater / getAesKey options. */
@@ -181,6 +190,7 @@ export function buildUnlockPlanFromStrategy(
         unlockOptions: { ...unlockOptions, snapSideDecrypt: true },
         checkSnap: false,
         keyForUnlock: undefined,
+        accessMode: strategy.mode,
       };
     case 'local':
       return {
@@ -189,6 +199,7 @@ export function buildUnlockPlanFromStrategy(
           : { ...unlockOptions, restoreOnly: true },
         checkSnap: !sessionKey,
         keyForUnlock: sessionKey,
+        accessMode: strategy.mode,
       };
     case 'onboard':
       return {
@@ -197,6 +208,7 @@ export function buildUnlockPlanFromStrategy(
           : { ...unlockOptions, forceContractOnboarding: true },
         checkSnap: !sessionKey,
         keyForUnlock: sessionKey,
+        accessMode: strategy.mode,
       };
   }
 }
