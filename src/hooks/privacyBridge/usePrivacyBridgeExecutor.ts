@@ -23,8 +23,8 @@ export interface UsePrivacyBridgeExecutorOptions {
   refreshPrivateBalances?: () => Promise<boolean>;
   refreshPublicBalances?: () => Promise<boolean>;
   upsertPodRequest?: (request: PodPortalRequest) => void;
-  podWithdrawPermit: PodWithdrawPermit | null;
-  setPodWithdrawPermit: React.Dispatch<React.SetStateAction<PodWithdrawPermit | null>>;
+  getPodWithdrawPermit: () => PodWithdrawPermit | null;
+  clearPodWithdrawPermit: () => void;
 }
 
 /** Deposit/withdraw and PoD portal transaction execution. */
@@ -37,8 +37,8 @@ export const usePrivacyBridgeExecutor = ({
   refreshPrivateBalances,
   refreshPublicBalances,
   upsertPodRequest,
-  podWithdrawPermit,
-  setPodWithdrawPermit,
+  getPodWithdrawPermit,
+  clearPodWithdrawPermit,
 }: UsePrivacyBridgeExecutorOptions) => {
   const [isBridgingLoading, setIsBridgingLoading] = useState(false);
 
@@ -139,6 +139,7 @@ export const usePrivacyBridgeExecutor = ({
                     message: `Please confirm the ${chainCfgExec.name} transaction in your wallet.`,
                 });
 
+                const withdrawPermit = txDirection === 'to-public' ? getPodWithdrawPermit() ?? undefined : undefined;
                 const result = await executePodPortalTransaction({
                     txAmount,
                     txDirection,
@@ -151,12 +152,14 @@ export const usePrivacyBridgeExecutor = ({
                     decimals,
                     chainId: currentChainId,
                     isNativeDeposit: !!pubTokExec?.isNative,
-                    withdrawPermit: txDirection === 'to-public' ? podWithdrawPermit ?? undefined : undefined,
+                    withdrawPermit,
                     onProgress,
                 });
 
                 upsertPodRequest?.(result.request);
-                if (txDirection === 'to-public') setPodWithdrawPermit(null);
+                if (txDirection === 'to-public') {
+                    clearPodWithdrawPermit();
+                }
                 onProgress?.('transfer-complete', result.txHash);
 
                 if (refreshPublicBalances) {
@@ -802,8 +805,8 @@ export const usePrivacyBridgeExecutor = ({
         refreshPrivateBalances,
         refreshPublicBalances,
         upsertPodRequest,
-        podWithdrawPermit,
-        setPodWithdrawPermit,
+        getPodWithdrawPermit,
+        clearPodWithdrawPermit,
         resolveInjectedProvider,
     ]);
   return { executeTransaction, isBridgingLoading };

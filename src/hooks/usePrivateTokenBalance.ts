@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { ethers } from 'ethers';
 import { decryptCtUint64, decryptCtUint256 } from '../crypto/decryption';
-import { getRpcUrlForChainId } from '../config/chains';
+import { withRpcFallback } from '../lib/rpcProvider';
 import { getPluginConfig } from '../config/plugin';
 import { CotiPluginError, CotiErrorCode } from '../errors';
 import { logger } from '../lib/logger';
@@ -13,57 +13,21 @@ export interface PrivateBalanceDecryptOptions {
     decryptCtUint256?: (value: CtUint256, chainId?: number | string, accountAddress?: string) => Promise<bigint | null>;
 }
 
-/**
- * ABI for native PoD pTokens (p.ETH, p.AVAX): balance is a plain uint256 on-chain.
- */
+/** Native PoD pTokens (p.ETH, p.AVAX): plain uint256 on-chain. */
 const PLAIN_BALANCE_ABI = [
     "function balanceOf(address account) view returns (uint256)",
 ];
 
-/**
- * ABI for the nested 4-part ciphertext format used by PoD pTokens (e.g., Sepolia p.MTT).
- * Returns: tuple(tuple(uint256 high, uint256 low) high, tuple(uint256 high, uint256 low) low)
- */
-const NESTED_BALANCE_ABI = [
-    "function balanceOf(address account) view returns (tuple(tuple(uint256 high, uint256 low) high, tuple(uint256 high, uint256 low) low))"
-];
-
-/**
- * ABI for the flat 2-part ciphertext format used by COTI native privacy tokens.
- * Returns: tuple(uint256 ciphertextHigh, uint256 ciphertextLow)
- */
+/** PoD and COTI private ERC-20 balances: flat ctUint256 (ciphertextHigh, ciphertextLow). */
 const FLAT_BALANCE_ABI = [
-    "function balanceOf(address) view returns (tuple(uint256 ciphertextHigh, uint256 ciphertextLow))"
+    "function balanceOf(address) view returns (tuple(uint256 ciphertextHigh, uint256 ciphertextLow))",
 ];
 
-const toBigIntOrZero = (value: unknown): bigint => {
-    if (value === undefined || value === null) return 0n;
-    try {
-        return BigInt(value as bigint | number | string);
-    } catch {
-        return 0n;
-    }
-};
-
-const normalizeNestedCtUint256 = (value: any) => ({
-    high: {
-        high: toBigIntOrZero(value?.high?.high ?? value?.[0]?.[0]),
-        low: toBigIntOrZero(value?.high?.low ?? value?.[0]?.[1]),
-    },
-    low: {
-        high: toBigIntOrZero(value?.low?.high ?? value?.[1]?.[0]),
-        low: toBigIntOrZero(value?.low?.low ?? value?.[1]?.[1]),
-    },
-});
-
 /**
- * Custom hook to fetch and decrypt balances for Confidential Tokens (both 64-bit and 256-bit).
- * 
- * Supports two on-chain ciphertext formats for 256-bit tokens:
- * - Nested 4-part (PoD pTokens): tuple(tuple(uint256 high, uint256 low) high, tuple(uint256 high, uint256 low) low)
- * - Flat 2-part (COTI native): tuple(uint256 ciphertextHigh, uint256 ciphertextLow)
- * 
- * The hook tries the nested format first, falling back to flat if the call reverts.
+ * Fetches and decrypts confidential token balances.
+ *
+ * Encrypted 256-bit balances always use flat ctUint256. Native PoD pTokens
+ * (p.ETH, p.AVAX) expose a plain uint256 via {@link isPlainBalance}.
  */
 export const usePrivateTokenBalance = () => {
     const fetchPrivateBalance = useCallback(async (
@@ -89,106 +53,72 @@ export const usePrivateTokenBalance = () => {
 
         try {
             const useRpcRead = _readChainId != null;
-            const runner = useRpcRead
-                ? new ethers.JsonRpcProvider(getRpcUrlForChainId(_readChainId), _readChainId)
-                : await (async () => {
-                    const browserProvider = new ethers.BrowserProvider(window.ethereum!);
-                    const envDefaultNetwork = getPluginConfig().defaultNetworkId;
-                    if (envDefaultNetwork) {
-                        const network = await browserProvider.getNetwork();
-                        if (Number(network.chainId) !== Number(envDefaultNetwork)) {
-                            logger.warn(`[FetchPrivate] Skipping: Wrong Network`);
-                            return null;
-                        }
+
+            const readBalance = async (runner: ethers.ContractRunner): Promise<string> => {
+                if (isPlainBalance) {
+                    const plainContract = new ethers.Contract(contractAddress, PLAIN_BALANCE_ABI, runner);
+                    const balance = await plainContract.balanceOf(userAddress);
+                    return ethers.formatUnits(balance, decimals);
+                }
+
+                if (version === 64) {
+                    const contract = new ethers.Contract(contractAddress, [
+                        "function balanceOf(address) view returns (uint256)",
+                    ], runner);
+                    const encryptedBalance = await contract['balanceOf(address)'](userAddress);
+
+                    if (!encryptedBalance || encryptedBalance.toString() === '0') return '0.00';
+
+                    const decryptedVal = aesKey
+                        ? decryptCtUint64(encryptedBalance, aesKey, { decimals })
+                        : await decryptOptions?.decryptCtUint64?.(encryptedBalance, _readChainId, userAddress) ?? null;
+                    if (decryptedVal === null) {
+                        throw new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch: Error decrypting. Re-onboarding required.');
                     }
-                    return browserProvider.getSigner();
-                })();
+                    return ethers.formatUnits(decryptedVal, decimals);
+                }
+
+                const flatContract = new ethers.Contract(contractAddress, FLAT_BALANCE_ABI, runner);
+                const encryptedBalance = await flatContract.balanceOf(userAddress);
+                if (!encryptedBalance) return '0.00';
+
+                const high = encryptedBalance.ciphertextHigh ?? encryptedBalance[0] ?? 0n;
+                const low = encryptedBalance.ciphertextLow ?? encryptedBalance[1] ?? 0n;
+                const flatBalance = { ciphertextHigh: high, ciphertextLow: low };
+                if (isZeroCtUint256(flatBalance)) return '0.00';
+
+                const decryptedVal = aesKey
+                    ? decryptCtUint256(flatBalance, aesKey, { decimals })
+                    : await decryptOptions?.decryptCtUint256?.(flatBalance, _readChainId, userAddress) ?? null;
+                if (decryptedVal === null) {
+                    throw new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch: Error decrypting. Re-onboarding required.');
+                }
+                return ethers.formatUnits(decryptedVal, decimals);
+            };
+
+            if (useRpcRead) {
+                return await withRpcFallback(_readChainId, readBalance);
+            }
+
+            const runner = await (async () => {
+                const browserProvider = new ethers.BrowserProvider(window.ethereum!);
+                const envDefaultNetwork = getPluginConfig().defaultNetworkId;
+                if (envDefaultNetwork) {
+                    const network = await browserProvider.getNetwork();
+                    if (Number(network.chainId) !== Number(envDefaultNetwork)) {
+                        logger.warn(`[FetchPrivate] Skipping: Wrong Network`);
+                        return null;
+                    }
+                }
+                return browserProvider.getSigner();
+            })();
 
             if (!runner) {
                 return '0.00';
             }
 
-            if (isPlainBalance) {
-                const plainContract = new ethers.Contract(contractAddress, PLAIN_BALANCE_ABI, runner);
-                const balance = await plainContract.balanceOf(userAddress);
-                return ethers.formatUnits(balance, decimals);
-            }
-
-            if (version === 64) {
-                 // 64-bit Native token legacy ABI return
-                 const contract = new ethers.Contract(contractAddress, [
-                     "function balanceOf(address) view returns (uint256)"
-                 ], runner);
-
-                 const encryptedBalance = await contract['balanceOf(address)'](userAddress);
-                 
-                 if (!encryptedBalance || encryptedBalance.toString() === '0') return '0.00';
-
-                 const decryptedVal = aesKey
-                    ? decryptCtUint64(encryptedBalance, aesKey, { decimals })
-                    : await decryptOptions?.decryptCtUint64?.(encryptedBalance, _readChainId, userAddress) ?? null;
-                 if (decryptedVal === null) {
-                    throw new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch: Error decrypting. Re-onboarding required.');
-                 }
-                 return ethers.formatUnits(decryptedVal, decimals);
-            } else {
-                 // 256-bit: Try nested 4-part ABI first (PoD pTokens), fall back to flat 2-part
-                 let encryptedBalance: any;
-                 let isNested = false;
-
-                 try {
-                     const nestedContract = new ethers.Contract(contractAddress, NESTED_BALANCE_ABI, runner);
-                     encryptedBalance = await nestedContract.balanceOf(userAddress);
-
-                     // Validate that we got a nested structure (has .high.high or [0][0])
-                     const hasNestedShape = (
-                         (encryptedBalance?.high?.high !== undefined && encryptedBalance?.high?.low !== undefined) ||
-                         (encryptedBalance?.[0]?.[0] !== undefined && encryptedBalance?.[0]?.[1] !== undefined)
-                     );
-
-                     if (hasNestedShape) {
-                         isNested = true;
-                     } else {
-                         // Response doesn't match nested shape — try flat ABI
-                         throw new Error('Not nested format');
-                     }
-                 } catch {
-                     // Nested ABI failed or didn't match — try flat 2-part ABI
-                     const flatContract = new ethers.Contract(contractAddress, FLAT_BALANCE_ABI, runner);
-                     encryptedBalance = await flatContract.balanceOf(userAddress);
-                     isNested = false;
-                 }
-
-                 if (!encryptedBalance) return '0.00';
-
-                 if (isNested) {
-                     const nestedBalance = normalizeNestedCtUint256(encryptedBalance);
-                     if (isZeroCtUint256(nestedBalance)) return '0.00';
-
-                     const decryptedVal = aesKey
-                        ? decryptCtUint256(nestedBalance, aesKey, { decimals })
-                        : await decryptOptions?.decryptCtUint256?.(nestedBalance, _readChainId, userAddress) ?? null;
-                     if (decryptedVal === null) {
-                         throw new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch: Error decrypting. Re-onboarding required.');
-                     }
-                     return ethers.formatUnits(decryptedVal, decimals);
-                 } else {
-                     const high = encryptedBalance.ciphertextHigh ?? encryptedBalance[0] ?? 0n;
-                     const low = encryptedBalance.ciphertextLow ?? encryptedBalance[1] ?? 0n;
-                     const flatBalance = { ciphertextHigh: high, ciphertextLow: low };
-                     if (isZeroCtUint256(flatBalance)) return '0.00';
-
-                     const decryptedVal = aesKey
-                        ? decryptCtUint256(flatBalance, aesKey, { decimals })
-                        : await decryptOptions?.decryptCtUint256?.(flatBalance, _readChainId, userAddress) ?? null;
-                     if (decryptedVal === null) {
-                         throw new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch: Error decrypting. Re-onboarding required.');
-                     }
-                     return ethers.formatUnits(decryptedVal, decimals);
-                 }
-            }
-        } catch (error: any) {
-            // Rethrow specific AES mismatch or Onboarding errors
+            return await readBalance(runner);
+        } catch (error: unknown) {
             if (error instanceof CotiPluginError) {
                 throw error;
             }

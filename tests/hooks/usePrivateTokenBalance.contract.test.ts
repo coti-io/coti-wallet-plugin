@@ -12,7 +12,9 @@ const h = vi.hoisted(() => ({
   formatUnits: vi.fn(),
 }));
 
-vi.mock('ethers', () => {
+vi.mock('../../src/lib/rpcProvider', () => ({
+  withRpcFallback: vi.fn((_chainId: number, fn: (provider: unknown) => Promise<unknown>) => fn({})),
+}));
   class BrowserProvider {
     constructor(_provider: unknown) {}
     getNetwork = h.getNetwork;
@@ -99,8 +101,8 @@ describe('usePrivateTokenBalance (contract paths)', () => {
     expect(decryptCtUint256).not.toHaveBeenCalled();
   });
 
-  it('decrypts a 256-bit nested ciphertext', async () => {
-    h.balanceOf.mockResolvedValue({ high: { high: 1n, low: 2n }, low: { high: 3n, low: 4n } });
+  it('decrypts a flat ctUint256 balance', async () => {
+    h.balanceOf.mockResolvedValue({ ciphertextHigh: 1n, ciphertextLow: 2n });
     (decryptCtUint256 as any).mockReturnValue(1000000000000000000n);
 
     const { result } = renderHook(() => usePrivateTokenBalance());
@@ -108,42 +110,18 @@ describe('usePrivateTokenBalance (contract paths)', () => {
 
     expect(bal).toBe('formatted:1000000000000000000');
     expect(decryptCtUint256).toHaveBeenCalled();
-  });
-
-  it('returns "0.00" for an all-zero nested ciphertext', async () => {
-    h.balanceOf.mockResolvedValue({ high: { high: 0n, low: 0n }, low: { high: 0n, low: 0n } });
-    const { result } = renderHook(() => usePrivateTokenBalance());
-    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(32), CONTRACT, 256, 18);
-    expect(bal).toBe('0.00');
-  });
-
-  it('falls back to the flat 2-part ABI when the response is not nested', async () => {
-    // First (nested) call returns a non-nested shape -> triggers fallback; flat call returns flat shape
-    h.balanceOf
-      .mockResolvedValueOnce({ notNested: true })
-      .mockResolvedValueOnce({ ciphertextHigh: 5n, ciphertextLow: 6n });
-    (decryptCtUint256 as any).mockReturnValue(2000000000000000000n);
-
-    const { result } = renderHook(() => usePrivateTokenBalance());
-    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(32), CONTRACT, 256, 18);
-
-    expect(bal).toBe('formatted:2000000000000000000');
-    expect(h.balanceOf).toHaveBeenCalledTimes(2);
+    expect(h.balanceOf).toHaveBeenCalledTimes(1);
   });
 
   it('returns "0.00" for an all-zero flat ciphertext', async () => {
-    h.balanceOf
-      .mockResolvedValueOnce({ notNested: true })
-      .mockResolvedValueOnce({ ciphertextHigh: 0n, ciphertextLow: 0n });
+    h.balanceOf.mockResolvedValue({ ciphertextHigh: 0n, ciphertextLow: 0n });
     const { result } = renderHook(() => usePrivateTokenBalance());
     const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(32), CONTRACT, 256, 18);
     expect(bal).toBe('0.00');
   });
 
   it('throws AES_KEY_MISMATCH when flat decryption fails', async () => {
-    h.balanceOf
-      .mockResolvedValueOnce({ notNested: true })
-      .mockResolvedValueOnce({ ciphertextHigh: 5n, ciphertextLow: 6n });
+    h.balanceOf.mockResolvedValue({ ciphertextHigh: 5n, ciphertextLow: 6n });
     (decryptCtUint256 as any).mockReturnValue(null);
 
     const { result } = renderHook(() => usePrivateTokenBalance());

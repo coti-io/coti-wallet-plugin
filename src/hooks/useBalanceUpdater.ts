@@ -2,7 +2,7 @@ import { useCallback, useRef } from 'react';
 import { ethers } from 'ethers';
 import { CONTRACT_ADDRESSES, ERC20_ABI, getPublicTokensForChain, getPrivateTokensForChain } from '../contracts/config';
 import { getChainConfig } from '../chains';
-import { getRpcUrlForChainId } from '../config/chains';
+import { createResilientJsonRpcProvider } from '../lib/rpcProvider';
 import type { Token } from './usePrivacyBridge';
 import type { AesKeyProviderOptions } from './useAesKeyProvider';
 import type { PrivateBalanceDecryptOptions } from './usePrivateTokenBalance';
@@ -102,7 +102,7 @@ export const useBalanceUpdater = ({
                     : Number((await browserProvider!.getNetwork()).chainId);
                 if (isStale()) return false;
                 const readProvider = hasChainOverride
-                    ? new ethers.JsonRpcProvider(getRpcUrlForChainId(currentChainId), currentChainId)
+                    ? await createResilientJsonRpcProvider(currentChainId)
                     : browserProvider!;
 
                 const addresses = CONTRACT_ADDRESSES[currentChainId];
@@ -183,13 +183,9 @@ export const useBalanceUpdater = ({
 
                         const privateTokenConfigs = getPrivateTokensForChain(currentChainId);
                         const publicTokenConfigs = getPublicTokensForChain(currentChainId);
-                        // On PoD portal chains (e.g. Sepolia), private tokens always store
-                        // encrypted ciphertexts even when the public counterpart is native.
-                        // Only on coti-bridge chains can a native public token imply a plain
-                        // (unencrypted) private balance (e.g. p.COTI on COTI chain).
-                        const chainCfg = getChainConfig(currentChainId);
-                        const isPodChain = chainCfg?.portalStrategy === 'pod-privacy-portal';
-                        const hasPlainPrivateTokens = !isPodChain && privateTokenConfigs.some(token => {
+                        // Private tokens backed by a native public asset (p.ETH, p.AVAX, p.COTI)
+                        // store a plain uint256 balance; ERC-20-style pTokens use flat ctUint256.
+                        const hasPlainPrivateTokens = privateTokenConfigs.some(token => {
                             const publicSymbol = token.symbol.replace(/^p\./, '');
                             return !!publicTokenConfigs.find(t => t.symbol === publicSymbol)?.isNative;
                         });
@@ -209,7 +205,7 @@ export const useBalanceUpdater = ({
                                 }
                                 const publicSymbol = token.symbol.replace(/^p\./, '');
                                 const pubCfg = publicTokenConfigs.find(t => t.symbol === publicSymbol);
-                                const isPlainBalance = !isPodChain && !!pubCfg?.isNative;
+                                const isPlainBalance = !!pubCfg?.isNative;
                                 if (!aesKey && !allowSnapOperations && !isPlainBalance) {
                                     return { symbol: token.symbol, value: '0', isMismatch: false };
                                 }

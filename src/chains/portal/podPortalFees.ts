@@ -269,7 +269,11 @@ export const estimatePodExecutionGasWei = async (params: {
       v,
       r,
       s,
-      { from: params.wallet, value: params.portalFee + params.podFee.totalFee, gasPrice: params.gasPrice },
+      {
+        from: params.wallet,
+        value: params.portalFee + params.podFee.totalFee,
+        gasPrice: params.gasPrice,
+      },
     );
     return gasLimit * params.gasPrice;
   } catch {
@@ -406,8 +410,7 @@ export const sendPodPortalMethod = async (params: {
   }
 
   if (params.direction === "to-public") {
-    // The contract requires transferFee == msg.value - portalFee, i.e. the
-    // full PoD fee (remote + callback), not just the remote component.
+    // Privacy Portal requires transferFee == msg.value - portalFee (full PoD fee: remote + callback).
     const transferFeeIndex = 3;
     encodedArgs[transferFeeIndex].value = fee.totalFee;
   }

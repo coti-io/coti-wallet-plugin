@@ -46,6 +46,7 @@ export const usePrivacyBridge = ({
     hasSnap,
     setToastState,
     sessionAesKey,
+    chainId,
   });
 
   const { executeTransaction, isBridgingLoading } = usePrivacyBridgeExecutor({
@@ -57,8 +58,8 @@ export const usePrivacyBridge = ({
     refreshPrivateBalances,
     refreshPublicBalances,
     upsertPodRequest,
-    podWithdrawPermit: allowance.podWithdrawPermit,
-    setPodWithdrawPermit: allowance.setPodWithdrawPermit,
+    getPodWithdrawPermit: allowance.getPodWithdrawPermit,
+    clearPodWithdrawPermit: allowance.clearPodWithdrawPermit,
   });
 
   const gas = usePrivacyBridgeGas({
