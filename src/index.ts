@@ -166,6 +166,7 @@ export {
   wagmiConfig,
   type WagmiConfigOptions,
 } from './providers/WagmiRainbowKitProvider';
+export { mobileZerionWallet } from './providers/mobileZerionWallet';
 
 // Hooks — Wallet Type Detection
 export { useWalletType } from './hooks/useWalletType';

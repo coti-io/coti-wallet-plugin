@@ -1,6 +1,6 @@
 import { createConnector } from 'wagmi';
 import { injected, walletConnect } from 'wagmi/connectors';
-import type { Wallet } from '@rainbow-me/rainbowkit/wallets';
+import type { Wallet } from '@rainbow-me/rainbowkit';
 
 function isMobileBrowser(): boolean {
   if (typeof navigator === 'undefined') return false;
@@ -27,7 +27,7 @@ const ZERION_ICON_URL =
  */
 export const mobileZerionWallet = ({ projectId }: { projectId: string }): Wallet => {
   const isZerionInjected = typeof window !== 'undefined'
-    && !!(window as Record<string, unknown>)['zerionWallet'];
+    && !!(window as unknown as Record<string, unknown>)['zerionWallet'];
 
   const mobile = isMobileBrowser();
   const shouldUseWalletConnect = mobile || !isZerionInjected;
