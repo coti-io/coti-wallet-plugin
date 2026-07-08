@@ -102,7 +102,7 @@ describe('Balance Decryption (README: Balance Decryption)', () => {
     });
 
     it('decrypts nested format (4 segments) with small values', () => {
-      vi.mocked(CotiSDK.decryptCtUint256).mockReturnValueOnce(5n);
+      vi.mocked(CotiSDK.decryptUint256).mockReturnValueOnce(5n);
       const ct = { high: { high: 1n, low: 2n }, low: { high: 3n, low: 4n } };
       const result = decryptCtUint256(ct, validKey);
       expect(result).toBe(5n);
@@ -124,7 +124,7 @@ describe('Balance Decryption (README: Balance Decryption)', () => {
 
     it('returns null when decryptUint256 throws a non-Error value', () => {
       // Exercises the `: error` branch of the 256-bit catch logger.
-      vi.mocked(CotiSDK.decryptCtUint256).mockImplementationOnce(() => { throw 'boom'; });
+      vi.mocked(CotiSDK.decryptUint256).mockImplementationOnce(() => { throw 'boom'; });
       const ct = { ciphertextHigh: 1n, ciphertextLow: 2n };
       const result = decryptCtUint256(ct, validKey);
       expect(result).toBeNull();
@@ -137,21 +137,21 @@ describe('Balance Decryption (README: Balance Decryption)', () => {
     });
 
     it('returns null when decrypted value exceeds insane threshold', () => {
-      vi.mocked(CotiSDK.decryptCtUint256).mockReturnValueOnce(10n ** 31n);
+      vi.mocked(CotiSDK.decryptUint256).mockReturnValueOnce(10n ** 31n);
       const ct = { ciphertextHigh: 1n, ciphertextLow: 2n };
       const result = decryptCtUint256(ct, validKey);
       expect(result).toBeNull();
     });
 
     it('returns null for an insane decrypted value from the nested format', () => {
-      vi.mocked(CotiSDK.decryptCtUint256).mockReturnValueOnce(10n ** 40n);
+      vi.mocked(CotiSDK.decryptUint256).mockReturnValueOnce(10n ** 40n);
       const ct = { high: { high: 1n, low: 2n }, low: { high: 3n, low: 4n } };
       const result = decryptCtUint256(ct, validKey);
       expect(result).toBeNull();
     });
 
     it('returns null for a non-zero ciphertext that matches neither nested nor flat shape', () => {
-      vi.mocked(CotiSDK.decryptCtUint256).mockImplementationOnce(() => {
+      vi.mocked(CotiSDK.decryptUint256).mockImplementationOnce(() => {
         throw new Error('invalid shape');
       });
       const result = decryptCtUint256({ somethingElse: 1n } as any, validKey);

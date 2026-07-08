@@ -30,6 +30,17 @@ vi.mock('wagmi', () => ({
   useDisconnect: () => ({ disconnect: h.disconnect }),
   useConnectorClient: () => ({ data: undefined }),
   useSwitchChain: () => ({ switchChain: vi.fn() }),
+  useConfig: () => ({
+    setState: vi.fn(),
+    storage: { setItem: vi.fn(), removeItem: vi.fn() },
+  }),
+}));
+
+vi.mock('@wagmi/core', () => ({
+  disconnect: vi.fn(async () => {
+    h.wagmi.isConnected = false;
+    h.wagmi.address = undefined;
+  }),
 }));
 
 vi.mock('../../src/hooks/useMetamask', () => ({
@@ -88,11 +99,11 @@ vi.mock('../../src/hooks/useBalanceUpdater', () => ({
     setIsConnected: (v: boolean) => void;
     setHasSnap: (v: boolean) => void;
   }) => ({
-    updateAccountState: async (account: string) => {
+    updateAccountState: async (account: string, hasSnapFlag?: boolean) => {
       if (account) {
         params.setWalletAddress(account);
         params.setIsConnected(true);
-        params.setHasSnap(true);
+        if (hasSnapFlag) params.setHasSnap(true);
       }
       return true;
     },

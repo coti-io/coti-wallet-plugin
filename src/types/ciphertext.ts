@@ -40,8 +40,8 @@ export function isCtUint256(value: unknown): value is CtUint256 {
     const h = r.high as Record<string, unknown>;
     const l = r.low as Record<string, unknown>;
     if (
-      ('high' in h || 'low' in h) &&
-      ('high' in l || 'low' in l)
+      'high' in h && 'low' in h &&
+      'high' in l && 'low' in l
     ) return true;
   }
 

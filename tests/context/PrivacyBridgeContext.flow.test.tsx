@@ -84,6 +84,18 @@ vi.mock('wagmi', () => ({
   useDisconnect: () => ({ disconnect: h.disconnect }),
   useConnectorClient: () => ({ data: undefined }),
   useSwitchChain: () => ({ switchChain: vi.fn() }),
+  useConfig: () => ({
+    setState: vi.fn(),
+    storage: { setItem: vi.fn(), removeItem: vi.fn() },
+  }),
+}));
+
+vi.mock('@wagmi/core', () => ({
+  disconnect: vi.fn(async () => {
+    h.wagmi.isConnected = false;
+    h.wagmi.address = undefined;
+    h.wagmiBump?.();
+  }),
 }));
 
 vi.mock('../../src/hooks/useMetamask', () => ({
@@ -931,30 +943,28 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
 
   // ─── disconnect / lock ────────────────────────────────────────────────────
   describe('handleDisconnect and lockPrivateBalances', () => {
-    it('disconnects and clears context state when not wagmi-connected', async () => {
-      const ctx = await renderProvider();
-      await act(async () => {
-        await ctx.handleConnect();
-      });
-      h.wagmi.isConnected = false;
-      reqMock.mockResolvedValueOnce(undefined);
+    it('disconnects via forceWagmiSessionClear when a wagmi session exists', async () => {
+      await connectWagmi();
       await act(async () => {
         await latest!.handleDisconnect();
       });
       expect(latest!.isConnected).toBe(false);
+      expect(latest!.walletAddress).toBe('');
+      expect(latest!.sessionAesKey).toBeNull();
+      expect(h.snap.clearSnapCache).toHaveBeenCalled();
     });
 
-    it('warns when wallet_revokePermissions fails', async () => {
+    it('clears local session state when MetaMask-connected without wagmi', async () => {
       const ctx = await renderProvider();
       await act(async () => {
         await ctx.handleConnect();
       });
       h.wagmi.isConnected = false;
-      reqMock.mockRejectedValueOnce(new Error('unsupported'));
       await act(async () => {
         await latest!.handleDisconnect();
       });
       expect(latest!.isConnected).toBe(false);
+      expect(latest!.walletAddress).toBe('');
     });
 
     it('lockPrivateBalances clears session and private token display', async () => {

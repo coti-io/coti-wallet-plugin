@@ -68,6 +68,7 @@ vi.mock('wagmi', () => ({
   useAccount: vi.fn(() => ({ connector: undefined, address: undefined, isConnected: false })),
   useConnectorClient: vi.fn(() => ({ data: undefined })),
   useSwitchChain: vi.fn(() => ({ switchChain: vi.fn() })),
+  useConfig: vi.fn(() => ({})),
 }));
 
 const sib = vi.hoisted(() => ({
@@ -126,6 +127,18 @@ vi.mock('../../src/hooks/useSnap', () => ({
   }),
 }));
 
+const decryptLocal = vi.hoisted(() => ({
+  decryptCtUint256: vi.fn(() => 1000000000000000000n),
+}));
+
+vi.mock('../../src/crypto/decryption', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/crypto/decryption')>();
+  return {
+    ...actual,
+    decryptCtUint256: decryptLocal.decryptCtUint256,
+  };
+});
+
 const addrs = vi.hoisted(() => {
   const COTI_ADDR: Record<string, string> = {
     PrivacyBridgeCotiNative: '0x' + 'a1'.repeat(20),
@@ -169,8 +182,9 @@ vi.mock('../../src/contracts/config', () => ({
 }));
 
 import { usePrivacyBridge, type Token } from '../../src/hooks/usePrivacyBridge';
-import { decryptCtUint256 } from '@coti-io/coti-sdk-typescript';
+import { decryptCtUint256 } from '../../src/crypto/decryption';
 import { logger } from '../../src/lib/logger';
+import { useAccount } from 'wagmi';
 
 const WALLET = '0x' + '9'.repeat(40);
 
@@ -294,6 +308,7 @@ function makeProps(overrides: Record<string, unknown> = {}) {
     refreshPrivateBalances: vi.fn(async () => true),
     upsertPodRequest: vi.fn(),
     sessionAesKey: 'a'.repeat(32),
+    chainId: 7082400,
     ...overrides,
   };
 }
@@ -305,6 +320,7 @@ const signer = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  decryptLocal.decryptCtUint256.mockReturnValue(1000000000000000000n);
   eth.getNetwork.mockResolvedValue({ chainId: 7082400n });
   eth.getSigner.mockResolvedValue(signer);
   eth.waitForTransaction.mockResolvedValue({ status: 1 });
@@ -338,6 +354,11 @@ beforeEach(() => {
   });
   req().mockReset();
   req().mockResolvedValue('0x' + (300000).toString(16));
+  vi.mocked(useAccount).mockReturnValue({
+    connector: undefined,
+    address: undefined,
+    isConnected: false,
+  } as any);
 });
 
 afterEach(() => {
@@ -429,7 +450,7 @@ describe('usePrivacyBridge - checkAllowance', () => {
 
   it('caps an insane decrypted private allowance to 0', async () => {
     eth.allowance.mockResolvedValue({ ownerCiphertext: { ciphertextHigh: 1n, ciphertextLow: 2n } });
-    vi.mocked(decryptCtUint256).mockReturnValue(10n ** 40n);
+    vi.mocked(decryptCtUint256).mockReturnValue(null);
     const props = makeProps({ direction: 'to-public' });
     const { result } = renderHook(() => usePrivacyBridge(props));
     await act(async () => {
@@ -668,7 +689,7 @@ describe('usePrivacyBridge - executeTransaction (COTI bridge)', () => {
     ]);
     eth.depositUint2.mockResolvedValue({ wait: async () => ({ status: 1 }) });
     eth.estimateGas.mockRejectedValue(Object.assign(new Error('gas fail'), { reason: 'r', data: '0xd' }));
-    sib.estimateBridgeFee.mockRejectedValue(new Error('fee fail'));
+    // Fee lookup still succeeds so oracle timestamps are available; gas estimate fails separately.
     routeRequest();
     const props = makeProps({
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
@@ -1216,8 +1237,7 @@ describe('usePrivacyBridge - updateGasFee', () => {
   });
 
   it('returns without a fee on an unsupported chain', async () => {
-    eth.getNetwork.mockResolvedValue({ chainId: 999n });
-    const props = makeProps();
+    const props = makeProps({ chainId: 999 });
     const { result } = renderHook(() => usePrivacyBridge(props));
     await act(async () => {
       await result.current.updateGasFee();
@@ -1255,7 +1275,13 @@ describe('usePrivacyBridge - updateGasFee', () => {
       { symbol: 'MTT', isPrivate: false, addressKey: 'MTT', bridgeAddressKey: 'PrivacyPortalMTT', decimals: 18 },
     ]);
     sib.estimatePodPortalGasFeeDisplay.mockResolvedValue('0.0009');
+    vi.mocked(useAccount).mockReturnValue({
+      connector: { getProvider: async () => ({ request: vi.fn() }) },
+      address: WALLET,
+      isConnected: true,
+    } as any);
     const props = makeProps({
+      chainId: 11155111,
       publicTokens: [{ symbol: 'MTT', name: 'MTT', balance: '0', isPrivate: false }],
     });
     const { result } = renderHook(() => usePrivacyBridge(props));
@@ -1525,7 +1551,7 @@ describe('usePrivacyBridge - executeTransaction fallback resolution', () => {
     expect(eth.depositUint2).toHaveBeenCalled();
   });
 
-  it('logs and continues when the ERC20 deposit fee lookup throws', async () => {
+  it('throws when the ERC20 deposit fee lookup fails (missing oracle timestamps)', async () => {
     sib.getPublicTokensForChain.mockReturnValue(ercPublicCfg('WETH'));
     eth.balanceOf.mockResolvedValue(10n ** 24n);
     eth.allowance.mockResolvedValue(10n ** 24n);
@@ -1534,13 +1560,12 @@ describe('usePrivacyBridge - executeTransaction fallback resolution', () => {
     eth.waitForTransaction.mockResolvedValue({ status: 1 });
     const props = makeProps();
     const { result } = renderHook(() => usePrivacyBridge(props));
-    await act(async () => {
+    await expect(act(async () => {
       await result.current.executeTransaction('1', 'to-private', 0);
-    });
-    expect(props.setPublicTokens).toHaveBeenCalled();
+    })).rejects.toThrow(/oracle price data/);
   });
 
-  it('logs and continues when the ERC20 withdraw fee lookup throws', async () => {
+  it('throws when the ERC20 withdraw fee lookup fails (missing oracle timestamps)', async () => {
     sib.getPublicTokensForChain.mockReturnValue(ercPublicCfg('WETH'));
     sib.getPrivateTokensForChain.mockReturnValue(ercPrivateCfg('WETH'));
     sib.estimateBridgeFee.mockRejectedValue(new Error('fee rpc fail'));
@@ -1548,13 +1573,12 @@ describe('usePrivacyBridge - executeTransaction fallback resolution', () => {
     eth.waitForTransaction.mockResolvedValue({ status: 1 });
     const props = makeProps({ direction: 'to-public' });
     const { result } = renderHook(() => usePrivacyBridge(props));
-    await act(async () => {
+    await expect(act(async () => {
       await result.current.executeTransaction('1', 'to-public', 0);
-    });
-    expect(props.setPrivateTokens).toHaveBeenCalled();
+    })).rejects.toThrow(/oracle price data/);
   });
 
-  it('logs and continues when the native COTI withdraw fee lookup throws', async () => {
+  it('throws when the native COTI withdraw fee lookup fails (missing oracle timestamps)', async () => {
     sib.getPublicTokensForChain.mockReturnValue([
       { symbol: 'COTI', isPrivate: false, bridgeAddressKey: 'PrivacyBridgeCotiNative', decimals: 18 },
     ]);
@@ -1566,10 +1590,9 @@ describe('usePrivacyBridge - executeTransaction fallback resolution', () => {
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
     });
     const { result } = renderHook(() => usePrivacyBridge(props));
-    await act(async () => {
+    await expect(act(async () => {
       await result.current.executeTransaction('1', 'to-public', 0);
-    });
-    expect(props.setPublicTokens).toHaveBeenCalled();
+    })).rejects.toThrow(/oracle price data/);
   });
 
   it('handles a withdraw send failure in the inner catch', async () => {
@@ -1894,13 +1917,12 @@ describe('usePrivacyBridge - additional branch coverage', () => {
     eth.waitForTransaction.mockResolvedValue({ status: 1 });
     const props = makeProps();
     const { result } = renderHook(() => usePrivacyBridge(props));
-    await act(async () => {
+    await expect(act(async () => {
       await result.current.executeTransaction('1', 'to-private', 0);
-    });
-    expect(props.setPublicTokens).toHaveBeenCalled();
+    })).rejects.toThrow(/oracle price data/);
   });
 
-  it('handles a native deposit with a missing oracle timestamp', async () => {
+  it('throws on a native deposit with a missing oracle timestamp', async () => {
     sib.getPublicTokensForChain.mockReturnValue([
       { symbol: 'COTI', isPrivate: false, bridgeAddressKey: 'PrivacyBridgeCotiNative', decimals: 18 },
     ]);
@@ -1917,10 +1939,9 @@ describe('usePrivacyBridge - additional branch coverage', () => {
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
     });
     const { result } = renderHook(() => usePrivacyBridge(props));
-    await act(async () => {
+    await expect(act(async () => {
       await result.current.executeTransaction('1', 'to-private', 0);
-    });
-    expect(eth.depositUint2).toHaveBeenCalled();
+    })).rejects.toThrow(/oracle price data/);
   });
 
   it('handles an ERC20 withdraw when the fee estimate returns Error', async () => {
@@ -1937,13 +1958,12 @@ describe('usePrivacyBridge - additional branch coverage', () => {
     eth.waitForTransaction.mockResolvedValue({ status: 1 });
     const props = makeProps({ direction: 'to-public' });
     const { result } = renderHook(() => usePrivacyBridge(props));
-    await act(async () => {
+    await expect(act(async () => {
       await result.current.executeTransaction('1', 'to-public', 0);
-    });
-    expect(props.setPrivateTokens).toHaveBeenCalled();
+    })).rejects.toThrow(/oracle price data/);
   });
 
-  it('handles a native withdraw with a missing oracle timestamp', async () => {
+  it('throws on a native withdraw with a missing oracle timestamp', async () => {
     sib.getPublicTokensForChain.mockReturnValue([
       { symbol: 'COTI', isPrivate: false, bridgeAddressKey: 'PrivacyBridgeCotiNative', decimals: 18 },
     ]);
@@ -1961,10 +1981,9 @@ describe('usePrivacyBridge - additional branch coverage', () => {
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
     });
     const { result } = renderHook(() => usePrivacyBridge(props));
-    await act(async () => {
+    await expect(act(async () => {
       await result.current.executeTransaction('1', 'to-public', 0);
-    });
-    expect(props.setPublicTokens).toHaveBeenCalled();
+    })).rejects.toThrow(/oracle price data/);
   });
 
   it('logs without reason/data when native gas estimation fails plainly', async () => {

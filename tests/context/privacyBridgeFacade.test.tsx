@@ -42,6 +42,17 @@ vi.mock('wagmi', () => ({
   useDisconnect: () => ({ disconnect: h.disconnect }),
   useConnectorClient: () => ({ data: undefined }),
   useSwitchChain: () => ({ switchChain: vi.fn() }),
+  useConfig: () => ({
+    setState: vi.fn(),
+    storage: { setItem: vi.fn(), removeItem: vi.fn() },
+  }),
+}));
+
+vi.mock('@wagmi/core', () => ({
+  disconnect: vi.fn(async () => {
+    h.wagmi.isConnected = false;
+    h.wagmi.address = undefined;
+  }),
 }));
 
 vi.mock('../../src/hooks/useMetamask', () => ({

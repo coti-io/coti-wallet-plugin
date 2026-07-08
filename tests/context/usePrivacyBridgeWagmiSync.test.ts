@@ -20,6 +20,7 @@ vi.mock('wagmi', () => ({
   useDisconnect: () => ({ disconnect: h.wagmiDisconnect }),
   useConnectorClient: () => ({ data: undefined }),
   useSwitchChain: () => ({ switchChain: vi.fn() }),
+  useConfig: () => ({}),
 }));
 
 vi.mock('../../src/hooks/useMetamask', () => ({
@@ -102,6 +103,7 @@ function makeCore(overrides: Partial<PrivacyBridgeSessionCore> = {}): PrivacyBri
     setMetamaskDetected: vi.fn(),
     ethereumListenerRegistered: { current: false },
     wagmiSyncRef: { current: true },
+    disconnectingRef: { current: false },
     metamaskExplicitConnect: { current: false },
     sessionAesKey: null,
     setSessionAesKey: vi.fn(),
