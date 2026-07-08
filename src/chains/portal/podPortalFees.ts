@@ -236,9 +236,10 @@ export const estimatePodExecutionGasWei = async (params: {
 
     if (params.direction === "to-private") {
       const method = resolvePodPortalMethod("to-private", params.isNativeDeposit);
-      const simulationValue = params.isNativeDeposit
-        ? params.amountWei + params.portalFee
-        : params.portalFee;
+      // The portal requires msg.value to cover the PoD fee on top of portalFee
+      // (and the deposit amount for native), otherwise the simulation reverts.
+      const nativeAmount = params.isNativeDeposit ? params.amountWei : 0n;
+      const simulationValue = nativeAmount + params.portalFee + params.podFee.totalFee;
       const gasLimit = await portal[method].estimateGas(
         params.wallet,
         params.amountWei,
@@ -256,17 +257,19 @@ export const estimatePodExecutionGasWei = async (params: {
     const v = permit?.v ?? 0;
     const r = permit?.r ?? ethers.ZeroHash;
     const s = permit?.s ?? ethers.ZeroHash;
+    // The contract requires transferFee == msg.value - portalFee, and the
+    // transfer fee is the full PoD fee (remote + callback).
     const gasLimit = await portal.requestWithdrawWithPermit.estimateGas(
       params.wallet,
       params.amountWei,
       params.portalFee,
-      params.podFee.remoteFee,
+      params.podFee.totalFee,
       params.podFee.callBackFee,
       deadline,
       v,
       r,
       s,
-      { from: params.wallet, value: params.portalFee, gasPrice: params.gasPrice },
+      { from: params.wallet, value: params.portalFee + params.podFee.totalFee, gasPrice: params.gasPrice },
     );
     return gasLimit * params.gasPrice;
   } catch {
@@ -369,7 +372,7 @@ export const estimatePodPortalFees = async (params: {
   return result;
 };
 
-/** Send a PoD portal tx using SDK fee estimation and the same gas price as the quote. */
+/** Send a PoD portal tx using SDK fee estimation; wallet/provider chooses the tx gas fees. */
 export const sendPodPortalMethod = async (params: {
   runner: ethers.Signer;
   portalAddress: string;
@@ -382,10 +385,15 @@ export const sendPodPortalMethod = async (params: {
   amountWei?: bigint;
   isNativeDeposit?: boolean;
   gasLimit?: bigint;
+  /** Precomputed PoD fee (from {@link estimatePodFee}) to avoid re-estimating. */
+  fee?: PodFeeEstimate;
 }): Promise<ethers.ContractTransactionResponse> => {
   const pod = createPodContract(params.portalAddress, params.runner);
-  const feeCfg = resolvePodFeeEstimationConfig(params.chainId, params.direction, params.gasPrice);
-  const fee = await pod.estimateFee(params.method, params.args, feeCfg);
+  const fee = params.fee ?? await pod.estimateFee(
+    params.method,
+    params.args,
+    resolvePodFeeEstimationConfig(params.chainId, params.direction, params.gasPrice),
+  );
 
   const cbIndex = params.args.findIndex(arg => arg.isCallBackFee);
   const encodedArgs = await encodePodMethodArguments(
@@ -398,17 +406,21 @@ export const sendPodPortalMethod = async (params: {
   }
 
   if (params.direction === "to-public") {
+    // The contract requires transferFee == msg.value - portalFee, i.e. the
+    // full PoD fee (remote + callback), not just the remote component.
     const transferFeeIndex = 3;
-    encodedArgs[transferFeeIndex].value = fee.remoteFee;
+    encodedArgs[transferFeeIndex].value = fee.totalFee;
   }
 
   const fn = pod.contract.getFunction(params.method);
   const vals = encodedArgs.map(arg => arg.value);
   const nativeAmount = params.isNativeDeposit && params.amountWei ? params.amountWei : 0n;
   const txValue = nativeAmount + params.portalFee + fee.totalFee;
-  const overrides: { value: bigint; gasPrice: bigint; gasLimit?: bigint } = {
+  // Deliberately no gasPrice override: pinning the fee cap to a spot
+  // eth_gasPrice leaves zero headroom, and the tx gets stuck the moment the
+  // base fee rises. Let the wallet/provider price the tx (EIP-1559).
+  const overrides: { value: bigint; gasLimit?: bigint } = {
     value: txValue,
-    gasPrice: params.gasPrice,
   };
   if (params.gasLimit) {
     overrides.gasLimit = params.gasLimit;

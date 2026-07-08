@@ -11,6 +11,7 @@ import {
 import { getChainConfig } from "../index";
 import {
   buildPodMethodArgs,
+  estimatePodFee,
   getPodGasPrice,
   quotePortalFeeOnly,
   resolvePodPortalMethod,
@@ -563,16 +564,26 @@ export async function executePodPortalTransaction(params: {
       portalFee: portalQuote.portalFee,
       isNativeDeposit,
     });
+    const podFee = await estimatePodFee({
+      runner: signer,
+      portalAddress,
+      chainId,
+      direction: "to-private",
+      method,
+      args: podArgs,
+      gasPrice,
+    });
 
     let gasLimit: bigint | undefined;
     try {
       const portal = new ethers.Contract(portalAddress, PRIVACY_PORTAL_ABI, signer);
+      const nativeAmount = isNativeDeposit ? amountWei : 0n;
       const estimated = await portal[method].estimateGas(
         wallet,
         amountWei,
         portalQuote.portalFee,
-        0n,
-        { value: isNativeDeposit ? amountWei + portalQuote.portalFee : portalQuote.portalFee, gasPrice },
+        podFee.callBackFee,
+        { value: nativeAmount + portalQuote.portalFee + podFee.totalFee, gasPrice },
       );
       gasLimit = (estimated * 130n) / 100n;
     } catch (estErr: unknown) {
@@ -595,6 +606,7 @@ export async function executePodPortalTransaction(params: {
       amountWei,
       isNativeDeposit,
       gasLimit,
+      fee: podFee,
     });
 
     onProgress?.("transfer-start", tx.hash);
@@ -656,21 +668,31 @@ export async function executePodPortalTransaction(params: {
     portalFee: portalQuote.portalFee,
     withdrawPermit,
   });
+  const podFee = await estimatePodFee({
+    runner: signer,
+    portalAddress,
+    chainId,
+    direction: "to-public",
+    method,
+    args: podArgs,
+    gasPrice,
+  });
 
   let gasLimit: bigint | undefined;
   try {
     const portal = new ethers.Contract(portalAddress, PRIVACY_PORTAL_ABI, signer);
+    // transferFee must equal msg.value - portalFee, i.e. the full PoD fee.
     const estimated = await portal.requestWithdrawWithPermit.estimateGas(
       wallet,
       amountWei,
       portalQuote.portalFee,
-      0n,
-      0n,
+      podFee.totalFee,
+      podFee.callBackFee,
       BigInt(withdrawPermit.deadline),
       withdrawPermit.v,
       withdrawPermit.r,
       withdrawPermit.s,
-      { value: portalQuote.portalFee, gasPrice },
+      { value: portalQuote.portalFee + podFee.totalFee, gasPrice },
     );
     gasLimit = (estimated * 130n) / 100n;
   } catch (estErr: unknown) {
@@ -691,6 +713,7 @@ export async function executePodPortalTransaction(params: {
     gasPrice,
     portalFee: portalQuote.portalFee,
     gasLimit,
+    fee: podFee,
   });
 
   onProgress?.("transfer-start", tx.hash);

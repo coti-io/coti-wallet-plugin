@@ -6,6 +6,7 @@ const h = vi.hoisted(() => ({
   estimateWithdrawFees: vi.fn(),
   estimateFee: vi.fn(),
   estimateGas: vi.fn(),
+  sendFn: vi.fn(),
 }));
 
 vi.mock('ethers', async (importOriginal) => {
@@ -29,6 +30,7 @@ vi.mock('@coti-io/pod-sdk', () => ({
   },
   PodContract: class {
     estimateFee = (...args: unknown[]) => h.estimateFee(...args);
+    contract = { getFunction: () => (...a: unknown[]) => h.sendFn(...a) };
   },
   encodePodMethodArguments: vi.fn(async (args: unknown[]) => args),
 }));
@@ -41,6 +43,7 @@ import {
   resolvePodFeeEstimationConfig,
   resolvePodPortalMethod,
   estimatePodExecutionGasWei,
+  sendPodPortalMethod,
 } from '../../../src/chains/portal/podPortalFees';
 import { POD_DEFAULT_CALLBACK_DATA_SIZE } from '../../../src/chains/podInbox';
 
@@ -60,6 +63,7 @@ beforeEach(() => {
   h.estimateWithdrawFees.mockResolvedValue([200n, false, 3000n, 600n]);
   h.estimateFee.mockResolvedValue({ totalFee: 2100n, remoteFee: 1600n, callBackFee: 500n });
   h.estimateGas.mockResolvedValue(500_000n);
+  h.sendFn.mockResolvedValue({ hash: '0xtx' });
 });
 
 describe('resolvePodFeeEstimationConfig', () => {
@@ -126,6 +130,28 @@ describe('estimatePodExecutionGasWei', () => {
       podFee: { totalFee: 2100n, remoteFee: 1600n, callBackFee: 500n },
     });
     expect(cost).toBe(500_000_000_000_000n);
+    // Simulation must fund the PoD fee on top of the portal fee or it reverts.
+    const [, , , cbFee, overrides] = h.estimateGas.mock.calls[0] as [unknown, unknown, unknown, bigint, { value: bigint }];
+    expect(cbFee).toBe(500n);
+    expect(overrides.value).toBe(100n + 2100n);
+  });
+
+  it('simulates withdraws with transferFee equal to the full PoD fee', async () => {
+    await estimatePodExecutionGasWei({
+      chainId: 11155111,
+      portalAddress: PORTAL,
+      wallet: WALLET,
+      amountWei: 1000n,
+      portalFee: 200n,
+      direction: 'to-public',
+      isNativeDeposit: false,
+      gasPrice: 1_000_000_000n,
+      podFee: { totalFee: 2100n, remoteFee: 1600n, callBackFee: 500n },
+    });
+    const call = h.estimateGas.mock.calls[0] as unknown[];
+    expect(call[3]).toBe(2100n); // transferFee = remote + callback
+    expect(call[4]).toBe(500n); // transferCallbackFee
+    expect((call[9] as { value: bigint }).value).toBe(200n + 2100n);
   });
 
   it('falls back to configured gas limit when estimation reverts', async () => {
@@ -142,5 +168,85 @@ describe('estimatePodExecutionGasWei', () => {
       podFee: { totalFee: 2100n, remoteFee: 1600n, callBackFee: 500n },
     });
     expect(cost).toBe(850_000_000_000_000n);
+  });
+});
+
+describe('sendPodPortalMethod', () => {
+  it('sets withdraw transferFee to the full PoD fee and lets the wallet price gas', async () => {
+    const args = buildPodMethodArgs({
+      direction: 'to-public',
+      wallet: WALLET,
+      amountWei: 1000n,
+      portalFee: 200n,
+    });
+    await sendPodPortalMethod({
+      runner: makeSigner() as never,
+      portalAddress: PORTAL,
+      chainId: 11155111,
+      direction: 'to-public',
+      method: 'requestWithdrawWithPermit',
+      args,
+      gasPrice: 1_000_000_000n,
+      portalFee: 200n,
+      gasLimit: 3_000_000n,
+    });
+    const call = h.sendFn.mock.calls[0] as unknown[];
+    const overrides = call[call.length - 1] as Record<string, unknown>;
+    expect(call[3]).toBe(2100n); // transferFee = msg.value - portalFee
+    expect(call[4]).toBe(500n); // transferCallbackFee
+    expect(overrides.value).toBe(200n + 2100n);
+    expect(overrides.gasLimit).toBe(3_000_000n);
+    // No gasPrice pin — a spot eth_gasPrice cap strands the tx when base fee rises.
+    expect('gasPrice' in overrides).toBe(false);
+  });
+
+  it('funds deposits with native amount + portal fee + PoD fee', async () => {
+    const args = buildPodMethodArgs({
+      direction: 'to-private',
+      wallet: WALLET,
+      amountWei: 1000n,
+      portalFee: 100n,
+      isNativeDeposit: true,
+    });
+    await sendPodPortalMethod({
+      runner: makeSigner() as never,
+      portalAddress: PORTAL,
+      chainId: 11155111,
+      direction: 'to-private',
+      method: 'depositNative',
+      args,
+      gasPrice: 1_000_000_000n,
+      portalFee: 100n,
+      amountWei: 1000n,
+      isNativeDeposit: true,
+    });
+    const call = h.sendFn.mock.calls[0] as unknown[];
+    const overrides = call[call.length - 1] as Record<string, unknown>;
+    expect(call[3]).toBe(500n); // mintCallbackFee from the estimate
+    expect(overrides.value).toBe(1000n + 100n + 2100n);
+  });
+
+  it('reuses a precomputed PoD fee without re-estimating', async () => {
+    const args = buildPodMethodArgs({
+      direction: 'to-private',
+      wallet: WALLET,
+      amountWei: 1000n,
+      portalFee: 100n,
+    });
+    await sendPodPortalMethod({
+      runner: makeSigner() as never,
+      portalAddress: PORTAL,
+      chainId: 11155111,
+      direction: 'to-private',
+      method: 'deposit',
+      args,
+      gasPrice: 1_000_000_000n,
+      portalFee: 100n,
+      fee: { totalFee: 42n, remoteFee: 40n, callBackFee: 2n },
+    });
+    expect(h.estimateFee).not.toHaveBeenCalled();
+    const call = h.sendFn.mock.calls[0] as unknown[];
+    expect(call[3]).toBe(2n);
+    expect((call[call.length - 1] as { value: bigint }).value).toBe(100n + 42n);
   });
 });
