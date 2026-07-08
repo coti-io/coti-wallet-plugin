@@ -76,8 +76,8 @@ export { loadPodRequests, savePodRequests, podRequestsStorageKey } from './pod/p
 export { estimateCotiBridgeGasFeeDisplay } from './chains/cotiBridgeGasEstimate';
 export { estimatePodPortalGasFeeDisplay } from './chains/portal/podGasEstimate';
 export { resolvePodRequestStatus } from './chains/portal/podRequestStatus';
-export { executePodPortalTransaction, signPodWithdrawPermit, getPodInboxAddress, getPodSdkConfig, getSepoliaGasPrice, quotePortalPodRequest } from './chains/portal/executePodPortalTransaction';
-export type { PodWithdrawPermit } from './chains/portal/executePodPortalTransaction';
+export { executePodPortalTransaction, signPodWithdrawPermit, getPodInboxAddress, getPodSdkConfig, getSepoliaGasPrice, quotePortalDepositFees, quotePortalWithdrawFees, quotePortalPodRequest } from './chains/portal/executePodPortalTransaction';
+export type { PodWithdrawPermit, PortalDepositFeeQuote, PortalWithdrawFeeQuote } from './chains/portal/executePodPortalTransaction';
 
 // Contracts
 export { CONTRACT_ADDRESSES, SUPPORTED_TOKENS, MINIMUM_PORTAL_IN_AMOUNTS, ERC20_ABI, getPublicTokensForChain, getPrivateTokensForChain } from './contracts/config';

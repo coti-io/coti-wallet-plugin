@@ -1,5 +1,5 @@
 import { ethers } from "ethers";
-import { DataType, PodContract, type PodSdkConfig } from "@coti/pod-sdk";
+import { type PodSdkConfig } from "@coti/pod-sdk";
 import { COTI_TESTNET_CHAIN_ID, PRIVACY_PORTAL_ABI, POD_PTOKEN_ABI, SEPOLIA_CHAIN_ID, type PodPortalRequest } from "../../contracts/pod";
 import type { SwapProgressStage } from "../../hooks/usePrivacyBridge";
 import { getPluginConfig, type CotiPluginConfig } from "../../config/plugin";
@@ -19,11 +19,73 @@ const POD_TRACKING_CHAIN_ORDER = [
   COTI_TESTNET_CHAIN_ID,
 ] as const;
 
-const POD_CALLBACK_GAS_LIMIT = 1_000_000n;
-const POD_CALLBACK_DATA_SIZE = 1_024n;
-const POD_FORWARD_GAS_LIMIT = 8_000_000n;
-const POD_FORWARD_DATA_SIZE = 4_096n;
-const POD_REMOTE_FEE_BUFFER_BPS = 20_000n;
+export type PortalDepositFeeQuote = {
+  portalFee: bigint;
+  usedDynamicPricing: boolean;
+  mintTotalFee: bigint;
+  mintCallbackFee: bigint;
+  msgValue: bigint;
+  gasPrice: bigint;
+};
+
+export type PortalWithdrawFeeQuote = {
+  portalFee: bigint;
+  usedDynamicPricing: boolean;
+  transferTotalFee: bigint;
+  transferCallbackFee: bigint;
+  msgValue: bigint;
+  gasPrice: bigint;
+};
+
+const resolveFeeRunnerProvider = (runner: ethers.ContractRunner): ethers.BrowserProvider =>
+  "provider" in runner && runner.provider
+    ? runner.provider as ethers.BrowserProvider
+    : runner as ethers.BrowserProvider;
+
+export const quotePortalDepositFees = async (
+  runner: ethers.ContractRunner,
+  portalAddress: string,
+  amount: bigint,
+  gasPrice?: bigint,
+): Promise<PortalDepositFeeQuote> => {
+  const provider = resolveFeeRunnerProvider(runner);
+  const resolvedGasPrice = gasPrice ?? await getSepoliaGasPrice(provider);
+  const portal = new ethers.Contract(portalAddress, PRIVACY_PORTAL_ABI, runner);
+  const [portalFee, usedDynamicPricing, mintTotalFee, mintCallbackFee] = await portal.estimateDepositFees(amount);
+  const portalFeeWei = BigInt(portalFee.toString());
+  const mintTotalFeeWei = BigInt(mintTotalFee.toString());
+  return {
+    portalFee: portalFeeWei,
+    usedDynamicPricing: Boolean(usedDynamicPricing),
+    mintTotalFee: mintTotalFeeWei,
+    mintCallbackFee: BigInt(mintCallbackFee.toString()),
+    msgValue: portalFeeWei + mintTotalFeeWei,
+    gasPrice: resolvedGasPrice,
+  };
+};
+
+export const quotePortalWithdrawFees = async (
+  runner: ethers.ContractRunner,
+  portalAddress: string,
+  amount: bigint,
+  gasPrice?: bigint,
+): Promise<PortalWithdrawFeeQuote> => {
+  const provider = resolveFeeRunnerProvider(runner);
+  const resolvedGasPrice = gasPrice ?? await getSepoliaGasPrice(provider);
+  const portal = new ethers.Contract(portalAddress, PRIVACY_PORTAL_ABI, runner);
+  const [portalFee, usedDynamicPricing, transferTotalFee, transferCallbackFee] =
+    await portal.estimateWithdrawFees(amount);
+  const portalFeeWei = BigInt(portalFee.toString());
+  const transferTotalFeeWei = BigInt(transferTotalFee.toString());
+  return {
+    portalFee: portalFeeWei,
+    usedDynamicPricing: Boolean(usedDynamicPricing),
+    transferTotalFee: transferTotalFeeWei,
+    transferCallbackFee: BigInt(transferCallbackFee.toString()),
+    msgValue: portalFeeWei + transferTotalFeeWei,
+    gasPrice: resolvedGasPrice,
+  };
+};
 
 export const getPodInboxAddress = (chainId: number): string => {
   const inbox = getChainConfig(chainId)?.podInboxAddress?.trim();
@@ -151,48 +213,8 @@ export const getSepoliaGasPrice = async (provider: ethers.BrowserProvider | ethe
   return BigInt(gasPriceHex);
 };
 
-export const quotePortalPodRequest = async (
-  runner: ethers.ContractRunner,
-  portalAddress: string,
-  method: "deposit" | "depositNative" | "requestWithdrawWithPermit",
-  args: Array<{ value: string; isCallBackFee?: boolean }>,
-  gasPrice?: bigint,
-  chainId = SEPOLIA_CHAIN_ID,
-) => {
-  const provider = "provider" in runner && runner.provider
-    ? runner.provider as ethers.BrowserProvider
-    : runner as ethers.BrowserProvider;
-  const resolvedGasPrice = gasPrice ?? await getSepoliaGasPrice(provider);
-  const podContract = new PodContract(portalAddress, PRIVACY_PORTAL_ABI, runner, {
-    config: getPodSdkConfig(),
-    inboxAddress: getPodInboxAddress(chainId),
-    encryptionNetwork: "testnet",
-  });
-  const fee = await podContract.estimateFee(
-    method,
-    args.map(arg => ({
-      type: DataType.String,
-      value: arg.value,
-      isCallBackFee: !!arg.isCallBackFee,
-    })),
-    {
-      forwardDataSize: POD_FORWARD_DATA_SIZE,
-      forwardGasLimit: POD_FORWARD_GAS_LIMIT,
-      gasPrice: resolvedGasPrice,
-      callBackGasLimit: POD_CALLBACK_GAS_LIMIT,
-      callBackDataSize: POD_CALLBACK_DATA_SIZE,
-    },
-  );
-
-  const bufferedRemoteFee = (fee.remoteFee * POD_REMOTE_FEE_BUFFER_BPS) / 10_000n;
-
-  return {
-    totalFeeWei: bufferedRemoteFee + fee.callBackFee,
-    remoteFeeWei: bufferedRemoteFee,
-    callbackFeeWei: fee.callBackFee,
-    gasPrice: resolvedGasPrice,
-  };
-};
+/** @deprecated Use quotePortalDepositFees or quotePortalWithdrawFees for upgraded portal contracts. */
+export const quotePortalPodRequest = quotePortalDepositFees;
 
 /** Sepolia ERC-20 pTokens (e.g. p.MTT): flat 2-limb ciphertext + pending flag. */
 const POD_PTOKEN_FLAT_STATUS_ABI = [
@@ -642,26 +664,16 @@ export async function executePodPortalTransaction(params: {
     });
 
     const depositMethod = isNativeDeposit ? "depositNative" : "deposit";
-    const quote = await quotePortalPodRequest(
-      signer,
-      portalAddress,
-      depositMethod,
-      [
-        { value: wallet },
-        { value: amountWei.toString() },
-        { value: "0", isCallBackFee: true },
-      ],
-      undefined,
-      chainId,
-    );
-    const depositValue = isNativeDeposit ? amountWei + quote.totalFeeWei : quote.totalFeeWei;
+    const quote = await quotePortalDepositFees(signer, portalAddress, amountWei, undefined);
+    const depositValue = isNativeDeposit ? amountWei + quote.msgValue : quote.msgValue;
+    const depositArgs = [wallet, amountWei, quote.portalFee, quote.mintCallbackFee] as const;
     const depositOverrides: { value: bigint; gasPrice: bigint; gasLimit?: bigint } = {
-      value: isNativeDeposit ? depositValue : quote.totalFeeWei,
+      value: depositValue,
       gasPrice: quote.gasPrice,
     };
     try {
       const estimated = await portal[depositMethod].estimateGas(
-        wallet, amountWei, quote.callbackFeeWei, depositOverrides,
+        ...depositArgs, depositOverrides,
       );
       depositOverrides.gasLimit = (estimated * 130n) / 100n;
     } catch (estErr: unknown) {
@@ -674,7 +686,7 @@ export async function executePodPortalTransaction(params: {
       );
       depositOverrides.gasLimit = 2_000_000n;
     }
-    const tx = await portal[depositMethod](wallet, amountWei, quote.callbackFeeWei, depositOverrides);
+    const tx = await portal[depositMethod](...depositArgs, depositOverrides);
 
     onProgress?.("transfer-start", tx.hash);
 
@@ -727,59 +739,25 @@ export async function executePodPortalTransaction(params: {
     throw new Error("PoD withdraw approval signature is missing or stale. Please approve again.");
   }
   const deadline = BigInt(withdrawPermit.deadline);
-  const transferQuote = await quotePortalPodRequest(
+  const withdrawQuote = await quotePortalWithdrawFees(
     signer,
     portalAddress,
-    "requestWithdrawWithPermit",
-    [
-      { value: wallet },
-      { value: amountWei.toString() },
-      { value: "0" },
-      { value: "0", isCallBackFee: true },
-      { value: "0" },
-      { value: "0" },
-      { value: deadline.toString() },
-      { value: "0" },
-      { value: ethers.ZeroHash },
-      { value: ethers.ZeroHash },
-    ],
+    amountWei,
     sharedGasPrice,
-    chainId,
   );
-  const burnQuote = await quotePortalPodRequest(
-    signer,
-    portalAddress,
-    "requestWithdrawWithPermit",
-    [
-      { value: wallet },
-      { value: amountWei.toString() },
-      { value: "0" },
-      { value: "0" },
-      { value: "0" },
-      { value: "0", isCallBackFee: true },
-      { value: deadline.toString() },
-      { value: "0" },
-      { value: ethers.ZeroHash },
-      { value: ethers.ZeroHash },
-    ],
-    sharedGasPrice,
-    chainId,
-  );
-  const totalValue = transferQuote.totalFeeWei + burnQuote.totalFeeWei;
   const withdrawArgs = [
     wallet,
     amountWei,
-    transferQuote.totalFeeWei,
-    transferQuote.callbackFeeWei,
-    burnQuote.totalFeeWei,
-    burnQuote.callbackFeeWei,
+    withdrawQuote.portalFee,
+    withdrawQuote.transferTotalFee,
+    withdrawQuote.transferCallbackFee,
     deadline,
     withdrawPermit.v,
     withdrawPermit.r,
     withdrawPermit.s,
   ] as const;
   const withdrawOverrides: { value: bigint; gasPrice: bigint; gasLimit?: bigint } = {
-    value: totalValue,
+    value: withdrawQuote.msgValue,
     gasPrice: sharedGasPrice,
   };
   try {
