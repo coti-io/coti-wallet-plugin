@@ -18,7 +18,7 @@ export default defineConfig({
     alias: {
       '@coti-io/coti-sdk-typescript': path.resolve(__dirname, 'tests/__mocks__/coti-sdk.ts'),
       '@coti-io/coti-ethers': path.resolve(__dirname, 'tests/__mocks__/coti-ethers.ts'),
-      '@coti/pod-sdk': path.resolve(__dirname, 'tests/__mocks__/pod-sdk.ts'),
+      '@coti-io/pod-sdk': path.resolve(__dirname, 'tests/__mocks__/pod-sdk.ts'),
       '@rainbow-me/rainbowkit/wallets': path.resolve(__dirname, 'tests/__mocks__/rainbowkit-wallets.ts'),
       '@rainbow-me/rainbowkit': path.resolve(__dirname, 'tests/__mocks__/rainbowkit.ts'),
     },

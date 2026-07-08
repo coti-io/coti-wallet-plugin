@@ -1,5 +1,4 @@
 import type { ChainConfig, TokenConfig } from "./types";
-import { POD_TESTNET_INBOX_ADDRESS } from "./podInbox";
 
 export const COTI_TESTNET_CHAIN_ID = 7082400;
 export const COTI_MAINNET_CHAIN_ID = 2632500;
@@ -23,9 +22,6 @@ const cotiTokenConfigs = (supportedChainIds: number[]): TokenConfig[] => [
   { symbol: "p.NIGHT", name: "p.NIGHT", icon: "https://coti.io/icons/midnight.png", decimals: 6, isPrivate: true, addressKey: "p.NIGHT", bridgeAddressKey: "PrivacyBridgeNight", timeout: 1800, supportedChainIds },
 ];
 
-/** PoD inbox on COTI testnet (same deployment as Sepolia/Fuji). */
-export const COTI_TESTNET_POD_INBOX = POD_TESTNET_INBOX_ADDRESS;
-
 export const cotiTestnetChain: ChainConfig = {
   id: COTI_TESTNET_CHAIN_ID,
   hexId: "0x6c11a0",
@@ -34,7 +30,6 @@ export const cotiTestnetChain: ChainConfig = {
   explorerBaseUrl: "https://testnet.cotiscan.io",
   unlockStrategy: "snap",
   portalStrategy: "coti-bridge",
-  podInboxAddress: COTI_TESTNET_POD_INBOX,
   addresses: {
     PrivateCoti: "0x6cE8907414986E73De9e7D28d62Ea2080F8E88E1",
     PrivacyBridgeCotiNative: "0x96117882328407B13A5f378de25764C4eD8477eA",

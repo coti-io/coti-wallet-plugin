@@ -30,7 +30,7 @@ vi.mock('ethers', async (importOriginal) => {
   };
 });
 
-vi.mock('@coti/pod-sdk', () => ({
+vi.mock('@coti-io/pod-sdk', () => ({
   COTI_TESTNET_DEFAULT_INBOX_ADDRESS: '0x' + '0'.repeat(40),
   SEPOLIA_DEFAULT_INBOX_ADDRESS: '0x' + '0'.repeat(40),
   DataType: { String: 2 },
@@ -43,22 +43,26 @@ vi.mock('@coti/pod-sdk', () => ({
   },
 }));
 
-vi.mock('../../../src/chains/portal/executePodPortalTransaction', () => ({
+vi.mock('../../../src/chains/portal/podSdkConfig', () => ({
   getPodSdkConfig: vi.fn(() => ({
     encryptionNetwork: 'testnet',
     chains: [
-      { chainId: 11155111, inboxAddress: '0x' + '1'.repeat(40), rpcUrl: 'https://sepolia.test' },
-      { chainId: 7082400, inboxAddress: '0x' + '2'.repeat(40), rpcUrl: 'https://coti.test' },
+      { chainId: 11155111, inboxAddress: '0xAb625bE229F603f6BBF964474AFf6d5487e364De', rpcUrl: 'https://sepolia.test' },
+      { chainId: 7082400, inboxAddress: '0xAb625bE229F603f6BBF964474AFf6d5487e364De', rpcUrl: 'https://coti.test' },
     ],
   })),
 }));
 
-vi.mock('../../../src/chains/index', () => ({
-  getPublicTokensForChain: vi.fn(() => [{ symbol: 'MTT', bridgeAddressKey: 'PrivacyPortalMTT', decimals: 18, isPrivate: false }]),
-  getPrivateTokensForChain: vi.fn(() => [{ symbol: 'p.MTT', addressKey: 'p.MTT', decimals: 18 }]),
-  getRpcUrlForChain: vi.fn(() => 'https://rpc.test'),
-  getNetworkNameForChain: vi.fn((chainId: number) => (chainId === 11155111 ? 'Sepolia' : 'Unknown')),
-}));
+vi.mock('../../../src/chains/index', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../src/chains/index')>();
+  return {
+    ...actual,
+    getPublicTokensForChain: vi.fn(() => [{ symbol: 'MTT', bridgeAddressKey: 'PrivacyPortalMTT', decimals: 18, isPrivate: false }]),
+    getPrivateTokensForChain: vi.fn(() => [{ symbol: 'p.MTT', addressKey: 'p.MTT', decimals: 18 }]),
+    getRpcUrlForChain: vi.fn(() => 'https://rpc.test'),
+    getNetworkNameForChain: vi.fn((chainId: number) => (chainId === 11155111 ? 'Sepolia' : 'Unknown')),
+  };
+});
 
 vi.mock('../../../src/contracts/config', () => ({
   CONTRACT_ADDRESSES: {

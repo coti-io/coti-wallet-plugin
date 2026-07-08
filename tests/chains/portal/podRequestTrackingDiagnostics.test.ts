@@ -3,7 +3,7 @@ import {
   explainPodPendingReason,
   serializeTrackingResponse,
 } from '../../../src/chains/portal/podRequestTrackingDiagnostics';
-import type { RequestTrackingResponse } from '@coti/pod-sdk';
+import type { RequestTrackingResponse } from '@coti-io/pod-sdk';
 
 const baseTracking = (
   overrides: Partial<RequestTrackingResponse> = {},

@@ -1,5 +1,5 @@
-import type { RequestTrackingResponse } from "@coti/pod-sdk";
-import type { PodSdkConfig } from "@coti/pod-sdk";
+import type { RequestTrackingResponse } from "@coti-io/pod-sdk";
+import type { PodSdkConfig } from "@coti-io/pod-sdk";
 import { buildPodExplorerRequestUrl, type PodPortalRequest } from "../../contracts/pod";
 import { logger } from "../../lib/logger";
 

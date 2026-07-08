@@ -33,6 +33,12 @@ export interface WalletNetworkConfig {
   blockExplorerUrls: string[];
 }
 
+export interface PodFeeEstimationLimits {
+  forwardGasLimit: bigint;
+  callBackGasLimit: bigint;
+  callBackDataSize?: bigint;
+}
+
 export interface ChainIndexPageUi {
   /** Extra section below token cards (e.g. PoD request tracker on Sepolia). */
   showPodRequestTracker: boolean;
@@ -50,8 +56,6 @@ export interface ChainConfig {
   /** Secondary RPC endpoints tried when the primary {@link rpcUrl} is unavailable. */
   rpcFallbackUrls?: string[];
   explorerBaseUrl: string;
-  /** PoD inbox on this host chain (for fee quotes and request tracking). */
-  podInboxAddress?: string;
   /** PoDPriceOracle on this host chain (live USD prices; Band on Sepolia, Chainlink on Fuji). */
   priceOracleAddress?: string;
   addresses: Record<string, string>;
@@ -60,6 +64,11 @@ export interface ChainConfig {
   portalStrategy: PortalStrategy;
   walletNetwork: WalletNetworkConfig;
   getBridgeDataOverride?: (addresses: Record<string, string>) => BridgeData[];
+  /** Inbox fee estimation gas limits for PoD portal deposit/withdraw. */
+  podFeeEstimation?: {
+    deposit: PodFeeEstimationLimits;
+    withdraw: PodFeeEstimationLimits;
+  };
   /** Main Index page: which chrome and labels to show for this chain. */
   indexPage: ChainIndexPageUi;
 }

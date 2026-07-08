@@ -72,7 +72,8 @@ vi.mock('wagmi', () => ({
 }));
 
 const sib = vi.hoisted(() => ({
-  estimatePodPortalGasFeeDisplay: vi.fn(),
+  estimatePodPortalFees: vi.fn(),
+  quotePortalFeeOnly: vi.fn(),
   estimateCotiBridgeGasFeeDisplay: vi.fn(),
   executePodPortalTransaction: vi.fn(),
   signPodWithdrawPermit: vi.fn(),
@@ -83,8 +84,11 @@ const sib = vi.hoisted(() => ({
   getRpcUrlForChain: vi.fn(() => 'https://rpc.test'),
 }));
 
-vi.mock('../../src/chains/portal/podGasEstimate', () => ({
-  estimatePodPortalGasFeeDisplay: (...a: unknown[]) => sib.estimatePodPortalGasFeeDisplay(...a),
+vi.mock('../../src/chains/portal/podPortalFees', () => ({
+  estimatePodPortalFees: (...a: unknown[]) => sib.estimatePodPortalFees(...a),
+  quotePortalFeeOnly: (...a: unknown[]) => sib.quotePortalFeeOnly(...a),
+  formatPortalFeeDisplay: (fee: bigint) => fee.toString(),
+  formatPodFeeDisplay: (fee: bigint) => fee.toString(),
 }));
 vi.mock('../../src/chains/cotiBridgeGasEstimate', () => ({
   estimateCotiBridgeGasFeeDisplay: (...a: unknown[]) => sib.estimateCotiBridgeGasFeeDisplay(...a),
@@ -100,7 +104,6 @@ vi.mock('../../src/chains', () => ({
   getChainConfig: (...a: unknown[]) => sib.getChainConfig(...a),
   getPublicTokensForChain: (...a: unknown[]) => sib.getPublicTokensForChain(...a),
   getPrivateTokensForChain: (...a: unknown[]) => sib.getPrivateTokensForChain(...a),
-  getRpcUrlForChain: (...a: unknown[]) => sib.getRpcUrlForChain(...a),
   getExplorerBaseUrlForChain: vi.fn(() => 'https://explorer.test'),
   getNetworkNameForChain: vi.fn(() => 'testnet'),
 }));
@@ -345,7 +348,19 @@ beforeEach(() => {
   });
   sib.getPrivateTokensForChain.mockReturnValue([]);
   sib.estimateCotiBridgeGasFeeDisplay.mockResolvedValue('0.0005');
-  sib.estimatePodPortalGasFeeDisplay.mockResolvedValue('0.0009');
+  sib.estimatePodPortalFees.mockResolvedValue({
+    portalFeeDisplay: '0.01',
+    podFeeDisplay: '0.0009',
+    portalFeeWei: 10_000_000_000_000_000n,
+    podFeeEstimate: { totalFee: 900_000_000_000_000n, remoteFee: 400_000_000_000_000n, callBackFee: 500_000_000_000_000n },
+    gasPrice: 1_000_000_000n,
+    usedDynamicPricing: true,
+  });
+  sib.quotePortalFeeOnly.mockResolvedValue({
+    portalFee: 10_000_000_000_000_000n,
+    usedDynamicPricing: true,
+    gasPrice: 1_000_000_000n,
+  });
   snap.isSnapInstalled.mockResolvedValue(true);
   snap.decryptCtUint256ViaSnap.mockResolvedValue(3n * 10n ** 18n);
   snap.buildItUint256ViaSnap.mockResolvedValue({
@@ -1274,7 +1289,17 @@ describe('usePrivacyBridge - updateGasFee', () => {
     sib.getPublicTokensForChain.mockReturnValue([
       { symbol: 'MTT', isPrivate: false, addressKey: 'MTT', bridgeAddressKey: 'PrivacyPortalMTT', decimals: 18 },
     ]);
-    sib.estimatePodPortalGasFeeDisplay.mockResolvedValue('0.0009');
+    sib.getPrivateTokensForChain.mockReturnValue([
+      { symbol: 'p.MTT', isPrivate: true, addressKey: 'p.MTT', bridgeAddressKey: 'PrivacyPortalMTT', decimals: 18 },
+    ]);
+    sib.estimatePodPortalFees.mockResolvedValue({
+      portalFeeDisplay: '0.01',
+      podFeeDisplay: '0.0009',
+      portalFeeWei: 10_000_000_000_000_000n,
+      podFeeEstimate: { totalFee: 900_000_000_000_000n, remoteFee: 400_000_000_000_000n, callBackFee: 500_000_000_000_000n },
+      gasPrice: 1_000_000_000n,
+      usedDynamicPricing: true,
+    });
     vi.mocked(useAccount).mockReturnValue({
       connector: { getProvider: async () => ({ request: vi.fn() }) },
       address: WALLET,
@@ -1282,6 +1307,7 @@ describe('usePrivacyBridge - updateGasFee', () => {
     } as any);
     const props = makeProps({
       chainId: 11155111,
+      amount: '1',
       publicTokens: [{ symbol: 'MTT', name: 'MTT', balance: '0', isPrivate: false }],
     });
     const { result } = renderHook(() => usePrivacyBridge(props));
@@ -1289,6 +1315,7 @@ describe('usePrivacyBridge - updateGasFee', () => {
       await result.current.updateGasFee();
     });
     await waitFor(() => expect(result.current.estimatedGasFee).toBe('0.0009'));
+    expect(sib.estimatePodPortalFees).toHaveBeenCalled();
   });
 
   it('defaults the gas price when eth_gasPrice fails and survives estimator errors', async () => {

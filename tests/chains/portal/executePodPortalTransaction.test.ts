@@ -5,8 +5,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  *
  * `ethers` is mocked via `importOriginal` so that pure helpers (Interface,
  * parseUnits, Signature, ZeroHash) stay real while `Contract` is swapped for a
- * controllable stub whose methods are backed by hoisted spies. `@coti/pod-sdk`
- * is mocked locally so `PodContract.estimateFee` can be driven per-test.
+ * controllable stub whose methods are backed by hoisted spies. `@coti-io/pod-sdk`
+ * is mocked via vitest alias so `PodContract.estimateFee` can be driven per-test.
  */
 const h = vi.hoisted(() => ({
   balanceWithState: vi.fn(),
@@ -19,6 +19,8 @@ const h = vi.hoisted(() => ({
   requestWithdrawWithPermit: vi.fn(),
   estimateDepositFees: vi.fn(),
   estimateWithdrawFees: vi.fn(),
+  estimateGas: vi.fn(),
+  sendPodPortalMethod: vi.fn(),
 }));
 
 vi.mock('ethers', async (importOriginal) => {
@@ -41,27 +43,30 @@ vi.mock('ethers', async (importOriginal) => {
     requestWithdrawWithPermit = (...a: unknown[]) => h.requestWithdrawWithPermit(...a);
     estimateDepositFees = (...a: unknown[]) => h.estimateDepositFees(...a);
     estimateWithdrawFees = (...a: unknown[]) => h.estimateWithdrawFees(...a);
+    estimateGas = (...a: unknown[]) => h.estimateGas(...a);
   }
   return { ...actual, ethers: { ...actual.ethers, Contract: MockContract } };
 });
 
-vi.mock('@coti/pod-sdk', () => ({
-  COTI_TESTNET_DEFAULT_INBOX_ADDRESS: '0x' + '0'.repeat(40),
-  SEPOLIA_DEFAULT_INBOX_ADDRESS: '0x' + '0'.repeat(40),
-}));
+vi.mock('../../../src/chains/portal/podPortalFees', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../src/chains/portal/podPortalFees')>();
+  return {
+    ...actual,
+    sendPodPortalMethod: (...a: unknown[]) => h.sendPodPortalMethod(...a),
+  };
+});
 
 import { ethers } from 'ethers';
 import {
   executePodPortalTransaction,
   signPodWithdrawPermit,
   getSepoliaGasPrice,
-  quotePortalDepositFees,
-  quotePortalWithdrawFees,
+  quotePortalFeeOnly,
   getPodSdkConfig,
   type PodWithdrawPermit,
 } from '../../../src/chains/portal/executePodPortalTransaction';
 import { PRIVACY_PORTAL_ABI, SEPOLIA_CHAIN_ID } from '../../../src/contracts/pod';
-import { POD_TESTNET_INBOX_ADDRESS } from '../../../src/chains/podInbox';
+import { POD_INBOX_ADDRESS } from '../../../src/chains/podInbox';
 import { configureCotiPlugin } from '../../../src/config/plugin';
 import { logger } from '../../../src/lib/logger';
 
@@ -144,6 +149,11 @@ beforeEach(() => {
   h.balanceOfWithStatus.mockResolvedValue([0n, false]);
   h.estimateDepositFees.mockResolvedValue([100n, false, 2000n, 500n]);
   h.estimateWithdrawFees.mockResolvedValue([100n, false, 2000n, 500n]);
+  h.estimateGas.mockResolvedValue(500_000n);
+  h.sendPodPortalMethod.mockImplementation(async () => ({
+    hash: '0xdeposit',
+    wait: async () => ({ status: 1, blockNumber: 42, logs: [depositLog()] }),
+  }));
   h.name.mockResolvedValue('MTT');
   h.symbol.mockResolvedValue('p.MTT');
   h.nonces.mockResolvedValue(0n);
@@ -164,11 +174,12 @@ describe('getPodSdkConfig', () => {
     const cfg = getPodSdkConfig();
     expect(cfg.chains.every(c => c.inboxAddress.startsWith('0x'))).toBe(true);
     expect(cfg.chains.find(c => c.chainId === SEPOLIA_CHAIN_ID)?.inboxAddress).toBe(
-      POD_TESTNET_INBOX_ADDRESS,
+      POD_INBOX_ADDRESS,
     );
     expect(cfg.chains.find(c => c.chainId === 7082400)?.inboxAddress).toBe(
-      POD_TESTNET_INBOX_ADDRESS,
+      POD_INBOX_ADDRESS,
     );
+    expect(cfg.chains.every(c => c.inboxAddress === POD_INBOX_ADDRESS)).toBe(true);
   });
 
   it('falls back to chain default RPC URLs when not configured', () => {
@@ -187,34 +198,28 @@ describe('getSepoliaGasPrice', () => {
   });
 });
 
-describe('quotePortalDepositFees', () => {
-  it('returns portal and PoD inbox fees from estimateDepositFees', async () => {
+describe('quotePortalFeeOnly', () => {
+  it('returns portal fee from estimateDepositFees', async () => {
     const signer = makeSigner();
-    const quote = await quotePortalDepositFees(signer as never, PORTAL, 1000n);
+    const quote = await quotePortalFeeOnly(signer as never, PORTAL, 1000n, 'to-private');
     expect(quote.portalFee).toBe(100n);
     expect(quote.usedDynamicPricing).toBe(false);
-    expect(quote.mintTotalFee).toBe(2000n);
-    expect(quote.mintCallbackFee).toBe(500n);
-    expect(quote.msgValue).toBe(2100n);
+    expect(quote.gasPrice).toBe(1_000_000_000n);
+  });
+
+  it('returns portal fee from estimateWithdrawFees', async () => {
+    const signer = makeSigner();
+    const quote = await quotePortalFeeOnly(signer as never, PORTAL, 1000n, 'to-public');
+    expect(quote.portalFee).toBe(100n);
+    expect(quote.usedDynamicPricing).toBe(false);
     expect(quote.gasPrice).toBe(1_000_000_000n);
   });
 
   it('treats a runner without a .provider as the provider itself and honors an explicit gasPrice', async () => {
     const runner = makeProvider();
-    const quote = await quotePortalDepositFees(runner as never, PORTAL, 1000n, 5n);
+    const quote = await quotePortalFeeOnly(runner as never, PORTAL, 1000n, 'to-private', 5n);
     expect(quote.gasPrice).toBe(5n);
     expect(runner.send).not.toHaveBeenCalled();
-  });
-});
-
-describe('quotePortalWithdrawFees', () => {
-  it('returns portal and PoD inbox fees from estimateWithdrawFees', async () => {
-    const signer = makeSigner();
-    const quote = await quotePortalWithdrawFees(signer as never, PORTAL, 1000n);
-    expect(quote.portalFee).toBe(100n);
-    expect(quote.transferTotalFee).toBe(2000n);
-    expect(quote.transferCallbackFee).toBe(500n);
-    expect(quote.msgValue).toBe(2100n);
   });
 });
 
@@ -229,7 +234,7 @@ describe('executePodPortalTransaction - configuration guard', () => {
 describe('executePodPortalTransaction - deposit (to-private)', () => {
   it('submits a deposit and returns a source-mined request with the mint request id', async () => {
     const onProgress = vi.fn();
-    h.deposit.mockResolvedValue({
+    h.sendPodPortalMethod.mockResolvedValue({
       hash: '0xdeposit',
       wait: async () => ({ status: 1, blockNumber: 42, logs: [depositLog()] }),
     });
@@ -246,10 +251,11 @@ describe('executePodPortalTransaction - deposit (to-private)', () => {
     expect(result.request.requestId).toBe('0x' + '7'.repeat(64));
     expect(result.request.message).toContain('mint request submitted');
     expect(onProgress).toHaveBeenCalledWith('transfer-start', expect.any(String));
+    expect(h.sendPodPortalMethod).toHaveBeenCalled();
   });
 
   it('reports request id not found when the deposit log is absent', async () => {
-    h.deposit.mockResolvedValue({
+    h.sendPodPortalMethod.mockResolvedValue({
       hash: '0xdeposit',
       wait: async () => ({ status: 1, blockNumber: 42, logs: [] }),
     });
@@ -259,14 +265,14 @@ describe('executePodPortalTransaction - deposit (to-private)', () => {
   });
 
   it('throws when the deposit receipt has a non-success status', async () => {
-    h.deposit.mockResolvedValue({ hash: '0xdeposit', wait: async () => ({ status: 0, logs: [] }) });
+    h.sendPodPortalMethod.mockResolvedValue({ hash: '0xdeposit', wait: async () => ({ status: 0, logs: [] }) });
     await expect(
       executePodPortalTransaction({ ...baseParams(), txDirection: 'to-private' }),
     ).rejects.toThrow('PoD deposit transaction failed');
   });
 
   it('throws when the deposit receipt is null', async () => {
-    h.deposit.mockResolvedValue({ hash: '0xdeposit', wait: async () => null });
+    h.sendPodPortalMethod.mockResolvedValue({ hash: '0xdeposit', wait: async () => null });
     await expect(
       executePodPortalTransaction({ ...baseParams(), txDirection: 'to-private' }),
     ).rejects.toThrow('PoD deposit transaction failed');
@@ -364,7 +370,7 @@ describe('executePodPortalTransaction - pToken readiness', () => {
   it('falls back to balanceOfWithStatus when balanceWithState reverts', async () => {
     h.balanceWithState.mockRejectedValue(new Error('no balanceWithState'));
     h.balanceOfWithStatus.mockResolvedValue([0n, false]);
-    h.deposit.mockResolvedValue({
+    h.sendPodPortalMethod.mockResolvedValue({
       hash: '0xdeposit',
       wait: async () => ({ status: 1, blockNumber: 1, logs: [depositLog()] }),
     });
@@ -379,7 +385,7 @@ describe('executePodPortalTransaction - pToken readiness', () => {
       .mockRejectedValueOnce(new Error('flat decode failed'))
       .mockRejectedValueOnce(new Error('could not decode result data'))
       .mockResolvedValueOnce([0n, false]);
-    h.deposit.mockResolvedValue({
+    h.sendPodPortalMethod.mockResolvedValue({
       hash: '0xdeposit',
       wait: async () => ({ status: 1, blockNumber: 1, logs: [depositLog()] }),
     });
@@ -397,7 +403,7 @@ describe('executePodPortalTransaction - pToken readiness', () => {
       },
       false,
     ]);
-    h.deposit.mockResolvedValue({
+    h.sendPodPortalMethod.mockResolvedValue({
       hash: '0xdeposit',
       wait: async () => ({ status: 1, blockNumber: 1, logs: [depositLog()] }),
     });
@@ -431,7 +437,7 @@ describe('executePodPortalTransaction - event log parsing edge cases', () => {
       WALLET,
       1000n,
     ]);
-    h.deposit.mockResolvedValue({
+    h.sendPodPortalMethod.mockResolvedValue({
       hash: '0xdeposit',
       wait: async () => ({
         status: 1,
@@ -451,7 +457,7 @@ describe('executePodPortalTransaction - event log parsing edge cases', () => {
 describe('executePodPortalTransaction - withdraw (to-public)', () => {
   it('submits a withdraw with a valid permit and returns a source-mined request', async () => {
     const onProgress = vi.fn();
-    h.requestWithdrawWithPermit.mockResolvedValue({
+    h.sendPodPortalMethod.mockResolvedValue({
       hash: '0xwithdraw',
       wait: async () => ({ status: 1, blockNumber: 7, logs: [withdrawLog()] }),
     });
@@ -468,6 +474,7 @@ describe('executePodPortalTransaction - withdraw (to-public)', () => {
     expect(result.request.withdrawalId).toBe('0x' + '9'.repeat(64));
     expect(result.request.requestId).toBe('0x' + '8'.repeat(64));
     expect(onProgress).toHaveBeenCalledWith('transfer-start', expect.any(String));
+    expect(h.sendPodPortalMethod).toHaveBeenCalled();
   });
 
   it('throws when the withdraw permit is missing', async () => {
@@ -487,7 +494,7 @@ describe('executePodPortalTransaction - withdraw (to-public)', () => {
   });
 
   it('throws when the withdraw receipt is unsuccessful', async () => {
-    h.requestWithdrawWithPermit.mockResolvedValue({
+    h.sendPodPortalMethod.mockResolvedValue({
       hash: '0xwithdraw',
       wait: async () => ({ status: 0, logs: [] }),
     });

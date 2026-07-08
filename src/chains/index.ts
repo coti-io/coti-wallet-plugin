@@ -3,8 +3,8 @@ import {
   cotiTestnetChain,
   COTI_MAINNET_CHAIN_ID,
   COTI_TESTNET_CHAIN_ID,
-  COTI_TESTNET_POD_INBOX,
 } from "./coti";
+import { COTI_TESTNET_POD_INBOX, POD_INBOX_ADDRESS } from "./podInbox";
 import { sepoliaChain, SEPOLIA_CHAIN_ID } from "./sepolia";
 import { avalancheFujiChain, AVALANCHE_FUJI_CHAIN_ID } from "./avalancheFuji";
 import type {
@@ -20,6 +20,7 @@ export {
   COTI_MAINNET_CHAIN_ID,
   COTI_TESTNET_CHAIN_ID,
   COTI_TESTNET_POD_INBOX,
+  POD_INBOX_ADDRESS,
   SEPOLIA_CHAIN_ID,
   AVALANCHE_FUJI_CHAIN_ID,
 };
