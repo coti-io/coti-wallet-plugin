@@ -82,6 +82,7 @@ describe('PrivateUnlockProvider', () => {
     expect(mockRefreshPrivateBalances).toHaveBeenCalledWith({
       restoreOnly: true,
       onRestoreCancelled: expect.any(Function),
+      onProgress: expect.any(Function),
     });
     expect(onboardModalProps?.isOpen).toBe(true);
     expect(onboardModalProps?.currentStep).toBe('idle');
@@ -100,6 +101,7 @@ describe('PrivateUnlockProvider', () => {
     expect(mockRefreshPrivateBalances).toHaveBeenCalledWith({
       restoreOnly: true,
       onRestoreCancelled: expect.any(Function),
+      onProgress: expect.any(Function),
     });
     expect(pendingAction).toHaveBeenCalledTimes(1);
     expect(onboardModalProps?.isOpen).toBe(false);
