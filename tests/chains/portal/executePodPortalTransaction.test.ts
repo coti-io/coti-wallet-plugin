@@ -15,8 +15,10 @@ const h = vi.hoisted(() => ({
   nonces: vi.fn(),
   symbol: vi.fn(),
   deposit: vi.fn(),
+  depositNative: vi.fn(),
   requestWithdrawWithPermit: vi.fn(),
-  estimateFee: vi.fn(),
+  estimateDepositFees: vi.fn(),
+  estimateWithdrawFees: vi.fn(),
 }));
 
 vi.mock('ethers', async (importOriginal) => {
@@ -35,7 +37,10 @@ vi.mock('ethers', async (importOriginal) => {
     nonces = (...a: unknown[]) => h.nonces(...a);
     symbol = (...a: unknown[]) => h.symbol(...a);
     deposit = (...a: unknown[]) => h.deposit(...a);
+    depositNative = (...a: unknown[]) => h.depositNative(...a);
     requestWithdrawWithPermit = (...a: unknown[]) => h.requestWithdrawWithPermit(...a);
+    estimateDepositFees = (...a: unknown[]) => h.estimateDepositFees(...a);
+    estimateWithdrawFees = (...a: unknown[]) => h.estimateWithdrawFees(...a);
   }
   return { ...actual, ethers: { ...actual.ethers, Contract: MockContract } };
 });
@@ -43,11 +48,6 @@ vi.mock('ethers', async (importOriginal) => {
 vi.mock('@coti/pod-sdk', () => ({
   COTI_TESTNET_DEFAULT_INBOX_ADDRESS: '0x' + '0'.repeat(40),
   SEPOLIA_DEFAULT_INBOX_ADDRESS: '0x' + '0'.repeat(40),
-  DataType: { String: 2, uint256: 0, uint64: 1, string: 2 },
-  PodContract: class {
-    constructor(..._args: unknown[]) {}
-    estimateFee = (...a: unknown[]) => h.estimateFee(...a);
-  },
 }));
 
 import { ethers } from 'ethers';
@@ -55,7 +55,8 @@ import {
   executePodPortalTransaction,
   signPodWithdrawPermit,
   getSepoliaGasPrice,
-  quotePortalPodRequest,
+  quotePortalDepositFees,
+  quotePortalWithdrawFees,
   getPodSdkConfig,
   type PodWithdrawPermit,
 } from '../../../src/chains/portal/executePodPortalTransaction';
@@ -141,7 +142,8 @@ beforeEach(() => {
   localStorage.clear();
   h.balanceWithState.mockResolvedValue([0n, false, false]);
   h.balanceOfWithStatus.mockResolvedValue([0n, false]);
-  h.estimateFee.mockResolvedValue({ remoteFee: 1000n, callBackFee: 500n });
+  h.estimateDepositFees.mockResolvedValue([100n, false, 2000n, 500n]);
+  h.estimateWithdrawFees.mockResolvedValue([100n, false, 2000n, 500n]);
   h.name.mockResolvedValue('MTT');
   h.symbol.mockResolvedValue('p.MTT');
   h.nonces.mockResolvedValue(0n);
@@ -185,27 +187,34 @@ describe('getSepoliaGasPrice', () => {
   });
 });
 
-describe('quotePortalPodRequest', () => {
-  it('buffers the remote fee and resolves the gas price from the runner provider', async () => {
+describe('quotePortalDepositFees', () => {
+  it('returns portal and PoD inbox fees from estimateDepositFees', async () => {
     const signer = makeSigner();
-    const quote = await quotePortalPodRequest(signer as never, PORTAL, 'deposit', [
-      { value: WALLET },
-      { value: '1000' },
-      { value: '0', isCallBackFee: true },
-    ]);
-    // remoteFee 1000 * 20000 / 10000 = 2000; total = 2000 + 500
-    expect(quote.remoteFeeWei).toBe(2000n);
-    expect(quote.callbackFeeWei).toBe(500n);
-    expect(quote.totalFeeWei).toBe(2500n);
+    const quote = await quotePortalDepositFees(signer as never, PORTAL, 1000n);
+    expect(quote.portalFee).toBe(100n);
+    expect(quote.usedDynamicPricing).toBe(false);
+    expect(quote.mintTotalFee).toBe(2000n);
+    expect(quote.mintCallbackFee).toBe(500n);
+    expect(quote.msgValue).toBe(2100n);
     expect(quote.gasPrice).toBe(1_000_000_000n);
   });
 
   it('treats a runner without a .provider as the provider itself and honors an explicit gasPrice', async () => {
-    const runner = makeProvider(); // has .send but no .provider
-    const quote = await quotePortalPodRequest(runner as never, PORTAL, 'deposit', [{ value: WALLET }], 5n);
+    const runner = makeProvider();
+    const quote = await quotePortalDepositFees(runner as never, PORTAL, 1000n, 5n);
     expect(quote.gasPrice).toBe(5n);
-    // explicit gasPrice means send() is not used for the price
     expect(runner.send).not.toHaveBeenCalled();
+  });
+});
+
+describe('quotePortalWithdrawFees', () => {
+  it('returns portal and PoD inbox fees from estimateWithdrawFees', async () => {
+    const signer = makeSigner();
+    const quote = await quotePortalWithdrawFees(signer as never, PORTAL, 1000n);
+    expect(quote.portalFee).toBe(100n);
+    expect(quote.transferTotalFee).toBe(2000n);
+    expect(quote.transferCallbackFee).toBe(500n);
+    expect(quote.msgValue).toBe(2100n);
   });
 });
 

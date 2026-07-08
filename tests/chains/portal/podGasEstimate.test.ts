@@ -2,7 +2,22 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ethers } from 'ethers';
 
 const getSepoliaGasPrice = vi.fn(async () => 1_000_000_000n);
-const quotePortalPodRequest = vi.fn(async () => ({ totalFeeWei: 5_000n, callbackFeeWei: 1_000n }));
+const quotePortalDepositFees = vi.fn(async () => ({
+  portalFee: 100n,
+  usedDynamicPricing: false,
+  mintTotalFee: 4900n,
+  mintCallbackFee: 1000n,
+  msgValue: 5000n,
+  gasPrice: 1_000_000_000n,
+}));
+const quotePortalWithdrawFees = vi.fn(async () => ({
+  portalFee: 100n,
+  usedDynamicPricing: false,
+  transferTotalFee: 4900n,
+  transferCallbackFee: 1000n,
+  msgValue: 5000n,
+  gasPrice: 1_000_000_000n,
+}));
 const estimateGas = vi.fn(async () => 100000n);
 
 vi.mock('../../../src/chains/index', () => ({
@@ -11,7 +26,8 @@ vi.mock('../../../src/chains/index', () => ({
 
 vi.mock('../../../src/chains/portal/executePodPortalTransaction', () => ({
   getSepoliaGasPrice: (...args: unknown[]) => getSepoliaGasPrice(...(args as [])),
-  quotePortalPodRequest: (...args: unknown[]) => quotePortalPodRequest(...(args as [])),
+  quotePortalDepositFees: (...args: unknown[]) => quotePortalDepositFees(...(args as [])),
+  quotePortalWithdrawFees: (...args: unknown[]) => quotePortalWithdrawFees(...(args as [])),
 }));
 
 vi.spyOn(ethers.JsonRpcProvider.prototype, 'estimateGas').mockImplementation(estimateGas);
@@ -39,7 +55,22 @@ describe('estimatePodPortalGasFeeDisplay', () => {
     estimateGas.mockReset();
     estimateGas.mockResolvedValue(100000n);
     getSepoliaGasPrice.mockResolvedValue(1_000_000_000n);
-    quotePortalPodRequest.mockResolvedValue({ totalFeeWei: 5_000n, callbackFeeWei: 1_000n });
+    quotePortalDepositFees.mockResolvedValue({
+      portalFee: 100n,
+      usedDynamicPricing: false,
+      mintTotalFee: 4900n,
+      mintCallbackFee: 1000n,
+      msgValue: 5000n,
+      gasPrice: 1_000_000_000n,
+    });
+    quotePortalWithdrawFees.mockResolvedValue({
+      portalFee: 100n,
+      usedDynamicPricing: false,
+      transferTotalFee: 4900n,
+      transferCallbackFee: 1000n,
+      msgValue: 5000n,
+      gasPrice: 1_000_000_000n,
+    });
   });
 
   it('combines estimateGas gas cost with the PoD fee for deposits', async () => {
@@ -48,7 +79,7 @@ describe('estimatePodPortalGasFeeDisplay', () => {
       provider: makeProvider(),
       direction: 'to-private',
     });
-    expect(result).toBe(fmt(100000n * 1_000_000_000n + 5_000n));
+    expect(result).toBe(fmt(100000n * 1_000_000_000n + 5000n));
   });
 
   it('falls back to 850000 gas for deposits when estimateGas fails', async () => {
@@ -58,21 +89,31 @@ describe('estimatePodPortalGasFeeDisplay', () => {
       provider: makeProvider(),
       direction: 'to-private',
     });
-    expect(result).toBe(fmt(850000n * 1_000_000_000n + 5_000n));
+    expect(result).toBe(fmt(850000n * 1_000_000_000n + 5000n));
   });
 
-  it('sums both withdraw quotes with a 900000 gas constant for withdrawals', async () => {
+  it('uses a single withdraw quote with estimateGas for withdrawals', async () => {
     const result = await estimatePodPortalGasFeeDisplay({
       ...baseParams,
       provider: makeProvider(),
       direction: 'to-public',
     });
-    // transferQuote + burnQuote = 5000 + 5000 = 10000 PoD wei
-    expect(result).toBe(fmt(900000n * 1_000_000_000n + 10_000n));
+    expect(result).toBe(fmt(100000n * 1_000_000_000n + 5000n));
+    expect(quotePortalWithdrawFees).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to 900000 gas for withdrawals when estimateGas fails', async () => {
+    estimateGas.mockRejectedValue(new Error('estimate failed'));
+    const result = await estimatePodPortalGasFeeDisplay({
+      ...baseParams,
+      provider: makeProvider(),
+      direction: 'to-public',
+    });
+    expect(result).toBe(fmt(900000n * 1_000_000_000n + 5000n));
   });
 
   it('returns the static fallback when quoting throws', async () => {
-    quotePortalPodRequest.mockRejectedValue(new Error('not onboarded'));
+    quotePortalDepositFees.mockRejectedValue(new Error('not onboarded'));
     const result = await estimatePodPortalGasFeeDisplay({
       ...baseParams,
       provider: makeProvider(),
@@ -89,11 +130,11 @@ describe('estimatePodPortalGasFeeDisplay', () => {
       provider: makeProvider(),
       direction: 'to-private',
     });
-    expect(result).toBe(fmt(100000n * 1_000_000_000n + 5_000n));
+    expect(result).toBe(fmt(100000n * 1_000_000_000n + 5000n));
   });
 
   it('suppresses the logger warning when the quote error is a pending/untrusted state', async () => {
-    quotePortalPodRequest.mockRejectedValue(new Error('A PoD request is already pending'));
+    quotePortalDepositFees.mockRejectedValue(new Error('A PoD request is already pending'));
     const result = await estimatePodPortalGasFeeDisplay({
       ...baseParams,
       provider: makeProvider(),
@@ -103,7 +144,7 @@ describe('estimatePodPortalGasFeeDisplay', () => {
   });
 
   it('uses the 900000 withdraw fallback gas when a withdraw quote throws', async () => {
-    quotePortalPodRequest.mockRejectedValue(new Error('not onboarded'));
+    quotePortalWithdrawFees.mockRejectedValue(new Error('not onboarded'));
     const result = await estimatePodPortalGasFeeDisplay({
       ...baseParams,
       provider: makeProvider(),
@@ -113,7 +154,7 @@ describe('estimatePodPortalGasFeeDisplay', () => {
   });
 
   it('handles a non-Error thrown value from quoting (String(err) path)', async () => {
-    quotePortalPodRequest.mockRejectedValue('string failure');
+    quotePortalDepositFees.mockRejectedValue('string failure');
     const result = await estimatePodPortalGasFeeDisplay({
       ...baseParams,
       provider: makeProvider(),
@@ -124,7 +165,14 @@ describe('estimatePodPortalGasFeeDisplay', () => {
 
   it('returns "0" when the total native fee is zero', async () => {
     getSepoliaGasPrice.mockResolvedValue(0n);
-    quotePortalPodRequest.mockResolvedValue({ totalFeeWei: 0n, callbackFeeWei: 0n });
+    quotePortalDepositFees.mockResolvedValue({
+      portalFee: 0n,
+      usedDynamicPricing: false,
+      mintTotalFee: 0n,
+      mintCallbackFee: 0n,
+      msgValue: 0n,
+      gasPrice: 0n,
+    });
     estimateGas.mockResolvedValue(0n);
     const result = await estimatePodPortalGasFeeDisplay({
       ...baseParams,
