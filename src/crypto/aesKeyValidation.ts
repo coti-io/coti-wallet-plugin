@@ -7,15 +7,10 @@ import { guardedEthAccounts } from '../lib/metaMaskMobile';
 import { logger } from '../lib/logger';
 import type { EIP1193Provider } from '../lib/ethereum';
 import { CONTRACT_ADDRESSES, getPrivateTokensForChain, getPublicTokensForChain } from '../contracts/config';
-import { getChainConfig } from '../chains';
-import { getRpcUrlForChainId } from '../config/chains';
+import { withRpcFallback } from '../lib/rpcProvider';
 
 /** Fixed plaintext used for local encrypt/decrypt round-trip validation. */
 const ROUND_TRIP_TEST_VALUE = 0x0123456789abcdefn;
-
-const NESTED_BALANCE_ABI = [
-  'function balanceOf(address account) view returns (tuple(tuple(uint256 high, uint256 low) high, tuple(uint256 high, uint256 low) low))',
-];
 
 const FLAT_BALANCE_ABI = [
   'function balanceOf(address) view returns (tuple(uint256 ciphertextHigh, uint256 ciphertextLow))',
@@ -81,58 +76,14 @@ export async function assertMetaMaskActiveAccount(
   }
 }
 
-function isZeroNestedCiphertext(result: unknown): boolean {
-  if (!result || typeof result !== 'object') return true;
-  const record = result as Record<string, unknown>;
-  const high = record.high as Record<string, unknown> | undefined;
-  const low = record.low as Record<string, unknown> | undefined;
-  const arrayValue = result as unknown as ArrayLike<unknown>;
-  const hh = high?.high ?? (arrayValue[0] as ArrayLike<unknown> | undefined)?.[0];
-  const hl = high?.low ?? (arrayValue[0] as ArrayLike<unknown> | undefined)?.[1];
-  const lh = low?.high ?? (arrayValue[1] as ArrayLike<unknown> | undefined)?.[0];
-  const ll = low?.low ?? (arrayValue[1] as ArrayLike<unknown> | undefined)?.[1];
-  return [hh, hl, lh, ll].every(v => v === 0n || v === undefined);
-}
-
-function normalizeNestedCiphertext(result: unknown) {
-  const record = result as Record<string, unknown>;
-  const high = record.high as Record<string, unknown> | undefined;
-  const low = record.low as Record<string, unknown> | undefined;
-  const arrayValue = result as unknown as ArrayLike<unknown>;
-  return {
-    high: {
-      high: BigInt((high?.high ?? (arrayValue[0] as ArrayLike<unknown>)?.[0] ?? 0n) as bigint),
-      low: BigInt((high?.low ?? (arrayValue[0] as ArrayLike<unknown>)?.[1] ?? 0n) as bigint),
-    },
-    low: {
-      high: BigInt((low?.high ?? (arrayValue[1] as ArrayLike<unknown>)?.[0] ?? 0n) as bigint),
-      low: BigInt((low?.low ?? (arrayValue[1] as ArrayLike<unknown>)?.[1] ?? 0n) as bigint),
-    },
-  };
-}
-
 async function readEncryptedBalance(
   provider: ethers.JsonRpcProvider,
   tokenAddress: string,
   account: string,
-): Promise<{ isNested: boolean; value: unknown } | null> {
-  try {
-    const nestedContract = new ethers.Contract(tokenAddress, NESTED_BALANCE_ABI, provider);
-    const nested = await nestedContract.balanceOf(account);
-    const hasNestedShape =
-      (nested?.high?.high !== undefined && nested?.high?.low !== undefined) ||
-      (nested?.[0]?.[0] !== undefined && nested?.[0]?.[1] !== undefined);
-    if (hasNestedShape) {
-      return { isNested: true, value: nested };
-    }
-  } catch {
-    // fall through to flat ABI
-  }
-
+): Promise<unknown | null> {
   try {
     const flatContract = new ethers.Contract(tokenAddress, FLAT_BALANCE_ABI, provider);
-    const flat = await flatContract.balanceOf(account);
-    return { isNested: false, value: flat };
+    return await flatContract.balanceOf(account);
   } catch (error) {
     logger.warn('[validateAesKeyAgainstOnChainCiphertext] balanceOf read failed:', error);
     return null;
@@ -140,19 +91,12 @@ async function readEncryptedBalance(
 }
 
 function tryDecryptEncryptedBalance(
-  encrypted: { isNested: boolean; value: unknown },
+  encrypted: unknown,
   aesKey: string,
   decimals: number,
 ): boolean | null {
-  if (encrypted.isNested) {
-    if (isZeroNestedCiphertext(encrypted.value)) return null;
-    const normalized = normalizeNestedCiphertext(encrypted.value);
-    const decrypted = decryptCtUint256(normalized, aesKey, { decimals });
-    return decrypted !== null;
-  }
-
-  const record = encrypted.value as Record<string, unknown>;
-  const arrayValue = encrypted.value as ArrayLike<unknown>;
+  const record = encrypted as Record<string, unknown>;
+  const arrayValue = encrypted as ArrayLike<unknown>;
   const high = (record.ciphertextHigh ?? arrayValue[0] ?? 0n) as bigint;
   const low = (record.ciphertextLow ?? arrayValue[1] ?? 0n) as bigint;
   if (high === 0n && low === 0n) return null;
@@ -175,35 +119,36 @@ export async function validateAesKeyAgainstOnChainCiphertext(
 
   const privateTokenConfigs = getPrivateTokensForChain(chainId);
   const publicTokenConfigs = getPublicTokensForChain(chainId);
-  const chainCfg = getChainConfig(chainId);
-  const isPodChain = chainCfg?.portalStrategy === 'pod-privacy-portal';
-
-  const provider = new ethers.JsonRpcProvider(getRpcUrlForChainId(chainId), chainId);
 
   let sawNonZeroCiphertext = false;
+  let validated = false;
 
-  for (const token of privateTokenConfigs) {
-    if (!token.addressKey) continue;
-    const tokenAddress = addresses[token.addressKey];
-    if (!tokenAddress) continue;
+  await withRpcFallback(chainId, async provider => {
+    for (const token of privateTokenConfigs) {
+      if (!token.addressKey) continue;
+      const tokenAddress = addresses[token.addressKey];
+      if (!tokenAddress) continue;
 
-    const publicSymbol = token.symbol.replace(/^p\./, '');
-    const pubCfg = publicTokenConfigs.find(t => t.symbol === publicSymbol);
-    const isPlainBalance = !isPodChain && !!pubCfg?.isNative;
-    if (isPlainBalance) continue;
+      const publicSymbol = token.symbol.replace(/^p\./, '');
+      const pubCfg = publicTokenConfigs.find(t => t.symbol === publicSymbol);
+      if (!!pubCfg?.isNative) continue;
 
-    const encrypted = await readEncryptedBalance(provider, tokenAddress, account);
-    if (!encrypted) continue;
+      const encrypted = await readEncryptedBalance(provider, tokenAddress, account);
+      if (!encrypted) continue;
 
-    const decryptResult = tryDecryptEncryptedBalance(encrypted, aesKey, token.decimals ?? 18);
-    if (decryptResult === null) continue;
+      const decryptResult = tryDecryptEncryptedBalance(encrypted, aesKey, token.decimals ?? 18);
+      if (decryptResult === null) continue;
 
-    sawNonZeroCiphertext = true;
-    if (decryptResult) {
-      logger.log(`[validateAesKeyAgainstOnChainCiphertext] key validated via ${token.symbol}`);
-      return;
+      sawNonZeroCiphertext = true;
+      if (decryptResult) {
+        logger.log(`[validateAesKeyAgainstOnChainCiphertext] key validated via ${token.symbol}`);
+        validated = true;
+        return;
+      }
     }
-  }
+  });
+
+  if (validated) return;
 
   if (sawNonZeroCiphertext) {
     throw new CotiPluginError(
