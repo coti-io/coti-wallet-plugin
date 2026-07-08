@@ -147,6 +147,16 @@ describe('estimatePodExecutionGasWei', () => {
       isNativeDeposit: false,
       gasPrice: 1_000_000_000n,
       podFee: { totalFee: 2100n, remoteFee: 1600n, callBackFee: 500n },
+      withdrawPermit: {
+        wallet: WALLET,
+        pTokenAddress: '0x' + '2'.repeat(40),
+        portalAddress: PORTAL,
+        amountWei: '1000',
+        deadline: '999',
+        v: 27,
+        r: '0x' + '3'.repeat(64),
+        s: '0x' + '4'.repeat(64),
+      },
     });
     const call = h.estimateGas.mock.calls[0] as unknown[];
     expect(call[3]).toBe(2100n); // transferFee = remote + callback

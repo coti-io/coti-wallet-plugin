@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useAccount } from 'wagmi';
 import { ethers } from 'ethers';
 import { CONTRACT_ADDRESSES, ERC20_ABI } from '../../contracts/config';
@@ -32,6 +32,7 @@ export interface UsePrivacyBridgeAllowanceOptions {
   setToastState: React.Dispatch<React.SetStateAction<ToastState>>;
   /** In-memory session AES key — avoids Snap/provider calls when available. */
   sessionAesKey?: string | null;
+  chainId?: number;
 }
 
 /** ERC20 / encrypted private token allowance checks and approvals. */
@@ -45,11 +46,64 @@ export const usePrivacyBridgeAllowance = ({
   hasSnap,
   setToastState,
   sessionAesKey,
+  chainId,
 }: UsePrivacyBridgeAllowanceOptions) => {
   const [allowance, setAllowance] = useState<string>('0');
   const [isApproving, setIsApproving] = useState(false);
   const [podWithdrawPermit, setPodWithdrawPermit] = useState<PodWithdrawPermit | null>(null);
+  /** Synchronous store so transfer can run in the same tick as approve (before React re-renders). */
+  const podWithdrawPermitRef = useRef<PodWithdrawPermit | null>(null);
   const { decryptCtUint256ViaSnap, buildItUint256ViaSnap } = useSnap();
+
+  const clearPodWithdrawPermit = useCallback(() => {
+    podWithdrawPermitRef.current = null;
+    setPodWithdrawPermit(null);
+  }, []);
+
+  useEffect(() => {
+    clearPodWithdrawPermit();
+  }, [walletAddress, clearPodWithdrawPermit]);
+
+  const getPodWithdrawPermit = useCallback(
+    (): PodWithdrawPermit | null => podWithdrawPermitRef.current ?? podWithdrawPermit,
+    [podWithdrawPermit],
+  );
+
+  const isPodWithdrawPermitStale = useCallback((
+    permit: PodWithdrawPermit | null,
+    token: Token | undefined,
+    activeChainId?: number,
+  ): boolean => {
+    if (!permit || !walletAddress || !token) return true;
+    try {
+      const decimals = token.decimals ?? 18;
+      const amountWei = ethers.parseUnits(amount || '0', decimals).toString();
+      if (permit.wallet.toLowerCase() !== walletAddress.toLowerCase()) return true;
+      if (permit.amountWei !== amountWei) return true;
+
+      const resolvedChainId = activeChainId ?? chainId;
+      if (!resolvedChainId) return false;
+
+      const addresses = CONTRACT_ADDRESSES[resolvedChainId];
+      const pubCfg = getPublicTokensForChain(resolvedChainId).find(
+        t => t.symbol === token.symbol && !t.isPrivate,
+      );
+      const privCfg = getPrivateTokensForChain(resolvedChainId).find(
+        t => t.symbol === `p.${token.symbol.replace(/^p\./, '')}`,
+      );
+      const resolved = pubCfg && addresses
+        ? resolvePodPortalAddresses({ addresses, pubCfg, privCfg })
+        : null;
+      if (!resolved) return true;
+
+      return (
+        permit.portalAddress.toLowerCase() !== resolved.portalAddress.toLowerCase()
+        || permit.pTokenAddress.toLowerCase() !== resolved.pTokenAddress.toLowerCase()
+      );
+    } catch {
+      return true;
+    }
+  }, [amount, chainId, walletAddress]);
 
   // The wagmi connector for the wallet the user actually selected (Rabby, MetaMask, etc.).
   // We resolve the EIP-1193 provider from this connector instead of reading window.ethereum,
@@ -361,6 +415,7 @@ export const usePrivacyBridgeAllowance = ({
                         chainId: currentChainId,
                         tokenSymbol: token.symbol,
                     });
+                    podWithdrawPermitRef.current = permit;
                     setPodWithdrawPermit(permit);
                     setIsApproving(false);
                     setToastState(prev => ({ ...prev, visible: false }));
@@ -522,17 +577,7 @@ export const usePrivacyBridgeAllowance = ({
         }
 
         if (direction === 'to-public' && token?.bridgeAddressKey?.startsWith('PrivacyPortal')) {
-            if (!podWithdrawPermit || !walletAddress) return true;
-            try {
-                const decimals = token.decimals ?? 18;
-                const amountWei = ethers.parseUnits(amount || '0', decimals).toString();
-                return (
-                    podWithdrawPermit.wallet.toLowerCase() !== walletAddress.toLowerCase() ||
-                    podWithdrawPermit.amountWei !== amountWei
-                );
-            } catch {
-                return true;
-            }
+            return isPodWithdrawPermitStale(podWithdrawPermit, token, chainId);
         }
 
         const amountNum = parseFloat(amount || '0');
@@ -547,5 +592,7 @@ export const usePrivacyBridgeAllowance = ({
     isApprovalNeeded,
     podWithdrawPermit,
     setPodWithdrawPermit,
+    getPodWithdrawPermit,
+    clearPodWithdrawPermit,
   };
 };
