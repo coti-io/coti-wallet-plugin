@@ -5,7 +5,6 @@ import { PrivateUnlockProvider, usePrivateUnlock } from '../../src/context/priva
 
 const mockRefreshPrivateBalances = vi.fn();
 const mockLockPrivateBalances = vi.fn();
-const mockUnlockCachedAesKey = vi.fn();
 const mockHandleConnect = vi.fn();
 const mockRequestSnapConnection = vi.fn();
 let mockSessionAesKey: string | null = null;
@@ -22,7 +21,6 @@ vi.mock('../../src/context/privacyBridge/contexts', () => ({
   usePrivacyBridgeUnlock: () => ({
     isPrivateUnlocked: mockIsPrivateUnlocked,
     sessionAesKey: mockSessionAesKey,
-    unlockCachedAesKey: mockUnlockCachedAesKey,
     sendPrivateToken: vi.fn(),
     refreshPrivateBalances: mockRefreshPrivateBalances,
     lockPrivateBalances: mockLockPrivateBalances,
@@ -70,7 +68,6 @@ describe('PrivateUnlockProvider', () => {
     mockSessionAesKey = null;
     mockIsPrivateUnlocked = false;
     onboardModalProps = null;
-    mockUnlockCachedAesKey.mockRejectedValue(new Error('No cached AES key'));
     mockRefreshPrivateBalances.mockResolvedValue(false);
     mockRequestSnapConnection.mockResolvedValue(false);
   });
@@ -90,8 +87,8 @@ describe('PrivateUnlockProvider', () => {
     expect(onboardModalProps?.currentStep).toBe('idle');
   });
 
-  it('runs pending action after silent cached-key restore without opening modal', async () => {
-    mockUnlockCachedAesKey.mockResolvedValueOnce(undefined);
+  it('runs pending action after restore-only unlock without opening modal', async () => {
+    mockRefreshPrivateBalances.mockResolvedValueOnce(true);
     const pendingAction = vi.fn();
 
     const { result } = renderHook(() => usePrivateUnlock(), { wrapper });
@@ -100,8 +97,10 @@ describe('PrivateUnlockProvider', () => {
       await result.current.requireUnlock(pendingAction);
     });
 
-    expect(mockUnlockCachedAesKey).toHaveBeenCalledTimes(1);
-    expect(mockRefreshPrivateBalances).not.toHaveBeenCalled();
+    expect(mockRefreshPrivateBalances).toHaveBeenCalledWith({
+      restoreOnly: true,
+      onRestoreCancelled: expect.any(Function),
+    });
     expect(pendingAction).toHaveBeenCalledTimes(1);
     expect(onboardModalProps?.isOpen).toBe(false);
   });

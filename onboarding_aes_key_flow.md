@@ -14,7 +14,7 @@ Application UI should use the provider-level private unlock controller:
 </PrivacyBridgeProvider>
 ```
 
-Then call `usePrivateUnlock().unlock()`, `usePrivateUnlock().lock()`, or `usePrivateUnlock().requireUnlock(action)` from app components. Do not orchestrate unlock directly with `unlockCachedAesKey()`, `refreshPrivateBalances({ restoreOnly: true })`, or a locally owned `OnboardModal`.
+Then call `usePrivateUnlock().unlock()`, `usePrivateUnlock().lock()`, or `usePrivateUnlock().requireUnlock(action)` from app components. Do not orchestrate unlock directly with `refreshPrivateBalances({ restoreOnly: true })` or a locally owned `OnboardModal`.
 
 ## Routes
 
@@ -74,7 +74,7 @@ Manual AES key input uses the same encrypted backup helper as contract onboardin
 2. Encrypted backups are optional and host-defined through `configureCotiPlugin`.
 3. Backup restore requires a wallet signature, so a stored blob alone is not enough to recover the AES key.
 4. Manual AES key input is session-only unless the host separately persists it.
-5. Locking private balances hides balances but keeps the session AES key in memory for the browser session, so `usePrivateUnlock().unlock()` can silently restore after lock without reopening onboarding.
+5. Locking private balances clears plaintext session AES state and hides balances. Snap keys and encrypted backups remain intact for the next unlock.
 
 ## Error Handling
 

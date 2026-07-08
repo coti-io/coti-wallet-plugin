@@ -4,7 +4,6 @@ import { usePrivateUnlockFlow } from '../../src/hooks/usePrivateUnlockFlow';
 
 const mockRefreshPrivateBalances = vi.fn();
 const mockLockPrivateBalances = vi.fn();
-const mockUnlockCachedAesKey = vi.fn();
 const mockHandleConnect = vi.fn();
 const mockRequestSnapConnection = vi.fn();
 let mockWalletType = 'rabby';
@@ -15,7 +14,6 @@ vi.mock('../../src/context/privacyBridge/contexts', () => ({
   usePrivacyBridgeUnlock: () => ({
     isPrivateUnlocked: false,
     sessionAesKey: mockSessionAesKey,
-    unlockCachedAesKey: mockUnlockCachedAesKey,
     sendPrivateToken: vi.fn(),
     refreshPrivateBalances: mockRefreshPrivateBalances,
     lockPrivateBalances: mockLockPrivateBalances,
@@ -57,7 +55,6 @@ describe('usePrivateUnlockFlow', () => {
     mockWalletType = 'rabby';
     mockIsMetaMaskWithSnap = false;
     mockSessionAesKey = null;
-    mockUnlockCachedAesKey.mockRejectedValue(new Error('No cached AES key'));
     mockRefreshPrivateBalances.mockResolvedValue(false);
     mockRequestSnapConnection.mockResolvedValue(false);
   });

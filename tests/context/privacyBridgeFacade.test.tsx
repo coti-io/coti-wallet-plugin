@@ -38,6 +38,7 @@ const h = vi.hoisted(() => ({
 
 vi.mock('wagmi', () => ({
   useAccount: () => h.wagmi,
+  useConfig: () => ({ setState: vi.fn() }),
   useDisconnect: () => ({ disconnect: h.disconnect }),
   useConnectorClient: () => ({ data: undefined }),
   useSwitchChain: () => ({ switchChain: vi.fn() }),
@@ -173,7 +174,6 @@ describe('privacyBridge facade', () => {
         requestSnapConnection: async () => false,
         checkSnapStatus: async () => false,
         isPrivateUnlocked: false,
-        unlockCachedAesKey: async () => undefined,
         sendPrivateToken: async () => ({ txHash: '0x1' }),
         refreshPrivateBalances: async () => false,
         lockPrivateBalances: () => undefined,
