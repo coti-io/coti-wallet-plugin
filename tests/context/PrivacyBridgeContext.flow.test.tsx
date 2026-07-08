@@ -82,6 +82,7 @@ vi.mock('wagmi', () => ({
     }, []);
     return h.wagmi;
   },
+  useConfig: () => ({}),
   useDisconnect: () => ({ disconnect: h.disconnect }),
   useConnectorClient: () => ({ data: undefined }),
   useSwitchChain: () => ({ switchChain: vi.fn() }),
@@ -718,7 +719,19 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
       expect(latest!.sessionAesKey).toBe('B'.repeat(32));
     });
 
-    it('unlockCachedAesKey loads vault key and refreshes balances', async () => {
+    it('unlockCachedAesKey reuses session key without re-onboarding', async () => {
+      await connectWagmi();
+      await act(async () => {
+        h.balanceUpdater.params?.setSessionAesKey('c'.repeat(32), WALLET_A);
+      });
+      await act(async () => {
+        await latest!.unlockCachedAesKey();
+      });
+      expect(latest!.sessionAesKey).toBe('c'.repeat(32));
+      expect(latest!.isPrivateUnlocked).toBe(true);
+    });
+
+    it('unlockCachedAesKey throws after lock clears session', async () => {
       await connectWagmi();
       await act(async () => {
         h.balanceUpdater.params?.setSessionAesKey('c'.repeat(32), WALLET_A);
@@ -726,11 +739,8 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
       act(() => {
         latest!.lockPrivateBalances();
       });
-      await act(async () => {
-        await latest!.unlockCachedAesKey();
-      });
-      expect(latest!.sessionAesKey).toBe('c'.repeat(32));
-      expect(latest!.isPrivateUnlocked).toBe(true);
+      expect(latest!.sessionAesKey).toBeNull();
+      await expect(latest!.unlockCachedAesKey()).rejects.toThrow('No cached AES key');
     });
 
     it('unlockCachedAesKey throws when no cached key exists', async () => {
@@ -809,9 +819,6 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
       await connectWagmi(WALLET_A, 11155111);
       await act(async () => {
         h.balanceUpdater.params?.setSessionAesKey('c'.repeat(32), WALLET_A);
-      });
-      act(() => {
-        latest!.lockPrivateBalances();
       });
       await act(async () => {
         await latest!.unlockCachedAesKey();
@@ -1018,10 +1025,11 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
       await act(async () => {
         h.balanceUpdater.params?.setSessionAesKey('g'.repeat(32), WALLET_A);
       });
+      expect(latest!.sessionAesKey).toBe('g'.repeat(32));
       act(() => {
         latest!.lockPrivateBalances();
       });
-      expect(latest!.sessionAesKey).toBe('g'.repeat(32));
+      expect(latest!.sessionAesKey).toBeNull();
       expect(latest!.isPrivateUnlocked).toBe(false);
       expect(h.snap.clearSnapCache).not.toHaveBeenCalled();
     });

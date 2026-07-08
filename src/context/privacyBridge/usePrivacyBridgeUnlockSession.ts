@@ -468,12 +468,11 @@ export const usePrivacyBridgeUnlockSession = ({
   ]);
 
   const lockPrivateBalances = () => {
-    logger.log('Locking private balances (AES key preserved in session for re-unlock)');
+    logger.log('Locking private balances (clearing session AES key)');
     setArePrivateBalancesHidden(true);
-    // NOTE: We intentionally do NOT clear sessionAesKey here.
-    // The key stays in React state for the lifetime of the browser session so the
-    // user can unlock again without going through onboarding.  The key is only
-    // discarded on wallet disconnect or an AES_KEY_MISMATCH error.
+    setSessionAesKey(null);
+    if (walletAddress) clearAesKeyValidatedForUnlock(walletAddress);
+    // Snap-stored key is left intact; unlock re-routes via Snap / backup / onboard.
     setPrivateTokens(getInitialPrivateTokens(currentChainId));
   };
 
