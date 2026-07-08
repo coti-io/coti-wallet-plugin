@@ -19,7 +19,7 @@ export default defineConfig({
     'wagmi',
     '@coti-io/coti-sdk-typescript',
     '@coti-io/coti-ethers',
-    '@coti/pod-sdk',
+    '@coti-io/pod-sdk',
     '@metamask/providers',
     '@rainbow-me/rainbowkit',
     '@rainbow-me/rainbowkit/wallets',

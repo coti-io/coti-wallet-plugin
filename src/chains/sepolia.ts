@@ -1,5 +1,4 @@
 import type { ChainConfig } from "./types";
-import { POD_TESTNET_INBOX_ADDRESS } from "./podInbox";
 
 export const SEPOLIA_CHAIN_ID = 11155111;
 
@@ -27,7 +26,10 @@ export const sepoliaChain: ChainConfig = {
   explorerBaseUrl: "https://eth-sepolia.blockscout.com",
   unlockStrategy: "manual-aes-key",
   portalStrategy: "pod-privacy-portal",
-  podInboxAddress: POD_TESTNET_INBOX_ADDRESS,
+  podFeeEstimation: {
+    deposit: { forwardGasLimit: 850_000n, callBackGasLimit: 2_000_000n },
+    withdraw: { forwardGasLimit: 900_000n, callBackGasLimit: 2_000_000n },
+  },
   priceOracleAddress: "0x7eecdceec31d285aee99c7960b405f63593903d1",
   addresses: {
     MTT,

@@ -1,5 +1,5 @@
 import { ethers } from "ethers";
-import { PodRequest } from "@coti/pod-sdk";
+import { PodRequest } from "@coti-io/pod-sdk";
 import {
   COTI_TESTNET_CHAIN_ID,
   SEPOLIA_CHAIN_ID,
@@ -10,7 +10,7 @@ import {
 } from "../../contracts/pod";
 import { loadPodRequests } from "../../pod/podPortalRequestsStorage";
 import { AVALANCHE_FUJI_CHAIN_ID } from "../index";
-import type { PodSdkConfig } from "@coti/pod-sdk";
+import type { PodSdkConfig } from "@coti-io/pod-sdk";
 
 const TERMINAL_POD_REQUEST_STATUSES = new Set<PodPortalRequest["status"]>([
   "succeeded",
@@ -186,7 +186,7 @@ const enrichWithPodTracking = async (
   if (!candidate.requestId || !candidate.chainId) return candidate;
 
   try {
-    const { getPodSdkConfig } = await import("./executePodPortalTransaction");
+    const { getPodSdkConfig } = await import("./podSdkConfig");
     const tracker = new PodRequest(getPodSdkConfig() as PodSdkConfig);
     const tracking = await tracker.trackRequest(candidate.chainId, candidate.requestId);
     const stillInFlight = isPodRequestStillInFlight(candidate.kind, tracking);

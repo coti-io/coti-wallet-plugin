@@ -31,6 +31,7 @@ export {
   COTI_MAINNET_CHAIN_ID,
   COTI_TESTNET_CHAIN_ID,
   COTI_TESTNET_POD_INBOX,
+  POD_INBOX_ADDRESS,
   SEPOLIA_CHAIN_ID,
   ETHEREUM_MAINNET_CHAIN_ID,
   COTI_MAINNET_RPC,
@@ -74,10 +75,20 @@ export {
 export type { PodPortalRequest, PodPortalRequestStatus, PodBalanceState, PodBalanceTrustState } from './contracts/pod';
 export { loadPodRequests, savePodRequests, podRequestsStorageKey } from './pod/podPortalRequestsStorage';
 export { estimateCotiBridgeGasFeeDisplay } from './chains/cotiBridgeGasEstimate';
-export { estimatePodPortalGasFeeDisplay } from './chains/portal/podGasEstimate';
 export { resolvePodRequestStatus } from './chains/portal/podRequestStatus';
-export { executePodPortalTransaction, signPodWithdrawPermit, getPodInboxAddress, getPodSdkConfig, getSepoliaGasPrice, quotePortalDepositFees, quotePortalWithdrawFees, quotePortalPodRequest } from './chains/portal/executePodPortalTransaction';
-export type { PodWithdrawPermit, PortalDepositFeeQuote, PortalWithdrawFeeQuote } from './chains/portal/executePodPortalTransaction';
+export {
+  executePodPortalTransaction,
+  signPodWithdrawPermit,
+  getPodInboxAddress,
+  getPodSdkConfig,
+  getPodGasPrice,
+  getSepoliaGasPrice,
+  quotePortalFeeOnly,
+  estimatePodPortalFees,
+  formatPortalFeeDisplay,
+  formatPodFeeDisplay,
+} from './chains/portal/executePodPortalTransaction';
+export type { PodWithdrawPermit } from './chains/portal/executePodPortalTransaction';
 export { fetchPodOracleTokenUsdPrice, POD_PRICE_ORACLE_ABI } from './chains/podPriceOracle';
 
 // Contracts

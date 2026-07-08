@@ -1,8 +1,6 @@
 import { ethers } from "ethers";
-import { type PodSdkConfig } from "@coti/pod-sdk";
-import { COTI_TESTNET_CHAIN_ID, PRIVACY_PORTAL_ABI, POD_PTOKEN_ABI, SEPOLIA_CHAIN_ID, type PodPortalRequest } from "../../contracts/pod";
+import { PRIVACY_PORTAL_ABI, POD_PTOKEN_ABI, SEPOLIA_CHAIN_ID, type PodPortalRequest } from "../../contracts/pod";
 import type { SwapProgressStage } from "../../hooks/usePrivacyBridge";
-import { getPluginConfig, type CotiPluginConfig } from "../../config/plugin";
 import { logger } from "../../lib/logger";
 import {
   diagnoseBlockingPodRequest,
@@ -10,115 +8,27 @@ import {
   summarizeInFlightLocalPodRequests,
   type BlockingPodRequestDiagnostics,
 } from "./podPTokenBlockingDiagnostics";
-import { AVALANCHE_FUJI_CHAIN_ID, getChainConfig, getRpcUrlForChain } from "../index";
+import { getChainConfig } from "../index";
+import {
+  buildPodMethodArgs,
+  getPodGasPrice,
+  quotePortalFeeOnly,
+  resolvePodPortalMethod,
+  sendPodPortalMethod,
+  type PodWithdrawPermit,
+} from "./podPortalFees";
 
-/** Source/target chains registered for PoD portal cross-chain tracking. */
-const POD_TRACKING_CHAIN_ORDER = [
-  SEPOLIA_CHAIN_ID,
-  AVALANCHE_FUJI_CHAIN_ID,
-  COTI_TESTNET_CHAIN_ID,
-] as const;
-
-export type PortalDepositFeeQuote = {
-  portalFee: bigint;
-  usedDynamicPricing: boolean;
-  mintTotalFee: bigint;
-  mintCallbackFee: bigint;
-  msgValue: bigint;
-  gasPrice: bigint;
-};
-
-export type PortalWithdrawFeeQuote = {
-  portalFee: bigint;
-  usedDynamicPricing: boolean;
-  transferTotalFee: bigint;
-  transferCallbackFee: bigint;
-  msgValue: bigint;
-  gasPrice: bigint;
-};
-
-const resolveFeeRunnerProvider = (runner: ethers.ContractRunner): ethers.BrowserProvider =>
-  "provider" in runner && runner.provider
-    ? runner.provider as ethers.BrowserProvider
-    : runner as ethers.BrowserProvider;
-
-export const quotePortalDepositFees = async (
-  runner: ethers.ContractRunner,
-  portalAddress: string,
-  amount: bigint,
-  gasPrice?: bigint,
-): Promise<PortalDepositFeeQuote> => {
-  const provider = resolveFeeRunnerProvider(runner);
-  const resolvedGasPrice = gasPrice ?? await getSepoliaGasPrice(provider);
-  const portal = new ethers.Contract(portalAddress, PRIVACY_PORTAL_ABI, runner);
-  const [portalFee, usedDynamicPricing, mintTotalFee, mintCallbackFee] = await portal.estimateDepositFees(amount);
-  const portalFeeWei = BigInt(portalFee.toString());
-  const mintTotalFeeWei = BigInt(mintTotalFee.toString());
-  return {
-    portalFee: portalFeeWei,
-    usedDynamicPricing: Boolean(usedDynamicPricing),
-    mintTotalFee: mintTotalFeeWei,
-    mintCallbackFee: BigInt(mintCallbackFee.toString()),
-    msgValue: portalFeeWei + mintTotalFeeWei,
-    gasPrice: resolvedGasPrice,
-  };
-};
-
-export const quotePortalWithdrawFees = async (
-  runner: ethers.ContractRunner,
-  portalAddress: string,
-  amount: bigint,
-  gasPrice?: bigint,
-): Promise<PortalWithdrawFeeQuote> => {
-  const provider = resolveFeeRunnerProvider(runner);
-  const resolvedGasPrice = gasPrice ?? await getSepoliaGasPrice(provider);
-  const portal = new ethers.Contract(portalAddress, PRIVACY_PORTAL_ABI, runner);
-  const [portalFee, usedDynamicPricing, transferTotalFee, transferCallbackFee] =
-    await portal.estimateWithdrawFees(amount);
-  const portalFeeWei = BigInt(portalFee.toString());
-  const transferTotalFeeWei = BigInt(transferTotalFee.toString());
-  return {
-    portalFee: portalFeeWei,
-    usedDynamicPricing: Boolean(usedDynamicPricing),
-    transferTotalFee: transferTotalFeeWei,
-    transferCallbackFee: BigInt(transferCallbackFee.toString()),
-    msgValue: portalFeeWei + transferTotalFeeWei,
-    gasPrice: resolvedGasPrice,
-  };
-};
-
-export const getPodInboxAddress = (chainId: number): string => {
-  const inbox = getChainConfig(chainId)?.podInboxAddress?.trim();
-  if (!inbox) {
-    throw new Error(`PoD inbox address is not configured for chain ${chainId}`);
-  }
-  return inbox;
-};
-
-const resolvePodChainRpcUrl = (chainId: number, pluginConfig: CotiPluginConfig): string => {
-  if (chainId === SEPOLIA_CHAIN_ID && pluginConfig.sepoliaRpcUrl) {
-    return pluginConfig.sepoliaRpcUrl;
-  }
-  if (chainId === COTI_TESTNET_CHAIN_ID && pluginConfig.cotiTestnetRpcUrl) {
-    return pluginConfig.cotiTestnetRpcUrl;
-  }
-  return getRpcUrlForChain(chainId);
-};
-
-export const getPodSdkConfig = (): PodSdkConfig => {
-  const pluginConfig = getPluginConfig();
-  return {
-    encryptionNetwork: "testnet",
-    chains: POD_TRACKING_CHAIN_ORDER.map(chainId => ({
-      chainId,
-      inboxAddress: getPodInboxAddress(chainId),
-      rpcUrl: resolvePodChainRpcUrl(chainId, pluginConfig),
-    })),
-  };
-};
-
-/** @deprecated Use getPodSdkConfig() for fresh RPC URLs from plugin config. */
-export const podSdkConfig: PodSdkConfig = getPodSdkConfig();
+export type { PodWithdrawPermit } from "./podPortalFees";
+export { getPodInboxAddress, getPodSdkConfig, podSdkConfig } from "./podSdkConfig";
+export {
+  getPodGasPrice,
+  getSepoliaGasPrice,
+  quotePortalFeeOnly,
+  formatPortalFeeDisplay,
+  formatPodFeeDisplay,
+  estimatePodFee,
+  estimatePodPortalFees,
+} from "./podPortalFees";
 
 const getErrorMessage = (error: unknown) =>
   error && typeof error === "object" && "message" in error && typeof error.message === "string"
@@ -196,25 +106,6 @@ const splitSignature = (signature: string) => {
   const parsed = ethers.Signature.from(signature);
   return { v: parsed.v, r: parsed.r, s: parsed.s };
 };
-
-export interface PodWithdrawPermit {
-  wallet: string;
-  pTokenAddress: string;
-  portalAddress: string;
-  amountWei: string;
-  deadline: string;
-  v: number;
-  r: string;
-  s: string;
-}
-
-export const getSepoliaGasPrice = async (provider: ethers.BrowserProvider | ethers.JsonRpcProvider) => {
-  const gasPriceHex = await provider.send("eth_gasPrice", []);
-  return BigInt(gasPriceHex);
-};
-
-/** @deprecated Use quotePortalDepositFees or quotePortalWithdrawFees for upgraded portal contracts. */
-export const quotePortalPodRequest = quotePortalDepositFees;
 
 /** Sepolia ERC-20 pTokens (e.g. p.MTT): flat 2-limb ciphertext + pending flag. */
 const POD_PTOKEN_FLAT_STATUS_ABI = [
@@ -651,9 +542,9 @@ export async function executePodPortalTransaction(params: {
 
   const wallet = await signer.getAddress();
   const amountWei = ethers.parseUnits(txAmount, decimals);
-  const portal = new ethers.Contract(portalAddress, PRIVACY_PORTAL_ABI, signer);
   const pToken = new ethers.Contract(pTokenAddress, POD_PTOKEN_ABI, signer);
   const portalIface = new ethers.Interface(PRIVACY_PORTAL_ABI);
+  const gasPrice = await getPodGasPrice(provider);
 
   if (txDirection === "to-private") {
     await assertPodPTokenReady(pToken, wallet, "deposit", {
@@ -663,30 +554,48 @@ export async function executePodPortalTransaction(params: {
       provider: provider ?? signer.provider ?? null,
     });
 
-    const depositMethod = isNativeDeposit ? "depositNative" : "deposit";
-    const quote = await quotePortalDepositFees(signer, portalAddress, amountWei, undefined);
-    const depositValue = isNativeDeposit ? amountWei + quote.msgValue : quote.msgValue;
-    const depositArgs = [wallet, amountWei, quote.portalFee, quote.mintCallbackFee] as const;
-    const depositOverrides: { value: bigint; gasPrice: bigint; gasLimit?: bigint } = {
-      value: depositValue,
-      gasPrice: quote.gasPrice,
-    };
+    const method = resolvePodPortalMethod("to-private", isNativeDeposit);
+    const portalQuote = await quotePortalFeeOnly(signer, portalAddress, amountWei, "to-private", gasPrice);
+    const podArgs = buildPodMethodArgs({
+      direction: "to-private",
+      wallet,
+      amountWei,
+      portalFee: portalQuote.portalFee,
+      isNativeDeposit,
+    });
+
+    let gasLimit: bigint | undefined;
     try {
-      const estimated = await portal[depositMethod].estimateGas(
-        ...depositArgs, depositOverrides,
+      const portal = new ethers.Contract(portalAddress, PRIVACY_PORTAL_ABI, signer);
+      const estimated = await portal[method].estimateGas(
+        wallet,
+        amountWei,
+        portalQuote.portalFee,
+        0n,
+        { value: isNativeDeposit ? amountWei + portalQuote.portalFee : portalQuote.portalFee, gasPrice },
       );
-      depositOverrides.gasLimit = (estimated * 130n) / 100n;
+      gasLimit = (estimated * 130n) / 100n;
     } catch (estErr: unknown) {
-      // Estimation reverting means the tx would fail — but aborting here leaves the
-      // user with no tx hash to inspect. Broadcast with a fixed limit instead so the
-      // revert lands on-chain and the explorer link can show the actual reason.
       logger.warn(
-        `⚠️ PoD ${depositMethod} gas estimation reverted — broadcasting with fallback gas limit so the revert is inspectable on-chain`,
+        `⚠️ PoD ${method} gas estimation reverted — broadcasting with fallback gas limit so the revert is inspectable on-chain`,
         (estErr as Error)?.message,
       );
-      depositOverrides.gasLimit = 2_000_000n;
+      gasLimit = 2_000_000n;
     }
-    const tx = await portal[depositMethod](...depositArgs, depositOverrides);
+
+    const tx = await sendPodPortalMethod({
+      runner: signer,
+      portalAddress,
+      chainId,
+      direction: "to-private",
+      method,
+      args: podArgs,
+      gasPrice,
+      portalFee: portalQuote.portalFee,
+      amountWei,
+      isNativeDeposit,
+      gasLimit,
+    });
 
     onProgress?.("transfer-start", tx.hash);
 
@@ -728,7 +637,6 @@ export async function executePodPortalTransaction(params: {
     provider: provider ?? signer.provider ?? null,
   });
 
-  const sharedGasPrice = await getSepoliaGasPrice(provider);
   if (
     !withdrawPermit ||
     withdrawPermit.wallet.toLowerCase() !== wallet.toLowerCase() ||
@@ -738,44 +646,52 @@ export async function executePodPortalTransaction(params: {
   ) {
     throw new Error("PoD withdraw approval signature is missing or stale. Please approve again.");
   }
-  const deadline = BigInt(withdrawPermit.deadline);
-  const withdrawQuote = await quotePortalWithdrawFees(
-    signer,
-    portalAddress,
-    amountWei,
-    sharedGasPrice,
-  );
-  const withdrawArgs = [
+
+  const method = resolvePodPortalMethod("to-public", false);
+  const portalQuote = await quotePortalFeeOnly(signer, portalAddress, amountWei, "to-public", gasPrice);
+  const podArgs = buildPodMethodArgs({
+    direction: "to-public",
     wallet,
     amountWei,
-    withdrawQuote.portalFee,
-    withdrawQuote.transferTotalFee,
-    withdrawQuote.transferCallbackFee,
-    deadline,
-    withdrawPermit.v,
-    withdrawPermit.r,
-    withdrawPermit.s,
-  ] as const;
-  const withdrawOverrides: { value: bigint; gasPrice: bigint; gasLimit?: bigint } = {
-    value: withdrawQuote.msgValue,
-    gasPrice: sharedGasPrice,
-  };
+    portalFee: portalQuote.portalFee,
+    withdrawPermit,
+  });
+
+  let gasLimit: bigint | undefined;
   try {
+    const portal = new ethers.Contract(portalAddress, PRIVACY_PORTAL_ABI, signer);
     const estimated = await portal.requestWithdrawWithPermit.estimateGas(
-      ...withdrawArgs, withdrawOverrides,
+      wallet,
+      amountWei,
+      portalQuote.portalFee,
+      0n,
+      0n,
+      BigInt(withdrawPermit.deadline),
+      withdrawPermit.v,
+      withdrawPermit.r,
+      withdrawPermit.s,
+      { value: portalQuote.portalFee, gasPrice },
     );
-    withdrawOverrides.gasLimit = (estimated * 130n) / 100n;
+    gasLimit = (estimated * 130n) / 100n;
   } catch (estErr: unknown) {
-    // Estimation reverting means the tx would fail — but aborting here leaves the
-    // user with no tx hash to inspect. Broadcast with a fixed limit instead so the
-    // revert lands on-chain and the explorer link can show the actual reason.
     logger.warn(
       "⚠️ PoD withdraw gas estimation reverted — broadcasting with fallback gas limit so the revert is inspectable on-chain",
       (estErr as Error)?.message,
     );
-    withdrawOverrides.gasLimit = 3_000_000n;
+    gasLimit = 3_000_000n;
   }
-  const tx = await portal.requestWithdrawWithPermit(...withdrawArgs, withdrawOverrides);
+
+  const tx = await sendPodPortalMethod({
+    runner: signer,
+    portalAddress,
+    chainId,
+    direction: "to-public",
+    method,
+    args: podArgs,
+    gasPrice,
+    portalFee: portalQuote.portalFee,
+    gasLimit,
+  });
 
   onProgress?.("transfer-start", tx.hash);
 

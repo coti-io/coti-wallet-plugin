@@ -80,7 +80,6 @@ export const POD_PTOKEN_ABI = [
   "function symbol() view returns (string)",
   "function decimals() view returns (uint8)",
   "function nonces(address owner) view returns (uint256)",
-  "function estimateFee() view returns (uint256 totalFeeWei,uint256 targetFeeWei,uint256 callbackFeeWei)",
   "function failedRequests(bytes32 requestId) view returns (bytes)",
   "function balanceOf(address account) view returns (tuple(tuple(uint256 high,uint256 low) high,tuple(uint256 high,uint256 low) low))",
   "function balanceWithState(address account) view returns (tuple(tuple(uint256 high,uint256 low) high,tuple(uint256 high,uint256 low) low) balance,bool pending,bool callbackErrored)",

@@ -1,5 +1,4 @@
 import type { ChainConfig } from "./types";
-import { POD_TESTNET_INBOX_ADDRESS } from "./podInbox";
 
 export const AVALANCHE_FUJI_CHAIN_ID = 43113;
 
@@ -7,8 +6,6 @@ const AVALANCHE_FUJI_RPC_URL =
   "https://twilight-small-rain.avalanche-testnet.quiknode.pro/ad1393483c2713058688a4e0fb47a308f29dd52d/ext/bc/C/rpc/";
 const AVALANCHE_FUJI_RPC_FALLBACK_URL =
   "https://avalanche-fuji-c-chain-rpc.publicnode.com";
-
-const AVALANCHE_FUJI_INBOX = POD_TESTNET_INBOX_ADDRESS;
 
 /** Underlying ERC-20s from PrivacyPortalConfig.json (Avalanche Fuji). */
 const MTT = "0x328e70e1c52662cd5f19f824fcb8b463d77a6686";
@@ -27,11 +24,14 @@ export const avalancheFujiChain: ChainConfig = {
   name: "Avalanche Fuji",
   rpcUrl: AVALANCHE_FUJI_RPC_URL,
   rpcFallbackUrls: [AVALANCHE_FUJI_RPC_FALLBACK_URL],
-  explorerBaseUrl: "https://testnet.snowtrace.io",
-  podInboxAddress: AVALANCHE_FUJI_INBOX,
+  explorerBaseUrl: "https://testnet.snowscan.xyz",
   priceOracleAddress: "0xb06340c020274ef5d92f664070966402a4d27712",
   unlockStrategy: "manual-aes-key",
   portalStrategy: "pod-privacy-portal",
+  podFeeEstimation: {
+    deposit: { forwardGasLimit: 850_000n, callBackGasLimit: 2_000_000n },
+    withdraw: { forwardGasLimit: 900_000n, callBackGasLimit: 2_000_000n },
+  },
   addresses: {
     MTT,
     USDC,
@@ -111,7 +111,7 @@ export const avalancheFujiChain: ChainConfig = {
     chainName: "Avalanche Fuji Testnet",
     rpcUrls: [AVALANCHE_FUJI_RPC_URL, AVALANCHE_FUJI_RPC_FALLBACK_URL],
     nativeCurrency: { name: "Avalanche", symbol: "AVAX", decimals: 18 },
-    blockExplorerUrls: ["https://testnet.snowtrace.io"],
+    blockExplorerUrls: ["https://testnet.snowscan.xyz"],
   },
   getBridgeDataOverride: addresses => [
     {

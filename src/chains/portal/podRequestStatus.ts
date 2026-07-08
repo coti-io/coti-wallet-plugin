@@ -1,9 +1,9 @@
 import { ethers } from "ethers";
-import { PodRequest, type RequestTrackingResponse } from "@coti/pod-sdk";
+import { PodRequest, type RequestTrackingResponse } from "@coti-io/pod-sdk";
 import { getPrivateTokensForChain, getPublicTokensForChain, getNetworkNameForChain, getRpcUrlForChain } from "../index";
 import { CONTRACT_ADDRESSES } from "../../contracts/config";
 import { POD_PTOKEN_ABI, PRIVACY_PORTAL_ABI, type PodPortalRequest } from "../../contracts/pod";
-import { getPodSdkConfig } from "./executePodPortalTransaction";
+import { getPodSdkConfig } from "./podSdkConfig";
 import {
   logPodTrackingDiagnostics,
   type PodStatusResolution,
