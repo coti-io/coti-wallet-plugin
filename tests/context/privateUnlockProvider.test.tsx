@@ -1,6 +1,6 @@
 import React, { type ReactNode } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { act, renderHook } from '@testing-library/react';
+import { act, render, renderHook } from '@testing-library/react';
 import { PrivateUnlockProvider, usePrivateUnlock } from '../../src/context/privateUnlock';
 
 const mockRefreshPrivateBalances = vi.fn();
@@ -56,6 +56,11 @@ vi.mock('../../src/components/OnboardModal', () => ({
     onboardModalProps = props;
     return props.isOpen ? <div data-testid="onboard-modal" data-step={props.currentStep} /> : null;
   },
+}));
+
+vi.mock('../../src/components/WalletSignPrompt', () => ({
+  WalletSignPrompt: (props: { isOpen: boolean }) =>
+    props.isOpen ? <div data-testid="wallet-sign-prompt" /> : null,
 }));
 
 const wrapper = ({ children }: { children: ReactNode }) => (
@@ -138,6 +143,46 @@ describe('PrivateUnlockProvider', () => {
     });
 
     expect(pendingAction).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows wallet sign prompt during backup decrypt and hides it after signing', async () => {
+    let capturedOnProgress: ((step: string) => void) | undefined;
+    mockRefreshPrivateBalances.mockImplementation(async (options?: {
+      onProgress?: (step: string) => void;
+    }) => {
+      capturedOnProgress = options?.onProgress;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      return false;
+    });
+
+    function TestApp() {
+      const unlock = usePrivateUnlock();
+      return (
+        <button type="button" onClick={() => void unlock.unlock()} data-testid="unlock-btn">
+          Unlock
+        </button>
+      );
+    }
+
+    const view = render(
+      <PrivateUnlockProvider>
+        <TestApp />
+      </PrivateUnlockProvider>,
+    );
+
+    await act(async () => {
+      view.getByTestId('unlock-btn').click();
+    });
+
+    await act(async () => {
+      capturedOnProgress?.('signing-backup');
+    });
+    expect(view.queryByTestId('wallet-sign-prompt')).toBeInTheDocument();
+
+    await act(async () => {
+      capturedOnProgress?.('complete');
+    });
+    expect(view.queryByTestId('wallet-sign-prompt')).not.toBeInTheDocument();
   });
 
   it('locks through the controller', () => {

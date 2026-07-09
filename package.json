@@ -2,6 +2,14 @@
   "name": "@coti-io/coti-wallet-plugin",
   "version": "0.1.0",
   "description": "COTI Wallet Plugin — high-level abstraction for Private Token (pToken) operations across EIP-1193 wallets",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/cotitech-io/coti-wallet-plugin.git"
+  },
+  "homepage": "https://github.com/cotitech-io/coti-wallet-plugin#readme",
+  "bugs": {
+    "url": "https://github.com/cotitech-io/coti-wallet-plugin/issues"
+  },
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
@@ -14,6 +22,7 @@
   },
   "files": [
     "dist",
+    "docs",
     "README.md",
     "LICENSE"
   ],
@@ -26,6 +35,7 @@
     "format": "prettier --write 'src/**/*.{ts,tsx}' 'tests/**/*.{ts,tsx}'",
     "format:check": "prettier --check 'src/**/*.{ts,tsx}' 'tests/**/*.{ts,tsx}'",
     "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run typecheck && npm test -- --run && npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
@@ -41,7 +51,11 @@
     "bridge"
   ],
   "author": "COTI",
-  "license": "Apache-2.0",
+  "license": "Apache 2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "packageManager": "npm@11.9.0",
   "dependencies": {
     "@coti-io/coti-ethers": "^1.0.0",
     "@coti-io/pod-sdk": "^0.1.2"

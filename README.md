@@ -23,9 +23,14 @@ import {
   type OnboardModalTheme,
 } from '@coti-io/coti-wallet-plugin';
 
+/** Host app owns modal colors — map your design tokens to OnboardModalTheme. */
 const onboardTheme: OnboardModalTheme = {
-  checkboxText: { color: 'rgba(255, 255, 255, 0.86)' },
-  tooltipButton: { color: 'rgba(255, 255, 255, 0.86)' },
+  modal: { backgroundColor: '#ffffff', color: '#0f172a' },
+  title: { color: '#0f172a' },
+  description: { color: '#64748b' },
+  primaryButton: { backgroundColor: '#1E29F6', color: '#ffffff' },
+  checkboxText: { color: '#0f172a' },
+  tooltipButton: { color: '#64748b' },
 };
 
 export function Root() {
@@ -133,6 +138,29 @@ Contract onboarding always ends on plugin success screen. User can reveal/copy r
 - Do not infer key existence from `isPrivateUnlocked`; it only means private balances visible.
 - Do not delete Snap-stored keys or encrypted backups on lock. Lock only clears plaintext session state.
 
+## Onboard modal theming
+
+The plugin ships a dark default palette for standalone use. **Your app controls the modal colors** by passing `privateUnlock.theme` to `PrivacyBridgeProvider`. The plugin does not read your CSS variables or `prefers-color-scheme` automatically.
+
+```tsx
+<PrivacyBridgeProvider
+  privateUnlock={{
+    theme: myOnboardTheme, // OnboardModalTheme — partial CSS overrides per style target
+    warning: 'Optional non-blocking warning shown in the modal.',
+  }}
+>
+  <App />
+</PrivacyBridgeProvider>
+```
+
+`OnboardModalTheme` is a partial map of style targets (`modal`, `title`, `description`, `checkboxText`, `primaryButton`, …) to `React.CSSProperties`. Import `onboardModalDefaultStyles` and `ONBOARD_MODAL_STYLE_KEYS` to see every target.
+
+**Minimum for light mode:** set at least `modal`, `title`, and `description`. The plugin fills other text targets from those tokens when they still use the built-in dark defaults.
+
+**Light/dark toggle:** build the theme object in your app from your design system and pass the result into `privateUnlock.theme`. The Privacy Portal does this in `src/hooks/useOnboardModalTheme.ts`.
+
+See [docs/onboard-modal-theme.md](./docs/onboard-modal-theme.md) for the full style-key list and a copy-paste example.
+
 ## Installation
 
 ```bash
@@ -145,11 +173,14 @@ npm install @coti-io/coti-wallet-plugin
 npm install react react-dom ethers viem @coti-io/coti-sdk-typescript @metamask/providers @rainbow-me/rainbowkit wagmi @tanstack/react-query
 ```
 
+This release is validated with `@rainbow-me/rainbowkit@2.2.0` and `wagmi@2.14.0`. Keep those two packages on compatible versions in the host app; installing mismatched latest peer versions can break RainbowKit before the plugin loads.
+
 ## Build
 
 ```bash
 npm run build    # Produces dist/index.js (CJS) + dist/index.mjs (ESM) + dist/index.d.ts
-npm run lint     # TypeScript type check (tsc --noEmit)
+npm run typecheck # TypeScript type check (tsc --noEmit)
+npm run lint     # ESLint
 npm run test     # Run test suite (vitest)
 npm run clean    # Remove dist/
 ```

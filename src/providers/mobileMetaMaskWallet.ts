@@ -1,6 +1,7 @@
 import { createConnector } from 'wagmi';
 import { injected, walletConnect } from 'wagmi/connectors';
-import type { Wallet } from '@rainbow-me/rainbowkit/wallets';
+import type { Wallet } from '@rainbow-me/rainbowkit';
+import { asInjectedTarget } from './injectedTarget';
 
 function isMobileBrowser(): boolean {
   if (typeof navigator === 'undefined') return false;
@@ -107,8 +108,8 @@ export const mobileMetaMaskWallet = ({ projectId }: { projectId: string }): Wall
           }))
         : createConnector((config) => ({
             ...injected({
-              target() {
-                const eth = (window as Record<string, unknown>).ethereum as Record<string, unknown> | undefined;
+              target: asInjectedTarget(() => {
+                const eth = (window as unknown as { ethereum?: Record<string, unknown> }).ethereum;
                 if (eth?.providers && Array.isArray(eth.providers)) {
                   const mm = eth.providers.find(
                     (p: Record<string, unknown>) =>
@@ -117,7 +118,7 @@ export const mobileMetaMaskWallet = ({ projectId }: { projectId: string }): Wall
                   if (mm) return { id: 'metamask', name: 'MetaMask', provider: mm };
                 }
                 return { id: 'metamask', name: 'MetaMask', provider: eth };
-              },
+              }),
             })(config),
             ...walletDetails,
           })),

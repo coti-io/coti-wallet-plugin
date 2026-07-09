@@ -415,7 +415,10 @@ const assertPodPTokenReady = async (
       error: message || String(stateError),
       inFlightLocalPodRequests: summarizeInFlightLocalPodRequests(account),
     });
-    throw new Error("Could not verify the pToken request state. Please refresh and try again.");
+    throw Object.assign(
+      new Error("Could not verify the pToken request state. Please refresh and try again."),
+      { cause: stateError },
+    );
   }
 
   await logPodPTokenReadinessProbe(pToken, account, pTokenAddress, action, probe, debugContext);

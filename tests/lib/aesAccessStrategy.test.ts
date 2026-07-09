@@ -3,6 +3,7 @@ import {
   type AesAccessStrategy,
   buildUnlockPlanFromStrategy,
   resolveAesAccessStrategy,
+  resolveRestoreAesAccessStrategy,
   resolveAesKeyChainId,
   resolveAesAccessMode,
   shouldUseLocalCrypto,
@@ -245,5 +246,56 @@ describe('resolveAesAccessStrategy', () => {
     expect(fetchEncryptedAesBackup).toHaveBeenCalledTimes(1);
     expect(hasAesKeyInSnap).toHaveBeenCalledTimes(1);
     expect(elapsed).toBeLessThan(35);
+  });
+});
+
+describe('resolveRestoreAesAccessStrategy', () => {
+  it('returns local mode with prefetched backup without probing Snap', async () => {
+    const backup = {
+      version: 1 as const,
+      address: '0xabc',
+      chainId: COTI_TESTNET_CHAIN_ID,
+      signatureKind: 'eip712' as const,
+      iv: 'aXY=',
+      ciphertext: 'Y2lwaGVydGV4dA==',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    };
+    const fetchEncryptedAesBackup = vi.fn().mockResolvedValue(backup);
+    const hasAesKeyInSnap = vi.fn();
+
+    configureCotiPlugin({
+      onboardingServices: { mode: 'custom', fetchEncryptedAesBackup },
+    });
+
+    const strategy = await resolveRestoreAesAccessStrategy({
+      address: '0xabc',
+      chainId: COTI_TESTNET_CHAIN_ID,
+      snapInstalled: true,
+      hasAesKeyInSnap,
+    });
+
+    expect(strategy.mode).toBe('local');
+    expect(strategy.encryptedBackup).toEqual(backup);
+    expect(hasAesKeyInSnap).not.toHaveBeenCalled();
+  });
+});
+
+describe('buildUnlockPlanFromStrategy prefetched backup', () => {
+  it('passes encrypted backup blob into restore-only unlock options', () => {
+    const backup = {
+      version: 1 as const,
+      address: '0xabc',
+      chainId: COTI_TESTNET_CHAIN_ID,
+      signatureKind: 'eip712' as const,
+      iv: 'aXY=',
+      ciphertext: 'Y2lwaGVydGV4dA==',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    };
+    const plan = buildUnlockPlanFromStrategy(
+      strategy({ encryptedBackup: backup }),
+      { validateOnUnlock: true, restoreOnly: true },
+    );
+
+    expect(plan.unlockOptions.prefetchedEncryptedBackup).toEqual(backup);
   });
 });

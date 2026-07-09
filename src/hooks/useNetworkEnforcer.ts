@@ -100,14 +100,15 @@ export const useNetworkEnforcer = (
     if (walletType === 'metamask' || isMetaMaskWithSnap) {
       if (!chainId) return;
 
-      let currentChainIdHex = '';
-      try {
-        currentChainIdHex = '0x' + BigInt(chainId).toString(16);
-      } catch {
-        currentChainIdHex = chainId.startsWith('0x')
-          ? chainId
-          : '0x' + Number(chainId).toString(16);
-      }
+      const currentChainIdHex = (() => {
+        try {
+          return '0x' + BigInt(chainId).toString(16);
+        } catch {
+          return chainId.startsWith('0x')
+            ? chainId
+            : '0x' + Number(chainId).toString(16);
+        }
+      })();
 
       const targetHex = '0x' + targetChainId.toString(16);
 

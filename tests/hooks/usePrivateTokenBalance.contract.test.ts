@@ -15,6 +15,8 @@ const h = vi.hoisted(() => ({
 vi.mock('../../src/lib/rpcProvider', () => ({
   withRpcFallback: vi.fn((_chainId: number, fn: (provider: unknown) => Promise<unknown>) => fn({})),
 }));
+
+vi.mock('ethers', () => {
   class BrowserProvider {
     constructor(_provider: unknown) {}
     getNetwork = h.getNetwork;

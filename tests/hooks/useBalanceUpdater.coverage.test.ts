@@ -19,6 +19,7 @@ vi.mock('ethers', () => {
   class JsonRpcProvider {
     constructor(_url: unknown, _chainId: unknown) {}
     getBalance = h.getBalance;
+    getNetwork = h.getNetwork;
   }
   class Contract {
     constructor(_address: unknown, _abi: unknown, _provider: unknown) {}
@@ -34,6 +35,13 @@ vi.mock('ethers', () => {
     },
   };
 });
+
+vi.mock('../../src/lib/rpcProvider', () => ({
+  createResilientJsonRpcProvider: vi.fn(async () => ({
+    getBalance: h.getBalance,
+    getNetwork: h.getNetwork,
+  })),
+}));
 
 // Inject a synthetic chain (KEYLESS_CHAIN) whose private token list contains a
 // token WITHOUT an addressKey, so the `token.addressKey ? … : undefined`

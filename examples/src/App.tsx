@@ -12,6 +12,7 @@ import {
   useWalletType,
   type EncryptedAesBackup,
 } from '@coti-io/coti-wallet-plugin';
+import { useExampleTheme } from './ExampleThemeContext';
 
 const COTI_TESTNET_CHAIN_ID = 7082400;
 const COTI_MAINNET_CHAIN_ID = 2632500;
@@ -66,6 +67,10 @@ const saveEncryptedAesBackup = async (
 const LOCAL_SNAP_ID = import.meta.env.VITE_SNAP_ID?.trim();
 const LOCAL_SNAP_VERSION = import.meta.env.VITE_SNAP_VERSION?.trim();
 const SNAP_INSTALL_ENABLED = import.meta.env.VITE_COTI_SNAP_INSTALL_ENABLED !== 'false';
+console.log('[example] VITE_COTI_SNAP_INSTALL_ENABLED:', {
+  raw: import.meta.env.VITE_COTI_SNAP_INSTALL_ENABLED,
+  snapInstallEnabled: SNAP_INSTALL_ENABLED,
+});
 const LOCAL_SNAP_AES_WRITE_ORIGINS =
   (LOCAL_SNAP_ID?.startsWith('local:') || import.meta.env.DEV) && typeof window !== 'undefined'
     ? [window.location.origin]
@@ -137,6 +142,7 @@ function snapAesKeyStatusColor(status: SnapAesKeyStatus): string {
 }
 
 export default function App() {
+  const { mode, toggleMode, pageColors } = useExampleTheme();
   const { address, isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
   const walletTypeInfo = useWalletType();
@@ -391,8 +397,29 @@ export default function App() {
   }, [cryptoCiphertext, performDecryptPrivateValue, privateUnlock]);
 
   return (
-    <div style={{ fontFamily: 'system-ui, sans-serif', maxWidth: 760, margin: '0 auto', padding: 24 }}>
-      <h1 style={{ fontSize: 24, marginBottom: 16 }}>COTI Wallet Plugin - Example dApp</h1>
+    <div style={{
+      fontFamily: 'system-ui, sans-serif',
+      maxWidth: 760,
+      margin: '0 auto',
+      padding: 24,
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+        <h1 style={{ fontSize: 24, margin: 0 }}>COTI Wallet Plugin - Example dApp</h1>
+        <button
+          type="button"
+          onClick={toggleMode}
+          style={{
+            padding: '8px 12px',
+            cursor: 'pointer',
+            borderRadius: 8,
+            border: `1px solid ${pageColors.borderColor}`,
+            backgroundColor: pageColors.backgroundColor,
+            color: pageColors.color,
+          }}
+        >
+          {mode === 'dark' ? 'Light mode' : 'Dark mode'}
+        </button>
+      </div>
 
       {!isConnected ? (
         <button

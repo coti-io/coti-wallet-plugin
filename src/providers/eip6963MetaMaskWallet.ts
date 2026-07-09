@@ -1,6 +1,7 @@
 import { injected } from 'wagmi/connectors';
-import type { Wallet } from '@rainbow-me/rainbowkit/wallets';
+import type { Wallet } from '@rainbow-me/rainbowkit';
 import { resolveMetaMaskInjectedTarget } from '../lib/ethereum';
+import { asInjectedTarget } from './injectedTarget';
 
 /**
  * RainbowKit wallet factory that connects via EIP-6963-discovered MetaMask provider,
@@ -26,9 +27,7 @@ export const eip6963MetaMaskWallet = (): Wallet => ({
   createConnector: (walletDetails) =>
     (config) => {
       const base = injected({
-        target() {
-          return resolveMetaMaskInjectedTarget();
-        },
+        target: asInjectedTarget(resolveMetaMaskInjectedTarget),
       })(config);
       return {
         ...base,

@@ -29,6 +29,8 @@ This installs dependencies in the plugin root and examples, rebuilds the wallet 
 
 Opens at http://localhost:5173
 
+Use the **Light mode / Dark mode** button in the header to preview onboard-modal theming. The example passes `privateUnlock.theme` built from `src/onboardTheme.ts` — same pattern host apps should use.
+
 ### Local Snap development
 
 To run against a local `coti-snap` server (same flow as `testing-harness`):

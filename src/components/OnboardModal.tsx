@@ -75,6 +75,7 @@ const defaultStyles = {
   },
   modal: {
     backgroundColor: '#04133D',
+    color: '#ffffff',
     borderRadius: '16px',
     padding: '28px',
     width: '360px',
@@ -206,6 +207,7 @@ const defaultStyles = {
   checkboxText: {
     fontSize: '11px',
     lineHeight: 1.5,
+    color: 'rgba(255, 255, 255, 0.86)',
   },
   tooltipWrap: {
     position: 'relative' as const,
@@ -491,15 +493,90 @@ const defaultStyles = {
   },
 } as const;
 
-/** Merges default styles with optional theme overrides */
+type OnboardStyleKey = keyof typeof defaultStyles;
+
+/** Style targets apps can override via `privateUnlock.theme`. */
+export const ONBOARD_MODAL_STYLE_KEYS = Object.keys(defaultStyles) as OnboardStyleKey[];
+
+const FOREGROUND_TEXT_KEYS: OnboardStyleKey[] = [
+  'checkboxText',
+  'infoText',
+  'stepLabel',
+  'manualKeyInput',
+  'iconButton',
+];
+const MUTED_TEXT_KEYS: OnboardStyleKey[] = [
+  'tooltipButton',
+  'cancelButton',
+  'stepDescription',
+  'debugLine',
+];
+const ACCENT_TEXT_KEYS: OnboardStyleKey[] = [
+  'keyInput',
+  'aesKeyBox',
+  'calloutText',
+  'inlineIconButton',
+  'iconButtonPressed',
+];
+
+function isDefaultDarkThemeTextColor(color?: string): boolean {
+  if (!color) return true;
+  const normalized = color.trim().toLowerCase();
+  return (
+    normalized === '#ffffff'
+    || normalized === '#00e5ff'
+    || normalized.startsWith('rgba(255, 255, 255')
+  );
+}
+
+/**
+ * When the host app passes a theme, fill unthemed text targets that still use
+ * the plugin's dark-mode defaults so light palettes stay readable.
+ */
+function applyThemePaletteGaps(
+  merged: Record<OnboardStyleKey, React.CSSProperties>,
+  theme: OnboardModalTheme,
+) {
+  const foreground =
+    theme.title?.color
+    ?? theme.modal?.color
+    ?? theme.infoText?.color;
+  const muted = theme.description?.color ?? theme.cancelButton?.color;
+  const accent =
+    theme.primaryButton?.backgroundColor
+    ?? theme.calloutText?.color
+    ?? theme.aesKeyBox?.color
+    ?? theme.keyInput?.color;
+
+  const fillText = (keys: OnboardStyleKey[], color?: string) => {
+    if (!color) return;
+    for (const key of keys) {
+      if (theme[key]) continue;
+      const currentColor = merged[key]?.color;
+      if (!isDefaultDarkThemeTextColor(
+        typeof currentColor === 'string' ? currentColor : undefined,
+      )) {
+        continue;
+      }
+      merged[key] = { ...merged[key], color };
+    }
+  };
+
+  fillText(FOREGROUND_TEXT_KEYS, foreground);
+  fillText(MUTED_TEXT_KEYS, muted);
+  fillText(ACCENT_TEXT_KEYS, accent);
+}
+
+/** Merges default styles with optional theme overrides from the host app. */
 function mergeTheme(theme?: OnboardModalTheme) {
   if (!theme) return defaultStyles;
-  const merged = { ...defaultStyles } as Record<string, React.CSSProperties>;
-  for (const key of Object.keys(theme) as Array<keyof typeof defaultStyles>) {
+  const merged = { ...defaultStyles } as Record<OnboardStyleKey, React.CSSProperties>;
+  for (const key of Object.keys(theme) as OnboardStyleKey[]) {
     if (theme[key]) {
-      merged[key] = { ...defaultStyles[key], ...theme[key] } as any;
+      merged[key] = { ...defaultStyles[key], ...theme[key] } as React.CSSProperties;
     }
   }
+  applyThemePaletteGaps(merged, theme);
   return merged as typeof defaultStyles;
 }
 
@@ -536,6 +613,33 @@ function parseColorToRgb(
       g: Number(rgbMatch[2]),
       b: Number(rgbMatch[3]),
       alpha: rgbMatch[4] ? Number(rgbMatch[4]) : 1,
+    };
+  }
+
+  const hslMatch = normalized.match(
+    /^hsla?\(\s*(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)%(?:\s*\/\s*([0-9]*\.?[0-9]+))?\s*\)$/i,
+  );
+  if (hslMatch) {
+    const h = Number(hslMatch[1]) / 360;
+    const s = Number(hslMatch[2]) / 100;
+    const l = Number(hslMatch[3]) / 100;
+    const alpha = hslMatch[4] ? Number(hslMatch[4]) : 1;
+    const hue2rgb = (p: number, q: number, t: number) => {
+      let value = t;
+      if (value < 0) value += 1;
+      if (value > 1) value -= 1;
+      if (value < 1 / 6) return p + (q - p) * 6 * value;
+      if (value < 1 / 2) return q;
+      if (value < 2 / 3) return p + (q - p) * (2 / 3 - value) * 6;
+      return p;
+    };
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    return {
+      r: Math.round(hue2rgb(p, q, h + 1 / 3) * 255),
+      g: Math.round(hue2rgb(p, q, h) * 255),
+      b: Math.round(hue2rgb(p, q, h - 1 / 3) * 255),
+      alpha,
     };
   }
 

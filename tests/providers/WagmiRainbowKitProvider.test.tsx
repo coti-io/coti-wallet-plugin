@@ -183,7 +183,7 @@ describe('WagmiRainbowKitProvider', () => {
     configureCotiPlugin({ walletConnectProjectId: undefined });
   });
 
-  it('uses a reduced mobile wallet list (MetaMask, Rabby, Trust, OneKey, Zerion)', () => {
+  it('uses a reduced mobile wallet list (MetaMask, Rabby, OneKey, Zerion)', () => {
     const originalUserAgent = navigator.userAgent;
     Object.defineProperty(navigator, 'userAgent', {
       configurable: true,
@@ -206,7 +206,6 @@ describe('WagmiRainbowKitProvider', () => {
     expect(getRecommendedWalletIds('mobile-wallet-test')).toEqual([
       mobileMetaMaskWallet({ projectId: 'mobile-wallet-test' }).id,
       mobileRabbyWallet({ projectId: 'mobile-wallet-test' }).id,
-      mobileTrustWallet({ projectId: 'mobile-wallet-test' }).id,
       mobileOneKeyWallet({ projectId: 'mobile-wallet-test' }).id,
       mobileZerionWallet({ projectId: 'mobile-wallet-test' }).id,
     ]);

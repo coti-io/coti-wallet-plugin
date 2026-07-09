@@ -303,4 +303,20 @@ describe('OnboardModal', () => {
       expect(screen.getByText('Begin Onboarding')).toBeInTheDocument();
     });
   });
+
+  it('keeps checkbox and tooltip readable when app supplies a light theme', () => {
+    const lightTheme = {
+      modal: { backgroundColor: '#ffffff', color: '#0f172a' },
+      title: { color: '#0f172a' },
+      description: { color: '#64748b' },
+    };
+
+    render(<OnboardModal {...defaultProps} theme={lightTheme} />);
+
+    const checkboxLabel = screen.getByText('Save encrypted backup');
+    expect(checkboxLabel).toHaveStyle({ color: 'rgb(15, 23, 42)' });
+
+    const tooltipButton = screen.getByLabelText('Backup details');
+    expect(tooltipButton).toHaveStyle({ color: 'rgb(100, 116, 139)' });
+  });
 });

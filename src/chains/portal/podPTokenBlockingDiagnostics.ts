@@ -239,7 +239,6 @@ const fetchRecentPTokenEvents = async (
 ): Promise<{ candidates: BlockingPodRequestCandidate[]; errors: string[]; lookbackBlocks: number }> => {
   const accountTopic = paddedAddressTopic(account);
   const errors: string[] = [];
-  let lookbackBlocks = 0;
 
   const [transferFrom, transferTo, callbackFailed] = await Promise.all([
     fetchLogsWithLookback(provider, {
@@ -257,7 +256,11 @@ const fetchRecentPTokenEvents = async (
   ]);
 
   errors.push(...transferFrom.errors, ...transferTo.errors, ...callbackFailed.errors);
-  lookbackBlocks = Math.max(transferFrom.lookbackBlocks, transferTo.lookbackBlocks, callbackFailed.lookbackBlocks);
+  const lookbackBlocks = Math.max(
+    transferFrom.lookbackBlocks,
+    transferTo.lookbackBlocks,
+    callbackFailed.lookbackBlocks,
+  );
 
   const transferLogs = [...transferFrom.logs, ...transferTo.logs]
     .sort((a, b) => Number(b.blockNumber) - Number(a.blockNumber));

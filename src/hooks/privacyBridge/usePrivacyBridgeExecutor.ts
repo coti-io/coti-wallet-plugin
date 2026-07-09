@@ -541,13 +541,18 @@ export const usePrivacyBridgeExecutor = ({
                             : '';
 
                         if (selector && knownSelectors[selector]) {
-                            throw new Error(knownSelectors[selector]);
+                            throw Object.assign(new Error(knownSelectors[selector]), {
+                                cause: estimateErr,
+                            });
                         }
 
                         // Check if the error message contains "execution reverted"
                         const msg = estimateErr?.message || estimateErr?.shortMessage || '';
                         if (msg.includes('execution reverted') || msg.includes('revert')) {
-                            throw new Error('Transaction would fail on-chain. The bridge may have insufficient liquidity or your balance is too low.');
+                            throw Object.assign(
+                                new Error('Transaction would fail on-chain. The bridge may have insufficient liquidity or your balance is too low.'),
+                                { cause: estimateErr },
+                            );
                         }
 
                         // For non-revert errors (network timeout, etc.), fall back to 12M and try anyway

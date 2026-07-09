@@ -104,6 +104,7 @@ vi.mock('../../src/chains', () => ({
   getChainConfig: (...a: unknown[]) => sib.getChainConfig(...a),
   getPublicTokensForChain: (...a: unknown[]) => sib.getPublicTokensForChain(...a),
   getPrivateTokensForChain: (...a: unknown[]) => sib.getPrivateTokensForChain(...a),
+  getRpcUrlForChain: (...a: unknown[]) => sib.getRpcUrlForChain(...a),
   getExplorerBaseUrlForChain: vi.fn(() => 'https://explorer.test'),
   getNetworkNameForChain: vi.fn(() => 'testnet'),
 }));

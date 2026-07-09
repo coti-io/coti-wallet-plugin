@@ -20,6 +20,7 @@ vi.mock('ethers', () => {
   class JsonRpcProvider {
     constructor(_url: unknown, _chainId: unknown) {}
     getBalance = h.getBalance;
+    getNetwork = h.getNetwork;
   }
   class Contract {
     constructor(_address: unknown, _abi: unknown, _provider: unknown) {}
@@ -35,6 +36,13 @@ vi.mock('ethers', () => {
     },
   };
 });
+
+vi.mock('../../src/lib/rpcProvider', () => ({
+  createResilientJsonRpcProvider: vi.fn(async () => ({
+    getBalance: h.getBalance,
+    getNetwork: h.getNetwork,
+  })),
+}));
 
 const COTI_TESTNET = 7082400;
 const SEPOLIA = 11155111;
@@ -512,5 +520,38 @@ describe('useBalanceUpdater', () => {
     );
 
     (window as any).ethereum = original;
+  });
+
+  it('fetches AES key before public balance RPCs on restore-only unlock', async () => {
+    const callOrder: string[] = [];
+    const props = makeProps({
+      getAESKeyFromSnap: vi.fn().mockImplementation(async () => {
+        callOrder.push('aes-key');
+        return 'a'.repeat(32);
+      }),
+      checkNetwork: vi.fn().mockImplementation(async () => {
+        callOrder.push('check-network');
+      }),
+      fetchPrivateBalance: vi.fn().mockResolvedValue('1'),
+    });
+    h.getBalance.mockImplementation(async () => {
+      callOrder.push('public-balance');
+      return 0n;
+    });
+
+    const { result } = renderHook(() => useBalanceUpdater(props));
+    const ok = await result.current.updateAccountState(
+      ACCOUNT,
+      true,
+      true,
+      undefined,
+      COTI_TESTNET,
+      { restoreOnly: true, validateOnUnlock: true },
+    );
+
+    expect(ok).toBe(true);
+    expect(callOrder[0]).toBe('aes-key');
+    expect(callOrder).not.toContain('public-balance');
+    expect(callOrder).not.toContain('check-network');
   });
 });
