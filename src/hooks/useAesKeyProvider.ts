@@ -37,6 +37,7 @@ export type OnboardingStep =
   | 'restoring-network'
   | 'persisting-key'
   | 'restoring-backup'
+  | 'signing-backup'
   | 'granting-funds'
   | 'waiting-for-funds'
   | 'saving-backup'
@@ -379,6 +380,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
             if (backup) {
               const provider = new BrowserProvider(walletProvider);
               const signer = await provider.getSigner(address);
+              emitStep('signing-backup');
               const restoredKey = await decryptAesKeyBackup(backup, signer, backupContext);
               logger.log('✅ AES key restored from encrypted backup');
 

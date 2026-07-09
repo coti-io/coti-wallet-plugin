@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import { OnboardModal, type OnboardModalTheme } from '../../components/OnboardModal';
+import { WalletSignPrompt } from '../../components/WalletSignPrompt';
 import { usePrivacyBridgeUnlock, usePrivacyBridgeWallet } from '../privacyBridge/contexts';
 import { isMetaMaskMobileBrowser } from '../../lib/metaMaskMobile';
 import type { OnboardingStep } from '../../hooks/useAesKeyProvider';
@@ -26,6 +27,7 @@ export interface PrivateUnlockController {
   resetUnlockUi: () => void;
   lockPrivateBalances: () => void;
   onboardModal: ReactElement;
+  walletSignPrompt: ReactElement;
   sendPrivateToken: ReturnType<typeof usePrivacyBridgeUnlock>['sendPrivateToken'];
   refreshPrivateBalances: ReturnType<typeof usePrivacyBridgeUnlock>['refreshPrivateBalances'];
   encryptPrivateValue: ReturnType<typeof usePrivacyBridgeUnlock>['encryptPrivateValue'];
@@ -161,10 +163,27 @@ export function usePrivateUnlockController(
     }
   }, [canAttemptSnapInstall, unlock]);
 
+  const handleRestoreUnlockProgress = useCallback((step: OnboardingStep) => {
+    if (step === 'signing-backup') {
+      setCurrentStep(step);
+      return;
+    }
+
+    if (
+      step === 'complete'
+      || step === 'idle'
+      || step === 'persisting-key'
+      || step === 'error'
+    ) {
+      setCurrentStep((previous) => (previous === 'signing-backup' ? 'idle' : previous));
+    }
+  }, []);
+
   const completeUnlock = useCallback(async (requestId: number) => {
     if (!isActiveUnlockRequest(requestId)) return false;
 
     setShowOnboardModal(false);
+    setCurrentStep('idle');
     setIsUnlockInProgress(false);
     await notifyUnlocked();
     await runPendingAction();
@@ -191,11 +210,7 @@ export function usePrivateUnlockController(
           pendingActionRef.current = null;
           onRestoreCancelled?.();
         },
-        onProgress: (step) => {
-          if (step === 'restoring-backup') {
-            setCurrentStep(step);
-          }
-        },
+        onProgress: handleRestoreUnlockProgress,
       })) {
         if (!isActiveUnlockRequest(requestId)) return false;
         return completeUnlock(requestId);
@@ -204,6 +219,7 @@ export function usePrivateUnlockController(
       if (!isActiveUnlockRequest(requestId)) return false;
 
       if (restoreCancelled) {
+        setIsUnlockInProgress(false);
         return false;
       }
 
@@ -223,7 +239,7 @@ export function usePrivateUnlockController(
         setIsUnlocking(false);
       }
     }
-  }, [completeUnlock, isActiveUnlockRequest, onRestoreCancelled, unlock]);
+  }, [completeUnlock, handleRestoreUnlockProgress, isActiveUnlockRequest, onRestoreCancelled, unlock]);
 
   const unlockPrivateBalances = useCallback(async () => {
     if (!connectedAddress) return false;
@@ -335,6 +351,14 @@ export function usePrivateUnlockController(
     dismissOnboardModal();
   }, [dismissOnboardModal, unlock]);
 
+  const walletSignPrompt = (
+    <WalletSignPrompt
+      isOpen={currentStep === 'signing-backup'}
+      walletType={walletTypeInfo.walletType}
+      theme={theme}
+    />
+  );
+
   const onboardModal = (
     <OnboardModal
       isOpen={showOnboardModal}
@@ -375,6 +399,7 @@ export function usePrivateUnlockController(
     resetUnlockUi,
     lockPrivateBalances,
     onboardModal,
+    walletSignPrompt,
     sendPrivateToken: unlock.sendPrivateToken,
     refreshPrivateBalances: unlock.refreshPrivateBalances,
     encryptPrivateValue: unlock.encryptPrivateValue,

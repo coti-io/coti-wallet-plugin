@@ -37,6 +37,7 @@ export const PrivateUnlockProvider: React.FC<PrivateUnlockProviderProps> = ({
     ensurePrivateUnlocked,
     resetUnlockUi,
     onboardModal,
+    walletSignPrompt,
   } = controller;
 
   const value = useMemo<PrivateUnlockControllerValue>(() => ({
@@ -60,6 +61,7 @@ export const PrivateUnlockProvider: React.FC<PrivateUnlockProviderProps> = ({
   return (
     <PrivateUnlockContext.Provider value={value}>
       {children}
+      {walletSignPrompt}
       {onboardModal}
     </PrivateUnlockContext.Provider>
   );

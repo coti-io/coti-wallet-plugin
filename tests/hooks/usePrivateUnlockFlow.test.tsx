@@ -49,6 +49,11 @@ vi.mock('../../src/components/OnboardModal', () => ({
     props.isOpen ? <div data-testid="onboard-modal" data-step={props.currentStep} /> : null,
 }));
 
+vi.mock('../../src/components/WalletSignPrompt', () => ({
+  WalletSignPrompt: (props: { isOpen: boolean }) =>
+    props.isOpen ? <div data-testid="wallet-sign-prompt" /> : null,
+}));
+
 describe('usePrivateUnlockFlow', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -89,6 +94,24 @@ describe('usePrivateUnlockFlow', () => {
 
     expect(onRestoreCancelled).toHaveBeenCalledTimes(1);
     expect(result.current.showOnboardModal).toBe(false);
+  });
+
+  it('allows unlock retry after backup restore signing is cancelled', async () => {
+    mockRefreshPrivateBalances.mockImplementation(async (options?: { onRestoreCancelled?: () => void }) => {
+      options?.onRestoreCancelled?.();
+      return false;
+    });
+
+    const { result } = renderHook(() => usePrivateUnlockFlow());
+
+    await act(async () => {
+      await result.current.openUnlockFlow();
+    });
+    await act(async () => {
+      await result.current.openUnlockFlow();
+    });
+
+    expect(mockRefreshPrivateBalances).toHaveBeenCalledTimes(2);
   });
 
   it('does not reopen modal after dismiss cancels an in-flight unlock', async () => {
