@@ -10,10 +10,15 @@ const h = vi.hoisted(() => ({
   balanceOf: vi.fn(),
   balanceOf64: vi.fn(),
   formatUnits: vi.fn(),
+  providerCall: vi.fn(),
+  encodeFunctionData: vi.fn(() => '0xencoded'),
+  decodeFunctionResult: vi.fn(),
+  abiDecode: vi.fn(),
 }));
 
 vi.mock('../../src/lib/rpcProvider', () => ({
-  withRpcFallback: vi.fn((_chainId: number, fn: (provider: unknown) => Promise<unknown>) => fn({})),
+  withRpcFallback: vi.fn((_chainId: number, fn: (provider: unknown) => Promise<unknown>) =>
+    fn({ provider: { call: h.providerCall } })),
 }));
 
 vi.mock('ethers', () => {
@@ -30,8 +35,14 @@ vi.mock('ethers', () => {
     'balanceOf(address)' = h.balanceOf64;
     constructor(_address: unknown, _abi: unknown, _runner: unknown) {}
   }
+  class Interface {
+    constructor(_abi: unknown) {}
+    encodeFunctionData = h.encodeFunctionData;
+    decodeFunctionResult = h.decodeFunctionResult;
+  }
+  const AbiCoder = { defaultAbiCoder: () => ({ decode: h.abiDecode }) };
   return {
-    ethers: { BrowserProvider, JsonRpcProvider, Contract, formatUnits: h.formatUnits },
+    ethers: { BrowserProvider, JsonRpcProvider, Contract, Interface, AbiCoder, formatUnits: h.formatUnits },
   };
 });
 
@@ -49,8 +60,9 @@ describe('usePrivateTokenBalance (contract paths)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     h.getNetwork.mockResolvedValue({ chainId: 7082400n });
-    h.getSigner.mockResolvedValue({});
+    h.getSigner.mockResolvedValue({ provider: { call: h.providerCall } });
     h.formatUnits.mockImplementation((v: bigint) => `formatted:${v}`);
+    h.encodeFunctionData.mockReturnValue('0xencoded');
   });
 
   afterEach(() => {
@@ -85,8 +97,9 @@ describe('usePrivateTokenBalance (contract paths)', () => {
     ).rejects.toMatchObject({ code: CotiErrorCode.AES_KEY_MISMATCH });
   });
 
-  it('returns a plain uint256 balance for native PoD pTokens', async () => {
-    h.balanceOf.mockResolvedValueOnce(2500000000000000000n);
+  it('returns a plain uint256 balance for native PoD pTokens (32-byte return)', async () => {
+    h.providerCall.mockResolvedValueOnce('0x' + '00'.repeat(32));
+    h.decodeFunctionResult.mockReturnValueOnce([2500000000000000000n]);
 
     const { result } = renderHook(() => usePrivateTokenBalance());
     const bal = await result.current.fetchPrivateBalance(
@@ -100,6 +113,48 @@ describe('usePrivateTokenBalance (contract paths)', () => {
     );
 
     expect(bal).toBe('formatted:2500000000000000000');
+    expect(decryptCtUint256).not.toHaveBeenCalled();
+  });
+
+  it('decrypts when a plain-configured token actually returns ctUint256 (64-byte return)', async () => {
+    h.providerCall.mockResolvedValueOnce('0x' + '11'.repeat(64));
+    h.abiDecode.mockReturnValueOnce([1n, 2n]);
+    (decryptCtUint256 as any).mockReturnValue(3000000000000000000n);
+
+    const { result } = renderHook(() => usePrivateTokenBalance());
+    const bal = await result.current.fetchPrivateBalance(
+      USER,
+      'a'.repeat(32),
+      CONTRACT,
+      256,
+      18,
+      undefined,
+      true,
+    );
+
+    expect(bal).toBe('formatted:3000000000000000000');
+    expect(decryptCtUint256).toHaveBeenCalledWith(
+      { ciphertextHigh: 1n, ciphertextLow: 2n },
+      'a'.repeat(32),
+      { decimals: 18 },
+    );
+  });
+
+  it('returns "0.00" for an encrypted plain-configured token when no AES key is available', async () => {
+    h.providerCall.mockResolvedValueOnce('0x' + '11'.repeat(64));
+
+    const { result } = renderHook(() => usePrivateTokenBalance());
+    const bal = await result.current.fetchPrivateBalance(
+      USER,
+      '',
+      CONTRACT,
+      256,
+      18,
+      undefined,
+      true,
+    );
+
+    expect(bal).toBe('0.00');
     expect(decryptCtUint256).not.toHaveBeenCalled();
   });
 
@@ -133,7 +188,8 @@ describe('usePrivateTokenBalance (contract paths)', () => {
   });
 
   it('reads a plain balance via RPC when readChainId is provided', async () => {
-    h.balanceOf.mockResolvedValueOnce(1000000000000000000n);
+    h.providerCall.mockResolvedValueOnce('0x' + '00'.repeat(32));
+    h.decodeFunctionResult.mockReturnValueOnce([1000000000000000000n]);
     (window as any).ethereum = undefined;
 
     const { result } = renderHook(() => usePrivateTokenBalance());

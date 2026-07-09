@@ -228,6 +228,14 @@ export const useBalanceUpdater = ({
                                 const publicSymbol = token.symbol.replace(/^p\./, '');
                                 const pubCfg = publicTokenConfigs.find(t => t.symbol === publicSymbol);
                                 const isPlainBalance = !!pubCfg?.isNative;
+                                logger.log(`[BalanceUpdater] ${token.symbol} balance route`, {
+                                    tokenAddress,
+                                    decimals: token.decimals,
+                                    publicSymbol,
+                                    publicIsNative: pubCfg?.isNative ?? false,
+                                    isPlainBalance,
+                                    chainId: currentChainId,
+                                });
                                 if (!aesKey && !allowSnapOperations && !isPlainBalance) {
                                     return { symbol: token.symbol, value: '0', isMismatch: false };
                                 }

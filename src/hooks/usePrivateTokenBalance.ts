@@ -13,7 +13,7 @@ export interface PrivateBalanceDecryptOptions {
     decryptCtUint256?: (value: CtUint256, chainId?: number | string, accountAddress?: string) => Promise<bigint | null>;
 }
 
-/** Native PoD pTokens (p.ETH, p.AVAX): plain uint256 on-chain. */
+/** Native PoD pTokens whose balanceOf returns a plain uint256 (legacy deployments). */
 const PLAIN_BALANCE_ABI = [
     "function balanceOf(address account) view returns (uint256)",
 ];
@@ -27,7 +27,9 @@ const FLAT_BALANCE_ABI = [
  * Fetches and decrypts confidential token balances.
  *
  * Encrypted 256-bit balances always use flat ctUint256. Native PoD pTokens
- * (p.ETH, p.AVAX) expose a plain uint256 via {@link isPlainBalance}.
+ * (p.ETH, p.AVAX) are requested via {@link isPlainBalance}, but the actual
+ * on-chain shape is detected from the return data: current deployments store
+ * encrypted ctUint256 (64 bytes) while legacy ones stored plain uint256 (32 bytes).
  */
 export const usePrivateTokenBalance = () => {
     const fetchPrivateBalance = useCallback(async (
@@ -55,9 +57,39 @@ export const usePrivateTokenBalance = () => {
             const useRpcRead = _readChainId != null;
 
             const readBalance = async (runner: ethers.ContractRunner): Promise<string> => {
+                const decryptFlatCt256 = async (high: bigint, low: bigint): Promise<string> => {
+                    const flatBalance = { ciphertextHigh: high, ciphertextLow: low };
+                    if (isZeroCtUint256(flatBalance)) return '0.00';
+
+                    const decryptedVal = aesKey
+                        ? decryptCtUint256(flatBalance, aesKey, { decimals })
+                        : await decryptOptions?.decryptCtUint256?.(flatBalance, _readChainId, userAddress) ?? null;
+                    if (decryptedVal === null) {
+                        throw new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch: Error decrypting. Re-onboarding required.');
+                    }
+                    return ethers.formatUnits(decryptedVal, decimals);
+                };
+
                 if (isPlainBalance) {
-                    const plainContract = new ethers.Contract(contractAddress, PLAIN_BALANCE_ABI, runner);
-                    const balance = await plainContract.balanceOf(userAddress);
+                    // Native pTokens are configured as plain, but current PoD deployments
+                    // actually store encrypted ctUint256. Read the raw return data and pick
+                    // the decode path from its shape: 32 bytes = plain uint256, 64 bytes =
+                    // ctUint256 (ciphertextHigh, ciphertextLow).
+                    const iface = new ethers.Interface(PLAIN_BALANCE_ABI);
+                    const rawReturn = await runner.provider!.call({
+                        to: contractAddress,
+                        data: iface.encodeFunctionData('balanceOf', [userAddress]),
+                    });
+                    const returnByteLength = (rawReturn.length - 2) / 2;
+
+                    if (returnByteLength > 32) {
+                        logger.log('[fetchPrivateBalance] plain-configured token returned ctUint256 — decrypting', { contractAddress, returnByteLength });
+                        if (!aesKey && !decryptOptions?.decryptCtUint256) return '0.00';
+                        const [high, low] = ethers.AbiCoder.defaultAbiCoder().decode(['uint256', 'uint256'], rawReturn);
+                        return decryptFlatCt256(high, low);
+                    }
+
+                    const [balance] = iface.decodeFunctionResult('balanceOf', rawReturn);
                     return ethers.formatUnits(balance, decimals);
                 }
 
@@ -84,16 +116,7 @@ export const usePrivateTokenBalance = () => {
 
                 const high = encryptedBalance.ciphertextHigh ?? encryptedBalance[0] ?? 0n;
                 const low = encryptedBalance.ciphertextLow ?? encryptedBalance[1] ?? 0n;
-                const flatBalance = { ciphertextHigh: high, ciphertextLow: low };
-                if (isZeroCtUint256(flatBalance)) return '0.00';
-
-                const decryptedVal = aesKey
-                    ? decryptCtUint256(flatBalance, aesKey, { decimals })
-                    : await decryptOptions?.decryptCtUint256?.(flatBalance, _readChainId, userAddress) ?? null;
-                if (decryptedVal === null) {
-                    throw new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch: Error decrypting. Re-onboarding required.');
-                }
-                return ethers.formatUnits(decryptedVal, decimals);
+                return decryptFlatCt256(high, low);
             };
 
             if (useRpcRead) {
