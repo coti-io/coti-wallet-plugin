@@ -203,6 +203,17 @@ export function resolveTrustInjectedTarget(): InjectedWalletTarget {
     /* extension globals may throw when multiple wallets are installed */
   }
 
+  try {
+    // Trust's mobile in-app browser injects window.ethereum with isTrust and does
+    // not always expose window.trustwallet or EIP-6963.
+    const eth = (window as unknown as { ethereum?: EIP1193Provider }).ethereum;
+    if (eth?.isTrust) {
+      return { id: 'trust-inapp', name: 'Trust Wallet', provider: eth };
+    }
+  } catch {
+    /* extension globals may throw when multiple wallets are installed */
+  }
+
   return {
     id: 'com.trustwallet.app',
     name: 'Trust Wallet',
