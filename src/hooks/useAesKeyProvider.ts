@@ -7,7 +7,7 @@ import type { WalletTypeInfo } from './useWalletType';
 import { CotiPluginError, CotiErrorCode } from '../errors';
 import { logger } from '../lib/logger';
 import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID } from '../config/chains';
-import { getPluginConfig } from '../config/plugin';
+import { getPluginConfig, type EncryptedAesBackup } from '../config/plugin';
 import { decryptAesKeyBackup, encryptAesKeyBackup } from '../crypto/aesKeyBackupVault';
 import { normalizeAesKey } from '../crypto/aesKey';
 import { muteChainUpdates, unmuteChainUpdates, isChainUpdatesMuted } from '../lib/chainMute';
@@ -86,6 +86,8 @@ export interface AesKeyProviderOptions {
   onProgress?: OnboardingProgressCallback;
   /** Called when backup restore is cancelled by the user. */
   onRestoreCancelled?: () => void;
+  /** Encrypted backup blob from an earlier access probe — avoids a second fetch before sign. */
+  prefetchedEncryptedBackup?: EncryptedAesBackup | null;
 }
 
 /** @deprecated Use {@link AesKeyProviderOptions} instead. */
@@ -371,7 +373,9 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         if (servicesEnabled && services?.fetchEncryptedAesBackup) {
           try {
             emitStep('restoring-backup');
-            const backup = await services.fetchEncryptedAesBackup(backupContext);
+            const backup = options.prefetchedEncryptedBackup === undefined
+              ? await services.fetchEncryptedAesBackup(backupContext)
+              : options.prefetchedEncryptedBackup;
             if (backup) {
               const provider = new BrowserProvider(walletProvider);
               const signer = await provider.getSigner(address);

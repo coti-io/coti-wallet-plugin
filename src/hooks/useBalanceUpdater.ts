@@ -1,7 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { ethers } from 'ethers';
 import { CONTRACT_ADDRESSES, ERC20_ABI, getPublicTokensForChain, getPrivateTokensForChain } from '../contracts/config';
-import { getChainConfig } from '../chains';
 import { createResilientJsonRpcProvider } from '../lib/rpcProvider';
 import type { Token } from './usePrivacyBridge';
 import type { AesKeyProviderOptions } from './useAesKeyProvider';
@@ -82,17 +81,38 @@ export const useBalanceUpdater = ({
                 canUseSnapOperations
                 && !options?.forceContractOnboarding
                 && (!options?.restoreOnly || options?.snapSideDecrypt === true);
+            const deferPublicBalances =
+                options?.restoreOnly === true
+                && fetchPrivate
+                && !aesKeyOverride
+                && !sessionAesKey;
 
             const hasChainOverride = typeof chainOverride === 'number';
             if (window.ethereum || hasChainOverride) {
-                // When wagmi supplies chainOverride, read balances via RPC — do not
-                // probe window.ethereum (may be hijacked by another extension).
                 const browserProvider = window.ethereum && !hasChainOverride
                     ? new ethers.BrowserProvider(window.ethereum)
                     : null;
+                const needsAesKeyFetch =
+                    fetchPrivate
+                    && !aesKeyOverride
+                    && !sessionAesKey
+                    && checkSnap
+                    && !(allowSnapOperations && options?.snapSideDecrypt);
+                let restoredAesKey: string | null = aesKeyOverride ?? sessionAesKey ?? null;
 
-                // Ensure network name is updated immediately when MetaMask is available.
-                if (browserProvider) {
+                if (deferPublicBalances && needsAesKeyFetch) {
+                    logger.log('⚡ Restore-only unlock: fetching AES key before balance RPCs');
+                    const { validateOnUnlock: _validateOnUnlock, ...aesKeyOptions } = options ?? {};
+                    restoredAesKey = validateOnUnlock
+                        ? await getAESKeyFromSnap(account, { skipCache: true, ...aesKeyOptions })
+                        : await getAESKeyFromSnap(account, aesKeyOptions);
+                    if (isStale()) return false;
+                    if (!restoredAesKey) {
+                        return false;
+                    }
+                }
+
+                if (browserProvider && !deferPublicBalances) {
                     await checkNetwork(browserProvider);
                     if (isStale()) return false;
                 }
@@ -101,13 +121,14 @@ export const useBalanceUpdater = ({
                     ? chainOverride
                     : Number((await browserProvider!.getNetwork()).chainId);
                 if (isStale()) return false;
+
+                const addresses = CONTRACT_ADDRESSES[currentChainId];
                 const readProvider = hasChainOverride
                     ? await createResilientJsonRpcProvider(currentChainId)
                     : browserProvider!;
 
-                const addresses = CONTRACT_ADDRESSES[currentChainId];
-
                 // ─── Public Balances (dynamic) ──────────────────────────────────
+                if (!deferPublicBalances) {
                 const publicTokenConfigs = getPublicTokensForChain(currentChainId);
 
                 // Fetch native balance (used for tokens without addressKey, e.g. COTI)
@@ -146,12 +167,13 @@ export const useBalanceUpdater = ({
                     isNative: token.isNative,
                     supportedChainIds: token.supportedChainIds,
                 })));
+                }
                 // ─── Private Balances (dynamic) ─────────────────────────────────
                 if (addresses && fetchPrivate) {
                     try {
-                        let aesKey: string | null = aesKeyOverride ?? sessionAesKey ?? null;
+                        let aesKey: string | null = restoredAesKey;
 
-                        if (checkSnap && !aesKey && !(allowSnapOperations && options?.snapSideDecrypt)) {
+                        if (needsAesKeyFetch && !aesKey) {
                             const { validateOnUnlock: _validateOnUnlock, ...aesKeyOptions } = options ?? {};
                             if (validateOnUnlock) {
                                 aesKey = Object.keys(aesKeyOptions).length === 0

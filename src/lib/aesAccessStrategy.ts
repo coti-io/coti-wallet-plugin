@@ -3,6 +3,7 @@ import {
   getPluginConfig,
   isAesKeyChainId,
   type AesKeyChainId,
+  type EncryptedAesBackup,
 } from '../config/plugin';
 import { COTI_TESTNET_CHAIN_ID } from '../config/chains';
 import { CotiPluginError, CotiErrorCode } from '../errors';
@@ -19,6 +20,8 @@ export interface AesAccessStrategy {
   snapInstalled: boolean;
   snapHasKey: boolean;
   hasEncryptedBackup: boolean;
+  /** Populated when a backup probe loaded the encrypted blob. */
+  encryptedBackup?: EncryptedAesBackup | null;
 }
 
 export interface ResolveAesAccessStrategyInput {
@@ -38,19 +41,26 @@ function isOnboardingServicesEnabled(): boolean {
   return mode === 'custom' || mode === 'official';
 }
 
-async function probeLocalBackup(address: string, chainId: number): Promise<boolean> {
+async function fetchEncryptedBackupProbe(
+  address: string,
+  chainId: number,
+): Promise<EncryptedAesBackup | null> {
   const services = getPluginConfig().onboardingServices;
   if (!isOnboardingServicesEnabled() || !services?.fetchEncryptedAesBackup) {
-    return false;
+    return null;
   }
 
   try {
-    const backup = await services.fetchEncryptedAesBackup({ address, chainId });
-    return backup != null;
+    return await services.fetchEncryptedAesBackup({ address, chainId });
   } catch (error) {
     logger.warn('[AesAccess] local backup probe failed:', error);
-    return false;
+    return null;
   }
+}
+
+async function probeLocalBackup(address: string, chainId: number): Promise<boolean> {
+  const backup = await fetchEncryptedBackupProbe(address, chainId);
+  return backup != null;
 }
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -129,9 +139,10 @@ export async function resolveAesAccessStrategy(
   const aesKeyChainId = resolveAesKeyChainId(input.chainId, input.aesKeyChainId);
   let snapHasKey = false;
   let hasEncryptedBackup = false;
+  let encryptedBackup: EncryptedAesBackup | null = null;
 
   if (input.snapInstalled) {
-    const backupProbe = probeLocalBackup(input.address, aesKeyChainId);
+    const backupProbe = fetchEncryptedBackupProbe(input.address, aesKeyChainId);
     const [snapResult, backupResult] = await Promise.all([
       probeSnapKeyWithRetry(
         input.hasAesKeyInSnap,
@@ -142,9 +153,11 @@ export async function resolveAesAccessStrategy(
       backupProbe,
     ]);
     snapHasKey = snapResult;
-    hasEncryptedBackup = snapHasKey ? false : backupResult;
+    encryptedBackup = snapHasKey ? null : backupResult;
+    hasEncryptedBackup = encryptedBackup != null;
   } else {
-    hasEncryptedBackup = await probeLocalBackup(input.address, aesKeyChainId);
+    encryptedBackup = await fetchEncryptedBackupProbe(input.address, aesKeyChainId);
+    hasEncryptedBackup = encryptedBackup != null;
   }
   const mode = resolveAesAccessMode({
     snapInstalled: input.snapInstalled,
@@ -168,7 +181,32 @@ export async function resolveAesAccessStrategy(
     snapInstalled: input.snapInstalled,
     snapHasKey,
     hasEncryptedBackup,
+    encryptedBackup,
   };
+}
+
+/**
+ * Restore-only routing: load encrypted backup first so the wallet sign prompt is
+ * not blocked by Snap probes or duplicate backup fetches.
+ */
+export async function resolveRestoreAesAccessStrategy(
+  input: ResolveAesAccessStrategyInput,
+): Promise<AesAccessStrategy> {
+  const aesKeyChainId = resolveAesKeyChainId(input.chainId, input.aesKeyChainId);
+  const encryptedBackup = await fetchEncryptedBackupProbe(input.address, aesKeyChainId);
+  if (encryptedBackup) {
+    logger.log('[AesAccess] restore probe: encrypted backup found — fast local path');
+    return {
+      mode: 'local',
+      aesKeyChainId,
+      snapInstalled: input.snapInstalled,
+      snapHasKey: false,
+      hasEncryptedBackup: true,
+      encryptedBackup,
+    };
+  }
+
+  return resolveAesAccessStrategy(input);
 }
 
 export interface AesUnlockPlan {
@@ -196,7 +234,11 @@ export function buildUnlockPlanFromStrategy(
       return {
         unlockOptions: sessionKey
           ? unlockOptions
-          : { ...unlockOptions, restoreOnly: true },
+          : {
+            ...unlockOptions,
+            restoreOnly: true,
+            prefetchedEncryptedBackup: strategy.encryptedBackup,
+          },
         checkSnap: !sessionKey,
         keyForUnlock: sessionKey,
         accessMode: strategy.mode,

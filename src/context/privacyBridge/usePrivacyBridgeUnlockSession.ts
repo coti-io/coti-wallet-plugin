@@ -15,6 +15,7 @@ import {
   type AesUnlockPlan,
   buildUnlockPlanFromStrategy,
   resolveAesAccessStrategy,
+  resolveRestoreAesAccessStrategy,
   shouldUseLocalCrypto,
   shouldUseSnapCrypto,
 } from '../../lib/aesAccessStrategy';
@@ -168,9 +169,30 @@ export const usePrivacyBridgeUnlockSession = ({
       };
     }
 
-    const strategy = await resolveAesAccess(aesKeyOptions?.aesKeyChainId);
+    const chainIdNum = Number(currentChainId);
+    if (!Number.isFinite(chainIdNum) || chainIdNum <= 0) {
+      return {
+        unlockOptions,
+        checkSnap: true,
+        keyForUnlock: sessionKey,
+        failed: true as const,
+      };
+    }
+
+    const isMetaMask = walletTypeInfo.walletType === 'metamask';
+    const strategy = aesKeyOptions?.restoreOnly
+      ? await resolveRestoreAesAccessStrategy({
+        address: walletAddress,
+        chainId: chainIdNum,
+        aesKeyChainId: aesKeyOptions?.aesKeyChainId ?? aesKeyChainId,
+        snapInstalled: isMetaMask ? await checkSnapStatus() : false,
+        sessionAesKey: resolveSessionAesKey(),
+        hasAesKeyInSnap,
+        confirmSnapInstalled: isMetaMask ? checkSnapStatus : undefined,
+      })
+      : await resolveAesAccess(aesKeyOptions?.aesKeyChainId);
     return buildUnlockPlanFromStrategy(strategy, unlockOptions, sessionKey);
-  }, [resolveAesAccess, resolveSessionAesKey, walletAddress]);
+  }, [resolveAesAccess, resolveSessionAesKey, walletAddress, aesKeyChainId, checkSnapStatus, hasAesKeyInSnap, walletTypeInfo.walletType, currentChainId]);
 
   const refreshPrivateBalances = useCallback(async (aesKeyOptions?: AesKeyProviderOptions) => {
     if (!walletAddress) return false;
