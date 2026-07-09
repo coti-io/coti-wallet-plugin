@@ -1,6 +1,7 @@
 import { createConnector } from 'wagmi';
 import { injected, walletConnect } from 'wagmi/connectors';
-import type { Wallet } from '@rainbow-me/rainbowkit/wallets';
+import type { Wallet } from '@rainbow-me/rainbowkit';
+import { asInjectedTarget } from './injectedTarget';
 
 /**
  * Returns true when running in a mobile browser (iOS or Android).
@@ -108,8 +109,11 @@ export const mobileRabbyWallet = ({ projectId }: { projectId: string }): Wallet 
           }))
         : createConnector((config) => ({
             ...injected({
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              target: { id: 'rabby', name: 'Rabby Wallet', provider: (window as any).ethereum },
+              target: asInjectedTarget({
+                id: 'rabby',
+                name: 'Rabby Wallet',
+                provider: (window as unknown as { ethereum?: unknown }).ethereum,
+              }),
             })(config),
             ...walletDetails,
           })),

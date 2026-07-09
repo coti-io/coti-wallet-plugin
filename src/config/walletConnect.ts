@@ -16,7 +16,7 @@ export function resolveWalletConnectProjectId(override?: string): string {
   const fromPlugin = getPluginConfig().walletConnectProjectId?.trim();
   if (fromPlugin) return fromPlugin;
 
-  const fromEnv = import.meta.env?.VITE_WALLETCONNECT_PROJECT_ID?.trim();
+  const fromEnv = globalThis.process?.env?.VITE_WALLETCONNECT_PROJECT_ID?.trim();
   if (fromEnv) return fromEnv;
 
   throw new CotiPluginError(CotiErrorCode.WALLETCONNECT_PROJECT_ID_MISSING, MISSING_WC_MESSAGE);

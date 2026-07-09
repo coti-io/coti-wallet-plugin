@@ -101,5 +101,8 @@ export function decryptPrivateCtUint256(params: {
   const wei = decryptCtUint256(params.ciphertext, normalizeAesKeyHex(params.aesKey), {
     decimals: params.decimals,
   });
+  if (wei === null) {
+    throw new Error('AES key mismatch or invalid ciphertext.');
+  }
   return formatPrivateAmountFromWei(wei, params.decimals);
 }

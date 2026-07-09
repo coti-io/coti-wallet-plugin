@@ -58,7 +58,8 @@ export function formatTokenBalanceDisplay(symbol: string, balance: string | numb
 }
 
 export function addThousandsSeparators(value: string | number): string {
-  let [integerPart, decimalPart] = String(value).split('.');
+  const [rawIntegerPart, decimalPart] = String(value).split('.');
+  let integerPart = rawIntegerPart;
   integerPart = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   return decimalPart !== undefined ? `${integerPart}.${decimalPart}` : integerPart;
 }

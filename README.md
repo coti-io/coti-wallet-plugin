@@ -173,11 +173,14 @@ npm install @coti-io/coti-wallet-plugin
 npm install react react-dom ethers viem @coti-io/coti-sdk-typescript @metamask/providers @rainbow-me/rainbowkit wagmi @tanstack/react-query
 ```
 
+This release is validated with `@rainbow-me/rainbowkit@2.2.0` and `wagmi@2.14.0`. Keep those two packages on compatible versions in the host app; installing mismatched latest peer versions can break RainbowKit before the plugin loads.
+
 ## Build
 
 ```bash
 npm run build    # Produces dist/index.js (CJS) + dist/index.mjs (ESM) + dist/index.d.ts
-npm run lint     # TypeScript type check (tsc --noEmit)
+npm run typecheck # TypeScript type check (tsc --noEmit)
+npm run lint     # ESLint
 npm run test     # Run test suite (vitest)
 npm run clean    # Remove dist/
 ```

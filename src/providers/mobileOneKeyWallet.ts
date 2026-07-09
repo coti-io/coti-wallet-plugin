@@ -1,6 +1,7 @@
 import { createConnector } from 'wagmi';
 import { injected, walletConnect } from 'wagmi/connectors';
-import type { Wallet } from '@rainbow-me/rainbowkit/wallets';
+import type { Wallet } from '@rainbow-me/rainbowkit';
+import { asInjectedTarget } from './injectedTarget';
 
 /**
  * Returns true when running in a mobile browser (iOS or Android).
@@ -22,7 +23,7 @@ function isMobileBrowser(): boolean {
  */
 export const mobileOneKeyWallet = ({ projectId }: { projectId: string }): Wallet => {
   const isOneKeyInjected = typeof window !== 'undefined'
-    && !!(window as Record<string, unknown>)['$onekey'];
+    && !!(window as unknown as Record<string, unknown>)['$onekey'];
 
   // On mobile the extension is never injected — always use WalletConnect.
   const mobile = isMobileBrowser();
@@ -109,12 +110,11 @@ export const mobileOneKeyWallet = ({ projectId }: { projectId: string }): Wallet
           }))
         : createConnector((config) => ({
             ...injected({
-              target: {
+              target: asInjectedTarget({
                 id: 'onekey',
                 name: 'OneKey',
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                provider: (window as any)['$onekey']?.ethereum,
-              },
+                provider: (window as unknown as { $onekey?: { ethereum?: unknown } }).$onekey?.ethereum,
+              }),
             })(config),
             ...walletDetails,
           })),

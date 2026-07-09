@@ -30,16 +30,19 @@ function getWalletDisplayName(walletType: WalletType): string {
 }
 
 function mergeTheme(theme?: OnboardModalTheme) {
-  const styles = { ...onboardModalDefaultStyles };
+  const styles = { ...onboardModalDefaultStyles } as Record<
+    keyof typeof onboardModalDefaultStyles,
+    React.CSSProperties
+  >;
   if (!theme) return styles;
 
   for (const key of Object.keys(theme) as Array<keyof OnboardModalTheme>) {
     const override = theme[key];
     if (override) {
-      styles[key] = { ...styles[key], ...override };
+      styles[key] = { ...styles[key], ...override } as React.CSSProperties;
     }
   }
-  return styles;
+  return styles as typeof onboardModalDefaultStyles;
 }
 
 export const WalletSignPrompt: React.FC<WalletSignPromptProps> = ({

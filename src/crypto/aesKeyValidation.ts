@@ -131,7 +131,7 @@ export async function validateAesKeyAgainstOnChainCiphertext(
 
       const publicSymbol = token.symbol.replace(/^p\./, '');
       const pubCfg = publicTokenConfigs.find(t => t.symbol === publicSymbol);
-      if (!!pubCfg?.isNative) continue;
+      if (pubCfg?.isNative) continue;
 
       const encrypted = await readEncryptedBalance(provider, tokenAddress, account);
       if (!encrypted) continue;

@@ -138,8 +138,7 @@ export async function resolveAesAccessStrategy(
 ): Promise<AesAccessStrategy> {
   const aesKeyChainId = resolveAesKeyChainId(input.chainId, input.aesKeyChainId);
   let snapHasKey = false;
-  let hasEncryptedBackup = false;
-  let encryptedBackup: EncryptedAesBackup | null = null;
+  let encryptedBackup: EncryptedAesBackup | null;
 
   if (input.snapInstalled) {
     const backupProbe = fetchEncryptedBackupProbe(input.address, aesKeyChainId);
@@ -154,11 +153,11 @@ export async function resolveAesAccessStrategy(
     ]);
     snapHasKey = snapResult;
     encryptedBackup = snapHasKey ? null : backupResult;
-    hasEncryptedBackup = encryptedBackup != null;
   } else {
     encryptedBackup = await fetchEncryptedBackupProbe(input.address, aesKeyChainId);
-    hasEncryptedBackup = encryptedBackup != null;
   }
+  const hasEncryptedBackup = encryptedBackup != null;
+
   const mode = resolveAesAccessMode({
     snapInstalled: input.snapInstalled,
     snapHasKey,
