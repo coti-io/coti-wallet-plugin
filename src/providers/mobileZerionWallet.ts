@@ -102,10 +102,25 @@ export const mobileZerionWallet = ({ projectId }: { projectId: string }): Wallet
     },
     createConnector: (walletDetails) =>
       shouldUseWalletConnect
-        ? createConnector((config) => ({
-            ...walletConnect({ projectId, showQrModal: false })(config),
-            ...walletDetails,
-          }))
+        ? createConnector((config) => {
+            const wcConnector = walletConnect({ projectId, showQrModal: false })(config);
+            return {
+              ...wcConnector,
+              ...walletDetails,
+              // Zerion only approves WalletConnect sessions for chains it already
+              // knows. RainbowKit connects with chainId = the COTI initial chain,
+              // and wagmi's in-connect switchChain then aborts the freshly approved
+              // session when Zerion rejects the resulting wallet_addEthereumChain.
+              // Connect chain-agnostic instead; NetworkGuard pushes the COTI chain
+              // once the session is established.
+              connect: (function (
+                this: unknown,
+                parameters: Parameters<typeof wcConnector.connect>[0] = {},
+              ) {
+                return wcConnector.connect.call(this, { ...parameters, chainId: undefined });
+              }) as unknown as typeof wcConnector.connect,
+            };
+          })
         : createConnector((config) => ({
             ...injected({
               target: {

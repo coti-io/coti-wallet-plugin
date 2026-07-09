@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useState } from 'react';
 import { logger } from '../lib/logger';
-import { useSwitchChain, useAccount } from 'wagmi';
+import { useAccount } from 'wagmi';
 import { getPluginConfig } from '../config/plugin';
 import { DEFAULT_CHAIN_ID, isSupportedChain } from '../chains';
 import { useWalletType } from './useWalletType';
@@ -22,10 +22,11 @@ export interface NetworkEnforcerResult {
 
 /**
  * Network enforcement hook that supports both MetaMask (direct RPC) and
- * non-MetaMask wallets (wagmi useSwitchChain).
+ * non-MetaMask wallets.
  *
- * - MetaMask path: uses the provided `switchNetwork` callback (wallet_switchEthereumChain)
- * - Non-MetaMask path: uses wagmi's `useSwitchChain` hook for chain switching
+ * - Both paths use the provided `switchNetwork` callback (the unified router),
+ *   which handles WalletConnect sessions (namespace check, wallet_addEthereumChain
+ *   push, deep-link foregrounding) as well as injected providers
  * - {@link isUnsupportedNetwork}: chain ∉ {@link CHAIN_CONFIGS}
  * - {@link isOffTargetNetwork}: supported chain ≠ configured target ({@link getTargetChainId})
  * - {@link enforceNetwork} switches to the configured target when current chain ≠ target
@@ -39,7 +40,6 @@ export const useNetworkEnforcer = (
 ): NetworkEnforcerResult => {
   const { chain } = useAccount();
   const { isMetaMaskWithSnap, walletType } = useWalletType();
-  const { switchChainAsync } = useSwitchChain();
   const [networkMismatchWarning, setNetworkMismatchWarning] = useState<string | null>(null);
 
   const envDefaultNetwork = getPluginConfig().defaultNetworkId;
@@ -90,8 +90,9 @@ export const useNetworkEnforcer = (
 
   /**
    * Enforce network switch.
-   * - MetaMask: uses existing switchNetwork via wallet_switchEthereumChain
-   * - Non-MetaMask: uses wagmi useSwitchChain
+   * Both MetaMask and non-MetaMask wallets use the provided `switchNetwork`
+   * router, which picks the right transport (direct RPC, injected provider,
+   * or WalletConnect add-chain + deep-link flow) for the active connection.
    */
   const enforceNetwork = useCallback(async () => {
     const targetChainId = getTargetChainId();
@@ -137,11 +138,23 @@ export const useNetworkEnforcer = (
         logger.warn(
           `[NetworkEnforcer] Non-MetaMask wallet on chain ${chain.id}. Enforcing: ${targetChainId}`
         );
+        const targetHex = '0x' + targetChainId.toString(16);
         try {
-          await switchChainAsync({ chainId: targetChainId });
-          setNetworkMismatchWarning(null);
+          // Route through the unified switchNetwork router rather than wagmi's
+          // switchChainAsync: for WalletConnect sessions it pre-checks the
+          // approved namespace, pushes the chain with wallet_addEthereumChain
+          // and deep-links the wallet app to the foreground so the user
+          // actually sees the approval prompt.
+          const success = await switchNetwork(targetHex);
+          if (!success) {
+            setNetworkMismatchWarning(
+              'Network switch was rejected. Please switch to a supported network to continue.'
+            );
+          } else {
+            setNetworkMismatchWarning(null);
+          }
         } catch (err) {
-          logger.error('[NetworkEnforcer] wagmi switchChain error:', err);
+          logger.error('[NetworkEnforcer] switchNetwork error:', err);
           setNetworkMismatchWarning(
             'Network switch was rejected. Please switch to a supported network to continue.'
           );
@@ -154,7 +167,6 @@ export const useNetworkEnforcer = (
     walletType,
     isMetaMaskWithSnap,
     switchNetwork,
-    switchChainAsync,
     getTargetChainId,
   ]);
 
