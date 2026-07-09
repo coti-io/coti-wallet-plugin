@@ -37,6 +37,7 @@ vi.mock('@coti-io/pod-sdk', () => ({
 
 import {
   buildPodMethodArgs,
+  buildPodPortalTxGasOverrides,
   formatPodFeeDisplay,
   formatPortalFeeDisplay,
   quotePortalFeeOnly,
@@ -50,10 +51,14 @@ import { POD_DEFAULT_CALLBACK_DATA_SIZE } from '../../../src/chains/podInbox';
 const PORTAL = '0x' + 'a'.repeat(40);
 const WALLET = '0x' + '1'.repeat(40);
 
-const makeSigner = () => ({
+const makeSigner = (feeData: { gasPrice?: bigint; maxFeePerGas?: bigint; maxPriorityFeePerGas?: bigint } = {}) => ({
   getAddress: vi.fn(async () => WALLET),
   provider: {
     send: vi.fn(async () => '0x' + (1_000_000_000).toString(16)),
+    getFeeData: vi.fn(async () => ({
+      gasPrice: 1_000_000_000n,
+      ...feeData,
+    })),
   },
 });
 
@@ -181,8 +186,28 @@ describe('estimatePodExecutionGasWei', () => {
   });
 });
 
+describe('buildPodPortalTxGasOverrides', () => {
+  it('uses legacy gasPrice when EIP-1559 is unavailable', async () => {
+    const overrides = await buildPodPortalTxGasOverrides(makeSigner() as never, 1_000_000_000n);
+    expect(overrides).toEqual({ gasPrice: 1_000_000_000n });
+  });
+
+  it('uses EIP-1559 fields equivalent to gasPrice when supported', async () => {
+    const overrides = await buildPodPortalTxGasOverrides(
+      makeSigner({ maxFeePerGas: 2_000_000_000n, maxPriorityFeePerGas: 1_000_000_000n }) as never,
+      1_100_000_000n,
+    );
+    expect(overrides).toEqual({
+      type: 2,
+      maxFeePerGas: 1_100_000_000n,
+      maxPriorityFeePerGas: 1_100_000_000n,
+    });
+    expect(overrides.gasPrice).toBeUndefined();
+  });
+});
+
 describe('sendPodPortalMethod', () => {
-  it('sets withdraw transferFee to the full PoD fee and lets the wallet price gas', async () => {
+  it('sets withdraw transferFee to the full PoD fee and pins EIP-1559 fees to the estimate', async () => {
     const args = buildPodMethodArgs({
       direction: 'to-public',
       wallet: WALLET,
@@ -190,7 +215,7 @@ describe('sendPodPortalMethod', () => {
       portalFee: 200n,
     });
     await sendPodPortalMethod({
-      runner: makeSigner() as never,
+      runner: makeSigner({ maxFeePerGas: 2_000_000_000n, maxPriorityFeePerGas: 1_000_000_000n }) as never,
       portalAddress: PORTAL,
       chainId: 11155111,
       direction: 'to-public',
@@ -206,8 +231,10 @@ describe('sendPodPortalMethod', () => {
     expect(call[4]).toBe(500n); // transferCallbackFee
     expect(overrides.value).toBe(200n + 2100n);
     expect(overrides.gasLimit).toBe(3_000_000n);
-    // No gasPrice pin — a spot eth_gasPrice cap strands the tx when base fee rises.
-    expect('gasPrice' in overrides).toBe(false);
+    expect(overrides.type).toBe(2);
+    expect(overrides.maxFeePerGas).toBe(1_000_000_000n);
+    expect(overrides.maxPriorityFeePerGas).toBe(1_000_000_000n);
+    expect(overrides.gasPrice).toBeUndefined();
   });
 
   it('funds deposits with native amount + portal fee + PoD fee', async () => {

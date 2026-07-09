@@ -11,4 +11,6 @@ export type { UsePrivacyBridgeAllowanceOptions } from './usePrivacyBridgeAllowan
 export { usePrivacyBridgeExecutor } from './usePrivacyBridgeExecutor';
 export type { UsePrivacyBridgeExecutorOptions } from './usePrivacyBridgeExecutor';
 export { usePrivacyBridgeGas } from './usePrivacyBridgeGas';
-export type { UsePrivacyBridgeGasOptions } from './usePrivacyBridgeGas';
+export type { UsePrivacyBridgeGasOptions } from './usePrivacyBridgeGas.types';
+export { usePodPortalFees } from './usePodPortalFees';
+export { useCotiBridgeFees } from './useCotiBridgeFees';

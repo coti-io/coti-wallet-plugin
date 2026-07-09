@@ -100,7 +100,18 @@ export interface PrivacyBridgeSwapContextValue {
   estimatedGasFee: string | null;
   updateGasFee: () => Promise<void>;
   isGasEstimating: boolean;
+  /** COTI bridge portal fee (COTI-denominated). Null on PoD chains. */
   portalFeeCoti: string | null;
+  /** PoD Privacy Portal fee in native token (ETH/AVAX). Null on COTI chains. */
+  portalFee: string | null;
+  /** Native symbol for {@link portalFee} (e.g. ETH, AVAX). */
+  portalFeeSymbol: string;
+  /** PoD inbox fee paid via msg.value. Null on COTI chains. */
+  podInboxFee: string | null;
+  /** L1 execution gas estimate (wallet-paid). Null on COTI chains. */
+  l1GasFee: string | null;
+  /** True when connected chain uses pod-privacy-portal strategy. */
+  isPodChain: boolean;
   feeDebugInfo: { cotiLastUpdated: string; tokenLastUpdated: string; blockTimestamp: string } | null;
 }
 

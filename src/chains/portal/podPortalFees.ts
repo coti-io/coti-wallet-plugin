@@ -38,7 +38,10 @@ const resolveFeeRunnerProvider = (runner: ethers.ContractRunner): ethers.Provide
   return runner as ethers.Provider;
 };
 
-/** Current chain gas price via `eth_gasPrice` (shared by fee estimate and tx send). */
+/** 10% headroom applied to spot gas price for both estimate and send. */
+export const POD_GAS_PRICE_BUFFER_BPS = 1100n;
+
+/** Spot chain gas price via `eth_gasPrice`. */
 export const getPodGasPrice = async (
   provider: ethers.BrowserProvider | ethers.JsonRpcProvider | ethers.Provider,
 ): Promise<bigint> => {
@@ -47,8 +50,26 @@ export const getPodGasPrice = async (
   return BigInt(gasPriceHex);
 };
 
-/** @deprecated Use {@link getPodGasPrice}. */
-export const getSepoliaGasPrice = getPodGasPrice;
+/**
+ * Gas price for PoD inbox fee estimation and tx send.
+ * Uses `getFeeData().gasPrice` when available, with a 10% buffer so estimate
+ * and `tx.gasprice` stay aligned per pod-sdk inbox rules.
+ */
+export const resolvePodTxGasPrice = async (
+  provider: ethers.BrowserProvider | ethers.JsonRpcProvider | ethers.Provider,
+): Promise<bigint> => {
+  let base: bigint;
+  try {
+    const feeData = await provider.getFeeData();
+    base = feeData.gasPrice ?? await getPodGasPrice(provider);
+  } catch {
+    base = await getPodGasPrice(provider);
+  }
+  return (base * POD_GAS_PRICE_BUFFER_BPS) / 1000n;
+};
+
+/** @deprecated Use {@link resolvePodTxGasPrice}. */
+export const getSepoliaGasPrice = resolvePodTxGasPrice;
 
 export const quotePortalFeeOnly = async (
   runner: ethers.ContractRunner,
@@ -58,7 +79,7 @@ export const quotePortalFeeOnly = async (
   gasPrice?: bigint,
 ): Promise<PortalFeeQuote> => {
   const provider = resolveFeeRunnerProvider(runner);
-  const resolvedGasPrice = gasPrice ?? await getPodGasPrice(provider);
+  const resolvedGasPrice = gasPrice ?? await resolvePodTxGasPrice(provider);
   const portal = new ethers.Contract(portalAddress, PRIVACY_PORTAL_ABI, runner);
 
   if (direction === "to-private") {
@@ -96,11 +117,8 @@ export const quotePortalFeeOnly = async (
 
 export const formatPortalFeeDisplay = (
   portalFee: bigint,
-  usedDynamicPricing: boolean,
-): string => {
-  const raw = ethers.formatEther(portalFee).replace(/\.?0+$/, "") || "0";
-  return usedDynamicPricing ? raw : raw;
-};
+  _usedDynamicPricing?: boolean,
+): string => ethers.formatEther(portalFee).replace(/\.?0+$/, "") || "0";
 
 export const formatPodFeeDisplay = (totalFee: bigint): string =>
   ethers.formatEther(totalFee).replace(/\.?0+$/, "") || "0";
@@ -306,77 +324,58 @@ export const estimatePodPortalFees = async (params: {
 }): Promise<{
   portalFeeDisplay: string;
   podFeeDisplay: string;
+  podInboxFeeDisplay: string;
+  l1GasDisplay: string;
   portalFeeWei: bigint;
   podFeeEstimate: PodFeeEstimate;
   gasPrice: bigint;
   usedDynamicPricing: boolean;
 }> => {
-  const dec = params.pubTok?.decimals ?? 18;
-  const amountWei = ethers.parseUnits(params.amount, dec);
-  const gasPrice = await getPodGasPrice(resolveFeeRunnerProvider(params.runner));
-  const portalQuote = await quotePortalFeeOnly(
-    params.runner,
-    params.portalAddress,
-    amountWei,
-    params.direction,
-    gasPrice,
-  );
-  const method = resolvePodPortalMethod(params.direction, !!params.pubTok?.isNative);
-  const args = buildPodMethodArgs({
-    direction: params.direction,
-    wallet: await (params.runner as ethers.Signer).getAddress(),
-    amountWei,
-    portalFee: portalQuote.portalFee,
-    isNativeDeposit: !!params.pubTok?.isNative,
-    withdrawPermit: params.withdrawPermit,
-  });
-  const wallet = await (params.runner as ethers.Signer).getAddress();
-  const podFeeEstimate = await estimatePodFee({
-    runner: params.runner,
-    portalAddress: params.portalAddress,
-    chainId: params.chainId,
-    direction: params.direction,
-    method,
-    args,
-    gasPrice,
-  });
-  const executionGasWei = await estimatePodExecutionGasWei({
-    chainId: params.chainId,
-    portalAddress: params.portalAddress,
-    wallet,
-    amountWei,
-    portalFee: portalQuote.portalFee,
-    direction: params.direction,
-    isNativeDeposit: !!params.pubTok?.isNative,
-    gasPrice,
-    podFee: podFeeEstimate,
-    withdrawPermit: params.withdrawPermit,
-  });
-  const combinedPodFeeWei = podFeeEstimate.totalFee + executionGasWei;
-  const result = {
-    portalFeeDisplay: formatPortalFeeDisplay(portalQuote.portalFee, portalQuote.usedDynamicPricing),
+  const { quotePodPortalTransactionFees } = await import("./fees");
+  const quote = await quotePodPortalTransactionFees(params);
+  const combinedPodFeeWei = quote.podInboxFeeWei + quote.l1ExecutionGasWei;
+  return {
+    portalFeeDisplay: quote.display.portalFee,
     podFeeDisplay: formatPodFeeDisplay(combinedPodFeeWei),
-    portalFeeWei: portalQuote.portalFee,
-    podFeeEstimate,
-    gasPrice,
-    usedDynamicPricing: portalQuote.usedDynamicPricing,
+    podInboxFeeDisplay: quote.display.podInboxFee,
+    l1GasDisplay: quote.display.l1Gas,
+    portalFeeWei: quote.portalFeeWei,
+    podFeeEstimate: quote.podFeeEstimate,
+    gasPrice: quote.gasPrice,
+    usedDynamicPricing: quote.usedDynamicPricing,
   };
-  logger.debug("[podPortalFees] estimatePodPortalFees", {
-    chainId: params.chainId,
-    direction: params.direction,
-    portalAddress: params.portalAddress,
-    amount: params.amount,
-    portalFeeWei: result.portalFeeWei.toString(),
-    portalFeeDisplay: result.portalFeeDisplay,
-    podInboxFeeWei: podFeeEstimate.totalFee.toString(),
-    executionGasWei: executionGasWei.toString(),
-    podFeeDisplay: result.podFeeDisplay,
-    gasPrice: gasPrice.toString(),
-  });
-  return result;
 };
 
-/** Send a PoD portal tx using SDK fee estimation; wallet/provider chooses the tx gas fees. */
+/** Build tx gas overrides pinned to {@link gasPrice}, using EIP-1559 when the network supports it. */
+export const buildPodPortalTxGasOverrides = async (
+  runner: ethers.ContractRunner,
+  gasPrice: bigint,
+): Promise<Pick<ethers.TransactionRequest, "type" | "gasPrice" | "maxFeePerGas" | "maxPriorityFeePerGas">> => {
+  const provider = resolveFeeRunnerProvider(runner);
+  let supportsEip1559 = false;
+  if (provider) {
+    try {
+      const feeData = await provider.getFeeData();
+      supportsEip1559 = feeData.maxFeePerGas != null && feeData.maxPriorityFeePerGas != null;
+    } catch {
+      supportsEip1559 = false;
+    }
+  }
+
+  if (supportsEip1559) {
+    // Effective price = min(maxFeePerGas, baseFee + maxPriorityFeePerGas).
+    // Pin both to gasPrice so on-chain tx.gasprice matches the inbox estimate input.
+    return {
+      type: 2,
+      maxFeePerGas: gasPrice,
+      maxPriorityFeePerGas: gasPrice,
+    };
+  }
+
+  return { gasPrice };
+};
+
+/** Send a PoD portal tx using SDK fee estimation; pins gas fees to the estimate snapshot. */
 export const sendPodPortalMethod = async (params: {
   runner: ethers.Signer;
   portalAddress: string;
@@ -419,11 +418,10 @@ export const sendPodPortalMethod = async (params: {
   const vals = encodedArgs.map(arg => arg.value);
   const nativeAmount = params.isNativeDeposit && params.amountWei ? params.amountWei : 0n;
   const txValue = nativeAmount + params.portalFee + fee.totalFee;
-  // Deliberately no gasPrice override: pinning the fee cap to a spot
-  // eth_gasPrice leaves zero headroom, and the tx gets stuck the moment the
-  // base fee rises. Let the wallet/provider price the tx (EIP-1559).
-  const overrides: { value: bigint; gasLimit?: bigint } = {
+  const gasOverrides = await buildPodPortalTxGasOverrides(params.runner, params.gasPrice);
+  const overrides: ethers.TransactionRequest = {
     value: txValue,
+    ...gasOverrides,
   };
   if (params.gasLimit) {
     overrides.gasLimit = params.gasLimit;

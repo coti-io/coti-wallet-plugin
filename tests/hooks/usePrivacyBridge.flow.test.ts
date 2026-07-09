@@ -31,6 +31,7 @@ vi.mock('ethers', async (importOriginal) => {
     waitForTransaction = (...a: unknown[]) => eth.waitForTransaction(...a);
     call = (...a: unknown[]) => eth.call(...a);
     send = (...a: unknown[]) => eth.send(...a);
+    getFeeData = vi.fn(async () => ({ gasPrice: 1_000_000_000n }));
   }
   class MockJsonRpcProvider {
     constructor(..._a: unknown[]) {}
@@ -74,6 +75,8 @@ vi.mock('wagmi', () => ({
 const sib = vi.hoisted(() => ({
   estimatePodPortalFees: vi.fn(),
   quotePortalFeeOnly: vi.fn(),
+  quotePodPortalTransactionFees: vi.fn(),
+  quoteCotiBridgeFees: vi.fn(),
   estimateCotiBridgeGasFeeDisplay: vi.fn(),
   executePodPortalTransaction: vi.fn(),
   signPodWithdrawPermit: vi.fn(),
@@ -84,6 +87,12 @@ const sib = vi.hoisted(() => ({
   getRpcUrlForChain: vi.fn(() => 'https://rpc.test'),
 }));
 
+vi.mock('../../src/chains/portal/fees', () => ({
+  quotePodPortalTransactionFees: (...a: unknown[]) => sib.quotePodPortalTransactionFees(...a),
+}));
+vi.mock('../../src/chains/coti-bridge/fees', () => ({
+  quoteCotiBridgeFees: (...a: unknown[]) => sib.quoteCotiBridgeFees(...a),
+}));
 vi.mock('../../src/chains/portal/podPortalFees', () => ({
   estimatePodPortalFees: (...a: unknown[]) => sib.estimatePodPortalFees(...a),
   quotePortalFeeOnly: (...a: unknown[]) => sib.quotePortalFeeOnly(...a),
@@ -348,14 +357,33 @@ beforeEach(() => {
     return [];
   });
   sib.getPrivateTokensForChain.mockReturnValue([]);
-  sib.estimateCotiBridgeGasFeeDisplay.mockResolvedValue('0.0005');
-  sib.estimatePodPortalFees.mockResolvedValue({
-    portalFeeDisplay: '0.01',
-    podFeeDisplay: '0.0009',
-    portalFeeWei: 10_000_000_000_000_000n,
-    podFeeEstimate: { totalFee: 900_000_000_000_000n, remoteFee: 400_000_000_000_000n, callBackFee: 500_000_000_000_000n },
+  sib.quoteCotiBridgeFees.mockResolvedValue({
+    portalFeeCoti: '0.05',
+    estimatedGasFee: '0.0005',
+    feeDebugInfo: {
+      cotiLastUpdated: '111',
+      tokenLastUpdated: '222',
+      blockTimestamp: '333',
+    },
+  });
+  sib.quotePodPortalTransactionFees.mockResolvedValue({
     gasPrice: 1_000_000_000n,
+    portalFeeWei: 10_000_000_000_000_000n,
+    podInboxFeeWei: 900_000_000_000_000n,
+    podCallbackFeeWei: 500_000_000_000_000n,
+    l1ExecutionGasWei: 500_000_000_000_000n,
+    podFeeEstimate: {
+      totalFee: 900_000_000_000_000n,
+      remoteFee: 400_000_000_000_000n,
+      callBackFee: 500_000_000_000_000n,
+    },
     usedDynamicPricing: true,
+    display: {
+      portalFee: '0.01',
+      podInboxFee: '0.0009',
+      l1Gas: '0.0005',
+      portalFeeSymbol: 'ETH',
+    },
   });
   sib.quotePortalFeeOnly.mockResolvedValue({
     portalFee: 10_000_000_000_000_000n,
@@ -1253,6 +1281,11 @@ describe('usePrivacyBridge - updateGasFee', () => {
   });
 
   it('returns without a fee on an unsupported chain', async () => {
+    sib.quoteCotiBridgeFees.mockResolvedValue({
+      portalFeeCoti: null,
+      estimatedGasFee: null,
+      feeDebugInfo: null,
+    });
     const props = makeProps({ chainId: 999 });
     const { result } = renderHook(() => usePrivacyBridge(props));
     await act(async () => {
@@ -1263,7 +1296,11 @@ describe('usePrivacyBridge - updateGasFee', () => {
 
   it('uses the COTI bridge estimator (config-driven bridge address)', async () => {
     sib.getPublicTokensForChain.mockReturnValue(ercPublicCfg('WETH'));
-    sib.estimateCotiBridgeGasFeeDisplay.mockResolvedValue('0.0042');
+    sib.quoteCotiBridgeFees.mockResolvedValue({
+      portalFeeCoti: null,
+      estimatedGasFee: '0.0042',
+      feeDebugInfo: null,
+    });
     const props = makeProps();
     const { result } = renderHook(() => usePrivacyBridge(props));
     await act(async () => {
@@ -1273,7 +1310,11 @@ describe('usePrivacyBridge - updateGasFee', () => {
   });
 
   it('uses the COTI bridge estimator with the symbol fallback for WBTC', async () => {
-    sib.estimateCotiBridgeGasFeeDisplay.mockResolvedValue('0.001');
+    sib.quoteCotiBridgeFees.mockResolvedValue({
+      portalFeeCoti: null,
+      estimatedGasFee: '0.001',
+      feeDebugInfo: null,
+    });
     const props = makeProps({
       publicTokens: [{ symbol: 'WBTC', name: 'WBTC', balance: '0', isPrivate: false }],
     });
@@ -1293,14 +1334,6 @@ describe('usePrivacyBridge - updateGasFee', () => {
     sib.getPrivateTokensForChain.mockReturnValue([
       { symbol: 'p.MTT', isPrivate: true, addressKey: 'p.MTT', bridgeAddressKey: 'PrivacyPortalMTT', decimals: 18 },
     ]);
-    sib.estimatePodPortalFees.mockResolvedValue({
-      portalFeeDisplay: '0.01',
-      podFeeDisplay: '0.0009',
-      portalFeeWei: 10_000_000_000_000_000n,
-      podFeeEstimate: { totalFee: 900_000_000_000_000n, remoteFee: 400_000_000_000_000n, callBackFee: 500_000_000_000_000n },
-      gasPrice: 1_000_000_000n,
-      usedDynamicPricing: true,
-    });
     vi.mocked(useAccount).mockReturnValue({
       connector: { getProvider: async () => ({ request: vi.fn() }) },
       address: WALLET,
@@ -1315,14 +1348,14 @@ describe('usePrivacyBridge - updateGasFee', () => {
     await act(async () => {
       await result.current.updateGasFee();
     });
-    await waitFor(() => expect(result.current.estimatedGasFee).toBe('0.0009'));
-    expect(sib.estimatePodPortalFees).toHaveBeenCalled();
+    await waitFor(() => expect(result.current.portalFee).toBe('0.01'));
+    await waitFor(() => expect(result.current.podInboxFee).toBe('0.0009'));
+    await waitFor(() => expect(result.current.l1GasFee).toBe('0.0005'));
+    expect(sib.quotePodPortalTransactionFees).toHaveBeenCalled();
   });
 
   it('defaults the gas price when eth_gasPrice fails and survives estimator errors', async () => {
-    eth.send.mockRejectedValue(new Error('no gas price'));
-    sib.getPublicTokensForChain.mockReturnValue(ercPublicCfg('WETH'));
-    sib.estimateCotiBridgeGasFeeDisplay.mockRejectedValue(new Error('estimator boom'));
+    sib.quoteCotiBridgeFees.mockRejectedValue(new Error('estimator boom'));
     const props = makeProps();
     const { result } = renderHook(() => usePrivacyBridge(props));
     await act(async () => {
@@ -1334,12 +1367,14 @@ describe('usePrivacyBridge - updateGasFee', () => {
 
 describe('usePrivacyBridge - fetchPortalFee (debounced effect)', () => {
   it('computes a portal fee for a positive amount', async () => {
-    sib.estimateBridgeFee.mockResolvedValue({
-      depositFee: '0.05',
-      withdrawFee: '0.06',
-      cotiLastUpdated: '1',
-      tokenLastUpdated: '2',
-      blockTimestamp: '3',
+    sib.quoteCotiBridgeFees.mockResolvedValue({
+      portalFeeCoti: '0.05',
+      estimatedGasFee: '0.0005',
+      feeDebugInfo: {
+        cotiLastUpdated: '1',
+        tokenLastUpdated: '2',
+        blockTimestamp: '3',
+      },
     });
     const props = makeProps({ amount: '1', direction: 'to-private' });
     const { result } = renderHook(() => usePrivacyBridge(props));
@@ -1355,12 +1390,10 @@ describe('usePrivacyBridge - fetchPortalFee (debounced effect)', () => {
   });
 
   it('clears the portal fee when the estimate returns Error', async () => {
-    sib.estimateBridgeFee.mockResolvedValue({
-      depositFee: 'Error',
-      withdrawFee: 'Error',
-      cotiLastUpdated: '1',
-      tokenLastUpdated: '2',
-      blockTimestamp: '3',
+    sib.quoteCotiBridgeFees.mockResolvedValue({
+      portalFeeCoti: null,
+      estimatedGasFee: '0.0005',
+      feeDebugInfo: null,
     });
     const props = makeProps({ amount: '1' });
     const { result } = renderHook(() => usePrivacyBridge(props));
@@ -1369,7 +1402,7 @@ describe('usePrivacyBridge - fetchPortalFee (debounced effect)', () => {
   });
 
   it('clears the portal fee when the estimate throws', async () => {
-    sib.estimateBridgeFee.mockRejectedValue(new Error('rpc down'));
+    sib.quoteCotiBridgeFees.mockRejectedValue(new Error('rpc down'));
     const props = makeProps({ amount: '1' });
     const { result } = renderHook(() => usePrivacyBridge(props));
     await new Promise(r => setTimeout(r, 600));
@@ -1691,7 +1724,11 @@ describe('usePrivacyBridge - revert replay branches', () => {
 describe('usePrivacyBridge - updateGasFee fallback resolution', () => {
   for (const symbol of ['USDT', 'USDC.e', 'WADA', 'gCOTI'] as const) {
     it(`estimates ${symbol} gas via the symbol fallback`, async () => {
-      sib.estimateCotiBridgeGasFeeDisplay.mockResolvedValue('0.003');
+      sib.quoteCotiBridgeFees.mockResolvedValue({
+        portalFeeCoti: null,
+        estimatedGasFee: '0.003',
+        feeDebugInfo: null,
+      });
       const props = makeProps({
         publicTokens: [{ symbol, name: symbol, balance: '0', isPrivate: false }],
       });
@@ -1704,6 +1741,11 @@ describe('usePrivacyBridge - updateGasFee fallback resolution', () => {
   }
 
   it('returns without a fee when no bridge address can be resolved', async () => {
+    sib.quoteCotiBridgeFees.mockResolvedValue({
+      portalFeeCoti: null,
+      estimatedGasFee: null,
+      feeDebugInfo: null,
+    });
     const saved = addrs.COTI_ADDR.PrivacyBridgeCotiNative;
     delete (addrs.COTI_ADDR as Record<string, string>).PrivacyBridgeCotiNative;
     try {
@@ -1714,7 +1756,7 @@ describe('usePrivacyBridge - updateGasFee fallback resolution', () => {
       await act(async () => {
         await result.current.updateGasFee();
       });
-      expect(sib.estimateCotiBridgeGasFeeDisplay).not.toHaveBeenCalled();
+      expect(result.current.estimatedGasFee).toBeNull();
     } finally {
       addrs.COTI_ADDR.PrivacyBridgeCotiNative = saved;
     }
@@ -2186,7 +2228,11 @@ describe('usePrivacyBridge - additional branch coverage', () => {
   });
 
   it('updateGasFee handles an empty public token list', async () => {
-    sib.estimateCotiBridgeGasFeeDisplay.mockResolvedValue('0.0005');
+    sib.quoteCotiBridgeFees.mockResolvedValue({
+      portalFeeCoti: null,
+      estimatedGasFee: '0.0005',
+      feeDebugInfo: null,
+    });
     const props = makeProps({ publicTokens: [], selectedTokenIndex: 0 });
     const { result } = renderHook(() => usePrivacyBridge(props));
     await act(async () => {
@@ -2197,7 +2243,11 @@ describe('usePrivacyBridge - additional branch coverage', () => {
 
   it('updateGasFee uses private decimals for a to-public estimate', async () => {
     sib.getPublicTokensForChain.mockReturnValue(ercPublicCfg('WETH'));
-    sib.estimateCotiBridgeGasFeeDisplay.mockResolvedValue('0.0007');
+    sib.quoteCotiBridgeFees.mockResolvedValue({
+      portalFeeCoti: null,
+      estimatedGasFee: '0.0007',
+      feeDebugInfo: null,
+    });
     const props = makeProps({ direction: 'to-public' });
     const { result } = renderHook(() => usePrivacyBridge(props));
     await act(async () => {
@@ -2207,12 +2257,14 @@ describe('usePrivacyBridge - additional branch coverage', () => {
   });
 
   it('fetchPortalFee uses the withdraw fee for a to-public p.token', async () => {
-    sib.estimateBridgeFee.mockResolvedValue({
-      depositFee: '0.05',
-      withdrawFee: '0.07',
-      cotiLastUpdated: '1',
-      tokenLastUpdated: '2',
-      blockTimestamp: '3',
+    sib.quoteCotiBridgeFees.mockResolvedValue({
+      portalFeeCoti: '0.07',
+      estimatedGasFee: '0.0005',
+      feeDebugInfo: {
+        cotiLastUpdated: '1',
+        tokenLastUpdated: '2',
+        blockTimestamp: '3',
+      },
     });
     const props = makeProps({
       direction: 'to-public',
@@ -2326,12 +2378,10 @@ describe('usePrivacyBridge - additional branch coverage', () => {
   });
 
   it('fetchPortalFee clears to null when the raw fee is exactly "0"', async () => {
-    sib.estimateBridgeFee.mockResolvedValue({
-      depositFee: '0',
-      withdrawFee: '0',
-      cotiLastUpdated: '1',
-      tokenLastUpdated: '2',
-      blockTimestamp: '3',
+    sib.quoteCotiBridgeFees.mockResolvedValue({
+      portalFeeCoti: null,
+      estimatedGasFee: '0.0005',
+      feeDebugInfo: null,
     });
     const props = makeProps({ amount: '1', direction: 'to-private' });
     const { result } = renderHook(() => usePrivacyBridge(props));
@@ -2368,12 +2418,10 @@ describe('usePrivacyBridge - additional branch coverage', () => {
   });
 
   it('fetchPortalFee clears to null when the fee strips down to 0', async () => {
-    sib.estimateBridgeFee.mockResolvedValue({
-      depositFee: '0.000',
-      withdrawFee: '0.000',
-      cotiLastUpdated: '1',
-      tokenLastUpdated: '2',
-      blockTimestamp: '3',
+    sib.quoteCotiBridgeFees.mockResolvedValue({
+      portalFeeCoti: null,
+      estimatedGasFee: '0.0005',
+      feeDebugInfo: null,
     });
     const props = makeProps({ amount: '1', direction: 'to-private' });
     const { result } = renderHook(() => usePrivacyBridge(props));

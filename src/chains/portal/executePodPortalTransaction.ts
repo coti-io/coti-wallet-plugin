@@ -13,6 +13,7 @@ import {
   buildPodMethodArgs,
   estimatePodFee,
   getPodGasPrice,
+  resolvePodTxGasPrice,
   quotePortalFeeOnly,
   resolvePodPortalMethod,
   sendPodPortalMethod,
@@ -24,12 +25,15 @@ export { getPodInboxAddress, getPodSdkConfig, podSdkConfig } from "./podSdkConfi
 export {
   getPodGasPrice,
   getSepoliaGasPrice,
+  resolvePodTxGasPrice,
   quotePortalFeeOnly,
   formatPortalFeeDisplay,
   formatPodFeeDisplay,
   estimatePodFee,
   estimatePodPortalFees,
 } from "./podPortalFees";
+export { quotePodPortalTransactionFees } from "./fees";
+export type { PodPortalFeeQuote } from "./fees";
 
 const getErrorMessage = (error: unknown) =>
   error && typeof error === "object" && "message" in error && typeof error.message === "string"
@@ -548,7 +552,7 @@ export async function executePodPortalTransaction(params: {
   const amountWei = ethers.parseUnits(txAmount, decimals);
   const pToken = new ethers.Contract(pTokenAddress, POD_PTOKEN_ABI, signer);
   const portalIface = new ethers.Interface(PRIVACY_PORTAL_ABI);
-  const gasPrice = await getPodGasPrice(provider);
+  const gasPrice = await resolvePodTxGasPrice(provider);
 
   if (txDirection === "to-private") {
     await assertPodPTokenReady(pToken, wallet, "deposit", {

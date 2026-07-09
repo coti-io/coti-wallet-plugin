@@ -171,6 +171,11 @@ export const usePrivacyBridge = ({
     updateGasFee: gas.updateGasFee,
     isGasEstimating: gas.isGasEstimating,
     portalFeeCoti: gas.portalFeeCoti,
+    portalFee: gas.portalFee,
+    portalFeeSymbol: gas.portalFeeSymbol,
+    podInboxFee: gas.podInboxFee,
+    l1GasFee: gas.l1GasFee,
+    isPodChain: gas.isPodChain,
     feeDebugInfo: gas.feeDebugInfo,
   };
 };

@@ -133,6 +133,11 @@ vi.mock('../../src/hooks/usePrivacyBridge', () => ({
     updateGasFee: vi.fn(async () => undefined),
     isGasEstimating: false,
     portalFeeCoti: null,
+    portalFee: null,
+    portalFeeSymbol: 'COTI',
+    podInboxFee: null,
+    l1GasFee: null,
+    isPodChain: false,
     feeDebugInfo: null,
   }),
 }));
@@ -216,6 +221,11 @@ describe('privacyBridge facade', () => {
         updateGasFee: async () => undefined,
         isGasEstimating: false,
         portalFeeCoti: null,
+    portalFee: null,
+    portalFeeSymbol: 'COTI',
+    podInboxFee: null,
+    l1GasFee: null,
+    isPodChain: false,
         feeDebugInfo: null,
       },
       pod: {

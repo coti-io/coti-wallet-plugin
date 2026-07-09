@@ -75,6 +75,8 @@ export {
 export type { PodPortalRequest, PodPortalRequestStatus, PodBalanceState, PodBalanceTrustState } from './contracts/pod';
 export { loadPodRequests, savePodRequests, podRequestsStorageKey } from './pod/podPortalRequestsStorage';
 export { estimateCotiBridgeGasFeeDisplay } from './chains/cotiBridgeGasEstimate';
+export { quoteCotiBridgeFees } from './chains/coti-bridge/fees';
+export type { CotiBridgeFeeQuote } from './chains/coti-bridge/fees';
 export { resolvePodRequestStatus } from './chains/portal/podRequestStatus';
 export {
   executePodPortalTransaction,
@@ -82,13 +84,15 @@ export {
   getPodInboxAddress,
   getPodSdkConfig,
   getPodGasPrice,
+  resolvePodTxGasPrice,
   getSepoliaGasPrice,
   quotePortalFeeOnly,
+  quotePodPortalTransactionFees,
   estimatePodPortalFees,
   formatPortalFeeDisplay,
   formatPodFeeDisplay,
 } from './chains/portal/executePodPortalTransaction';
-export type { PodWithdrawPermit } from './chains/portal/executePodPortalTransaction';
+export type { PodWithdrawPermit, PodPortalFeeQuote } from './chains/portal/executePodPortalTransaction';
 export { fetchPodOracleTokenUsdPrice, POD_PRICE_ORACLE_ABI } from './chains/podPriceOracle';
 
 // Contracts
