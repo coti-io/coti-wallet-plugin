@@ -170,7 +170,11 @@ export {
   wagmiConfig,
   type WagmiConfigOptions,
 } from './providers/WagmiRainbowKitProvider';
-export { mobileZerionWallet } from './providers/mobileZerionWallet';
+export {
+  mobileZerionWallet,
+  WALLET_CONNECT_FAILURE_EVENT,
+  type WalletConnectFailureDetail,
+} from './providers/mobileZerionWallet';
 
 // Hooks — Wallet Type Detection
 export { useWalletType } from './hooks/useWalletType';
