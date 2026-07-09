@@ -181,7 +181,7 @@ export type {
   OnboardingProgressCallback,
 } from './hooks/useAesKeyProvider';
 // Components — Onboarding
-export { OnboardModal, onboardModalDefaultStyles } from './components/OnboardModal';
+export { OnboardModal, onboardModalDefaultStyles, ONBOARD_MODAL_STYLE_KEYS } from './components/OnboardModal';
 export type { OnboardModalProps, OnboardModalTheme } from './components/OnboardModal';
 
 // Components — Network
