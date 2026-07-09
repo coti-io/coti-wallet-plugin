@@ -198,11 +198,8 @@ export {
   getEthereumProvider,
   getEip6963MetaMaskProvider,
   getEip6963RabbyProvider,
-  getEip6963TrustProvider,
-  isTrustWalletInstalled,
   resolveMetaMaskInjectedTarget,
   resolveRabbyInjectedTarget,
-  resolveTrustInjectedTarget,
 } from './lib/ethereum';
 export type { EIP1193Provider } from './lib/ethereum';
 

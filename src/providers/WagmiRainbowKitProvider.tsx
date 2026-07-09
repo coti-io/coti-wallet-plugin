@@ -2,10 +2,7 @@ import React, { useMemo } from 'react';
 import { type Chain } from 'viem';
 import { createConfig, http, fallback, WagmiProvider, type Config } from 'wagmi';
 import { connectorsForWallets } from '@rainbow-me/rainbowkit';
-import {
-  metaMaskWallet,
-  trustWallet,
-} from '@rainbow-me/rainbowkit/wallets';
+import { metaMaskWallet } from '@rainbow-me/rainbowkit/wallets';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RainbowKitProvider } from '@rainbow-me/rainbowkit';
 import {
@@ -23,16 +20,13 @@ import {
 import { getPluginConfig } from '../config/plugin';
 import { resolveWalletConnectProjectId } from '../config/walletConnect';
 import { eip6963MetaMaskWallet } from './eip6963MetaMaskWallet';
-import { directTrustWallet } from './directTrustWallet';
 import { mobileMetaMaskWallet } from './mobileMetaMaskWallet';
 import { mobileRabbyWallet } from './mobileRabbyWallet';
-import { mobileTrustWallet } from './mobileTrustWallet';
 import { mobileOneKeyWallet } from './mobileOneKeyWallet';
 import { mobileZerionWallet } from './mobileZerionWallet';
 
 export interface WagmiConfigOptions {
   useEip6963MetaMask?: boolean;
-  useDirectTrustWallet?: boolean;
   multiInjectedProviderDiscovery?: boolean;
 }
 
@@ -49,11 +43,9 @@ const isMobileBrowser = (): boolean => {
 function getWalletGroups(
   projectId: string,
   useEip6963MetaMask = false,
-  useDirectTrustWallet = false,
 ) {
   const metaMaskConnector = () => mobileMetaMaskWallet({ projectId });
   const rabbyConnector = () => mobileRabbyWallet({ projectId });
-  const trustConnector = () => mobileTrustWallet({ projectId });
   const oneKeyConnector = () => mobileOneKeyWallet({ projectId });
   const zerionConnector = () => mobileZerionWallet({ projectId });
 
@@ -61,18 +53,17 @@ function getWalletGroups(
     return [
       {
         groupName: 'Recommended',
-        wallets: [metaMaskConnector, rabbyConnector, trustConnector, oneKeyConnector, zerionConnector],
+        wallets: [metaMaskConnector, rabbyConnector, oneKeyConnector, zerionConnector],
       },
     ];
   }
 
   const desktopMetaMask = useEip6963MetaMask ? eip6963MetaMaskWallet : metaMaskWallet;
-  const desktopTrust = useDirectTrustWallet ? directTrustWallet : trustWallet;
 
   return [
     {
       groupName: 'Recommended',
-      wallets: [desktopMetaMask, rabbyConnector, desktopTrust, oneKeyConnector, zerionConnector],
+      wallets: [desktopMetaMask, rabbyConnector, oneKeyConnector, zerionConnector],
     },
   ];
 }
@@ -92,12 +83,6 @@ interface WagmiRainbowKitProviderProps {
    * Default: false (keeps existing behaviour).
    */
   useEip6963MetaMask?: boolean;
-  /**
-   * When true, replaces the standard trustWallet connector with a direct
-   * window.trustwallet injected connector for the Trust Browser Extension.
-   * Default: false.
-   */
-  useDirectTrustWallet?: boolean;
 }
 
 function createWagmiConfig(
@@ -106,13 +91,12 @@ function createWagmiConfig(
 ) {
   const {
     useEip6963MetaMask = false,
-    useDirectTrustWallet = false,
     multiInjectedProviderDiscovery = true,
   } = options;
   const projectId = resolveWalletConnectProjectId(walletConnectProjectId);
 
   const connectors = connectorsForWallets(
-    getWalletGroups(projectId, useEip6963MetaMask, useDirectTrustWallet),
+    getWalletGroups(projectId, useEip6963MetaMask),
     {
       appName: 'COTI Wallet Plugin',
       projectId,
@@ -149,9 +133,8 @@ function getWagmiConfigCacheKey(
   const sepoliaRpc = pluginConfig.sepoliaRpcUrl ?? `${SEPOLIA_RPC}|${SEPOLIA_RPC_FALLBACK}`;
   const mobile = isMobileBrowser();
   const eip6963 = options.useEip6963MetaMask ? '1' : '0';
-  const directTrust = options.useDirectTrustWallet ? '1' : '0';
   const mipd = options.multiInjectedProviderDiscovery === false ? '0' : '1';
-  return `${projectId}|${sepoliaRpc}|${mobile ? 'mobile' : 'desktop'}|${eip6963}|${directTrust}|${mipd}`;
+  return `${projectId}|${sepoliaRpc}|${mobile ? 'mobile' : 'desktop'}|${eip6963}|${mipd}`;
 }
 
 let cachedWagmiConfig: { key: string; config: Config } | undefined;
@@ -204,18 +187,15 @@ export function WagmiRainbowKitProvider({
   initialChain = cotiTestnet,
   appName = 'COTI Wallet',
   useEip6963MetaMask = false,
-  useDirectTrustWallet = false,
 }: WagmiRainbowKitProviderProps) {
   const pluginConfig = getPluginConfig();
   const config = useMemo(
     () => createWagmiConfig(walletConnectProjectId, {
       useEip6963MetaMask,
-      useDirectTrustWallet,
     }),
     [
       walletConnectProjectId,
       useEip6963MetaMask,
-      useDirectTrustWallet,
       pluginConfig.sepoliaRpcUrl,
       pluginConfig.walletConnectProjectId,
     ],

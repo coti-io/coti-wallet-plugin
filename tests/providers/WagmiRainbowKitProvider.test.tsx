@@ -29,10 +29,8 @@ vi.mock('viem', () => ({
 
 import { WagmiRainbowKitProvider, getWagmiConfig, wagmiConfig } from '../../src/providers/WagmiRainbowKitProvider';
 import { eip6963MetaMaskWallet } from '../../src/providers/eip6963MetaMaskWallet';
-import { directTrustWallet } from '../../src/providers/directTrustWallet';
 import { mobileMetaMaskWallet } from '../../src/providers/mobileMetaMaskWallet';
 import { mobileRabbyWallet } from '../../src/providers/mobileRabbyWallet';
-import { mobileTrustWallet } from '../../src/providers/mobileTrustWallet';
 import { mobileOneKeyWallet } from '../../src/providers/mobileOneKeyWallet';
 import { mobileZerionWallet } from '../../src/providers/mobileZerionWallet';
 import { configureCotiPlugin } from '../../src/config/plugin';
@@ -46,7 +44,6 @@ import {
   rabbyWallet,
   oneKeyWallet,
   walletConnectWallet,
-  trustWallet,
 } from '@rainbow-me/rainbowkit/wallets';
 
 function getRecommendedWalletIds(projectId: string): string[] {
@@ -56,8 +53,6 @@ function getRecommendedWalletIds(projectId: string): string[] {
     if (wallet === walletConnectWallet) return 'walletConnect';
     if (wallet === metaMaskWallet) return 'metaMask';
     if (wallet === eip6963MetaMaskWallet) return 'io.metamask';
-    if (wallet === trustWallet) return 'trust';
-    if (wallet === directTrustWallet) return 'trust-extension';
     if (typeof wallet === 'function') {
       return wallet({ projectId }).id;
     }
@@ -277,40 +272,9 @@ describe('WagmiRainbowKitProvider', () => {
     expect(getRecommendedWalletIds('eip6963-wallet-test')).toEqual([
       'io.metamask',
       mobileRabbyWallet({ projectId: 'eip6963-wallet-test' }).id,
-      'trust',
+      'rabby',
       mobileOneKeyWallet({ projectId: 'eip6963-wallet-test' }).id,
       mobileZerionWallet({ projectId: 'eip6963-wallet-test' }).id,
-    ]);
-
-    Object.defineProperty(navigator, 'userAgent', {
-      configurable: true,
-      value: originalUserAgent,
-    });
-    configureCotiPlugin({ sepoliaRpcUrl: undefined });
-  });
-
-  it('uses direct Trust wallet when useDirectTrustWallet is enabled', () => {
-    const originalUserAgent = navigator.userAgent;
-    Object.defineProperty(navigator, 'userAgent', {
-      configurable: true,
-      value: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-    });
-
-    vi.mocked(connectorsForWallets).mockClear();
-    configureCotiPlugin({ sepoliaRpcUrl: 'https://direct-trust.example/rpc' });
-    render(
-      <WagmiRainbowKitProvider useDirectTrustWallet walletConnectProjectId="direct-trust-wallet-test">
-        <div data-testid="direct-trust-child">Direct Trust</div>
-      </WagmiRainbowKitProvider>,
-    );
-
-    expect(screen.getByTestId('direct-trust-child')).toBeDefined();
-    expect(getRecommendedWalletIds('direct-trust-wallet-test')).toEqual([
-      'metaMask',
-      mobileRabbyWallet({ projectId: 'direct-trust-wallet-test' }).id,
-      'trust-extension',
-      mobileOneKeyWallet({ projectId: 'direct-trust-wallet-test' }).id,
-      mobileZerionWallet({ projectId: 'direct-trust-wallet-test' }).id,
     ]);
 
     Object.defineProperty(navigator, 'userAgent', {
