@@ -133,7 +133,7 @@ describe('useNetworkEnforcer branch coverage', () => {
     mockAccountChain = undefined;
     const { result } = renderHook(() => useNetworkEnforcer(null, mockSwitchNetwork));
     await act(async () => { await result.current.enforceNetwork(); });
-    expect(mockSwitchChainAsync).not.toHaveBeenCalled();
+    expect(mockSwitchNetwork).not.toHaveBeenCalled();
   });
 
   it('does nothing for a non-MetaMask wallet already on the default testnet target', async () => {
@@ -141,7 +141,7 @@ describe('useNetworkEnforcer branch coverage', () => {
     mockAccountChain = { id: COTI_TESTNET };
     const { result } = renderHook(() => useNetworkEnforcer(null, mockSwitchNetwork));
     await act(async () => { await result.current.enforceNetwork(); });
-    expect(mockSwitchChainAsync).not.toHaveBeenCalled();
+    expect(mockSwitchNetwork).not.toHaveBeenCalled();
   });
 
   it('switches a non-MetaMask wallet from mainnet to the default testnet target', async () => {
@@ -149,7 +149,7 @@ describe('useNetworkEnforcer branch coverage', () => {
     mockAccountChain = { id: COTI_MAINNET };
     const { result } = renderHook(() => useNetworkEnforcer(null, mockSwitchNetwork));
     await act(async () => { await result.current.enforceNetwork(); });
-    expect(mockSwitchNetwork).toHaveBeenCalledWith('0x' + COTI_TESTNET.toString(16));
+    expect(mockSwitchNetwork).toHaveBeenCalledWith('0x6c11a0');
     expect(mockSwitchChainAsync).not.toHaveBeenCalled();
   });
 

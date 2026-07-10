@@ -183,7 +183,7 @@ describe('useNetworkEnforcer', () => {
     expect(mockSwitchChainAsync).not.toHaveBeenCalled();
   });
 
-  it('enforceNetwork does not call wagmi switchChain when already on the target chain', async () => {
+  it('enforceNetwork does not call switchNetwork when already on the target chain', async () => {
     mockWalletType = 'rabby';
     mockAccountChain = { id: 7082400 };
 
@@ -193,7 +193,7 @@ describe('useNetworkEnforcer', () => {
       await result.current.enforceNetwork();
     });
 
-    expect(mockSwitchChainAsync).not.toHaveBeenCalled();
+    expect(mockSwitchNetwork).not.toHaveBeenCalled();
   });
 
   it('handles hex chainId for MetaMask', () => {

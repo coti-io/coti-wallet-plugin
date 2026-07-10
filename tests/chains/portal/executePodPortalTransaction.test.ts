@@ -190,7 +190,7 @@ describe('getPodSdkConfig', () => {
 });
 
 describe('getSepoliaGasPrice', () => {
-  it('reads eth_gasPrice and converts hex to bigint with 10% buffer', async () => {
+  it('reads eth_gasPrice and applies the 10% pod-sdk buffer', async () => {
     const provider = makeProvider();
     const price = await getSepoliaGasPrice(provider as never);
     expect(price).toBe(1_100_000_000n);

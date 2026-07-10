@@ -1,165 +1,22 @@
 # @coti-io/coti-wallet-plugin
 
-**Important:** This library is a **plugin for existing dApps and wallets**, not a standalone wallet application. It is designed to be injected into your existing React/wagmi stack to seamlessly enhance standard wallets with COTI network privacy capabilities.
+React library for adding COTI private token (pToken) support to wagmi v2 + RainbowKit dApps.
 
- Provides React hooks, multi-wallet support (via wagmi v2 and RainbowKit), and token detection for any EIP-1193 wallet. 
+**Important:** This is a **plugin for existing dApps and wallets**, not a standalone wallet application. It provides React hooks, multi-wallet support, and token detection for any EIP-1193 wallet.
 
-## dApp API contract
+## Documentation
 
-dApps should not handle AES keys in the normal integration path. Use the plugin provider/context APIs to connect wallets, onboard/unlock private balances, and execute private operations. The plugin owns AES retrieval, backup restore, Snap storage, and Snap-backed decrypt/encrypt calls internally.
+Full documentation lives in the [COTI documentation](https://docs.coti.io/coti-documentation/build-on-coti/tools/coti-wallet-plugin) repository:
 
-For MetaMask Snap wallets, runtime private operations use Snap RPCs such as decrypt/encrypt/build private values without extracting the AES key from Snap. For non-Snap wallets, the plugin keeps any recovered key in plugin session state only as needed.
-
-## dApp integration guide
-
-Provider owns unlock flow. App pages call commands. Do not build custom unlock routing.
-
-### 1. Wrap app once
-
-```tsx
-import {
-  PrivacyBridgeProvider,
-  WagmiRainbowKitProvider,
-  type OnboardModalTheme,
-} from '@coti-io/coti-wallet-plugin';
-
-/** Host app owns modal colors — map your design tokens to OnboardModalTheme. */
-const onboardTheme: OnboardModalTheme = {
-  modal: { backgroundColor: '#ffffff', color: '#0f172a' },
-  title: { color: '#0f172a' },
-  description: { color: '#64748b' },
-  primaryButton: { backgroundColor: '#1E29F6', color: '#ffffff' },
-  checkboxText: { color: '#0f172a' },
-  tooltipButton: { color: '#64748b' },
-};
-
-export function Root() {
-  return (
-    <WagmiRainbowKitProvider walletConnectProjectId={walletConnectProjectId}>
-      <PrivacyBridgeProvider
-        privateUnlock={{
-          theme: onboardTheme,
-          warning:
-            'This dApp never stores or receives the AES key. Unlock stays inside the plugin.',
-          onRestoreCancelled: () => {
-            // Optional: show "User canceled" toast.
-          },
-        }}
-      >
-        <App />
-      </PrivacyBridgeProvider>
-    </WagmiRainbowKitProvider>
-  );
-}
-```
-
-No `{onboardModal}` render in app. Provider mounts modal once.
-
-### 2. Use unlock controller in pages
-
-```tsx
-import { usePrivateUnlock } from '@coti-io/coti-wallet-plugin';
-
-export function HeaderUnlockButton() {
-  const privateUnlock = usePrivateUnlock();
-
-  return (
-    <button
-      onClick={() => privateUnlock.toggleLock()}
-      disabled={privateUnlock.isUnlocking}
-    >
-      {privateUnlock.isUnlocked ? 'Lock Private Balances' : 'Unlock Private Balances'}
-    </button>
-  );
-}
-```
-
-### 3. Guard private actions
-
-Use `requireUnlock(action)` for actions needing private balance/key access. It tries cached session key first, then restore backup/Snap, then onboarding modal only if needed.
-
-```tsx
-import {
-  usePrivateUnlock,
-  usePrivacyBridgeUnlock,
-} from '@coti-io/coti-wallet-plugin';
-
-export function EncryptButton() {
-  const privateUnlock = usePrivateUnlock();
-  const unlock = usePrivacyBridgeUnlock();
-
-  const encrypt = async () => {
-    const result = await unlock.encryptPrivateValue({
-      amount: '1.0',
-      decimals: 18,
-    });
-    console.log(result.ciphertext);
-  };
-
-  return (
-    <button
-      disabled={privateUnlock.isUnlocking}
-      onClick={() => void privateUnlock.requireUnlock(encrypt)}
-    >
-      Encrypt
-    </button>
-  );
-}
-```
-
-### 4. Know lock semantics
-
-Lock hides private balances. Lock does **not** clear session AES key. Same browser session can unlock silently:
-
-```txt
-lock()
-  -> balances hidden
-  -> session AES key kept in memory
-
-unlock()
-  -> try cached session key
-  -> try restore backup / Snap
-  -> open onboarding modal only if restore fails
-```
-
-Contract onboarding always ends on plugin success screen. User can reveal/copy raw AES key, then click Done. Pending action runs after Done.
-
-### Do
-
-- Use `PrivacyBridgeProvider privateUnlock={...}` once near app root.
-- Use `usePrivateUnlock()` for unlock orchestration: `unlock()`, `lock()`, `toggleLock()`, `requireUnlock(action)`.
-- Use `usePrivacyBridgeUnlock()` inside/after that guard for private operations: `sendPrivateToken`, `encryptPrivateValue`, `decryptPrivateValue`.
-- Let plugin own `OnboardModal`, Snap install, restore-only flow, contract onboarding, AES key success screen.
-
-### Do not
-
-- Do not render `OnboardModal` for unlock in app pages.
-- Do not call `refreshPrivateBalances({ restoreOnly: true })` as custom unlock flow.
-- Do not infer key existence from `isPrivateUnlocked`; it only means private balances visible.
-- Do not delete Snap-stored keys or encrypted backups on lock. Lock only clears plaintext session state.
-
-## Onboard modal theming
-
-The plugin ships a dark default palette for standalone use. **Your app controls the modal colors** by passing `privateUnlock.theme` to `PrivacyBridgeProvider`. The plugin does not read your CSS variables or `prefers-color-scheme` automatically.
-
-```tsx
-<PrivacyBridgeProvider
-  privateUnlock={{
-    theme: myOnboardTheme, // OnboardModalTheme — partial CSS overrides per style target
-    warning: 'Optional non-blocking warning shown in the modal.',
-  }}
->
-  <App />
-</PrivacyBridgeProvider>
-```
-
-`OnboardModalTheme` is a partial map of style targets (`modal`, `title`, `description`, `checkboxText`, `primaryButton`, …) to `React.CSSProperties`. Import `onboardModalDefaultStyles` and `ONBOARD_MODAL_STYLE_KEYS` to see every target.
-
-**Minimum for light mode:** set at least `modal`, `title`, and `description`. The plugin fills other text targets from those tokens when they still use the built-in dark defaults.
-
-**Light/dark toggle:** build the theme object in your app from your design system and pass the result into `privateUnlock.theme`. The Privacy Portal does this in `src/hooks/useOnboardModalTheme.ts`.
-
-See [docs/onboard-modal-theme.md](./docs/onboard-modal-theme.md) for the full style-key list and a copy-paste example.
+| Topic | Link |
+| --- | --- |
+| Overview and quickstart | [COTI Wallet Plugin](https://docs.coti.io/coti-documentation/build-on-coti/tools/coti-wallet-plugin) |
+| Integration guide | [Integration Guide](https://docs.coti.io/coti-documentation/build-on-coti/tools/coti-wallet-plugin/integration-guide) |
+| Configuration | [Configuration](https://docs.coti.io/coti-documentation/build-on-coti/tools/coti-wallet-plugin/configuration) |
+| API reference | [API Reference](https://docs.coti.io/coti-documentation/build-on-coti/tools/coti-wallet-plugin/api-reference) |
+| AES key onboarding | [AES Key Onboarding](https://docs.coti.io/coti-documentation/build-on-coti/tools/coti-wallet-plugin/aes-key-onboarding) |
+| Onboard modal theming | [Onboard Modal Theming](https://docs.coti.io/coti-documentation/build-on-coti/tools/coti-wallet-plugin/onboard-modal-theme) |
+| Example app | [Example App](https://docs.coti.io/coti-documentation/build-on-coti/tools/coti-wallet-plugin/example-app) |
 
 ## Installation
 
@@ -167,24 +24,53 @@ See [docs/onboard-modal-theme.md](./docs/onboard-modal-theme.md) for the full st
 npm install @coti-io/coti-wallet-plugin
 ```
 
-## Peer Dependencies
+### Peer dependencies
 
 ```bash
 npm install react react-dom ethers viem @coti-io/coti-sdk-typescript @metamask/providers @rainbow-me/rainbowkit wagmi @tanstack/react-query
 ```
 
-This release is validated with `@rainbow-me/rainbowkit@2.2.0` and `wagmi@2.14.0`. Keep those two packages on compatible versions in the host app; installing mismatched latest peer versions can break RainbowKit before the plugin loads.
+This release is validated with `@rainbow-me/rainbowkit@2.2.0` and `wagmi@2.14.0`.
 
-## Build
+## Quickstart
 
-```bash
-npm run build    # Produces dist/index.js (CJS) + dist/index.mjs (ESM) + dist/index.d.ts
-npm run typecheck # TypeScript type check (tsc --noEmit)
-npm run lint     # ESLint
-npm run test     # Run test suite (vitest)
-npm run clean    # Remove dist/
+```tsx
+import {
+  PrivacyBridgeProvider,
+  WagmiRainbowKitProvider,
+  usePrivateUnlock,
+} from '@coti-io/coti-wallet-plugin';
+
+export function Root() {
+  return (
+    <WagmiRainbowKitProvider walletConnectProjectId={walletConnectProjectId}>
+      <PrivacyBridgeProvider>
+        <App />
+      </PrivacyBridgeProvider>
+    </WagmiRainbowKitProvider>
+  );
+}
 ```
 
-[Documentation](https://docs.coti.io/coti-v2-documentation/build-on-coti/tools/coti-wallet-plugin)
+See the [integration guide](https://docs.coti.io/coti-documentation/build-on-coti/tools/coti-wallet-plugin/integration-guide) for provider setup, unlock flow, and private operations.
 
+## Development
 
+```bash
+npm run build      # dist/index.js (CJS) + dist/index.mjs (ESM) + dist/index.d.ts
+npm run typecheck  # TypeScript check
+npm run test       # Vitest suite
+npm run lint       # ESLint
+```
+
+### Example app
+
+```bash
+cd examples && npm run dev
+```
+
+See [Example App](https://docs.coti.io/coti-documentation/build-on-coti/tools/coti-wallet-plugin/example-app) for setup details.
+
+## License
+
+Apache 2.0
