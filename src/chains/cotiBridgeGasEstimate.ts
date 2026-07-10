@@ -30,8 +30,7 @@ export async function estimateCotiBridgeGasFeeDisplay(params: {
       const feeEstimate = await estimateBridgeFee(symbol, "1", rpcProvider);
       const feeStr = isDeposit ? feeEstimate.depositFee : feeEstimate.withdrawFee;
       if (feeStr !== "Error") {
-        const feeWei = ethers.parseEther(feeStr);
-        nativeCotiFee = (feeWei * 101n) / 100n;
+        nativeCotiFee = ethers.parseEther(feeStr);
       }
     } catch (e) {
       logger.warn('Could not compute dynamic fee for gas estimation', e);

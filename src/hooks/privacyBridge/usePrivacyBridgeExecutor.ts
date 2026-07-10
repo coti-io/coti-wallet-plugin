@@ -292,9 +292,7 @@ export const usePrivacyBridgeExecutor = ({
                             const rpcProvider = new ethers.JsonRpcProvider(rpcUrl);
                             const feeEstimate = await estimateBridgeFee(txPublicToken.symbol, txAmount, rpcProvider);
                             if (feeEstimate.depositFee !== 'Error') {
-                                const feeWei = ethers.parseEther(feeEstimate.depositFee);
-                                // Add 1% slippage buffer
-                                nativeFee = (feeWei * 101n) / 100n;
+                                nativeFee = ethers.parseEther(feeEstimate.depositFee);
                             }
                             cotiOracleTimestamp = BigInt(feeEstimate.cotiLastUpdated || '0');
                             tokenOracleTimestamp = BigInt(feeEstimate.tokenLastUpdated || '0');
@@ -437,7 +435,6 @@ export const usePrivacyBridgeExecutor = ({
 
                     // Fetch the native COTI fee for the bridge withdrawal
                     // Compute the dynamic fee from on-chain estimateWithdrawFee
-                    // and add 1% slippage buffer
                     let nativeFee = 0n;
                     let cotiOracleTimestamp = 0n;
                     let tokenOracleTimestamp = 0n;
@@ -447,8 +444,7 @@ export const usePrivacyBridgeExecutor = ({
                             const rpcProvider = new ethers.JsonRpcProvider(rpcUrl);
                             const feeEstimate = await estimateBridgeFee(txPublicToken.symbol, txAmount, rpcProvider);
                             if (feeEstimate.withdrawFee !== 'Error') {
-                                const feeWei = ethers.parseEther(feeEstimate.withdrawFee);
-                                nativeFee = (feeWei * 101n) / 100n;
+                                nativeFee = ethers.parseEther(feeEstimate.withdrawFee);
                             }
                             cotiOracleTimestamp = BigInt(feeEstimate.cotiLastUpdated || '0');
                             tokenOracleTimestamp = BigInt(feeEstimate.tokenLastUpdated || '0');
