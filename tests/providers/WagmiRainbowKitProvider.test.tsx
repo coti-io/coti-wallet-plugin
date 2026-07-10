@@ -46,9 +46,9 @@ import {
   walletConnectWallet,
 } from '@rainbow-me/rainbowkit/wallets';
 
-function getRecommendedWalletIds(projectId: string): string[] {
+function getWalletIdsForGroup(projectId: string, groupIndex: number): string[] {
   const groups = vi.mocked(connectorsForWallets).mock.calls.at(-1)?.[0];
-  const wallets = groups?.[0]?.wallets ?? [];
+  const wallets = groups?.[groupIndex]?.wallets ?? [];
   return wallets.map((wallet) => {
     if (wallet === walletConnectWallet) return 'walletConnect';
     if (wallet === metaMaskWallet) return 'metaMask';
@@ -58,6 +58,14 @@ function getRecommendedWalletIds(projectId: string): string[] {
     }
     return 'unknown';
   });
+}
+
+function getRecommendedWalletIds(projectId: string): string[] {
+  return getWalletIdsForGroup(projectId, 0);
+}
+
+function getOtherWalletIds(projectId: string): string[] {
+  return getWalletIdsForGroup(projectId, 1);
 }
 
 describe('WagmiRainbowKitProvider', () => {
@@ -200,11 +208,17 @@ describe('WagmiRainbowKitProvider', () => {
           groupName: 'Recommended',
           wallets: expect.any(Array),
         },
+        {
+          groupName: 'Other Wallets',
+          wallets: expect.any(Array),
+        },
       ],
       expect.objectContaining({ projectId: 'mobile-wallet-test' }),
     );
     expect(getRecommendedWalletIds('mobile-wallet-test')).toEqual([
       mobileMetaMaskWallet({ projectId: 'mobile-wallet-test' }).id,
+    ]);
+    expect(getOtherWalletIds('mobile-wallet-test')).toEqual([
       mobileRabbyWallet({ projectId: 'mobile-wallet-test' }).id,
       mobileOneKeyWallet({ projectId: 'mobile-wallet-test' }).id,
       mobileZerionWallet({ projectId: 'mobile-wallet-test' }).id,
@@ -234,13 +248,16 @@ describe('WagmiRainbowKitProvider', () => {
           groupName: 'Recommended',
           wallets: expect.any(Array),
         },
+        {
+          groupName: 'Other Wallets',
+          wallets: expect.any(Array),
+        },
       ],
       expect.objectContaining({ projectId: 'desktop-wallet-test' }),
     );
-    expect(getRecommendedWalletIds('desktop-wallet-test')).toEqual([
-      'metaMask',
+    expect(getRecommendedWalletIds('desktop-wallet-test')).toEqual(['metaMask']);
+    expect(getOtherWalletIds('desktop-wallet-test')).toEqual([
       mobileRabbyWallet({ projectId: 'desktop-wallet-test' }).id,
-      'trust',
       mobileOneKeyWallet({ projectId: 'desktop-wallet-test' }).id,
       mobileZerionWallet({ projectId: 'desktop-wallet-test' }).id,
     ]);
@@ -268,10 +285,9 @@ describe('WagmiRainbowKitProvider', () => {
     );
 
     expect(screen.getByTestId('eip6963-child')).toBeDefined();
-    expect(getRecommendedWalletIds('eip6963-wallet-test')).toEqual([
-      'io.metamask',
+    expect(getRecommendedWalletIds('eip6963-wallet-test')).toEqual(['io.metamask']);
+    expect(getOtherWalletIds('eip6963-wallet-test')).toEqual([
       mobileRabbyWallet({ projectId: 'eip6963-wallet-test' }).id,
-      'rabby',
       mobileOneKeyWallet({ projectId: 'eip6963-wallet-test' }).id,
       mobileZerionWallet({ projectId: 'eip6963-wallet-test' }).id,
     ]);

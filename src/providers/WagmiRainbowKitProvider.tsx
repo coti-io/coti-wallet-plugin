@@ -53,7 +53,11 @@ function getWalletGroups(
     return [
       {
         groupName: 'Recommended',
-        wallets: [metaMaskConnector, rabbyConnector, oneKeyConnector, zerionConnector],
+        wallets: [metaMaskConnector],
+      },
+      {
+        groupName: 'Other Wallets',
+        wallets: [rabbyConnector, oneKeyConnector, zerionConnector],
       },
     ];
   }
@@ -63,7 +67,11 @@ function getWalletGroups(
   return [
     {
       groupName: 'Recommended',
-      wallets: [desktopMetaMask, rabbyConnector, oneKeyConnector, zerionConnector],
+      wallets: [desktopMetaMask],
+    },
+    {
+      groupName: 'Other Wallets',
+      wallets: [rabbyConnector, oneKeyConnector, zerionConnector],
     },
   ];
 }

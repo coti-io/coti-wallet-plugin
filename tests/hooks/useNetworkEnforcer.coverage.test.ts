@@ -149,7 +149,8 @@ describe('useNetworkEnforcer branch coverage', () => {
     mockAccountChain = { id: COTI_MAINNET };
     const { result } = renderHook(() => useNetworkEnforcer(null, mockSwitchNetwork));
     await act(async () => { await result.current.enforceNetwork(); });
-    expect(mockSwitchChainAsync).toHaveBeenCalledWith({ chainId: COTI_TESTNET });
+    expect(mockSwitchNetwork).toHaveBeenCalledWith('0x' + COTI_TESTNET.toString(16));
+    expect(mockSwitchChainAsync).not.toHaveBeenCalled();
   });
 
   it('switches a non-MetaMask wallet from Sepolia when PoD target is configured', async () => {
@@ -158,13 +159,14 @@ describe('useNetworkEnforcer branch coverage', () => {
     mockAccountChain = { id: 2632500 };
     const { result } = renderHook(() => useNetworkEnforcer(null, mockSwitchNetwork));
     await act(async () => { await result.current.enforceNetwork(); });
-    expect(mockSwitchChainAsync).toHaveBeenCalledWith({ chainId: 11155111 });
+    expect(mockSwitchNetwork).toHaveBeenCalledWith('0xaa36a7');
+    expect(mockSwitchChainAsync).not.toHaveBeenCalled();
   });
 
-  it('sets a warning when wagmi switchChainAsync rejects', async () => {
+  it('sets a warning when switchNetwork rejects', async () => {
     mockWalletType = 'rabby';
     mockAccountChain = { id: 999 };
-    mockSwitchChainAsync.mockRejectedValue(new Error('user rejected'));
+    mockSwitchNetwork.mockRejectedValue(new Error('user rejected'));
     const { result } = renderHook(() => useNetworkEnforcer(null, mockSwitchNetwork));
     await act(async () => { await result.current.enforceNetwork(); });
     expect(result.current.networkMismatchWarning).toContain('rejected');
