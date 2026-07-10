@@ -4,11 +4,11 @@
   "description": "COTI Wallet Plugin — high-level abstraction for Private Token (pToken) operations across EIP-1193 wallets",
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@github.com/cotitech-io/coti-wallet-plugin.git"
+    "url": "git+ssh://git@github.com/coti-io/coti-wallet-plugin.git"
   },
-  "homepage": "https://github.com/cotitech-io/coti-wallet-plugin#readme",
+  "homepage": "https://github.com/coti-io/coti-wallet-plugin#readme",
   "bugs": {
-    "url": "https://github.com/cotitech-io/coti-wallet-plugin/issues"
+    "url": "https://github.com/coti-io/coti-wallet-plugin/issues"
   },
   "main": "dist/index.js",
   "module": "dist/index.mjs",
