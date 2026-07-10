@@ -24,7 +24,7 @@ const resolveBridgeAddress = (
   const addresses = CONTRACT_ADDRESSES[chainId];
   if (!addresses) return undefined;
 
-  let bridgeAddress = resolveConfiguredAddress(addresses, pubTok?.bridgeAddressKey);
+  const bridgeAddress = resolveConfiguredAddress(addresses, pubTok?.bridgeAddressKey);
   if (bridgeAddress) return bridgeAddress;
 
   if (symbol === "WETH") return addresses.PrivacyBridgeWETH;

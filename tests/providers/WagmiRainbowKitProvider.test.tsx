@@ -240,7 +240,6 @@ describe('WagmiRainbowKitProvider', () => {
     expect(getRecommendedWalletIds('desktop-wallet-test')).toEqual([
       'metaMask',
       mobileRabbyWallet({ projectId: 'desktop-wallet-test' }).id,
-      'trust',
       mobileOneKeyWallet({ projectId: 'desktop-wallet-test' }).id,
       mobileZerionWallet({ projectId: 'desktop-wallet-test' }).id,
     ]);
@@ -271,7 +270,6 @@ describe('WagmiRainbowKitProvider', () => {
     expect(getRecommendedWalletIds('eip6963-wallet-test')).toEqual([
       'io.metamask',
       mobileRabbyWallet({ projectId: 'eip6963-wallet-test' }).id,
-      'rabby',
       mobileOneKeyWallet({ projectId: 'eip6963-wallet-test' }).id,
       mobileZerionWallet({ projectId: 'eip6963-wallet-test' }).id,
     ]);
