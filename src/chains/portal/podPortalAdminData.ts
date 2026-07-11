@@ -163,7 +163,16 @@ export async function simulatePodPortalFee(
         fetchPodOracleTokenUsdPrice(nativeSymbol, chainId),
       ]);
       if (!tokenUsd || !nativeUsd) {
-        return { fee: "—", explanation: "Oracle price unavailable" };
+        // Mirrors the portal: without a live oracle price it skips dynamic
+        // pricing and charges the fixed fee (verified on Fuji MTT:
+        // estimateDepositFees returns fixedFee with usedDynamicPricing=false).
+        const fixed = ethers.parseEther(fixedFee || "0");
+        const cap = ethers.parseEther(maxFee || "0");
+        const fee = cap > 0n && fixed > cap ? cap : fixed;
+        return {
+          fee: parseFloat(ethers.formatEther(fee)).toFixed(6),
+          explanation: "Fixed fee applied (no live oracle price)",
+        };
       }
       const tokenUsdWei = ethers.parseEther(tokenUsd.toString());
       const nativeUsdWei = ethers.parseEther(nativeUsd.toString());
