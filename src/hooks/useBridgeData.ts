@@ -3,6 +3,8 @@ import { ethers } from 'ethers';
 import { CONTRACT_ADDRESSES, BRIDGE_ABI, BRIDGE_ERC20_ABI, ERC20_ABI, SUPPORTED_TOKENS } from '../contracts/config';
 import { fetchBridgeFees, BridgeFees } from './useBridgeFees';
 import { getRpcUrlForChainId } from '../config/chains';
+import { getChainConfig } from '../chains';
+import { fetchPodBridgeData } from '../chains/portal/podPortalAdminData';
 import { logger } from '../lib/logger';
 
 export interface BridgeData extends BridgeFees {
@@ -22,6 +24,8 @@ export interface BridgeData extends BridgeFees {
   bridgeBalance: string;
   isPaused: boolean;
   tokenDecimals: number;
+  /** Symbol the fee values are denominated in (native coin on PoD chains; COTI otherwise). */
+  feeTokenSymbol?: string;
   isLoading: boolean;
   error: string | null;
 }
@@ -41,6 +45,13 @@ export const useBridgeData = (chainId: number) => {
       try {
         setIsLoading(true);
         setError(null);
+
+        // PoD chains (Sepolia/Fuji): portals expose a different interface —
+        // read fee configs live instead of calling COTI bridge getters.
+        if (getChainConfig(chainId)?.portalStrategy === 'pod-privacy-portal') {
+          setBridgesData(await fetchPodBridgeData(chainId));
+          return;
+        }
 
         const addresses = CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES];
 

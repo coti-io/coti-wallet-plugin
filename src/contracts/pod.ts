@@ -75,6 +75,29 @@ export const PRIVACY_PORTAL_ABI = [
   "event BurnDebtRecorded(bytes32 indexed withdrawalId,uint256 amount,bytes reason)",
 ] as const;
 
+/**
+ * Owner/admin surface of the PoD PrivacyPortal contracts (EIP-1167 proxies;
+ * all portals on a chain share one implementation). Recovered via bytecode
+ * selector analysis and live eth_calls — the portal source is not published
+ * and the contracts are unverified on explorers.
+ *
+ * Assumptions pending on-chain confirmation:
+ * - getFeeConfig(true) is the DEPOSIT config (both configs are currently
+ *   identical on every deployed portal, so polarity is unverified);
+ * - fixedFee/maxFee are denominated in native wei (ETH on Sepolia, AVAX on
+ *   Fuji); percentageBps shares COTI's FEE_DIVISOR = 1e6 scale.
+ * - maxFee == type(uint128).max is the deployed "no cap" sentinel.
+ */
+export const POD_PORTAL_ADMIN_ABI = [
+  "function owner() view returns (address)",
+  "function setDepositFee(uint256 fixedFee, uint256 percentageBps, uint256 maxFee)",
+  "function setWithdrawFee(uint256 fixedFee, uint256 percentageBps, uint256 maxFee)",
+  "function getFeeConfig(bool isDeposit) view returns (uint256 fixedFee, uint256 percentageBps, uint256 maxFee)",
+  "function accumulatedPortalFees() view returns (uint256)",
+  "function estimateDepositFees(uint256 amount) view returns (uint256 portalFee,bool usedDynamicPricing,uint256 mintTotalFee,uint256 mintCallbackFee)",
+  "function estimateWithdrawFees(uint256 amount) view returns (uint256 portalFee,bool usedDynamicPricing,uint256 transferTotalFee,uint256 transferCallbackFee)",
+] as const;
+
 export const POD_PTOKEN_ABI = [
   "function name() view returns (string)",
   "function symbol() view returns (string)",

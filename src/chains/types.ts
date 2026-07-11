@@ -1,5 +1,3 @@
-import type { BridgeData } from "../hooks/useBridgeData";
-
 export type UnlockStrategy = "snap" | "manual-aes-key";
 export type PortalStrategy = "coti-bridge" | "pod-privacy-portal";
 
@@ -63,7 +61,6 @@ export interface ChainConfig {
   unlockStrategy: UnlockStrategy;
   portalStrategy: PortalStrategy;
   walletNetwork: WalletNetworkConfig;
-  getBridgeDataOverride?: (addresses: Record<string, string>) => BridgeData[];
   /** Inbox fee estimation gas limits for PoD portal deposit/withdraw. */
   podFeeEstimation?: {
     deposit: PodFeeEstimationLimits;

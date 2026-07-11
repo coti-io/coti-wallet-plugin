@@ -71,6 +71,7 @@ export {
   DEFAULT_POD_BALANCE_STATE,
   PRIVACY_PORTAL_ABI,
   POD_PTOKEN_ABI,
+  POD_PORTAL_ADMIN_ABI,
 } from './contracts/pod';
 export type { PodPortalRequest, PodPortalRequestStatus, PodBalanceState, PodBalanceTrustState } from './contracts/pod';
 export { loadPodRequests, savePodRequests, podRequestsStorageKey } from './pod/podPortalRequestsStorage';
@@ -94,6 +95,7 @@ export {
 } from './chains/portal/executePodPortalTransaction';
 export type { PodWithdrawPermit, PodPortalFeeQuote } from './chains/portal/executePodPortalTransaction';
 export { fetchPodOracleTokenUsdPrice, POD_PRICE_ORACLE_ABI } from './chains/podPriceOracle';
+export { fetchPodBridgeData, simulatePodPortalFee } from './chains/portal/podPortalAdminData';
 
 // Contracts
 export { CONTRACT_ADDRESSES, SUPPORTED_TOKENS, MINIMUM_PORTAL_IN_AMOUNTS, ERC20_ABI, getPublicTokensForChain, getPrivateTokensForChain } from './contracts/config';
