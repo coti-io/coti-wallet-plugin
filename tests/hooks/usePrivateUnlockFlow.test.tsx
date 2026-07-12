@@ -145,7 +145,7 @@ describe('usePrivateUnlockFlow', () => {
     expect(result.current.showOnboardModal).toBe(false);
   });
 
-  it('locks again when a dismissed in-flight restore later succeeds', async () => {
+  it('does not lock when a dismissed in-flight restore later succeeds', async () => {
     let resolveRefresh!: (value: boolean) => void;
     mockRefreshPrivateBalances.mockImplementationOnce(
       () => new Promise(resolve => {
@@ -170,9 +170,43 @@ describe('usePrivateUnlockFlow', () => {
       await unlockPromise;
     });
 
-    expect(mockLockPrivateBalances).toHaveBeenCalledTimes(1);
+    expect(mockLockPrivateBalances).not.toHaveBeenCalled();
     expect(pendingAction).not.toHaveBeenCalled();
     expect(result.current.showOnboardModal).toBe(false);
+  });
+
+  it('does not lock when a stale restore succeeds during a newer unlock attempt', async () => {
+    let resolveFirst!: (value: boolean) => void;
+    mockRefreshPrivateBalances
+      .mockImplementationOnce(
+        () => new Promise(resolve => {
+          resolveFirst = resolve;
+        }),
+      )
+      .mockResolvedValueOnce(false);
+
+    const { result } = renderHook(() => usePrivateUnlockFlow());
+
+    let firstPromise!: Promise<boolean>;
+    act(() => {
+      firstPromise = result.current.ensurePrivateUnlocked();
+    });
+
+    act(() => {
+      result.current.resetUnlockUi();
+    });
+
+    await act(async () => {
+      await result.current.openUnlockFlow();
+    });
+
+    await act(async () => {
+      resolveFirst(true);
+      await firstPromise;
+    });
+
+    expect(mockLockPrivateBalances).not.toHaveBeenCalled();
+    expect(result.current.showOnboardModal).toBe(true);
   });
 
   it('ignores restore backup progress after unlock is dismissed', async () => {
@@ -382,7 +416,7 @@ describe('usePrivateUnlockFlow', () => {
       await onboardPromise;
     });
 
-    expect(mockLockPrivateBalances).toHaveBeenCalledTimes(1);
+    expect(mockLockPrivateBalances).not.toHaveBeenCalled();
     expect(result.current.showOnboardModal).toBe(false);
     expect(result.current.onboardModal.props.currentStep).not.toBe('complete');
   });
@@ -819,7 +853,7 @@ describe('usePrivateUnlockFlow', () => {
     expect(pendingAction).toHaveBeenCalledTimes(1);
   });
 
-  it('locks again when manual AES submit completes after dismiss', async () => {
+  it('does not lock when manual AES submit completes after dismiss', async () => {
     let resolveManualSave!: (value: { backupWarning?: string }) => void;
     mockSaveManualAesKey.mockImplementationOnce(
       () => new Promise<{ backupWarning?: string }>(resolve => {
@@ -852,7 +886,7 @@ describe('usePrivateUnlockFlow', () => {
       await manualSubmitPromise;
     });
 
-    expect(mockLockPrivateBalances).toHaveBeenCalledTimes(1);
+    expect(mockLockPrivateBalances).not.toHaveBeenCalled();
     expect(pendingAction).not.toHaveBeenCalled();
     expect(result.current.showOnboardModal).toBe(false);
   });
@@ -902,7 +936,7 @@ describe('usePrivateUnlockFlow', () => {
     });
   });
 
-  it('locks again when manual backup signing completes after dismiss', async () => {
+  it('does not lock when manual backup signing completes after dismiss', async () => {
     let resolveManualSave!: () => void;
     mockSaveManualAesKey.mockImplementationOnce(
       async (_key, options) => {
@@ -943,7 +977,7 @@ describe('usePrivateUnlockFlow', () => {
       await manualSubmitPromise;
     });
 
-    expect(mockLockPrivateBalances).toHaveBeenCalledTimes(1);
+    expect(mockLockPrivateBalances).not.toHaveBeenCalled();
     expect(pendingAction).not.toHaveBeenCalled();
     expect(result.current.showOnboardModal).toBe(false);
   });
