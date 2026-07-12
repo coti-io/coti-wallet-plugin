@@ -193,6 +193,11 @@ describe('metaMaskMobile', () => {
     expect(message).toContain('Retry');
   });
 
+  it('returns a fallback message when the error text is empty', () => {
+    const message = formatOnboardingError(new Error('   '));
+    expect(message).toContain('Onboarding failed');
+  });
+
   it('collects onboarding debug trace lines', () => {
     const trace = new OnboardingDebugTrace();
     trace.push('start', 'wallet=metamask');

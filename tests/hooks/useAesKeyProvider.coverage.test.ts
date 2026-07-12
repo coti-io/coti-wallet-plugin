@@ -843,6 +843,22 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       expect(result.current.onboardingError).toBeNull();
     });
 
+    it('returns null without error when MetaMask Mobile rejects with "User denied"', async () => {
+      ethersState.signer = makeSigner(VALID_KEY, {
+        generateThrows: { code: 4001, message: 'MetaMask Message Signature: User denied message signature.' },
+      });
+      wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
+      wagmiState.chainId = COTI_TESTNET;
+      const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'rabby' })));
+
+      let key: string | null = 'x';
+      await act(async () => {
+        key = await result.current.getAesKey(ADDR);
+      });
+      expect(key).toBeNull();
+      expect(result.current.onboardingError).toBeNull();
+    });
+
     it('sets an Error message when onboarding throws a generic Error on a COTI chain', async () => {
       ethersState.signer = makeSigner(VALID_KEY, { generateThrows: new Error('boom onboarding') });
       wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };

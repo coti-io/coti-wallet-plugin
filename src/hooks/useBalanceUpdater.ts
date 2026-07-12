@@ -172,6 +172,7 @@ export const useBalanceUpdater = ({
                 if (addresses && fetchPrivate) {
                     try {
                         let aesKey: string | null = restoredAesKey;
+                        let markValidatedAfterSuccess = false;
 
                         if (needsAesKeyFetch && !aesKey) {
                             const { validateOnUnlock: _validateOnUnlock, ...aesKeyOptions } = options ?? {};
@@ -185,6 +186,10 @@ export const useBalanceUpdater = ({
                                     : await getAESKeyFromSnap(account, aesKeyOptions);
                             }
                             if (isStale()) return false;
+                            if (!aesKey) {
+                                logger.log('ℹ️ AES key required for unlock but unavailable (cancelled or failed).');
+                                return false;
+                            }
                         }
 
                         if (
@@ -195,7 +200,7 @@ export const useBalanceUpdater = ({
                         ) {
                             await validateMetaMaskAesKeyOnUnlock(aesKey, account, currentChainId);
                             if (isStale()) return false;
-                            markAesKeyValidatedForUnlock(account, aesKey);
+                            markValidatedAfterSuccess = true;
                         }
 
                         if (allowSnapOperations) {
@@ -294,6 +299,9 @@ export const useBalanceUpdater = ({
                             }));
                             if (aesKey) {
                                 if (isStale()) return false;
+                                if (markValidatedAfterSuccess) {
+                                    markAesKeyValidatedForUnlock(account, aesKey);
+                                }
                                 setSessionAesKey(aesKey, account);
                             }
                             return true;

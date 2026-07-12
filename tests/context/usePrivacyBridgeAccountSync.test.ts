@@ -172,6 +172,36 @@ describe('usePrivacyBridgeAccountSync — sessionAesKey effect', () => {
     );
   });
 
+  it('does not unlock private balances when session key refresh fails', async () => {
+    h.updateAccountState.mockResolvedValueOnce(false);
+    const core = makeCore({ sessionAesKey: null, walletAddress: '0xabc123' });
+    const network = makeNetwork({ wagmiChainId: 11155111 });
+    const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
+
+    const { rerender } = renderHook(
+      (props) => usePrivacyBridgeAccountSync(props),
+      {
+        initialProps: { core, network, updateAccountStateRef },
+      },
+    );
+
+    const updatedCore = makeCore({
+      sessionAesKey: 'a'.repeat(32),
+      walletAddress: '0xabc123',
+      wagmiSyncRef: { current: true },
+    });
+
+    rerender({ core: updatedCore, network, updateAccountStateRef });
+
+    await vi.waitFor(() => {
+      expect(h.updateAccountState).toHaveBeenCalled();
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(updatedCore.setArePrivateBalancesHidden).not.toHaveBeenCalledWith(false);
+  });
+
   it('does NOT call updateAccountState when sessionAesKey is null', () => {
     const core = makeCore({ sessionAesKey: null, walletAddress: '0xabc123' });
     const network = makeNetwork();

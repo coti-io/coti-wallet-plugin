@@ -212,7 +212,10 @@ export function usePrivateUnlockController(
         },
         onProgress: handleRestoreUnlockProgress,
       })) {
-        if (!isActiveUnlockRequest(requestId)) return false;
+        if (!isActiveUnlockRequest(requestId)) {
+          unlock.lockPrivateBalances();
+          return false;
+        }
         return completeUnlock(requestId);
       }
 
@@ -264,6 +267,7 @@ export function usePrivateUnlockController(
   const beginOnboarding = useCallback(async () => {
     if (!connectedAddress) return;
 
+    const requestId = unlockRequestIdRef.current;
     setModalError(null);
     setIsUnlocking(true);
     setCurrentStep('signing-transaction');
@@ -275,13 +279,29 @@ export function usePrivateUnlockController(
         useSnapStorageForOnboarding = await connectSnap();
       }
 
+      if (!isActiveUnlockRequest(requestId)) {
+        return;
+      }
+
       const ok = await unlock.refreshPrivateBalances({
         forceContractOnboarding: true,
         saveBackup: useSnapStorageForOnboarding ? false : saveBackup,
-        onProgress: setCurrentStep,
+        onProgress: (step) => {
+          setCurrentStep(step);
+          if (step === 'idle') {
+            setModalError(null);
+          }
+        },
       });
       if (!ok) {
         setCurrentStep('idle');
+        setModalError(null);
+        setIsUnlockInProgress(false);
+        return;
+      }
+
+      if (!isActiveUnlockRequest(requestId)) {
+        unlock.lockPrivateBalances();
         return;
       }
 
@@ -293,7 +313,7 @@ export function usePrivateUnlockController(
     } finally {
       setIsUnlocking(false);
     }
-  }, [canAttemptSnapInstall, connectSnap, connectedAddress, saveBackup, unlock, usesSnapStorage]);
+  }, [canAttemptSnapInstall, connectSnap, connectedAddress, isActiveUnlockRequest, saveBackup, unlock, usesSnapStorage]);
 
   const handleOnboardModalClose = useCallback(() => {
     if (currentStep === 'complete') {

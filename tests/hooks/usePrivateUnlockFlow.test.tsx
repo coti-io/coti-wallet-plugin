@@ -137,6 +137,36 @@ describe('usePrivateUnlockFlow', () => {
     expect(result.current.showOnboardModal).toBe(false);
   });
 
+  it('locks again when a dismissed in-flight restore later succeeds', async () => {
+    let resolveRefresh!: (value: boolean) => void;
+    mockRefreshPrivateBalances.mockImplementationOnce(
+      () => new Promise(resolve => {
+        resolveRefresh = resolve;
+      }),
+    );
+    const pendingAction = vi.fn();
+
+    const { result } = renderHook(() => usePrivateUnlockFlow());
+
+    let unlockPromise!: Promise<boolean>;
+    act(() => {
+      unlockPromise = result.current.ensurePrivateUnlocked(pendingAction);
+    });
+
+    act(() => {
+      result.current.resetUnlockUi();
+    });
+
+    await act(async () => {
+      resolveRefresh(true);
+      await unlockPromise;
+    });
+
+    expect(mockLockPrivateBalances).toHaveBeenCalledTimes(1);
+    expect(pendingAction).not.toHaveBeenCalled();
+    expect(result.current.showOnboardModal).toBe(false);
+  });
+
   it('runs pending action after successful restore', async () => {
     mockRefreshPrivateBalances.mockResolvedValueOnce(true);
     const pendingAction = vi.fn();
@@ -240,6 +270,41 @@ describe('usePrivateUnlockFlow', () => {
     expect(result.current.showOnboardModal).toBe(false);
     expect(onUnlocked).toHaveBeenCalledTimes(1);
     expect(pendingAction).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not complete onboarding when the modal was dismissed while onboarding was in flight', async () => {
+    let resolveOnboard!: (value: boolean) => void;
+    mockRefreshPrivateBalances
+      .mockResolvedValueOnce(false)
+      .mockImplementationOnce(
+        () => new Promise(resolve => {
+          resolveOnboard = resolve;
+        }),
+      );
+
+    const { result } = renderHook(() => usePrivateUnlockFlow());
+
+    await act(async () => {
+      await result.current.openUnlockFlow();
+    });
+
+    let onboardPromise!: Promise<void>;
+    act(() => {
+      onboardPromise = result.current.onboardModal.props.onConfirm();
+    });
+
+    act(() => {
+      result.current.onboardModal.props.onClose();
+    });
+
+    await act(async () => {
+      resolveOnboard(true);
+      await onboardPromise;
+    });
+
+    expect(mockLockPrivateBalances).toHaveBeenCalledTimes(1);
+    expect(result.current.showOnboardModal).toBe(false);
+    expect(result.current.onboardModal.props.currentStep).not.toBe('complete');
   });
 
   it('returns to intro when contract onboarding does not complete', async () => {

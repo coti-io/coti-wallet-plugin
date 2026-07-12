@@ -304,5 +304,6 @@ export function formatOnboardingError(error: unknown): string {
     ].join(' ');
   }
 
-  return message;
+  const trimmed = message.trim();
+  return trimmed || 'Onboarding failed. Try again or refresh the page.';
 }

@@ -93,12 +93,16 @@ export const usePrivacyBridgeUnlockSession = ({
       throw new Error('AES key must be 32 hexadecimal characters.');
     }
 
-    setSessionAesKey(key, walletAddress);
-    setSnapError(null);
-
     const chainOverride = wagmiSyncRef.current ? wagmiChainId : undefined;
     const success = await updateAccountState(walletAddress, true, true, key, chainOverride);
-    if (success) setArePrivateBalancesHidden(false);
+    if (!success) {
+      setSessionAesKey(null);
+      setArePrivateBalancesHidden(true);
+      throw new Error('Wrong AES key');
+    }
+    setSessionAesKey(key, walletAddress);
+    setSnapError(null);
+    setArePrivateBalancesHidden(false);
   };
 
   const refreshPublicBalances = useCallback(async () => {
@@ -238,15 +242,6 @@ export const usePrivacyBridgeUnlockSession = ({
       logger.log('Private balance fetch completed', { success });
 
       if (!success) {
-        const validatedKey = getValidatedAesKeyForUnlock(walletAddress);
-        if (validatedKey) {
-          logger.log('Unlock validated AES key present — treating unlock as successful');
-          setSessionAesKey(validatedKey, walletAddress);
-          setArePrivateBalancesHidden(false);
-          setSnapError(null);
-          return true;
-        }
-
         if (aesKeyOptions?.forceContractOnboarding) {
           logger.log('Forced contract onboarding did not complete — skipping interactive retry');
           return false;
@@ -272,18 +267,15 @@ export const usePrivacyBridgeUnlockSession = ({
         logger.log('Retry private balance fetch completed', { success });
       }
 
-      const validatedKey = getValidatedAesKeyForUnlock(walletAddress);
-      if (!success && validatedKey) {
-        logger.log('Unlock validated AES key present — treating unlock as successful');
-        setSessionAesKey(validatedKey, walletAddress);
-        setArePrivateBalancesHidden(false);
-        setSnapError(null);
-        return true;
-      }
-
       if (success) {
         setArePrivateBalancesHidden(false);
         setSnapError(null);
+      } else if (aesKeyOptions?.forceContractOnboarding) {
+        setArePrivateBalancesHidden(true);
+        if (walletAddress) {
+          clearAesKeyValidatedForUnlock(walletAddress);
+        }
+        setSessionAesKey(null);
       }
       return success;
     } catch (err: unknown) {

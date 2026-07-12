@@ -223,6 +223,36 @@ describe('useBalanceUpdater', () => {
     expect(ok).toBe(false);
   });
 
+  it('does not mark an AES key validated when private balance fetch fails', async () => {
+    const {
+      clearAesKeyValidatedForUnlock,
+      isAesKeyValidatedForUnlock,
+    } = await import('../../src/crypto/aesKeyValidation');
+    clearAesKeyValidatedForUnlock();
+
+    const aesKey = 'e'.repeat(32);
+    const props = makeProps({
+      sessionAesKey: aesKey,
+      validateMetaMaskAesKeyOnUnlock: vi.fn().mockResolvedValue(undefined),
+      fetchPrivateBalance: vi.fn().mockRejectedValue(new Error('network blip')),
+    });
+    const { result } = renderHook(() => useBalanceUpdater(props));
+
+    const ok = await result.current.updateAccountState(
+      ACCOUNT,
+      true,
+      true,
+      undefined,
+      COTI_TESTNET,
+      { validateOnUnlock: true },
+    );
+
+    expect(ok).toBe(false);
+    expect(props.validateMetaMaskAesKeyOnUnlock).toHaveBeenCalled();
+    expect(isAesKeyValidatedForUnlock(ACCOUNT, aesKey)).toBe(false);
+    clearAesKeyValidatedForUnlock();
+  });
+
   it('rethrows a CotiPluginError raised by checkNetwork', async () => {
     const props = makeProps({
       checkNetwork: vi.fn().mockRejectedValue(
@@ -520,6 +550,27 @@ describe('useBalanceUpdater', () => {
     );
 
     (window as any).ethereum = original;
+  });
+
+  it('returns false when unlock AES key fetch is cancelled on chains with plain private tokens', async () => {
+    const props = makeProps({
+      getAESKeyFromSnap: vi.fn().mockResolvedValue(null),
+      fetchPrivateBalance: vi.fn().mockResolvedValue('1.0'),
+    });
+    const { result } = renderHook(() => useBalanceUpdater(props));
+
+    const ok = await result.current.updateAccountState(
+      ACCOUNT,
+      true,
+      true,
+      undefined,
+      SEPOLIA,
+      { validateOnUnlock: true, forceContractOnboarding: true },
+    );
+
+    expect(ok).toBe(false);
+    expect(props.fetchPrivateBalance).not.toHaveBeenCalled();
+    expect(props.setSessionAesKey).not.toHaveBeenCalled();
   });
 
   it('fetches AES key before public balance RPCs on restore-only unlock', async () => {
