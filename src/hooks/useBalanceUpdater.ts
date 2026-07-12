@@ -92,13 +92,15 @@ export const useBalanceUpdater = ({
                 const browserProvider = window.ethereum && !hasChainOverride
                     ? new ethers.BrowserProvider(window.ethereum)
                     : null;
+                const forceContractOnboarding = options?.forceContractOnboarding === true;
+                const effectiveSessionAesKey = forceContractOnboarding ? null : sessionAesKey;
                 const needsAesKeyFetch =
                     fetchPrivate
                     && !aesKeyOverride
-                    && !sessionAesKey
+                    && !effectiveSessionAesKey
                     && checkSnap
                     && !(allowSnapOperations && options?.snapSideDecrypt);
-                let restoredAesKey: string | null = aesKeyOverride ?? sessionAesKey ?? null;
+                let restoredAesKey: string | null = aesKeyOverride ?? effectiveSessionAesKey ?? null;
 
                 if (deferPublicBalances && needsAesKeyFetch) {
                     logger.log('⚡ Restore-only unlock: fetching AES key before balance RPCs');

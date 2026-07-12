@@ -10,6 +10,7 @@ import { configureCotiPlugin } from '../../src/config/plugin';
 import { CotiErrorCode } from '../../src/errors';
 import {
   clearAesKeyValidatedForUnlock,
+  getValidatedAesKeyForUnlock,
   markAesKeyValidatedForUnlock,
 } from '../../src/crypto/aesKeyValidation';
 
@@ -84,7 +85,6 @@ vi.mock('wagmi', () => ({
     }, []);
     return h.wagmi;
   },
-  useConfig: () => ({ setState: vi.fn() }),
   useDisconnect: () => ({ disconnect: h.disconnect }),
   useConnectorClient: () => ({ data: undefined }),
   useSwitchChain: () => ({ switchChain: vi.fn() }),
@@ -797,6 +797,7 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
 
     it('saveManualAesKey fails locked when balance refresh fails softly', async () => {
       await connectWagmi(WALLET_A, 11155111);
+      markAesKeyValidatedForUnlock(WALLET_A, 'c'.repeat(32));
       h.balanceUpdater.updateAccountState.mockResolvedValueOnce(false);
 
       await expect(
@@ -807,6 +808,7 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
 
       expect(latest!.sessionAesKey).toBeNull();
       expect(latest!.isPrivateUnlocked).toBe(false);
+      expect(getValidatedAesKeyForUnlock(WALLET_A)).toBeNull();
     });
 
     it('returns null sessionAesKey when the bound wallet does not match', async () => {
@@ -952,6 +954,14 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
 
       expect(latest!.sessionAesKey).toBeNull();
       expect(latest!.isPrivateUnlocked).toBe(false);
+      expect(h.balanceUpdater.updateAccountState).toHaveBeenCalledWith(
+        WALLET_A,
+        true,
+        true,
+        undefined,
+        7082400,
+        { validateOnUnlock: true, forceContractOnboarding: true },
+      );
     });
 
     it('does not retry forced contract onboarding after a soft failure', async () => {

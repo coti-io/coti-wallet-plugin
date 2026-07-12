@@ -111,7 +111,7 @@ function makeNetwork(overrides: Partial<any> = {}) {
     COTI_MAINNET_ID: '2632500',
     COTI_TESTNET_ID: '7082400',
     SEPOLIA_ID: '11155111',
-    wagmiAddress: '0xabc123',
+    wagmiAddress: '0xabc123' as `0x${string}`,
     wagmiConnected: true,
     wagmiChainId: 11155111,
     wagmiConnector: undefined,
@@ -121,6 +121,7 @@ function makeNetwork(overrides: Partial<any> = {}) {
     isWrongNetwork: false,
     networkMismatchWarning: null,
     enforceNetwork: vi.fn(),
+    wagmiConfig: {} as any,
     ...overrides,
   };
 }
@@ -301,6 +302,29 @@ describe('usePrivacyBridgeAccountSync — sessionAesKey effect', () => {
       '0xabc123',
       onProgress,
       { forceContractOnboarding: true, onProgress },
+    );
+  });
+
+  it('does not reuse session AES key for force-contract onboarding', async () => {
+    const getAesKeyFromProvider = vi.fn().mockResolvedValue('contract-key');
+    const core = makeCore({
+      sessionAesKey: 's'.repeat(32),
+      getAesKeyFromProvider,
+    });
+    const network = makeNetwork();
+    const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
+
+    renderHook(() => usePrivacyBridgeAccountSync({ core, network, updateAccountStateRef }));
+
+    const key = await h.balanceUpdaterParams.getAESKeyFromSnap('0xabc123', {
+      forceContractOnboarding: true,
+    });
+
+    expect(key).toBe('contract-key');
+    expect(getAesKeyFromProvider).toHaveBeenCalledWith(
+      '0xabc123',
+      undefined,
+      { forceContractOnboarding: true },
     );
   });
 });

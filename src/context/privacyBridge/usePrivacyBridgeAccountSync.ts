@@ -85,7 +85,7 @@ export const usePrivacyBridgeAccountSync = ({
 
       // Always prioritize the in-memory session key — avoids any interactive prompts
       // during automatic balance refreshes.
-      if (sessionAesKey) return sessionAesKey;
+      if (sessionAesKey && !options?.forceContractOnboarding) return sessionAesKey;
 
       // Fall through to the wallet-type-aware provider (useAesKeyProvider).
       // For MetaMask: tries Snap (non-interactive if already connected)
