@@ -74,6 +74,38 @@ describe('useBalanceUpdater', () => {
     h.formatUnits.mockReturnValue('1.0');
   });
 
+  it('returns false when fetchPrivate is requested without provider or chain override', async () => {
+    const original = (window as any).ethereum;
+    delete (window as any).ethereum;
+
+    const props = makeProps({ sessionAesKey: 'a'.repeat(32) });
+    const { result } = renderHook(() => useBalanceUpdater(props));
+
+    const ok = await result.current.updateAccountState(ACCOUNT, true, true);
+
+    expect(ok).toBe(false);
+    expect(props.setSessionAesKey).not.toHaveBeenCalled();
+    expect(props.setPrivateTokens).not.toHaveBeenCalled();
+
+    (window as any).ethereum = original;
+  });
+
+  it('returns false when fetchPrivate is requested for a chain without contract addresses', async () => {
+    const props = makeProps({ sessionAesKey: 'a'.repeat(32) });
+    const { result } = renderHook(() => useBalanceUpdater(props));
+
+    const ok = await result.current.updateAccountState(
+      ACCOUNT,
+      true,
+      true,
+      'a'.repeat(32),
+      999999,
+    );
+
+    expect(ok).toBe(false);
+    expect(props.setPrivateTokens).not.toHaveBeenCalled();
+  });
+
   it('marks connected and skips balance fetch when no provider and no chain override', async () => {
     const original = (window as any).ethereum;
     delete (window as any).ethereum;
