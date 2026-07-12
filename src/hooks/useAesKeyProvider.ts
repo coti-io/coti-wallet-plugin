@@ -747,13 +747,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         // EIP-1193 error code 4001: user rejected the signature request.
         // coti-ethers onboard() also rethrows a generic "unable to onboard user." message
         // after personal_sign rejection — walletRejectionRef preserves that signal.
-        const signRejectedDuringOnboarding =
-          walletRejectionRef.current
-          || trace.getEntries().some(
-            (entry) => entry.tag === 'rpc-err'
-              && typeof entry.detail === 'string'
-              && entry.detail.startsWith('personal_sign:'),
-          );
+        const signRejectedDuringOnboarding = walletRejectionRef.current;
         if (isUserRejection(error) || signRejectedDuringOnboarding) {
           emitStep('idle', { cancelled: true });
           return null;

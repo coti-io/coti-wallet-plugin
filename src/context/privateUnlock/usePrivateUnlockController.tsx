@@ -295,7 +295,6 @@ export function usePrivateUnlockController(
         },
       })) {
         if (!isActiveUnlockRequest(requestId)) {
-          unlock.lockPrivateBalances();
           return false;
         }
         return completeUnlock(requestId);
@@ -440,7 +439,6 @@ export function usePrivateUnlockController(
       }
 
       if (!isActiveUnlockRequest(requestId)) {
-        unlock.lockPrivateBalances();
         return;
       }
 
@@ -463,7 +461,6 @@ export function usePrivateUnlockController(
       }
 
       if (!isActiveUnlockRequest(requestId)) {
-        unlock.lockPrivateBalances();
         return;
       }
 
@@ -593,7 +590,6 @@ export function usePrivateUnlockController(
           },
         });
         if (!isActiveUnlockRequest(requestId)) {
-          unlock.lockPrivateBalances();
           return;
         }
         if (manualSaveResult.backupWarning) {

@@ -893,6 +893,30 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       expect(result.current.onboardingError).toBeNull();
     });
 
+    it('surfaces personal_sign provider failures instead of treating them as cancellation', async () => {
+      const provider = {
+        request: vi.fn().mockRejectedValueOnce(new Error('network timeout')),
+      };
+      ethersState.signer = makeSigner(VALID_KEY);
+      ethersState.signer.generateOrRecoverAes = vi.fn(async () => {
+        try {
+          await provider.request({ method: 'personal_sign', params: ['0xmessage', ADDR] });
+        } catch {
+          throw new Error('unable to onboard user.');
+        }
+      });
+      wagmiState.connector = { getProvider: vi.fn().mockResolvedValue(provider) };
+      wagmiState.chainId = COTI_TESTNET;
+      const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'rabby' })));
+
+      let key: string | null = 'x';
+      await act(async () => {
+        key = await result.current.getAesKey(ADDR);
+      });
+      expect(key).toBeNull();
+      expect(result.current.onboardingError).toBe('unable to onboard user.');
+    });
+
     it('returns null without error when MetaMask Mobile rejects with "User denied"', async () => {
       ethersState.signer = makeSigner(VALID_KEY, {
         generateThrows: { code: 4001, message: 'MetaMask Message Signature: User denied message signature.' },
