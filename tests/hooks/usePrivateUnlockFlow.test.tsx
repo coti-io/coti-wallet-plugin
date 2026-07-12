@@ -10,6 +10,8 @@ const mockRequestSnapConnection = vi.fn();
 let mockWalletType = 'rabby';
 let mockIsMetaMaskWithSnap = false;
 let mockSessionAesKey: string | null = null;
+let mockOnboardingError: string | null = null;
+let mockOnboardingWarning: string | null = null;
 
 vi.mock('../../src/context/privacyBridge/contexts', () => ({
   usePrivacyBridgeUnlock: () => ({
@@ -17,6 +19,8 @@ vi.mock('../../src/context/privacyBridge/contexts', () => ({
     sessionAesKey: mockSessionAesKey,
     sendPrivateToken: vi.fn(),
     refreshPrivateBalances: mockRefreshPrivateBalances,
+    onboardingError: mockOnboardingError,
+    onboardingWarning: mockOnboardingWarning,
     lockPrivateBalances: mockLockPrivateBalances,
     saveManualAesKey: mockSaveManualAesKey,
     requestSnapConnection: mockRequestSnapConnection,
@@ -58,10 +62,12 @@ vi.mock('../../src/components/WalletSignPrompt', () => ({
 describe('usePrivateUnlockFlow', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockSaveManualAesKey.mockResolvedValue(undefined);
+    mockSaveManualAesKey.mockResolvedValue({});
     mockWalletType = 'rabby';
     mockIsMetaMaskWithSnap = false;
     mockSessionAesKey = null;
+    mockOnboardingError = null;
+    mockOnboardingWarning = null;
     mockRefreshPrivateBalances.mockResolvedValue(false);
     mockRequestSnapConnection.mockResolvedValue(false);
   });
@@ -237,6 +243,9 @@ describe('usePrivateUnlockFlow', () => {
       saveBackup: true,
       onProgress: expect.any(Function),
     });
+    expect(result.current.onboardModal.props.warning).toBe(
+      'Snap connection was skipped or rejected. Continuing without Snap storage.',
+    );
   });
 
   it('keeps success screen open with AES key after contract onboarding until dismissed', async () => {
@@ -274,6 +283,47 @@ describe('usePrivateUnlockFlow', () => {
     expect(pendingAction).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps the progress modal while saving a contract onboarding backup', async () => {
+    let resolveOnboard!: () => void;
+    mockRefreshPrivateBalances
+      .mockResolvedValueOnce(false)
+      .mockImplementationOnce(
+        async (options?: { onProgress?: (step: string) => void }) => {
+          options?.onProgress?.('signing-backup');
+          await new Promise<void>(resolve => {
+            resolveOnboard = resolve;
+          });
+          mockSessionAesKey = 'd'.repeat(32);
+          return true;
+        },
+      );
+
+    const { result } = renderHook(() => usePrivateUnlockFlow());
+
+    await act(async () => {
+      await result.current.openUnlockFlow();
+    });
+
+    let onboardPromise!: Promise<void>;
+    act(() => {
+      onboardPromise = result.current.onboardModal.props.onConfirm();
+    });
+
+    expect(result.current.showOnboardModal).toBe(true);
+    expect(result.current.onboardModal.props.currentStep).toBe('saving-backup');
+    expect(result.current.walletSignPrompt.props.isOpen).toBe(false);
+
+    await act(async () => {
+      resolveOnboard();
+      await onboardPromise;
+    });
+
+    expect(result.current.showOnboardModal).toBe(true);
+    expect(result.current.onboardModal.props.currentStep).toBe('complete');
+    expect(result.current.onboardModal.props.aesKey).toBe('d'.repeat(32));
+    expect(result.current.walletSignPrompt.props.isOpen).toBe(false);
+  });
+
   it('does not complete onboarding when the modal was dismissed while onboarding was in flight', async () => {
     let resolveOnboard!: (value: boolean) => void;
     mockRefreshPrivateBalances
@@ -309,8 +359,9 @@ describe('usePrivateUnlockFlow', () => {
     expect(result.current.onboardModal.props.currentStep).not.toBe('complete');
   });
 
-  it('returns to intro when contract onboarding does not complete', async () => {
+  it('returns to error screen when contract onboarding fails with provider feedback', async () => {
     mockWalletType = 'rabby';
+    mockOnboardingError = 'Network timeout';
     mockRefreshPrivateBalances
       .mockResolvedValueOnce(false)
       .mockResolvedValueOnce(false);
@@ -326,13 +377,276 @@ describe('usePrivateUnlockFlow', () => {
     });
 
     expect(result.current.showOnboardModal).toBe(true);
+    expect(result.current.onboardModal.props.currentStep).toBe('error');
+    expect(result.current.onboardModal.props.error).toBe('Network timeout');
+    expect(result.current.statusMessage).toBeNull();
+  });
+
+  it('keeps success screen open after snap-backed contract onboarding succeeds', async () => {
+    mockWalletType = 'metamask';
+    mockIsMetaMaskWithSnap = true;
+    mockRefreshPrivateBalances
+      .mockResolvedValueOnce(false)
+      .mockImplementationOnce(async () => {
+        mockSessionAesKey = 'd'.repeat(32);
+        return true;
+      });
+
+    const onUnlocked = vi.fn();
+    const { result } = renderHook(() => usePrivateUnlockFlow({ onUnlocked }));
+
+    await act(async () => {
+      await result.current.openUnlockFlow();
+    });
+
+    await act(async () => {
+      await result.current.onboardModal.props.onConfirm();
+    });
+
+    expect(result.current.showOnboardModal).toBe(true);
+    expect(result.current.onboardModal.props.currentStep).toBe('complete');
+    expect(onUnlocked).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await result.current.onboardModal.props.onClose();
+    });
+
+    expect(result.current.showOnboardModal).toBe(false);
+    expect(onUnlocked).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps onboarding progress visible while contract onboarding saves a backup', async () => {
+    vi.useFakeTimers();
+    let capturedOnProgress!: (step: string) => void;
+    let resolveOnboard!: (value: boolean) => void;
+
+    try {
+      mockRefreshPrivateBalances
+        .mockResolvedValueOnce(false)
+        .mockImplementationOnce(async (options?: {
+          onProgress?: (step: string) => void;
+        }) => {
+          capturedOnProgress = options?.onProgress ?? (() => undefined);
+          const ok = await new Promise<boolean>(resolve => {
+            resolveOnboard = resolve;
+          });
+          if (ok) {
+            mockSessionAesKey = 'd'.repeat(32);
+          }
+          return ok;
+        });
+
+      const { result } = renderHook(() => usePrivateUnlockFlow());
+
+      await act(async () => {
+        await result.current.openUnlockFlow();
+      });
+
+      let onboardPromise!: Promise<void>;
+      act(() => {
+        onboardPromise = result.current.onboardModal.props.onConfirm();
+      });
+
+      act(() => {
+        capturedOnProgress('signing-backup');
+      });
+
+      expect(result.current.showOnboardModal).toBe(true);
+      expect(result.current.onboardModal.props.currentStep).toBe('saving-backup');
+
+      await act(async () => {
+        resolveOnboard(true);
+        await vi.advanceTimersByTimeAsync(599);
+      });
+      expect(result.current.onboardModal.props.currentStep).toBe('saving-backup');
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+        await onboardPromise;
+      });
+      expect(result.current.onboardModal.props.currentStep).toBe('complete');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not pass stale provider errors while showing onboarding success', async () => {
+    mockWalletType = 'metamask';
+    mockIsMetaMaskWithSnap = true;
+    mockOnboardingError = 'stale provider error';
+    mockRefreshPrivateBalances
+      .mockResolvedValueOnce(false)
+      .mockImplementationOnce(async () => {
+        mockSessionAesKey = 'd'.repeat(32);
+        return true;
+      });
+
+    const { result } = renderHook(() => usePrivateUnlockFlow());
+
+    await act(async () => {
+      await result.current.openUnlockFlow();
+    });
+
+    await act(async () => {
+      await result.current.onboardModal.props.onConfirm();
+    });
+
+    expect(result.current.showOnboardModal).toBe(true);
+    expect(result.current.onboardModal.props.currentStep).toBe('complete');
+    expect(result.current.onboardModal.props.error).toBeNull();
+  });
+
+  it('keeps final progress state while waiting for session AES key after onboarding succeeds', async () => {
+    let resolveOnboard!: (value: boolean) => void;
+    mockRefreshPrivateBalances
+      .mockResolvedValueOnce(false)
+      .mockImplementationOnce(
+        () => new Promise<boolean>(resolve => {
+          resolveOnboard = resolve;
+        }),
+      );
+
+    const { result, rerender } = renderHook(() => usePrivateUnlockFlow());
+
+    await act(async () => {
+      await result.current.openUnlockFlow();
+    });
+
+    let onboardPromise!: Promise<void>;
+    act(() => {
+      onboardPromise = result.current.onboardModal.props.onConfirm();
+    });
+
+    await act(async () => {
+      resolveOnboard(true);
+      await onboardPromise;
+    });
+
+    expect(result.current.isUnlocking).toBe(true);
+    expect(result.current.showOnboardModal).toBe(true);
+    expect(result.current.onboardModal.props.currentStep).toBe('validating-key');
+    expect(result.current.onboardModal.props.aesKey).toBeNull();
+
+    mockSessionAesKey = 'd'.repeat(32);
+    await act(async () => {
+      rerender();
+    });
+
+    expect(result.current.isUnlocking).toBe(false);
+    expect(result.current.onboardModal.props.currentStep).toBe('complete');
+    expect(result.current.onboardModal.props.aesKey).toBe('d'.repeat(32));
+  });
+
+  it('does not move contract onboarding progress backwards after execute starts', async () => {
+    let capturedOnProgress!: (step: string) => void;
+    mockRefreshPrivateBalances
+      .mockResolvedValueOnce(false)
+      .mockImplementationOnce(
+        (options?: { onProgress?: (step: string) => void }) => {
+          capturedOnProgress = options?.onProgress ?? (() => undefined);
+          return new Promise<boolean>(() => undefined);
+        },
+      );
+
+    const { result } = renderHook(() => usePrivateUnlockFlow());
+
+    await act(async () => {
+      await result.current.openUnlockFlow();
+    });
+
+    act(() => {
+      void result.current.onboardModal.props.onConfirm();
+    });
+    expect(result.current.onboardModal.props.currentStep).toBe('preparing-onboard');
+
+    act(() => {
+      capturedOnProgress('retrieving-key');
+    });
+    expect(result.current.onboardModal.props.currentStep).toBe('retrieving-key');
+
+    act(() => {
+      capturedOnProgress('signing-transaction');
+    });
+    expect(result.current.onboardModal.props.currentStep).toBe('retrieving-key');
+  });
+
+  it('ignores contract progress from a cancelled onboarding attempt after retry opens', async () => {
+    let cancelledOnProgress!: (step: string) => void;
+    mockRefreshPrivateBalances
+      .mockResolvedValueOnce(false)
+      .mockImplementationOnce(
+        (options?: { onProgress?: (step: string) => void }) => {
+          cancelledOnProgress = options?.onProgress ?? (() => undefined);
+          return false;
+        },
+      )
+      .mockResolvedValueOnce(false);
+
+    const { result } = renderHook(() => usePrivateUnlockFlow());
+
+    await act(async () => {
+      await result.current.openUnlockFlow();
+    });
+
+    await act(async () => {
+      await result.current.onboardModal.props.onConfirm();
+    });
+    expect(result.current.showOnboardModal).toBe(false);
+
+    await act(async () => {
+      await result.current.openUnlockFlow();
+    });
+    expect(result.current.showOnboardModal).toBe(true);
     expect(result.current.onboardModal.props.currentStep).toBe('idle');
+
+    act(() => {
+      cancelledOnProgress('signing-transaction');
+    });
+    expect(result.current.onboardModal.props.currentStep).toBe('idle');
+  });
+
+  it('dismisses the modal and shows inline status when contract onboarding is cancelled', async () => {
+    mockRefreshPrivateBalances
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(false);
+
+    const onOnboardingCancelled = vi.fn();
+    const { result } = renderHook(() => usePrivateUnlockFlow({ onOnboardingCancelled }));
+
+    await act(async () => {
+      await result.current.openUnlockFlow();
+    });
+
+    await act(async () => {
+      await result.current.onboardModal.props.onConfirm();
+    });
+
+    expect(result.current.showOnboardModal).toBe(false);
+    expect(result.current.statusMessage).toBe('Signature cancelled.');
+    expect(onOnboardingCancelled).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes onboarding feedback to the modal', async () => {
+    mockOnboardingWarning = 'Backup restore failed; continuing.';
+    mockOnboardingError = 'Onboarding exploded';
+    mockRefreshPrivateBalances.mockResolvedValueOnce(false);
+
+    const { result } = renderHook(() => usePrivateUnlockFlow());
+
+    await act(async () => {
+      await result.current.openUnlockFlow();
+    });
+
+    expect(result.current.showOnboardModal).toBe(true);
+    expect(result.current.onboardModal.props.error).toBe('Onboarding exploded');
+    expect(result.current.onboardModal.props.warning).toBe('Backup restore failed; continuing.');
   });
 
   it('passes saveBackup and onProgress when submitting a manual AES key', async () => {
     mockSaveManualAesKey.mockImplementation(async (_key, options) => {
       options?.onProgress?.('signing-backup');
       options?.onProgress?.('idle');
+      return {};
     });
     mockRefreshPrivateBalances.mockResolvedValueOnce(false);
 
@@ -352,6 +666,126 @@ describe('usePrivateUnlockFlow', () => {
       saveBackup: true,
       onProgress: expect.any(Function),
     });
+    expect(result.current.showOnboardModal).toBe(false);
+  });
+
+  it('shows the success screen with warning when manual backup save fails', async () => {
+    const onUnlocked = vi.fn();
+    const pendingAction = vi.fn();
+    mockSaveManualAesKey.mockResolvedValueOnce({
+      backupWarning: 'Encrypted backup was not saved. storage failed',
+    });
+    mockRefreshPrivateBalances.mockResolvedValueOnce(false);
+
+    const { result } = renderHook(() => usePrivateUnlockFlow({ onUnlocked }));
+
+    await act(async () => {
+      await result.current.ensurePrivateUnlocked(pendingAction);
+    });
+
+    await act(async () => {
+      await result.current.onboardModal.props.onManualAesKeySubmit?.('a'.repeat(32), {
+        saveBackup: true,
+      });
+    });
+
+    expect(result.current.showOnboardModal).toBe(true);
+    expect(result.current.onboardModal.props.currentStep).toBe('complete');
+    expect(result.current.onboardModal.props.warning).toBe(
+      'Encrypted backup was not saved. storage failed',
+    );
+    expect(onUnlocked).not.toHaveBeenCalled();
+    expect(pendingAction).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await result.current.onboardModal.props.onClose();
+    });
+
+    expect(onUnlocked).toHaveBeenCalledTimes(1);
+    expect(pendingAction).toHaveBeenCalledTimes(1);
+  });
+
+  it('locks again when manual AES submit completes after dismiss', async () => {
+    let resolveManualSave!: (value: { backupWarning?: string }) => void;
+    mockSaveManualAesKey.mockImplementationOnce(
+      () => new Promise<{ backupWarning?: string }>(resolve => {
+        resolveManualSave = resolve;
+      }),
+    );
+    mockRefreshPrivateBalances.mockResolvedValueOnce(false);
+    const pendingAction = vi.fn();
+
+    const { result } = renderHook(() => usePrivateUnlockFlow());
+
+    await act(async () => {
+      await result.current.ensurePrivateUnlocked(pendingAction);
+    });
+
+    let manualSubmitPromise!: Promise<void>;
+    act(() => {
+      manualSubmitPromise = result.current.onboardModal.props.onManualAesKeySubmit?.(
+        'a'.repeat(32),
+        { saveBackup: false },
+      );
+    });
+
+    act(() => {
+      result.current.resetUnlockUi();
+    });
+
+    await act(async () => {
+      resolveManualSave({});
+      await manualSubmitPromise;
+    });
+
+    expect(mockLockPrivateBalances).toHaveBeenCalledTimes(1);
+    expect(pendingAction).not.toHaveBeenCalled();
+    expect(result.current.showOnboardModal).toBe(false);
+  });
+
+  it('locks again when manual backup signing completes after dismiss', async () => {
+    let resolveManualSave!: () => void;
+    mockSaveManualAesKey.mockImplementationOnce(
+      async (_key, options) => {
+        options?.onProgress?.('signing-backup');
+        await new Promise<void>(resolve => {
+          resolveManualSave = resolve;
+        });
+        options?.onProgress?.('idle');
+        return {};
+      },
+    );
+    mockRefreshPrivateBalances.mockResolvedValueOnce(false);
+    const pendingAction = vi.fn();
+
+    const { result } = renderHook(() => usePrivateUnlockFlow());
+
+    await act(async () => {
+      await result.current.ensurePrivateUnlocked(pendingAction);
+    });
+
+    let manualSubmitPromise!: Promise<void>;
+    act(() => {
+      manualSubmitPromise = result.current.onboardModal.props.onManualAesKeySubmit?.(
+        'a'.repeat(32),
+        { saveBackup: true },
+      );
+    });
+
+    expect(result.current.showOnboardModal).toBe(false);
+    expect(result.current.walletSignPrompt.props.isOpen).toBe(true);
+
+    act(() => {
+      result.current.resetUnlockUi();
+    });
+
+    await act(async () => {
+      resolveManualSave();
+      await manualSubmitPromise;
+    });
+
+    expect(mockLockPrivateBalances).toHaveBeenCalledTimes(1);
+    expect(pendingAction).not.toHaveBeenCalled();
     expect(result.current.showOnboardModal).toBe(false);
   });
 });

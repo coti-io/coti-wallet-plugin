@@ -97,7 +97,6 @@ vi.mock('../../src/hooks/useAesKeyProvider', () => ({
     isOnboarding: false,
     onboardingError: null,
     currentStep: 'idle' as const,
-    onboardingDebugTrace: [],
   }),
 }));
 
@@ -192,9 +191,11 @@ describe('privacyBridge facade', () => {
         isPrivateUnlocked: false,
         sendPrivateToken: async () => ({ txHash: '0x1' }),
         refreshPrivateBalances: async () => false,
+        onboardingError: null,
+        onboardingWarning: null,
         lockPrivateBalances: () => undefined,
         handleOnboard: async () => null,
-        saveManualAesKey: async () => undefined,
+        saveManualAesKey: async () => ({}),
         handleVerifyKeys: async () => undefined,
         showSnapMissingModal: false,
         setShowSnapMissingModal: () => undefined,

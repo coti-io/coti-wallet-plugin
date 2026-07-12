@@ -14,6 +14,8 @@ export interface PrivateUnlockControllerValue {
   toggleLock: () => void;
   requireUnlock: (pendingAction?: () => void | Promise<void>) => Promise<boolean>;
   reset: () => void;
+  /** Non-blocking message after a cancelled unlock/onboarding attempt. */
+  statusMessage: string | null;
 }
 
 const PrivateUnlockContext = createContext<PrivateUnlockControllerValue | undefined>(undefined);
@@ -38,6 +40,7 @@ export const PrivateUnlockProvider: React.FC<PrivateUnlockProviderProps> = ({
     resetUnlockUi,
     onboardModal,
     walletSignPrompt,
+    statusMessage,
   } = controller;
 
   const value = useMemo<PrivateUnlockControllerValue>(() => ({
@@ -48,6 +51,7 @@ export const PrivateUnlockProvider: React.FC<PrivateUnlockProviderProps> = ({
     toggleLock: handleToggleLock,
     requireUnlock: ensurePrivateUnlocked,
     reset: resetUnlockUi,
+    statusMessage,
   }), [
     ensurePrivateUnlocked,
     handleToggleLock,
@@ -56,6 +60,7 @@ export const PrivateUnlockProvider: React.FC<PrivateUnlockProviderProps> = ({
     lockPrivateBalances,
     openUnlockFlow,
     resetUnlockUi,
+    statusMessage,
   ]);
 
   return (

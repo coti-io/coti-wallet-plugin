@@ -124,6 +124,8 @@ export const PrivacyBridgeProvider: React.FC<PrivacyBridgeProviderProps> = ({
       encryptPrivateValue: session.encryptPrivateValue,
       decryptPrivateValue: session.decryptPrivateValue,
       refreshPrivateBalances: session.refreshPrivateBalances,
+      onboardingError: session.onboardingError,
+      onboardingWarning: session.onboardingWarning,
       lockPrivateBalances: session.lockPrivateBalances,
       handleOnboard: session.handleOnboard,
       saveManualAesKey: session.saveManualAesKey,

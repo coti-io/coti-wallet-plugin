@@ -23,6 +23,8 @@ vi.mock('../../src/context/privacyBridge/contexts', () => ({
     sessionAesKey: mockSessionAesKey,
     sendPrivateToken: vi.fn(),
     refreshPrivateBalances: mockRefreshPrivateBalances,
+    onboardingError: null,
+    onboardingWarning: null,
     lockPrivateBalances: mockLockPrivateBalances,
     saveManualAesKey: vi.fn(),
     requestSnapConnection: mockRequestSnapConnection,

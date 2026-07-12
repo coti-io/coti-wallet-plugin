@@ -3,48 +3,13 @@ import type { Connector } from 'wagmi';
 import { getPluginConfig } from '../config/plugin';
 import { encryptAesKeyBackup } from '../crypto/aesKeyBackupVault';
 import { logger } from './logger';
+import { isOnboardingServicesEnabled } from './onboardingServices';
+import { isUserRejection } from './walletErrors';
+import type { EIP1193Provider } from './ethereum';
 import {
   isMetaMaskMobileBrowser,
   resolveMetaMaskMobileWalletProvider,
 } from './metaMaskMobile';
-
-type Eip1193ProviderLike = {
-  request?: (args: { method: string; params?: unknown[] | unknown }) => Promise<unknown>;
-};
-
-const EIP_1193_USER_REJECTED = 4001;
-
-function isUserRejection(error: unknown): boolean {
-  if (error && typeof error === 'object') {
-    const err = error as {
-      code?: number | string;
-      message?: string;
-      reason?: string;
-      info?: { error?: { code?: number | string; message?: string } };
-    };
-    if (err.code === EIP_1193_USER_REJECTED) return true;
-    if (err.info?.error?.code === EIP_1193_USER_REJECTED) return true;
-    if (err.code === 'ACTION_REJECTED' || err.reason === 'rejected') return true;
-    const message = `${err.message ?? ''} ${err.info?.error?.message ?? ''}`.toLowerCase();
-    if (
-      message.includes('user rejected')
-      || message.includes('user denied')
-      || message.includes('rejected the request')
-      || message.includes('request rejected')
-      || message.includes('action_rejected')
-      || message.includes('user cancelled')
-      || message.includes('user canceled')
-    ) {
-      return true;
-    }
-  }
-  return false;
-}
-
-function isOnboardingServicesEnabled(): boolean {
-  const mode = getPluginConfig().onboardingServices?.mode;
-  return mode === 'custom' || mode === 'official';
-}
 
 export type PersistEncryptedAesBackupResult =
   | { status: 'saved' }
@@ -57,6 +22,7 @@ export async function persistEncryptedAesBackup(params: {
   address: string;
   chainId: number;
   connector: Connector;
+  preferReplace?: boolean;
   onBeforeSign?: () => void;
 }): Promise<PersistEncryptedAesBackupResult> {
   const services = getPluginConfig().onboardingServices;
@@ -73,10 +39,10 @@ export async function persistEncryptedAesBackup(params: {
   };
 
   try {
-    const connectorProvider = await params.connector.getProvider() as Eip1193ProviderLike | null;
+    const connectorProvider = await params.connector.getProvider() as EIP1193Provider | null;
     const walletProvider = resolveMetaMaskMobileWalletProvider(
       connectorProvider as Parameters<typeof resolveMetaMaskMobileWalletProvider>[0],
-    ) as Eip1193ProviderLike;
+    ) as EIP1193Provider;
 
     if (!walletProvider?.request) {
       return { status: 'failed', message: 'Could not get provider from wallet connector.' };
@@ -92,7 +58,7 @@ export async function persistEncryptedAesBackup(params: {
     const backup = await encryptAesKeyBackup(params.aesKey, signer, backupContext);
 
     let existingBackup = null;
-    if (services.fetchEncryptedAesBackup) {
+    if (!params.preferReplace && services.fetchEncryptedAesBackup) {
       try {
         existingBackup = await services.fetchEncryptedAesBackup(backupContext);
       } catch (error) {
@@ -100,7 +66,7 @@ export async function persistEncryptedAesBackup(params: {
       }
     }
 
-    const saveBackup = existingBackup && services.replaceEncryptedAesBackup
+    const saveBackup = (params.preferReplace || existingBackup) && services.replaceEncryptedAesBackup
       ? services.replaceEncryptedAesBackup
       : services.saveEncryptedAesBackup;
 

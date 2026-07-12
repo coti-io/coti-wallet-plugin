@@ -62,13 +62,17 @@ export interface PrivacyBridgeUnlockContextValue {
   }) => Promise<{ amount: string }>;
   /** Low-level balance/key refresh primitive. App UI should not orchestrate unlock with this. */
   refreshPrivateBalances: (options?: AesKeyProviderOptions) => Promise<boolean>;
+  /** Last contract-onboarding error produced by the AES provider. */
+  onboardingError: string | null;
+  /** Last non-blocking onboarding warning produced by restore/backup flows. */
+  onboardingWarning: string | null;
   /** Hides private balances and clears plaintext AES session state. */
   lockPrivateBalances: () => void;
   handleOnboard: () => Promise<string | null>;
   saveManualAesKey: (
     aesKey: string,
     options?: Pick<AesKeyProviderOptions, 'saveBackup' | 'onProgress'>,
-  ) => Promise<void>;
+  ) => Promise<{ backupWarning?: string }>;
   handleVerifyKeys: () => Promise<void>;
   showSnapMissingModal: boolean;
   setShowSnapMissingModal: (show: boolean) => void;

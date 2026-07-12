@@ -82,6 +82,8 @@ export interface PrivacyBridgeSessionCore {
     onProgress?: OnboardingProgressCallback,
     options?: AesKeyProviderOptions,
   ) => Promise<string | null>;
+  onboardingError: string | null;
+  onboardingWarning: string | null;
 }
 
 export type UpdateAccountStateRef = MutableRefObject<UpdateAccountStateFn | null>;

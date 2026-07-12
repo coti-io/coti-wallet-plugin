@@ -192,14 +192,19 @@ export const useBalanceUpdater = ({
                             }
                         }
 
-                        if (
+        if (
                             aesKey
                             && validateOnUnlock
                             && validateMetaMaskAesKeyOnUnlock
+                            && !options?.forceContractOnboarding
                             && !isAesKeyValidatedForUnlock(account, aesKey)
                         ) {
                             await validateMetaMaskAesKeyOnUnlock(aesKey, account, currentChainId);
                             if (isStale()) return false;
+                            markValidatedAfterSuccess = true;
+                        }
+
+                        if (aesKey && options?.forceContractOnboarding) {
                             markValidatedAfterSuccess = true;
                         }
 
