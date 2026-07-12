@@ -427,10 +427,14 @@ describe('usePrivateUnlockFlow', () => {
 
   it('returns to error screen when contract onboarding fails with provider feedback', async () => {
     mockWalletType = 'rabby';
-    mockOnboardingError = 'Network timeout';
     mockRefreshPrivateBalances
       .mockResolvedValueOnce(false)
-      .mockResolvedValueOnce(false);
+      .mockImplementationOnce(async (options?: {
+        onProgress?: (step: string, details?: { error?: string }) => void;
+      }) => {
+        options?.onProgress?.('error', { error: 'Network timeout' });
+        return false;
+      });
 
     const { result } = renderHook(() => usePrivateUnlockFlow());
 
@@ -446,6 +450,82 @@ describe('usePrivateUnlockFlow', () => {
     expect(result.current.onboardModal.props.currentStep).toBe('error');
     expect(result.current.onboardModal.props.error).toBe('Network timeout');
     expect(result.current.statusMessage).toBeNull();
+  });
+
+  it('shows onboarding error immediately when provider emits error progress', async () => {
+    let resolveOnboard!: (value: boolean) => void;
+    mockRefreshPrivateBalances
+      .mockResolvedValueOnce(false)
+      .mockImplementationOnce(
+        (options?: {
+          onProgress?: (step: string, details?: { error?: string }) => void;
+        }) => new Promise(resolve => {
+          options?.onProgress?.('error', {
+            error: 'Retrieved AES key has invalid format',
+          });
+          resolveOnboard = resolve;
+        }),
+      );
+
+    const { result } = renderHook(() => usePrivateUnlockFlow());
+
+    await act(async () => {
+      await result.current.openUnlockFlow();
+    });
+
+    let onboardPromise!: Promise<void>;
+    act(() => {
+      onboardPromise = result.current.onboardModal.props.onConfirm();
+    });
+
+    expect(result.current.onboardModal.props.currentStep).toBe('error');
+    expect(result.current.onboardModal.props.error).toBe(
+      'Retrieved AES key has invalid format',
+    );
+
+    await act(async () => {
+      resolveOnboard(false);
+      await onboardPromise;
+    });
+
+    expect(result.current.onboardModal.props.currentStep).toBe('error');
+    expect(result.current.onboardModal.props.error).toBe(
+      'Retrieved AES key has invalid format',
+    );
+  });
+
+  it('does not advance onboarding progress after provider reports an error', async () => {
+    let capturedOnProgress!: (step: string, details?: { error?: string }) => void;
+    mockRefreshPrivateBalances
+      .mockResolvedValueOnce(false)
+      .mockImplementationOnce(
+        (options?: {
+          onProgress?: (step: string, details?: { error?: string }) => void;
+        }) => {
+          capturedOnProgress = options?.onProgress ?? (() => undefined);
+          return Promise.resolve(false);
+        },
+      );
+
+    const { result } = renderHook(() => usePrivateUnlockFlow());
+
+    await act(async () => {
+      await result.current.openUnlockFlow();
+    });
+
+    await act(async () => {
+      await result.current.onboardModal.props.onConfirm();
+    });
+
+    act(() => {
+      capturedOnProgress('error', { error: 'Network timeout' });
+    });
+    expect(result.current.onboardModal.props.currentStep).toBe('error');
+
+    act(() => {
+      capturedOnProgress('restoring-network');
+    });
+    expect(result.current.onboardModal.props.currentStep).toBe('error');
   });
 
   it('keeps success screen open after snap-backed contract onboarding succeeds', async () => {
@@ -725,6 +805,40 @@ describe('usePrivateUnlockFlow', () => {
     expect(onOnboardingCancelled).toHaveBeenCalledTimes(1);
   });
 
+  it('does not show stale provider onboardingError when reopening after dismiss', async () => {
+    mockOnboardingError = 'Previous onboarding exploded';
+    mockRefreshPrivateBalances
+      .mockResolvedValueOnce(false)
+      .mockImplementationOnce(async (options?: {
+        onProgress?: (step: string, details?: { error?: string }) => void;
+      }) => {
+        options?.onProgress?.('error', { error: 'Network timeout' });
+        return false;
+      });
+
+    const { result } = renderHook(() => usePrivateUnlockFlow());
+
+    await act(async () => {
+      await result.current.openUnlockFlow();
+    });
+
+    await act(async () => {
+      await result.current.onboardModal.props.onConfirm();
+    });
+
+    expect(result.current.onboardModal.props.error).toBe('Network timeout');
+
+    await act(async () => {
+      result.current.onboardModal.props.onClose?.();
+    });
+
+    await act(async () => {
+      await result.current.openUnlockFlow();
+    });
+
+    expect(result.current.onboardModal.props.error).toBeNull();
+  });
+
   it('shows an error instead of cancelled when onboarding fails without a cancel signal', async () => {
     mockRefreshPrivateBalances
       .mockResolvedValueOnce(false)
@@ -778,7 +892,7 @@ describe('usePrivateUnlockFlow', () => {
     );
   });
 
-  it('passes onboarding feedback to the modal', async () => {
+  it('passes onboarding warning to the modal without stale provider errors on open', async () => {
     mockOnboardingWarning = 'Backup restore failed; continuing.';
     mockOnboardingError = 'Onboarding exploded';
     mockRefreshPrivateBalances.mockResolvedValueOnce(false);
@@ -790,7 +904,7 @@ describe('usePrivateUnlockFlow', () => {
     });
 
     expect(result.current.showOnboardModal).toBe(true);
-    expect(result.current.onboardModal.props.error).toBe('Onboarding exploded');
+    expect(result.current.onboardModal.props.error).toBeNull();
     expect(result.current.onboardModal.props.warning).toBe('Backup restore failed; continuing.');
   });
 

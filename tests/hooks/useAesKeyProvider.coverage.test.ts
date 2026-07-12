@@ -705,7 +705,7 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       expect(key).toBe(VALID_KEY);
     });
 
-    it('sets an error but still returns the key when the onboard key has an invalid format', async () => {
+    it('returns null with onboardingError when the onboard key has an invalid format', async () => {
       ethersState.signer = makeSigner('bad-key');
       wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
       wagmiState.chainId = COTI_TESTNET;
@@ -715,7 +715,7 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       await act(async () => {
         key = await result.current.getAesKey(ADDR);
       });
-      expect(key).toBe('bad-key');
+      expect(key).toBeNull();
       expect(result.current.onboardingError).toContain('invalid format');
     });
 
