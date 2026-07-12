@@ -722,11 +722,67 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
     it('handleOnboard stores session key when onboarding succeeds', async () => {
       h.snap.handleManualOnboarding.mockResolvedValue('B'.repeat(32));
       await connectWagmi();
+      h.balanceUpdater.updateAccountState.mockClear();
       await act(async () => {
         const key = await latest!.handleOnboard();
         expect(key).toBe('B'.repeat(32));
       });
+      expect(h.balanceUpdater.updateAccountState).toHaveBeenCalledWith(
+        WALLET_A,
+        true,
+        true,
+        'B'.repeat(32),
+        7082400,
+      );
       expect(latest!.sessionAesKey).toBe('B'.repeat(32));
+      expect(latest!.isPrivateUnlocked).toBe(true);
+    });
+
+    it('handleOnboard does not store session key when balance refresh fails softly', async () => {
+      h.snap.handleManualOnboarding.mockResolvedValue('B'.repeat(32));
+      await connectWagmi();
+      h.balanceUpdater.updateAccountState.mockResolvedValueOnce(false);
+
+      await expect(
+        act(async () => {
+          await latest!.handleOnboard();
+        }),
+      ).rejects.toThrow('Could not unlock private balances. Try again.');
+
+      expect(latest!.sessionAesKey).toBeNull();
+      expect(latest!.isPrivateUnlocked).toBe(false);
+    });
+
+    it('encryptPrivateValue rejects when private balances are locked', async () => {
+      await connectWagmi();
+      h.balanceUpdater.updateAccountState.mockResolvedValueOnce(false);
+      await act(async () => {
+        h.balanceUpdater.params?.setSessionAesKey('a'.repeat(32), WALLET_A);
+        await Promise.resolve();
+      });
+
+      expect(latest!.sessionAesKey).toBe('a'.repeat(32));
+      expect(latest!.isPrivateUnlocked).toBe(false);
+
+      await expect(latest!.encryptPrivateValue({ amount: '1' })).rejects.toThrow(
+        'Private balances are locked. Unlock to encrypt values.',
+      );
+    });
+
+    it('decryptPrivateValue rejects when private balances are locked', async () => {
+      await connectWagmi();
+      h.balanceUpdater.updateAccountState.mockResolvedValueOnce(false);
+      await act(async () => {
+        h.balanceUpdater.params?.setSessionAesKey('a'.repeat(32), WALLET_A);
+        await Promise.resolve();
+      });
+
+      expect(latest!.sessionAesKey).toBe('a'.repeat(32));
+      expect(latest!.isPrivateUnlocked).toBe(false);
+
+      await expect(
+        latest!.decryptPrivateValue({ ciphertext: '{"value":"0x1"}' }),
+      ).rejects.toThrow('Private balances are locked. Unlock to decrypt values.');
     });
 
     it('sessionAesKey effect refreshes account state and sets hasSnap', async () => {

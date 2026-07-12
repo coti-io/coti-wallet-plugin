@@ -77,25 +77,8 @@ export const usePrivacyBridgeUnlockSession = ({
   // unreliable when multiple wallet extensions are installed.
   const { connector } = useAccount();
 
-  const handleOnboard = async () => {
-    const key = await handleManualOnboarding();
-    if (key && walletAddress) setSessionAesKey(key, walletAddress);
-    return key;
-  };
-
-  const saveManualAesKey = async (
-    aesKey: string,
-    options?: Pick<AesKeyProviderOptions, 'saveBackup' | 'onProgress'>,
-  ): Promise<{ backupWarning?: string }> => {
+  const commitAesKeyUnlock = async (key: string): Promise<void> => {
     if (!walletAddress) throw new Error('Connect your wallet first.');
-
-    // Normalize and validate in-memory only — no localStorage persistence unless saveBackup is enabled.
-    let key: string;
-    try {
-      key = normalizeAesKey(aesKey.trim());
-    } catch {
-      throw new Error('AES key must be 32 hexadecimal characters.');
-    }
 
     const chainOverride = wagmiSyncRef.current ? wagmiChainId : undefined;
     try {
@@ -119,6 +102,31 @@ export const usePrivacyBridgeUnlockSession = ({
       }
       throw err;
     }
+  };
+
+  const handleOnboard = async () => {
+    const key = await handleManualOnboarding();
+    if (!key || !walletAddress) return key;
+
+    await commitAesKeyUnlock(key);
+    return key;
+  };
+
+  const saveManualAesKey = async (
+    aesKey: string,
+    options?: Pick<AesKeyProviderOptions, 'saveBackup' | 'onProgress'>,
+  ): Promise<{ backupWarning?: string }> => {
+    if (!walletAddress) throw new Error('Connect your wallet first.');
+
+    // Normalize and validate in-memory only — no localStorage persistence unless saveBackup is enabled.
+    let key: string;
+    try {
+      key = normalizeAesKey(aesKey.trim());
+    } catch {
+      throw new Error('AES key must be 32 hexadecimal characters.');
+    }
+
+    await commitAesKeyUnlock(key);
 
     if (options?.saveBackup && connector) {
       const targetChainId = resolveAesKeyChainId(
@@ -461,6 +469,10 @@ export const usePrivacyBridgeUnlockSession = ({
     amount: string;
     decimals?: number;
   }): Promise<{ ciphertext: string }> => {
+    if (arePrivateBalancesHidden) {
+      throw new Error('Private balances are locked. Unlock to encrypt values.');
+    }
+
     const strategy = await resolveAesAccess();
     const sessionKey = resolveSessionAesKey();
 
@@ -492,6 +504,7 @@ export const usePrivacyBridgeUnlockSession = ({
     });
     return { ciphertext: serializeCtUint256(encrypted) };
   }, [
+    arePrivateBalancesHidden,
     encryptUint256ViaSnap,
     currentChainId,
     resolveAesAccess,
@@ -503,6 +516,10 @@ export const usePrivacyBridgeUnlockSession = ({
     ciphertext: string;
     decimals?: number;
   }): Promise<{ amount: string }> => {
+    if (arePrivateBalancesHidden) {
+      throw new Error('Private balances are locked. Unlock to decrypt values.');
+    }
+
     const strategy = await resolveAesAccess();
     const sessionKey = resolveSessionAesKey();
 
@@ -535,6 +552,7 @@ export const usePrivacyBridgeUnlockSession = ({
       }),
     };
   }, [
+    arePrivateBalancesHidden,
     decryptCtUint256ViaSnap,
     currentChainId,
     resolveAesAccess,
