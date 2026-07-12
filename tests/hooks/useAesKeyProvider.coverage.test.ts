@@ -639,7 +639,7 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       expect(result.current.onboardingError).toBeNull();
     });
 
-    it('returns null without onboardingError when onboarding fails due to insufficient funds', async () => {
+    it('returns null with onboardingError when onboarding fails due to insufficient funds', async () => {
       wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
       wagmiState.chainId = COTI_TESTNET;
       ethersState.getBalance.mockResolvedValue(0n);
@@ -659,7 +659,10 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       });
 
       expect(key).toBeNull();
-      expect(result.current.onboardingError).toBeNull();
+      expect(result.current.onboardingError).toBe(
+        'Insufficient native COTI for onboarding gas. Add COTI and retry.',
+      );
+      expect(result.current.currentStep).toBe('error');
     });
 
     it('saves an encrypted backup after onboarding when requested', async () => {

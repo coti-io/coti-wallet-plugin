@@ -4,7 +4,10 @@ import { WalletSignPrompt, type WalletSignPromptPurpose } from '../../components
 import { usePrivacyBridgeUnlock, usePrivacyBridgeWallet } from '../privacyBridge/contexts';
 import { formatOnboardingError, isMetaMaskMobileBrowser } from '../../lib/metaMaskMobile';
 import { isUserRejection } from '../../lib/walletErrors';
-import type { OnboardingStep } from '../../hooks/useAesKeyProvider';
+import type {
+  OnboardingProgressDetails,
+  OnboardingStep,
+} from '../../hooks/useAesKeyProvider';
 import { isSnapInstallEnabled } from '../../config/plugin';
 import { useWalletType } from '../../hooks/useWalletType';
 import { logger } from '../../lib/logger';
@@ -88,6 +91,8 @@ export function usePrivateUnlockController(
   const snapConnectedInModalRef = useRef(false);
   const backupSaveProgressStartedAtRef = useRef<number | null>(null);
   const pendingCompleteRequestIdRef = useRef<number | null>(null);
+  const contractOnboardingCancelledRef = useRef(false);
+  const contractOnboardingFailureRef = useRef<string | null>(null);
 
   const connectedAddress = wallet.walletAddress || '';
   const isMetaMaskWallet = walletTypeInfo.walletType === 'metamask';
@@ -109,6 +114,8 @@ export function usePrivateUnlockController(
     setModalWarning(null);
     backupSaveProgressStartedAtRef.current = null;
     pendingCompleteRequestIdRef.current = null;
+    contractOnboardingCancelledRef.current = false;
+    contractOnboardingFailureRef.current = null;
     return requestId;
   }, []);
 
@@ -123,6 +130,8 @@ export function usePrivateUnlockController(
     setIsUnlocking(false);
     backupSaveProgressStartedAtRef.current = null;
     pendingCompleteRequestIdRef.current = null;
+    contractOnboardingCancelledRef.current = false;
+    contractOnboardingFailureRef.current = null;
   }, []);
 
   const runPendingAction = useCallback(async () => {
@@ -233,17 +242,26 @@ export function usePrivateUnlockController(
   ) => {
     if (!isActiveUnlockRequest(requestId)) return;
 
-    if (onboardingError) {
+    const failureMessage = onboardingError ?? contractOnboardingFailureRef.current;
+    if (failureMessage) {
       setCurrentStep('error');
-      setModalError(onboardingError);
+      setModalError(failureMessage);
       setModalWarning(unlock.onboardingWarning ?? null);
       setIsUnlockInProgress(false);
       return;
     }
 
-    dismissOnboardModal();
-    setStatusMessage('Signature cancelled.');
-    onOnboardingCancelled?.();
+    if (contractOnboardingCancelledRef.current) {
+      dismissOnboardModal();
+      setStatusMessage('Signature cancelled.');
+      onOnboardingCancelled?.();
+      return;
+    }
+
+    setCurrentStep('error');
+    setModalError('Onboarding did not complete. Please retry.');
+    setModalWarning(unlock.onboardingWarning ?? null);
+    setIsUnlockInProgress(false);
   }, [dismissOnboardModal, isActiveUnlockRequest, onOnboardingCancelled, unlock.onboardingWarning]);
 
   const restorePrivateUnlock = useCallback(async (
@@ -263,11 +281,13 @@ export function usePrivateUnlockController(
       if (await unlock.refreshPrivateBalances({
         restoreOnly: true,
         onRestoreCancelled: () => {
+          if (!isActiveUnlockRequest(requestId)) return;
           restoreCancelled = true;
           pendingActionRef.current = null;
           onRestoreCancelled?.();
         },
         onProgress: (step) => {
+          if (!isActiveUnlockRequest(requestId)) return;
           if (step === 'signing-backup') {
             setWalletSignPromptPurpose('decrypt-backup');
           }
@@ -329,12 +349,24 @@ export function usePrivateUnlockController(
     return restorePrivateUnlock(requestId, pendingAction);
   }, [beginUnlockRequest, connectedAddress, restorePrivateUnlock, unlock.isPrivateUnlocked]);
 
-  const handleContractOnboardingProgress = useCallback((step: OnboardingStep) => {
+  const handleContractOnboardingProgress = useCallback((
+    step: OnboardingStep,
+    details?: OnboardingProgressDetails,
+  ) => {
     logger.debug('[PrivateUnlock] contract onboarding progress', {
       step,
+      details,
       currentStep,
       showOnboardModal,
     });
+
+    if (details?.cancelled) {
+      contractOnboardingCancelledRef.current = true;
+    }
+
+    if (details?.error) {
+      contractOnboardingFailureRef.current = details.error;
+    }
 
     if (step === 'signing-backup') {
       backupSaveProgressStartedAtRef.current = Date.now();
@@ -379,6 +411,8 @@ export function usePrivateUnlockController(
     setIsUnlocking(true);
     setShowOnboardModal(true);
     setCurrentStep('preparing-onboard');
+    contractOnboardingCancelledRef.current = false;
+    contractOnboardingFailureRef.current = null;
     try {
       let useSnapStorageForOnboarding =
         usesSnapStorage || snapConnectedInModalRef.current;
@@ -394,9 +428,9 @@ export function usePrivateUnlockController(
       const ok = await unlock.refreshPrivateBalances({
         forceContractOnboarding: true,
         saveBackup: useSnapStorageForOnboarding ? false : saveBackup,
-        onProgress: (step) => {
+        onProgress: (step, details) => {
           if (isActiveUnlockRequest(requestId)) {
-            handleContractOnboardingProgress(step);
+            handleContractOnboardingProgress(step, details);
           }
         },
       });
@@ -550,6 +584,7 @@ export function usePrivateUnlockController(
         const manualSaveResult = await unlock.saveManualAesKey(aesKey, {
           saveBackup: shouldSaveBackup,
           onProgress: (step) => {
+            if (!isActiveUnlockRequest(requestId)) return;
             if (step === 'signing-backup') {
               setWalletSignPromptPurpose('save-backup');
               setShowOnboardModal(false);
