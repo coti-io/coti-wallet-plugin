@@ -22,6 +22,11 @@ function isMetaMaskInjected(): boolean {
   return !!eth.isMetaMask && !eth.isRabby && !eth.isPhantom && !eth.isTrust;
 }
 
+function isMetaMaskMobileInAppBrowser(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /MetaMaskMobile/i.test(navigator.userAgent);
+}
+
 /**
  * RainbowKit wallet factory for MetaMask that works on both desktop (injected) and
  * mobile (WalletConnect deep link), ensuring it is always visible in the mobile
@@ -31,7 +36,8 @@ function isMetaMaskInjected(): boolean {
  */
 export const mobileMetaMaskWallet = ({ projectId }: { projectId: string }): Wallet => {
   const mobile = isMobileBrowser();
-  const shouldUseWalletConnect = mobile || !isMetaMaskInjected();
+  const insideMetaMaskInApp = isMetaMaskMobileInAppBrowser();
+  const shouldUseWalletConnect = (mobile && !insideMetaMaskInApp) || (!insideMetaMaskInApp && !isMetaMaskInjected());
 
   return {
     id: 'metamask',

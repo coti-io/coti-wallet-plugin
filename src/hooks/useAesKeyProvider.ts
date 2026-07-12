@@ -6,7 +6,7 @@ import { useSnap } from './useSnap';
 import type { WalletTypeInfo } from './useWalletType';
 import { CotiPluginError, CotiErrorCode } from '../errors';
 import { logger } from '../lib/logger';
-import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID } from '../config/chains';
+import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID, getRpcUrlForChainId } from '../config/chains';
 import { getPluginConfig, type EncryptedAesBackup } from '../config/plugin';
 import { decryptAesKeyBackup, encryptAesKeyBackup } from '../crypto/aesKeyBackupVault';
 import { normalizeAesKey } from '../crypto/aesKey';
@@ -14,9 +14,16 @@ import { muteChainUpdates, unmuteChainUpdates, isChainUpdatesMuted } from '../li
 import { canPersistAesKeyToSnap } from '../lib/snapOrigins';
 import { resolveAesKeyChainId } from '../lib/aesAccessStrategy';
 import {
+  clearMetaMaskMobileRpcCache,
   formatOnboardingError,
+  guardedEthChainId,
+  guardedMobileReadOnlyRpc,
+  guardedMobileWalletRpc,
   isMetaMaskMobileBrowser,
+  mobileHttpJsonRpc,
+  MOBILE_READ_ONLY_RPC_METHODS,
   OnboardingDebugTrace,
+  resolveMetaMaskMobileWalletProvider,
 } from '../lib/metaMaskMobile';
 
 /**
@@ -31,6 +38,7 @@ export type OnboardingStep =
   | 'idle'
   | 'switching-network'
   | 'creating-provider'
+  | 'preparing-onboard'
   | 'signing-transaction'
   | 'retrieving-key'
   | 'validating-key'
@@ -57,6 +65,7 @@ export interface OnboardingStepInfo {
  * Ordered list of steps shown in the progress UI (steps 3–9 from the onboarding flow doc).
  */
 export const ONBOARDING_STEPS: OnboardingStepInfo[] = [
+  { id: 'preparing-onboard', label: 'Preparing', description: 'Checking wallet and preparing onboarding' },
   { id: 'signing-transaction', label: 'Sign Transaction', description: 'Please sign the transaction in your wallet' },
   { id: 'retrieving-key', label: 'Execute Transaction', description: 'Please execute the next transaction in your wallet to generate or retrieve your AES Key' },
   { id: 'persisting-key', label: 'Persisting Key', description: 'Persisting your AES encryption key' },
@@ -184,10 +193,15 @@ function instrumentWalletProvider(
   walletProvider: Eip1193ProviderLike,
   emitStep: (step: OnboardingStep) => void,
   trace: OnboardingDebugTrace,
+  readOnlyRpcChainId?: number,
 ): () => void {
   const hadOwnRequest = Object.prototype.hasOwnProperty.call(walletProvider, 'request');
   const originalRequest = walletProvider.request.bind(walletProvider);
   let executeStepEmitted = false;
+  let signingStepEmitted = false;
+  const readOnlyRpcUrl = readOnlyRpcChainId != null
+    ? getRpcUrlForChainId(readOnlyRpcChainId)
+    : undefined;
 
   walletProvider.request = async function instrumentedRequest(args: Eip1193RequestPayload) {
     const method = args?.method ?? 'unknown';
@@ -197,10 +211,48 @@ function instrumentWalletProvider(
       executeStepEmitted = true;
       emitStep('retrieving-key');
     } else if (SIGN_RPC_METHODS.has(method)) {
+      if (!signingStepEmitted) {
+        signingStepEmitted = true;
+        emitStep('signing-transaction');
+      }
       trace.push('wallet-prompt', `Approve signature in wallet (${method})`);
     }
 
     try {
+      if (isMetaMaskMobileBrowser()) {
+        if (MOBILE_READ_ONLY_RPC_METHODS.has(method)) {
+          const readOnlyProvider = readOnlyRpcUrl
+            ? {
+                request: ({ method: rpcMethod, params }: Eip1193RequestPayload) =>
+                  mobileHttpJsonRpc(readOnlyRpcUrl, rpcMethod, params ?? []),
+              }
+            : { request: originalRequest };
+          if (readOnlyRpcUrl) {
+            trace.push('rpc-via', `http(${method})`);
+          }
+          const result = await guardedMobileReadOnlyRpc(
+            readOnlyProvider,
+            method,
+            args.params ?? [],
+          );
+          trace.push('rpc-ok', method);
+          return result;
+        }
+        if (method === 'wallet_switchEthereumChain' || method === 'wallet_addEthereumChain') {
+          clearMetaMaskMobileRpcCache();
+        }
+        if (SIGN_RPC_METHODS.has(method) || method === 'eth_sendTransaction') {
+          trace.push('wallet-send', method);
+        }
+        const result = await guardedMobileWalletRpc(
+          { request: originalRequest },
+          method,
+          args.params ?? [],
+        );
+        trace.push('rpc-ok', method);
+        return result;
+      }
+
       const result = await originalRequest(args);
       trace.push('rpc-ok', method);
       return result;
@@ -256,6 +308,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
   const [onboardingDebugTrace, setOnboardingDebugTrace] = useState<string[]>([]);
   const progressCallbackRef = useRef<OnboardingProgressCallback | undefined>();
   const debugTraceRef = useRef(new OnboardingDebugTrace());
+  const onboardingInFlightRef = useRef<Promise<string | null> | null>(null);
 
   const { getAESKeyFromSnap, saveAESKeyToSnap, clearSnapCache } = useSnap();
   const { connector, chainId: connectedChainId } = useAccount();
@@ -287,6 +340,11 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
 
       const trace = debugTraceRef.current;
       trace.push('start', `wallet=${walletTypeInfo.walletType} mobile=${isMetaMaskMobileBrowser()}`);
+
+      if (onboardingInFlightRef.current) {
+        trace.push('route', 'onboarding already in flight - joining');
+        return onboardingInFlightRef.current;
+      }
 
       const skipSnapOnMetaMaskMobile =
         walletTypeInfo.walletType === 'metamask' && isMetaMaskMobileBrowser();
@@ -353,12 +411,22 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         return null;
       }
 
+      const onboardingPromise = (async (): Promise<string | null> => {
       try {
         setIsOnboarding(true);
 
         // Get the EIP-1193 provider from the wagmi connector
-        const walletProvider = await connector.getProvider() as any;
-        if (!walletProvider) {
+        const connectorProvider = await connector.getProvider() as Eip1193ProviderLike | null;
+        const walletProvider = resolveMetaMaskMobileWalletProvider(
+          connectorProvider as Parameters<typeof resolveMetaMaskMobileWalletProvider>[0],
+        ) as Eip1193ProviderLike;
+        if (isMetaMaskMobileBrowser()) {
+          trace.push(
+            'provider',
+            walletProvider === connectorProvider ? 'wagmi-connector' : 'native-injected',
+          );
+        }
+        if (!walletProvider?.request) {
           setOnboardingError('Could not get provider from wallet connector.');
           emitStep('error');
           return null;
@@ -379,7 +447,9 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
               : options.prefetchedEncryptedBackup;
             if (backup) {
               const provider = new BrowserProvider(walletProvider);
-              const signer = await provider.getSigner(address);
+              const signer = isMetaMaskMobileBrowser()
+                ? new JsonRpcSigner(provider, address)
+                : await provider.getSigner(address);
               emitStep('signing-backup');
               const restoredKey = await decryptAesKeyBackup(backup, signer, backupContext);
               logger.log('✅ AES key restored from encrypted backup');
@@ -490,7 +560,12 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         emitStep('creating-provider');
         trace.push('step', 'creating-provider');
 
-        const restoreRequest = instrumentWalletProvider(walletProvider, emitStep, trace);
+        const restoreRequest = instrumentWalletProvider(
+          walletProvider,
+          emitStep,
+          trace,
+          targetCotiChainId,
+        );
 
         // Create a @coti-io/coti-ethers BrowserProvider (now on COTI Testnet).
         // Use JsonRpcSigner directly with the wagmi-connected address — NEVER call
@@ -504,6 +579,15 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         } catch (signerError) {
           restoreRequest();
           throw signerError;
+        }
+
+        if (isMetaMaskMobileBrowser()) {
+          clearMetaMaskMobileRpcCache();
+          const rpcUrl = getRpcUrlForChainId(targetCotiChainId);
+          await guardedEthChainId({
+            request: ({ method, params }) =>
+              mobileHttpJsonRpc(rpcUrl, method, params ?? []),
+          });
         }
 
         const configuredMinBalanceWei = toBigInt(config.onboardingGrantMinBalanceWei, 0n);
@@ -549,12 +633,13 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           }
         }
 
-        // Step: Execute onboarding — first wallet interaction is the message signature
-        emitStep('signing-transaction');
-        trace.push('step', 'signing-transaction');
+        // Step: Execute onboarding - wallet prompts fire from the instrumented RPC hook.
+        emitStep('preparing-onboard');
+        trace.push('step', 'preparing-onboard');
 
         // Execute onboarding on COTI Testnet. The instrumented request hook above
-        // advances the UI to "Execute Transaction" when the on-chain tx is sent.
+        // advances the UI to "Sign Transaction" on personal_sign and
+        // "Execute Transaction" when the on-chain tx is sent.
         try {
           trace.push('sdk', 'generateOrRecoverAes()');
           await signer.generateOrRecoverAes();
@@ -651,8 +736,11 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         // On error, attempt to switch wallet back to the original chain
         if (connectedChainId !== COTI_MAINNET_CHAIN_ID && connectedChainId !== COTI_TESTNET_CHAIN_ID && connectedChainId) {
           try {
-            const wp = await connector.getProvider() as any;
-            await wp?.request({
+            const connectorProvider = await connector.getProvider() as Eip1193ProviderLike | null;
+            const wp = resolveMetaMaskMobileWalletProvider(
+              connectorProvider as Parameters<typeof resolveMetaMaskMobileWalletProvider>[0],
+            ) as Eip1193ProviderLike;
+            await wp?.request?.({
               method: 'wallet_switchEthereumChain',
               params: [{ chainId: '0x' + connectedChainId.toString(16) }],
             });
@@ -692,6 +780,16 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         }
         setIsOnboarding(false);
         progressCallbackRef.current = undefined;
+      }
+      })();
+
+      onboardingInFlightRef.current = onboardingPromise;
+      try {
+        return await onboardingPromise;
+      } finally {
+        if (onboardingInFlightRef.current === onboardingPromise) {
+          onboardingInFlightRef.current = null;
+        }
       }
     },
     [walletTypeInfo.walletType, getAESKeyFromSnap, saveAESKeyToSnap, clearSnapCache, connector, connectedChainId, emitStep]

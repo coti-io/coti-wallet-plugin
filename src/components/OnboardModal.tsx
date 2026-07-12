@@ -866,7 +866,8 @@ function mapToVisibleStep(stepId: OnboardingStep): OnboardingStep {
     case 'waiting-for-funds':
     case 'switching-network':
     case 'creating-provider':
-      return 'signing-transaction';
+    case 'preparing-onboard':
+      return 'preparing-onboard';
     // Hidden steps that happen AFTER retrieving-key
     case 'validating-key':
     case 'restoring-network':
@@ -1298,6 +1299,19 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
                   </svg>
                   <p style={styles.calloutText}>
                     <strong>Grant submitted:</strong> Waiting for the funded balance to appear on COTI.
+                  </p>
+                </div>
+              )}
+
+              {currentStep === 'preparing-onboard' && (
+                <div style={styles.calloutBox}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00E5FF" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M12 6v6l4 2" />
+                  </svg>
+                  <p style={styles.calloutText}>
+                    <strong>Preparing onboarding:</strong> Checking wallet balance and contract state.
+                    Your wallet will prompt you to sign when ready.
                   </p>
                 </div>
               )}
