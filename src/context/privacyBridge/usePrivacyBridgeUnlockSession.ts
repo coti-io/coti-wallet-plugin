@@ -325,12 +325,6 @@ export const usePrivacyBridgeUnlockSession = ({
       if (success) {
         setArePrivateBalancesHidden(false);
         setSnapError(null);
-      } else if (aesKeyOptions?.forceContractOnboarding) {
-        setArePrivateBalancesHidden(true);
-        if (walletAddress) {
-          clearAesKeyValidatedForUnlock(walletAddress);
-        }
-        setSessionAesKey(null);
       }
       return success;
     } catch (err: unknown) {

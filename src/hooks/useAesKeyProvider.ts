@@ -290,6 +290,11 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
     progressCallbackRef.current?.(step, details);
   }, []);
 
+  const reportOnboardingFailure = useCallback((message: string) => {
+    setOnboardingError(message);
+    emitStep('error', { error: message });
+  }, [emitStep]);
+
   const getAesKey = useCallback(
     async (
       address: string,
@@ -377,8 +382,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
 
       // Route 2: Non-MetaMask wallet (or MetaMask without snap / empty snap) — contract onboarding
       if (!connector) {
-        setOnboardingError('No wallet provider available. Please connect your wallet.');
-        emitStep('error');
+        reportOnboardingFailure('No wallet provider available. Please connect your wallet.');
         return null;
       }
 
@@ -399,8 +403,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           );
         }
         if (!walletProvider?.request) {
-          setOnboardingError('Could not get provider from wallet connector.');
-          emitStep('error');
+          reportOnboardingFailure('Could not get provider from wallet connector.');
           return null;
         }
 
@@ -514,15 +517,16 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
                 });
               } catch {
                 unmuteChainUpdates();
-                setOnboardingError('Failed to add COTI Testnet to wallet.');
-                emitStep('error');
+                reportOnboardingFailure('Failed to add COTI Testnet to wallet.');
                 return null;
               }
             } else {
               unmuteChainUpdates();
-              if (switchErr?.code === 4001) { emitStep('idle'); return null; } // user rejected
-              setOnboardingError('Failed to switch to COTI Testnet for onboarding.');
-              emitStep('error');
+              if (switchErr?.code === 4001) {
+                emitStep('idle', { cancelled: true });
+                return null;
+              }
+              reportOnboardingFailure('Failed to switch to COTI Testnet for onboarding.');
               return null;
             }
           }
@@ -630,12 +634,21 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
 
         if (aesKey && !isValidAesKey(aesKey)) {
           logger.warn('⚠️ AES key from onboard contract failed format validation');
-          setOnboardingError('Retrieved AES key has invalid format');
-          emitStep('error');
-          // Still switch back before returning
-        } else {
-          logger.log('✅ AES key retrieved successfully:', aesKey?.length, 'characters');
+          if (!isConnectedCotiChain && originalChainHex) {
+            try {
+              await walletProvider.request({
+                method: 'wallet_switchEthereumChain',
+                params: [{ chainId: originalChainHex }],
+              });
+            } catch {
+              logger.warn('⚠️ [AesKeyProvider] Could not switch back to original chain after invalid AES key');
+            }
+          }
+          reportOnboardingFailure('Retrieved AES key has invalid format');
+          return null;
         }
+
+        logger.log('✅ AES key retrieved successfully:', aesKey?.length, 'characters');
 
         // Step: Switch wallet back to original chain
         emitStep('restoring-network');
@@ -756,15 +769,13 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         if (isInsufficientFundsError(error)) {
           const errorMessage = 'Insufficient native COTI for onboarding gas. Add COTI and retry.';
           logger.warn('[AesKeyProvider] Insufficient native COTI for onboarding; wallet surfaced the error');
-          setOnboardingError(errorMessage);
-          emitStep('error', { error: errorMessage });
+          reportOnboardingFailure(errorMessage);
           return null;
         }
 
         // Set error state for UI display
         const errorMessage = formatOnboardingError(error);
-        setOnboardingError(errorMessage);
-        emitStep('error', { error: errorMessage });
+        reportOnboardingFailure(errorMessage);
         trace.push('error', errorMessage);
         logger.error('❌ Onboarding contract AES key retrieval failed:', error);
         return null;
@@ -791,7 +802,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         }
       }
     },
-    [walletTypeInfo.walletType, getAESKeyFromSnap, saveAESKeyToSnap, clearSnapCache, connector, connectedChainId, emitStep]
+    [walletTypeInfo.walletType, getAESKeyFromSnap, saveAESKeyToSnap, clearSnapCache, connector, connectedChainId, emitStep, reportOnboardingFailure]
   );
 
   return {

@@ -238,7 +238,6 @@ export function usePrivateUnlockController(
 
   const handleOnboardingIncomplete = useCallback((
     requestId: number,
-    onboardingError: string | null,
   ) => {
     if (!isActiveUnlockRequest(requestId)) return;
 
@@ -249,7 +248,7 @@ export function usePrivateUnlockController(
       return;
     }
 
-    const failureMessage = onboardingError ?? contractOnboardingFailureRef.current;
+    const failureMessage = contractOnboardingFailureRef.current;
     if (failureMessage) {
       setCurrentStep('error');
       setModalError(failureMessage);
@@ -377,8 +376,23 @@ export function usePrivateUnlockController(
       return;
     }
 
-    // Provider emits terminal steps before refreshPrivateBalances finishes — wait for its result.
-    if (step === 'complete' || step === 'error') {
+    if (step === 'complete') {
+      return;
+    }
+
+    if (step === 'error') {
+      const failureMessage = details?.error ?? contractOnboardingFailureRef.current;
+      if (failureMessage) {
+        contractOnboardingFailureRef.current = failureMessage;
+        setCurrentStep('error');
+        setModalError(failureMessage);
+        setModalWarning(unlock.onboardingWarning ?? null);
+        setIsUnlockInProgress(false);
+      }
+      return;
+    }
+
+    if (contractOnboardingFailureRef.current) {
       return;
     }
 
@@ -386,7 +400,7 @@ export function usePrivateUnlockController(
     if (step === 'idle') {
       setModalError(null);
     }
-  }, [currentStep, showOnboardModal]);
+  }, [currentStep, showOnboardModal, unlock.onboardingWarning]);
 
   const showOnboardingComplete = useCallback((requestId: number) => {
     if (!isActiveUnlockRequest(requestId)) return;
@@ -438,7 +452,7 @@ export function usePrivateUnlockController(
         },
       });
       if (!ok) {
-        handleOnboardingIncomplete(requestId, unlock.onboardingError);
+        handleOnboardingIncomplete(requestId);
         return;
       }
 
@@ -561,10 +575,7 @@ export function usePrivateUnlockController(
     />
   );
 
-  const visibleModalError =
-    currentStep === 'complete' || isUnlocking
-      ? modalError
-      : modalError ?? unlock.onboardingError;
+  const visibleModalError = modalError;
 
   const onboardModal = (
     <OnboardModal
