@@ -311,12 +311,20 @@ describe('OnboardModal', () => {
       description: { color: '#64748b' },
     };
 
-    render(<OnboardModal {...defaultProps} theme={lightTheme} />);
+    render(<OnboardModal {...defaultProps} theme={lightTheme} onManualAesKeySubmit={vi.fn()} />);
 
     const checkboxLabel = screen.getByText('Save encrypted backup');
     expect(checkboxLabel).toHaveStyle({ color: 'rgb(15, 23, 42)' });
 
     const tooltipButton = screen.getByLabelText('Backup details');
     expect(tooltipButton).toHaveStyle({ color: 'rgb(100, 116, 139)' });
+
+    expect(screen.getByText('Cancel')).toHaveStyle({ color: 'rgb(15, 23, 42)' });
+
+    fireEvent.click(screen.getByLabelText('Input AES key'));
+    expect(screen.getByLabelText('Manual AES key')).toHaveStyle({
+      backgroundColor: 'rgb(241, 245, 249)',
+      color: 'rgb(15, 23, 42)',
+    });
   });
 });

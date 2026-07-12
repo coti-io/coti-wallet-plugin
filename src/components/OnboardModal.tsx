@@ -506,6 +506,7 @@ const FOREGROUND_TEXT_KEYS: OnboardStyleKey[] = [
   'iconButton',
 ];
 const MUTED_TEXT_KEYS: OnboardStyleKey[] = [
+  'closeButton',
   'tooltipButton',
   'cancelButton',
   'stepDescription',
@@ -567,6 +568,147 @@ function applyThemePaletteGaps(
   fillText(ACCENT_TEXT_KEYS, accent);
 }
 
+const LIGHT_INTERACTIVE_SURFACE_KEYS: OnboardStyleKey[] = [
+  'closeButton',
+  'cancelButton',
+  'iconButton',
+  'iconButtonPressed',
+  'iconButtonDisabled',
+  'inlineIconButton',
+  'manualKeyInput',
+  'keyInput',
+  'aesKeyBox',
+  'calloutBox',
+  'iconContainer',
+  'checkbox',
+];
+
+function isDefaultDarkSurfaceBackground(backgroundColor?: string): boolean {
+  if (!backgroundColor) return true;
+  const normalized = backgroundColor.trim().toLowerCase();
+  return (
+    normalized.includes('rgba(0, 0, 0')
+    || normalized.includes('rgba(255, 255, 255, 0.0')
+    || normalized.includes('rgba(255, 255, 255, 0.04')
+    || normalized.includes('rgba(255, 255, 255, 0.06)')
+    || normalized === 'rgba(0, 0, 0, 0.25)'
+    || normalized === 'rgba(0, 0, 0, 0.3)'
+  );
+}
+
+function colorWithAlpha(color: string, alpha: number): string {
+  const rgb = parseColorToRgb(color);
+  if (!rgb) return color;
+  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+}
+
+/**
+ * On light modal backgrounds, fill interactive surfaces that still use the
+ * plugin's dark defaults so icon/cancel/close controls stay visible.
+ */
+function applyLightInteractiveSurfaceGaps(
+  merged: Record<OnboardStyleKey, React.CSSProperties>,
+  theme: OnboardModalTheme,
+) {
+  const modalBackground =
+    typeof merged.modal.backgroundColor === 'string'
+      ? merged.modal.backgroundColor
+      : undefined;
+  if (!isLightBackgroundColor(modalBackground)) return;
+
+  const foreground =
+    theme.title?.color
+    ?? theme.modal?.color
+    ?? '#0f172a';
+  const muted =
+    theme.description?.color
+    ?? theme.cancelButton?.color
+    ?? '#64748b';
+  const primary =
+    typeof theme.primaryButton?.backgroundColor === 'string'
+      ? theme.primaryButton.backgroundColor
+      : '#1E29F6';
+  const inset =
+    (typeof theme.manualKeyInput?.backgroundColor === 'string'
+      ? theme.manualKeyInput.backgroundColor
+      : undefined)
+    ?? (typeof theme.keyInput?.backgroundColor === 'string'
+      ? theme.keyInput.backgroundColor
+      : undefined)
+    ?? '#f1f5f9';
+  const softBorder = `1px solid ${colorWithAlpha(foreground, 0.16)}`;
+  const primaryBorder = `1px solid ${colorWithAlpha(primary, 0.3)}`;
+
+  const surfaceDefaults: Partial<Record<OnboardStyleKey, React.CSSProperties>> = {
+    closeButton: { color: muted },
+    cancelButton: { color: foreground, fontWeight: 600 },
+    iconButton: {
+      backgroundColor: inset,
+      color: foreground,
+      border: softBorder,
+    },
+    iconButtonPressed: {
+      backgroundColor: colorWithAlpha(primary, 0.12),
+      color: primary,
+      border: primaryBorder,
+      boxShadow: 'none',
+    },
+    iconButtonDisabled: {
+      backgroundColor: colorWithAlpha(foreground, 0.04),
+      color: colorWithAlpha(foreground, 0.4),
+      border: `1px solid ${colorWithAlpha(foreground, 0.1)}`,
+    },
+    inlineIconButton: {
+      backgroundColor: colorWithAlpha(primary, 0.08),
+      color: primary,
+      border: `1px solid ${colorWithAlpha(primary, 0.28)}`,
+    },
+    manualKeyInput: {
+      backgroundColor: inset,
+      color: foreground,
+      border: softBorder,
+    },
+    keyInput: {
+      backgroundColor: inset,
+      color: primary,
+      border: softBorder,
+    },
+    aesKeyBox: {
+      backgroundColor: inset,
+      color: primary,
+      border: softBorder,
+    },
+    calloutBox: {
+      backgroundColor: colorWithAlpha(primary, 0.08),
+      border: primaryBorder,
+    },
+    iconContainer: {
+      backgroundColor: colorWithAlpha(primary, 0.08),
+      border: `1px solid ${colorWithAlpha(primary, 0.2)}`,
+    },
+    checkbox: { accentColor: primary },
+  };
+
+  for (const key of LIGHT_INTERACTIVE_SURFACE_KEYS) {
+    if (theme[key]) continue;
+    const defaults = surfaceDefaults[key];
+    if (!defaults) continue;
+
+    const currentBackground =
+      typeof merged[key]?.backgroundColor === 'string'
+        ? merged[key].backgroundColor
+        : undefined;
+    const shouldFillBackground = isDefaultDarkSurfaceBackground(currentBackground);
+    const patch: React.CSSProperties = { ...defaults };
+    if (!shouldFillBackground) {
+      delete patch.backgroundColor;
+      delete patch.border;
+      delete patch.boxShadow;
+    }
+    merged[key] = { ...merged[key], ...patch };
+  }
+}
+
 /** Merges default styles with optional theme overrides from the host app. */
 function mergeTheme(theme?: OnboardModalTheme) {
   if (!theme) return defaultStyles;
@@ -577,6 +719,7 @@ function mergeTheme(theme?: OnboardModalTheme) {
     }
   }
   applyThemePaletteGaps(merged, theme);
+  applyLightInteractiveSurfaceGaps(merged, theme);
   return merged as typeof defaultStyles;
 }
 
