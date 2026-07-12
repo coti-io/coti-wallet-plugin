@@ -470,7 +470,11 @@ export default function App() {
               Disconnect
             </button>
           </div>
-          {unlockStatus && <p style={{ fontSize: 12, marginTop: 8 }}>{unlockStatus}</p>}
+          {(privateUnlock.statusMessage ?? unlockStatus) && (
+            <p style={{ fontSize: 12, marginTop: 8, color: '#b45309' }}>
+              {privateUnlock.statusMessage ?? unlockStatus}
+            </p>
+          )}
         </div>
       )}
 

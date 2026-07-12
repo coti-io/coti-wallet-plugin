@@ -8,6 +8,7 @@ import {
 import { COTI_TESTNET_CHAIN_ID } from '../config/chains';
 import { CotiPluginError, CotiErrorCode } from '../errors';
 import { logger } from './logger';
+import { isOnboardingServicesEnabled } from './onboardingServices';
 
 import type { AesKeyProviderOptions } from '../hooks/useAesKeyProvider';
 
@@ -34,11 +35,6 @@ export interface ResolveAesAccessStrategyInput {
   /** Re-checks Snap availability when key probe returns null (avoids false errors). */
   confirmSnapInstalled?: () => Promise<boolean>;
   snapKeyProbeRetries?: number;
-}
-
-function isOnboardingServicesEnabled(): boolean {
-  const mode = getPluginConfig().onboardingServices?.mode;
-  return mode === 'custom' || mode === 'official';
 }
 
 async function fetchEncryptedBackupProbe(

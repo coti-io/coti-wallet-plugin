@@ -10,6 +10,8 @@ export interface UsePrivateUnlockFlowOptions {
   onUnlocked?: () => void | Promise<void>;
   /** Called when the user cancels backup-restore signing — modal is not opened. */
   onRestoreCancelled?: () => void;
+  /** Called when the user cancels contract onboarding signing — modal is dismissed. */
+  onOnboardingCancelled?: () => void;
 }
 
 export interface UsePrivateUnlockFlowResult {
@@ -27,6 +29,7 @@ export interface UsePrivateUnlockFlowResult {
   refreshPrivateBalances: ReturnType<typeof usePrivacyBridgeUnlock>['refreshPrivateBalances'];
   encryptPrivateValue: ReturnType<typeof usePrivacyBridgeUnlock>['encryptPrivateValue'];
   decryptPrivateValue: ReturnType<typeof usePrivacyBridgeUnlock>['decryptPrivateValue'];
+  statusMessage: string | null;
 }
 
 /** Orchestrates restore / onboarding modal flows with cancel-safe async unlock. */

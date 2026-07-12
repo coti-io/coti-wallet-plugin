@@ -1,6 +1,7 @@
 import React from 'react';
 import type { WalletType } from '../hooks/useWalletType';
-import { onboardModalDefaultStyles, type OnboardModalTheme } from './OnboardModal';
+import { mergeOnboardModalTheme, type OnboardModalTheme } from './OnboardModal';
+import { getWalletDisplayName } from '../lib/walletDisplayName';
 
 const SPINNER_KEYFRAMES = `
 @keyframes wallet-sign-spin {
@@ -15,37 +16,6 @@ export interface WalletSignPromptProps {
   walletType: WalletType;
   theme?: OnboardModalTheme;
   purpose?: WalletSignPromptPurpose;
-}
-
-function getWalletDisplayName(walletType: WalletType): string {
-  switch (walletType) {
-    case 'coinbase':
-      return 'Coinbase Wallet';
-    case 'walletconnect':
-      return 'WalletConnect';
-    case 'metamask':
-      return 'MetaMask';
-    case 'rainbow':
-      return 'Rainbow Wallet';
-    default:
-      return 'your wallet';
-  }
-}
-
-function mergeTheme(theme?: OnboardModalTheme) {
-  const styles = { ...onboardModalDefaultStyles } as Record<
-    keyof typeof onboardModalDefaultStyles,
-    React.CSSProperties
-  >;
-  if (!theme) return styles;
-
-  for (const key of Object.keys(theme) as Array<keyof OnboardModalTheme>) {
-    const override = theme[key];
-    if (override) {
-      styles[key] = { ...styles[key], ...override } as React.CSSProperties;
-    }
-  }
-  return styles as typeof onboardModalDefaultStyles;
 }
 
 function getPurposeDescription(purpose: WalletSignPromptPurpose, walletName: string): string {
@@ -64,7 +34,7 @@ export const WalletSignPrompt: React.FC<WalletSignPromptProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  const styles = mergeTheme(theme);
+  const styles = mergeOnboardModalTheme(theme);
   const walletName = getWalletDisplayName(walletType);
 
   return (

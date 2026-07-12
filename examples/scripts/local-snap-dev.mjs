@@ -106,9 +106,11 @@ function assertPrerequisites() {
   const yarnCheck = spawnSync('yarn', ['--version'], {
     encoding: 'utf8',
     shell: process.platform === 'win32',
+    cwd: SNAP_ROOT,
   });
   if (yarnCheck.status !== 0) {
     console.error('yarn is required to start the local snap stack.');
+    console.error(`Run: cd ${SNAP_ROOT} && yarn install`);
     process.exit(1);
   }
 }

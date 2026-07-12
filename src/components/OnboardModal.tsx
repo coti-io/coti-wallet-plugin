@@ -3,6 +3,14 @@ import type { WalletType } from '../hooks/useWalletType';
 import type { OnboardingStep } from '../hooks/useAesKeyProvider';
 import { ONBOARDING_STEPS } from '../hooks/useAesKeyProvider';
 import { normalizeAesKey } from '../crypto/aesKey';
+import { getWalletDisplayName } from '../lib/walletDisplayName';
+import {
+  getOnboardingStepStatus,
+  getProgressDescription,
+  getProgressTitle,
+} from '../lib/onboardingProgressDisplay';
+import { deriveOnboardScreen } from './onboard/deriveOnboardScreen';
+import { logger } from '../lib/logger';
 
 /**
  * Props for the OnboardModal component.
@@ -24,16 +32,6 @@ export interface OnboardModalProps {
   currentStep?: OnboardingStep;
   /** Retrieved AES key (shown on success screen) */
   aesKey?: string | null;
-  /** Whether MetaMask Snap is available for direct AES key retrieval */
-  hasSnap?: boolean;
-  /** Timestamped onboarding trace (shown on error when debug is enabled or trace is non-empty) */
-  debugTrace?: string[];
-  /** Installs/connects the COTI Snap for MetaMask users */
-  onInstallSnap?: () => boolean | Promise<boolean>;
-  /** Whether the Snap install/connect request is in progress */
-  isInstallingSnap?: boolean;
-  /** Error message from Snap install/connect, or null */
-  snapError?: string | null;
   /** Whether encrypted AES backup should be saved after contract onboarding */
   saveBackup?: boolean;
   /** When false, hides the encrypted-backup checkbox (e.g. MetaMask Snap stores the key). */
@@ -460,10 +458,17 @@ const defaultStyles = {
     border: '1px solid rgba(0, 229, 255, 0.3)',
     borderRadius: '8px',
     padding: '8px 12px',
-    marginTop: '10px',
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
+  },
+  progressCalloutSlot: {
+    width: '100%',
+    minHeight: '58px',
+    marginTop: '10px',
+    marginBottom: '4px',
+    display: 'flex',
+    alignItems: 'flex-start',
   },
   calloutText: {
     fontSize: '11px',
@@ -471,25 +476,6 @@ const defaultStyles = {
     lineHeight: 1.4,
     margin: 0,
     textAlign: 'left' as const,
-  },
-  debugBox: {
-    width: '100%',
-    backgroundColor: 'rgba(0, 0, 0, 0.35)',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
-    borderRadius: '8px',
-    padding: '10px',
-    marginBottom: '16px',
-    maxHeight: '140px',
-    overflowY: 'auto' as const,
-    textAlign: 'left' as const,
-  },
-  debugLine: {
-    fontSize: '10px',
-    fontFamily: 'monospace',
-    color: 'rgba(255, 255, 255, 0.55)',
-    lineHeight: 1.5,
-    margin: '0 0 2px 0',
-    wordBreak: 'break-all' as const,
   },
 } as const;
 
@@ -510,7 +496,6 @@ const MUTED_TEXT_KEYS: OnboardStyleKey[] = [
   'tooltipButton',
   'cancelButton',
   'stepDescription',
-  'debugLine',
 ];
 const ACCENT_TEXT_KEYS: OnboardStyleKey[] = [
   'keyInput',
@@ -710,7 +695,7 @@ function applyLightInteractiveSurfaceGaps(
 }
 
 /** Merges default styles with optional theme overrides from the host app. */
-function mergeTheme(theme?: OnboardModalTheme) {
+export function mergeOnboardModalTheme(theme?: OnboardModalTheme) {
   if (!theme) return defaultStyles;
   const merged = { ...defaultStyles } as Record<OnboardStyleKey, React.CSSProperties>;
   for (const key of Object.keys(theme) as OnboardStyleKey[]) {
@@ -837,92 +822,6 @@ const SPINNER_KEYFRAMES = `
 `;
 
 /**
- * Returns a human-readable wallet name for display.
- */
-function getWalletDisplayName(walletType: WalletType): string {
-  switch (walletType) {
-    case 'coinbase':
-      return 'Coinbase Wallet';
-    case 'walletconnect':
-      return 'WalletConnect';
-    case 'metamask':
-      return 'MetaMask';
-    case 'rainbow':
-      return 'Rainbow Wallet';
-    default:
-      return 'your wallet';
-  }
-}
-
-/**
- * Maps internal step IDs (including hidden ones) to the nearest visible step
- * for UI progress display purposes.
- */
-function mapToVisibleStep(stepId: OnboardingStep): OnboardingStep {
-  switch (stepId) {
-    // Hidden steps that happen BEFORE signing-transaction
-    case 'restoring-backup':
-    case 'granting-funds':
-    case 'waiting-for-funds':
-    case 'switching-network':
-    case 'creating-provider':
-    case 'preparing-onboard':
-      return 'preparing-onboard';
-    // Hidden steps that happen AFTER retrieving-key
-    case 'validating-key':
-    case 'restoring-network':
-    case 'persisting-key':
-    case 'saving-backup':
-      return 'persisting-key';
-    default:
-      return stepId;
-  }
-}
-
-/**
- * Determines the status of a step based on current progress.
- */
-function getStepStatus(
-  stepId: OnboardingStep,
-  currentStep: OnboardingStep,
-  hasError: boolean
-): 'pending' | 'active' | 'complete' | 'error' {
-  // Map the current step to its visible equivalent
-  const visibleCurrentStep = mapToVisibleStep(currentStep);
-
-  if (hasError && (currentStep === 'error' || visibleCurrentStep === 'error')) {
-    return 'error';
-  }
-
-  const stepIndex = ONBOARDING_STEPS.findIndex(s => s.id === stepId);
-  const currentIndex = ONBOARDING_STEPS.findIndex(s => s.id === visibleCurrentStep);
-
-  // If current step maps to something not in the visible list, treat all as pending
-  if (currentIndex === -1) return 'pending';
-
-  if (visibleCurrentStep === 'complete') return 'complete';
-  if (stepIndex < currentIndex) return 'complete';
-  if (stepIndex === currentIndex) return 'active';
-  return 'pending';
-}
-
-function getProgressTitle(currentStep: OnboardingStep): string {
-  if (currentStep === 'granting-funds') return 'Requesting COTI Grant';
-  if (currentStep === 'waiting-for-funds') return 'Waiting for Grant Funds';
-  return 'Onboarding in Progress';
-}
-
-function getProgressDescription(currentStep: OnboardingStep): string {
-  if (currentStep === 'granting-funds') {
-    return 'Waiting for the grant service to fund your wallet before onboarding continues...';
-  }
-  if (currentStep === 'waiting-for-funds') {
-    return 'The grant request was submitted. Waiting for the native COTI balance to update...';
-  }
-  return 'Please wait while we retrieve your AES encryption key...';
-}
-
-/**
  * OnboardModal — Multi-step modal for AES key retrieval onboarding.
  *
  * Screens:
@@ -940,7 +839,6 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
   walletType,
   currentStep = 'idle',
   aesKey,
-  debugTrace,
   saveBackup = true,
   showSaveBackupOption = true,
   onSaveBackupChange,
@@ -955,7 +853,7 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
   const [manualAesKeyError, setManualAesKeyError] = useState<string | null>(null);
   const [isSubmittingManualKey, setIsSubmittingManualKey] = useState(false);
   const [showBackupTooltip, setShowBackupTooltip] = useState(false);
-  const styles = mergeTheme(theme);
+  const styles = mergeOnboardModalTheme(theme);
   const warningStyles = getWarningStyles(styles);
 
   // Reset local UI state when the modal closes
@@ -971,31 +869,122 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
     }
   }, [isOpen]);
 
-  // Determine which screen to show
-  const showIntro = currentStep === 'idle' && !error && !aesKey;
-  const showProgress = isLoading || (
-    currentStep !== 'idle'
-    && currentStep !== 'complete'
-    && currentStep !== 'error'
-    && currentStep !== 'signing-backup'
-    && !aesKey
-  );
-  const showSuccess = currentStep === 'complete' && aesKey && !error;
-  const showError = !!error || currentStep === 'error';
+  const screen = deriveOnboardScreen({ currentStep, isLoading, error, aesKey });
+  const showIntro = screen === 'intro';
+  const showProgress = screen === 'progress';
+  const showSuccess = screen === 'success';
+  const showError = screen === 'error';
+
+  useEffect(() => {
+    logger.debug('[OnboardModal] screen', {
+      screen,
+      currentStep,
+      isOpen,
+      isLoading,
+      hasError: !!error,
+      hasAesKey: !!aesKey,
+    });
+  }, [screen, currentStep, isOpen, isLoading, error, aesKey]);
 
   const walletName = getWalletDisplayName(walletType);
-  const showDebugTrace = (debugTrace?.length ?? 0) > 0;
 
-  const renderDebugTrace = () => {
-    if (!showDebugTrace || !debugTrace) return null;
-    return (
-      <div style={styles.debugBox} aria-label="Onboarding debug trace">
-        <p style={{ ...styles.stepLabel, marginBottom: 6 }}>Debug trace</p>
-        {debugTrace.map((line) => (
-          <p key={line} style={styles.debugLine}>{line}</p>
-        ))}
-      </div>
-    );
+  const renderProgressCallout = (step: OnboardingStep) => {
+    if (step === 'granting-funds') {
+      return (
+        <div style={styles.calloutBox}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00E5FF" strokeWidth="2">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 6v6l4 2" />
+          </svg>
+          <p style={styles.calloutText}>
+            <strong>Funding in progress:</strong> Requesting native COTI from the grant service.
+          </p>
+        </div>
+      );
+    }
+
+    if (step === 'waiting-for-funds') {
+      return (
+        <div style={styles.calloutBox}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00E5FF" strokeWidth="2">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M4 12h4l2-4 4 8 2-4h4" />
+          </svg>
+          <p style={styles.calloutText}>
+            <strong>Grant submitted:</strong> Waiting for the funded balance to appear on COTI.
+          </p>
+        </div>
+      );
+    }
+
+    if (step === 'preparing-onboard') {
+      return (
+        <div style={styles.calloutBox}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00E5FF" strokeWidth="2">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 6v6l4 2" />
+          </svg>
+          <p style={styles.calloutText}>
+            <strong>Preparing onboarding:</strong> Checking wallet balance and contract state.
+            Your wallet will prompt you to sign when ready.
+          </p>
+        </div>
+      );
+    }
+
+    if (step === 'signing-transaction') {
+      return (
+        <div style={styles.calloutBox}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00E5FF" strokeWidth="2">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="16" x2="12" y2="12" />
+            <line x1="12" y1="8" x2="12.01" y2="8" />
+          </svg>
+          <p style={styles.calloutText}>
+            <strong>Action Required:</strong> Please approve the transaction in {walletName}
+            {walletType === 'metamask' && (
+              <> — you may see two prompts (message signature, then on-chain transaction)</>
+            )}
+          </p>
+        </div>
+      );
+    }
+
+    if (step === 'retrieving-key') {
+      return (
+        <div style={styles.calloutBox}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00E5FF" strokeWidth="2">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M8 12h8" />
+            <path d="M12 8l4 4-4 4" />
+          </svg>
+          <p style={styles.calloutText}>
+            <strong>Transaction submitted:</strong> Waiting for confirmation and retrieving your AES key.
+          </p>
+        </div>
+      );
+    }
+
+    if (
+      step === 'validating-key'
+      || step === 'restoring-network'
+      || step === 'persisting-key'
+      || step === 'saving-backup'
+    ) {
+      return (
+        <div style={styles.calloutBox}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00E5FF" strokeWidth="2">
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          <p style={styles.calloutText}>
+            <strong>Finalizing:</strong> Securing your AES key and refreshing private balances.
+          </p>
+        </div>
+      );
+    }
+
+    return null;
   };
   // Handle copy to clipboard
   const handleCopy = async () => {
@@ -1249,7 +1238,7 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
               {/* Step Progress */}
               <div style={styles.stepperContainer}>
                 {ONBOARDING_STEPS.map((step) => {
-                  const status = getStepStatus(step.id, currentStep, !!error);
+                  const status = getOnboardingStepStatus(step.id, currentStep, !!error);
                   const isActive = status === 'active';
                   const isComplete = status === 'complete';
                   const isError = status === 'error';
@@ -1284,61 +1273,9 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
                 })}
               </div>
 
-              {/* Callout for signing step */}
-              {currentStep === 'granting-funds' && (
-                <div style={styles.calloutBox}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00E5FF" strokeWidth="2">
-                    <circle cx="12" cy="12" r="10" />
-                    <path d="M12 6v6l4 2" />
-                  </svg>
-                  <p style={styles.calloutText}>
-                    <strong>Funding in progress:</strong> Requesting native COTI from the grant service.
-                  </p>
-                </div>
-              )}
-
-              {currentStep === 'waiting-for-funds' && (
-                <div style={styles.calloutBox}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00E5FF" strokeWidth="2">
-                    <circle cx="12" cy="12" r="10" />
-                    <path d="M4 12h4l2-4 4 8 2-4h4" />
-                  </svg>
-                  <p style={styles.calloutText}>
-                    <strong>Grant submitted:</strong> Waiting for the funded balance to appear on COTI.
-                  </p>
-                </div>
-              )}
-
-              {currentStep === 'preparing-onboard' && (
-                <div style={styles.calloutBox}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00E5FF" strokeWidth="2">
-                    <circle cx="12" cy="12" r="10" />
-                    <path d="M12 6v6l4 2" />
-                  </svg>
-                  <p style={styles.calloutText}>
-                    <strong>Preparing onboarding:</strong> Checking wallet balance and contract state.
-                    Your wallet will prompt you to sign when ready.
-                  </p>
-                </div>
-              )}
-
-              {currentStep === 'signing-transaction' && (
-                <div style={styles.calloutBox}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00E5FF" strokeWidth="2">
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="12" y1="16" x2="12" y2="12" />
-                    <line x1="12" y1="8" x2="12.01" y2="8" />
-                  </svg>
-                  <p style={styles.calloutText}>
-                    <strong>Action Required:</strong> Please approve the transaction in {walletName}
-                    {walletType === 'metamask' && (
-                      <> — you may see two prompts (message signature, then on-chain transaction)</>
-                    )}
-                  </p>
-                </div>
-              )}
-
-              {renderDebugTrace()}
+              <div style={styles.progressCalloutSlot} aria-label="Progress action">
+                {renderProgressCallout(currentStep)}
+              </div>
             </>
           )}
 
@@ -1373,7 +1310,7 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
               <div style={styles.keyInputWrap}>
                 <input
                   type={isAesVisible ? 'text' : 'password'}
-                  value={aesKey}
+                  value={aesKey ?? ''}
                   readOnly
                   aria-label="Retrieved AES key"
                   style={styles.keyInput}
@@ -1476,8 +1413,6 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
               <div style={styles.errorBox}>
                 <p style={styles.errorText}>{error || 'An unknown error occurred'}</p>
               </div>
-
-              {renderDebugTrace()}
 
               <button
                 onClick={onConfirm}

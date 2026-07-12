@@ -44,10 +44,6 @@ export const usePrivacyBridgeSessionCore = ({
     setArePrivateBalancesHidden,
   } = usePrivacyBridgeSessionKey(walletAddress);
 
-  useEffect(() => {
-    if (snapError) setShowSnapMissingModal(true);
-  }, [snapError]);
-
   const {
     isSnapInstalled,
     executeSnapCheck,
@@ -86,8 +82,17 @@ export const usePrivacyBridgeSessionCore = ({
   }, [isSnapInstalled, setHasSnap]);
 
   const walletTypeInfo = useWalletType();
-  const { getAesKey: getAesKeyFromProvider } = useAesKeyProvider(walletTypeInfo);
+  const {
+    getAesKey: getAesKeyFromProvider,
+    isOnboarding,
+    onboardingError,
+    onboardingWarning,
+  } = useAesKeyProvider(walletTypeInfo);
   const { fetchPrivateBalance } = usePrivateTokenBalance();
+
+  useEffect(() => {
+    if (snapError && !isOnboarding) setShowSnapMissingModal(true);
+  }, [snapError, isOnboarding]);
 
   const setAesKeyChainId = useCallback((chainId: number | undefined) => {
     assertAesKeyChainId(chainId);
@@ -139,5 +144,7 @@ export const usePrivacyBridgeSessionCore = ({
     clearSnapCache,
     fetchPrivateBalance,
     getAesKeyFromProvider,
+    onboardingError,
+    onboardingWarning,
   };
 };

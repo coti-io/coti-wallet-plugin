@@ -132,6 +132,35 @@ describe('persistEncryptedAesBackup', () => {
     expect(result).toEqual({ status: 'saved' });
   });
 
+  it('prefers replace without probing when requested', async () => {
+    const replaceEncryptedAesBackup = vi.fn().mockResolvedValue(undefined);
+    const fetchEncryptedAesBackup = vi.fn().mockResolvedValue(null);
+    configureCotiPlugin({
+      onboardingServices: {
+        mode: 'custom',
+        fetchEncryptedAesBackup,
+        replaceEncryptedAesBackup,
+      },
+    });
+
+    const request = vi.fn().mockResolvedValue(undefined);
+    const connector = {
+      getProvider: vi.fn().mockResolvedValue({ request }),
+    };
+
+    const result = await persistEncryptedAesBackup({
+      aesKey: VALID_KEY,
+      address: ADDR,
+      chainId: CHAIN_ID,
+      connector: connector as never,
+      preferReplace: true,
+    });
+
+    expect(fetchEncryptedAesBackup).not.toHaveBeenCalled();
+    expect(replaceEncryptedAesBackup).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ status: 'saved' });
+  });
+
   it('returns cancelled when the wallet rejects the signature', async () => {
     vi.mocked(encryptAesKeyBackup).mockRejectedValueOnce({ code: 4001 });
     configureCotiPlugin({

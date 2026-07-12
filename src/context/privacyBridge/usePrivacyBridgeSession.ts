@@ -58,6 +58,8 @@ export const usePrivacyBridgeSession = ({ modals }: UsePrivacyBridgeSessionOptio
     handleDisconnect,
     refreshPublicBalances: unlock.refreshPublicBalances,
     refreshPrivateBalances: unlock.refreshPrivateBalances,
+    onboardingError: core.onboardingError,
+    onboardingWarning: core.onboardingWarning,
     lockPrivateBalances: unlock.lockPrivateBalances,
     saveManualAesKey: unlock.saveManualAesKey,
     sendPrivateToken: unlock.sendPrivateToken,

@@ -8,11 +8,14 @@ import { CotiPluginError, CotiErrorCode } from '../errors';
 import { logger } from '../lib/logger';
 import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID, getRpcUrlForChainId } from '../config/chains';
 import { getPluginConfig, type EncryptedAesBackup } from '../config/plugin';
-import { decryptAesKeyBackup, encryptAesKeyBackup } from '../crypto/aesKeyBackupVault';
+import { decryptAesKeyBackup } from '../crypto/aesKeyBackupVault';
 import { normalizeAesKey } from '../crypto/aesKey';
 import { muteChainUpdates, unmuteChainUpdates, isChainUpdatesMuted } from '../lib/chainMute';
 import { canPersistAesKeyToSnap } from '../lib/snapOrigins';
 import { resolveAesKeyChainId } from '../lib/aesAccessStrategy';
+import { isOnboardingServicesEnabled } from '../lib/onboardingServices';
+import { persistEncryptedAesBackup } from '../lib/persistEncryptedAesBackup';
+import { isInsufficientFundsError, isUserRejection } from '../lib/walletErrors';
 import {
   clearMetaMaskMobileRpcCache,
   formatOnboardingError,
@@ -25,11 +28,6 @@ import {
   OnboardingDebugTrace,
   resolveMetaMaskMobileWalletProvider,
 } from '../lib/metaMaskMobile';
-
-/**
- * EIP-1193 error code for user rejection of a wallet request.
- */
-const EIP_1193_USER_REJECTED = 4001;
 
 /**
  * Onboarding step identifiers matching the contract onboarding flow (steps 3-9).
@@ -123,60 +121,6 @@ export interface AesKeyProviderResult {
   wasRestoreCancelled: boolean;
   /** Current onboarding step (for progress UI) */
   currentStep: OnboardingStep;
-  /** Timestamped trace of onboarding steps and RPC calls (for MetaMask Mobile debugging) */
-  onboardingDebugTrace?: string[];
-}
-
-/**
- * Checks if an error is an EIP-1193 user rejection (code 4001).
- */
-function isUserRejection(error: unknown): boolean {
-  if (error && typeof error === 'object') {
-    const err = error as {
-      code?: number | string;
-      message?: string;
-      reason?: string;
-      info?: { error?: { code?: number | string; message?: string } };
-    };
-    if (err.code === EIP_1193_USER_REJECTED) return true;
-    if (err.info?.error?.code === EIP_1193_USER_REJECTED) return true;
-    if (err.code === 'ACTION_REJECTED' || err.reason === 'rejected') return true;
-    const message = `${err.message ?? ''} ${err.info?.error?.message ?? ''}`.toLowerCase();
-    if (
-      message.includes('user rejected')
-      || message.includes('user denied')
-      || message.includes('rejected the request')
-      || message.includes('request rejected')
-      || message.includes('action_rejected')
-      || message.includes('user cancelled')
-      || message.includes('user canceled')
-    ) {
-      return true;
-    }
-  }
-  return false;
-}
-
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (error && typeof error === 'object' && 'message' in error) {
-    const message = (error as { message?: unknown }).message;
-    if (typeof message === 'string') return message;
-  }
-  return String(error);
-}
-
-/** Wallet/RPC errors where the wallet already surfaced insufficient gas or balance. */
-function isInsufficientFundsError(error: unknown): boolean {
-  const message = getErrorMessage(error).toLowerCase();
-  return (
-    message.includes('insufficient funds')
-    || message.includes('insufficient balance')
-    || message.includes('account balance is 0')
-    || message.includes('not enough coti')
-    || message.includes('not enough balance')
-    || message.includes('insufficient funds for transfer')
-  );
 }
 
 /** Validates that a string is a valid 32-character hex AES key. */
@@ -209,6 +153,7 @@ function instrumentWalletProvider(
   emitStep: (step: OnboardingStep) => void,
   trace: OnboardingDebugTrace,
   readOnlyRpcChainId?: number,
+  walletRejectionRef?: { current: boolean },
 ): () => void {
   const hadOwnRequest = Object.prototype.hasOwnProperty.call(walletProvider, 'request');
   const originalRequest = walletProvider.request.bind(walletProvider);
@@ -274,6 +219,13 @@ function instrumentWalletProvider(
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : String(error);
       trace.push('rpc-err', `${method}: ${errMsg}`);
+      if (
+        walletRejectionRef
+        && isUserRejection(error)
+        && (SIGN_RPC_METHODS.has(method) || method === 'eth_sendTransaction')
+      ) {
+        walletRejectionRef.current = true;
+      }
       throw error;
     }
   };
@@ -289,10 +241,6 @@ function instrumentWalletProvider(
       }
     }
   };
-}
-
-function isServiceEnabled(mode?: 'disabled' | 'custom' | 'official'): boolean {
-  return mode === 'custom' || mode === 'official';
 }
 
 function toBigInt(value: BigNumberish | undefined, fallback: bigint): bigint {
@@ -320,7 +268,6 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
   const [onboardingWarning, setOnboardingWarning] = useState<string | null>(null);
   const [wasRestoreCancelled, setWasRestoreCancelled] = useState(false);
   const [currentStep, setCurrentStep] = useState<OnboardingStep>('idle');
-  const [onboardingDebugTrace, setOnboardingDebugTrace] = useState<string[]>([]);
   const progressCallbackRef = useRef<OnboardingProgressCallback | undefined>();
   const debugTraceRef = useRef(new OnboardingDebugTrace());
   const onboardingInFlightRef = useRef<Promise<string | null> | null>(null);
@@ -344,7 +291,6 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
       // Clear previous error and debug trace on each new retrieval attempt
       setOnboardingError(null);
       debugTraceRef.current.clear();
-      setOnboardingDebugTrace([]);
       setOnboardingWarning(null);
       setWasRestoreCancelled(false);
       const forceContractOnboarding = options?.forceContractOnboarding === true;
@@ -426,6 +372,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         return null;
       }
 
+      const walletRejectionRef = { current: false };
       const onboardingPromise = (async (): Promise<string | null> => {
       try {
         setIsOnboarding(true);
@@ -449,7 +396,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
 
         const config = getPluginConfig();
         const services = config.onboardingServices;
-        const servicesEnabled = isServiceEnabled(services?.mode);
+        const servicesEnabled = isOnboardingServicesEnabled();
         const isConnectedCotiChain = connectedChainId === COTI_MAINNET_CHAIN_ID || connectedChainId === COTI_TESTNET_CHAIN_ID;
         const targetCotiChainId = resolveAesKeyChainId(connectedChainId, options.aesKeyChainId);
         const backupContext = { address, chainId: targetCotiChainId };
@@ -580,6 +527,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           emitStep,
           trace,
           targetCotiChainId,
+          walletRejectionRef,
         );
 
         // Create a @coti-io/coti-ethers BrowserProvider (now on COTI Testnet).
@@ -677,8 +625,6 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           // Still switch back before returning
         } else {
           logger.log('✅ AES key retrieved successfully:', aesKey?.length, 'characters');
-          emitStep('persisting-key');
-          trace.push('step', 'persisting-key');
         }
 
         // Step: Switch wallet back to original chain
@@ -696,46 +642,71 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           }
         }
 
-        // Step: Persist key (MetaMask Snap) or finalize
+        // Step: Persist key (MetaMask Snap / encrypted backup) or finalize
         let savedToSnap = false;
-        if (aesKey && walletTypeInfo.walletType === 'metamask' && canPersistAesKeyToSnap()) {
+        const canSaveToConnectedSnap =
+          aesKey
+          && walletTypeInfo.walletType === 'metamask'
+          && walletTypeInfo.isMetaMaskWithSnap
+          && canPersistAesKeyToSnap();
+        const canSaveEncryptedBackup =
+          aesKey &&
+          isValidAesKey(aesKey) &&
+          options.saveBackup &&
+          servicesEnabled &&
+          (services?.saveEncryptedAesBackup || services?.replaceEncryptedAesBackup);
+
+        if (canSaveToConnectedSnap) {
+          emitStep('persisting-key');
+          trace.push('step', 'persisting-key');
           savedToSnap = await saveAESKeyToSnap(aesKey, address);
           if (!savedToSnap) {
             logger.warn('⚠️ AES key retrieved but could not persist to Snap');
+            setOnboardingWarning(
+              'Onboarding succeeded, but the AES key could not be saved to MetaMask Snap. You can retry by unlocking again.',
+            );
           }
-        } else if (aesKey && walletTypeInfo.walletType === 'metamask') {
+        } else if (
+          aesKey
+          && walletTypeInfo.walletType === 'metamask'
+          && canPersistAesKeyToSnap()
+          && !walletTypeInfo.isMetaMaskWithSnap
+        ) {
           logger.log(
-            'ℹ️ Skipping Snap AES persist — origin not authorized for set-aes-key:',
-            typeof window !== 'undefined' ? window.location.origin : 'unknown',
+            'ℹ️ Skipping Snap AES persist — Snap is not connected to this origin',
           );
         }
 
         const skipEncryptedBackupForSnap =
-          walletTypeInfo.walletType === 'metamask'
-          && canPersistAesKeyToSnap()
-          && savedToSnap;
+          canSaveToConnectedSnap && savedToSnap;
 
         if (
-          aesKey &&
-          isValidAesKey(aesKey) &&
-          options.saveBackup &&
+          canSaveEncryptedBackup &&
           !skipEncryptedBackupForSnap &&
-          servicesEnabled &&
-          (services?.saveEncryptedAesBackup || services?.replaceEncryptedAesBackup)
+          aesKey
         ) {
-          try {
-            emitStep('saving-backup');
-            const backup = await encryptAesKeyBackup(aesKey, signer, backupContext);
-            const saveBackup = restoreBackupFailed && services.replaceEncryptedAesBackup
-              ? services.replaceEncryptedAesBackup
-              : services.saveEncryptedAesBackup;
-            await saveBackup?.({ ...backupContext, backup });
-          } catch (backupError) {
-            const message = backupError instanceof Error
-              ? backupError.message
-              : 'Encrypted AES backup could not be saved.';
-            logger.warn('⚠️ AES key retrieved but encrypted backup save failed:', backupError);
-            setOnboardingWarning(`Onboarding succeeded, but encrypted backup was not saved. ${message}`);
+          const backupResult = await persistEncryptedAesBackup({
+            aesKey,
+            address,
+            chainId: targetCotiChainId,
+            connector,
+            preferReplace: restoreBackupFailed,
+            onBeforeSign: () => emitStep('signing-backup'),
+          });
+
+          if (backupResult.status === 'failed') {
+            logger.warn(
+              '⚠️ AES key retrieved but encrypted backup save failed:',
+              backupResult.message,
+            );
+            setOnboardingWarning(
+              `Onboarding succeeded, but encrypted backup was not saved. ${backupResult.message}`,
+            );
+          } else if (backupResult.status === 'cancelled') {
+            logger.warn('⚠️ AES key retrieved but encrypted backup save was cancelled');
+            setOnboardingWarning(
+              'Onboarding succeeded, but encrypted backup save was cancelled. You can save it later by re-entering your AES key.',
+            );
           }
         }
 
@@ -745,7 +716,6 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           trace.push('step', 'complete');
         }
 
-        setOnboardingDebugTrace(trace.toLines());
         return aesKey;
       } catch (error: unknown) {
         // On error, attempt to switch wallet back to the original chain
@@ -764,8 +734,17 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           }
         }
 
-        // EIP-1193 error code 4001: user rejected the signature request
-        if (isUserRejection(error)) {
+        // EIP-1193 error code 4001: user rejected the signature request.
+        // coti-ethers onboard() also rethrows a generic "unable to onboard user." message
+        // after personal_sign rejection — walletRejectionRef preserves that signal.
+        const signRejectedDuringOnboarding =
+          walletRejectionRef.current
+          || trace.getEntries().some(
+            (entry) => entry.tag === 'rpc-err'
+              && typeof entry.detail === 'string'
+              && entry.detail.startsWith('personal_sign:'),
+          );
+        if (isUserRejection(error) || signRejectedDuringOnboarding) {
           emitStep('idle');
           return null;
         }
@@ -781,7 +760,6 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         setOnboardingError(errorMessage);
         emitStep('error');
         trace.push('error', errorMessage);
-        setOnboardingDebugTrace(trace.toLines());
         logger.error('❌ Onboarding contract AES key retrieval failed:', error);
         return null;
       } finally {
@@ -817,6 +795,5 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
     onboardingWarning,
     wasRestoreCancelled,
     currentStep,
-    onboardingDebugTrace,
   };
 }

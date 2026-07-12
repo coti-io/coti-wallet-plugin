@@ -710,6 +710,12 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
         const provider = await resolveProvider();
         if (!provider) return false;
         try {
+            const installed = await isSnapInstalled();
+            if (!installed) {
+                logger.log(`ℹ️ Skipping AES key save — Snap ${getSnapId()} is not visible to this origin.`);
+                return false;
+            }
+
             await prepareSnapForKeyAccess(provider, getSnapId());
             await syncEnvironment();
 
@@ -740,7 +746,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
             logger.error('❌ Failed to save AES key to Snap:', err);
             return false;
         }
-    }, [setSnapError, resolveProvider, syncEnvironment]);
+    }, [setSnapError, resolveProvider, isSnapInstalled, syncEnvironment]);
 
     const resetError = useCallback(() => {
         if (setSnapError) setSnapError(null);

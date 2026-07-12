@@ -23,4 +23,25 @@ describe('WalletSignPrompt', () => {
 
     expect(screen.getByText(/encrypt and save your AES key backup/i)).toBeInTheDocument();
   });
+
+  it('uses the shared light-theme surface fills', () => {
+    render(
+      <WalletSignPrompt
+        isOpen
+        walletType="metamask"
+        theme={{
+          modal: { backgroundColor: '#ffffff', color: '#0f172a' },
+          title: { color: '#0f172a' },
+          description: { color: '#64748b' },
+          primaryButton: { backgroundColor: '#991b1b' },
+        }}
+      />,
+    );
+
+    const dialog = screen.getByRole('dialog');
+    const calloutText = screen.getByText(/Waiting for signature/i);
+
+    expect(dialog).toHaveStyle({ backgroundColor: 'rgb(255, 255, 255)' });
+    expect(calloutText).toHaveStyle({ color: 'rgb(153, 27, 27)' });
+  });
 });

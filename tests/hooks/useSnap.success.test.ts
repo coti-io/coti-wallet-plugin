@@ -372,6 +372,27 @@ describe('useSnap (success & lifecycle paths)', () => {
       expect(cached).toBe(AES_KEY);
     });
 
+    it('does not invoke Snap when it is not visible to this origin', async () => {
+      mockRequest.mockImplementation((args: { method: string }) => {
+        if (args.method === 'web3_clientVersion') return Promise.resolve('MetaMask/v11.0.0');
+        if (args.method === 'wallet_getSnaps') return Promise.resolve({});
+        if (args.method === 'eth_chainId') return Promise.resolve('0x6c11a0');
+        if (args.method === 'eth_accounts') return Promise.resolve([ACCOUNT]);
+        if (args.method === 'wallet_invokeSnap') {
+          throw new Error('wallet_invokeSnap should not be called');
+        }
+        return Promise.resolve(undefined);
+      });
+      const { result } = renderHook(() => useSnap());
+
+      const ok = await result.current.saveAESKeyToSnap(AES_KEY, ACCOUNT);
+
+      expect(ok).toBe(false);
+      expect(mockRequest).not.toHaveBeenCalledWith(
+        expect.objectContaining({ method: 'wallet_invokeSnap' }),
+      );
+    });
+
     it('returns false when save fails', async () => {
       mockRequest.mockImplementation((args: { method: string }) => {
         if (args.method === 'wallet_invokeSnap') {

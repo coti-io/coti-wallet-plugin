@@ -188,7 +188,24 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       expect(snapState.clearSnapCache).toHaveBeenCalled();
       expect(snapState.getAESKeyFromSnap).not.toHaveBeenCalled();
       expect(key).toBe(contractKey);
-      expect(snapState.saveAESKeyToSnap).toHaveBeenCalledWith(contractKey, ADDR);
+      expect(snapState.saveAESKeyToSnap).not.toHaveBeenCalled();
+    });
+
+    it('does not emit persisting-key when forced onboarding has no connected Snap or backup', async () => {
+      const onProgress = vi.fn();
+      wagmiState.connector = {
+        getProvider: vi.fn().mockResolvedValue({ request: vi.fn().mockResolvedValue(undefined) }),
+      };
+      wagmiState.chainId = COTI_TESTNET;
+
+      const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'metamask' })));
+
+      await act(async () => {
+        await result.current.getAesKey(ADDR, onProgress, { forceContractOnboarding: true });
+      });
+
+      expect(onProgress).not.toHaveBeenCalledWith('persisting-key');
+      expect(snapState.saveAESKeyToSnap).not.toHaveBeenCalled();
     });
 
     it('does not export snap key during restore-only unlock', async () => {
@@ -280,7 +297,7 @@ describe('useAesKeyProvider (full branch coverage)', () => {
         key = await result.current.getAesKey(ADDR);
       });
       expect(key).toBe(VALID_KEY);
-      expect(snapState.saveAESKeyToSnap).toHaveBeenCalledWith(VALID_KEY, ADDR);
+      expect(snapState.saveAESKeyToSnap).not.toHaveBeenCalled();
     });
 
     it('falls through to the contract route when Snap has no AES key', async () => {
@@ -297,7 +314,7 @@ describe('useAesKeyProvider (full branch coverage)', () => {
         key = await result.current.getAesKey(ADDR);
       });
       expect(key).toBe(VALID_KEY);
-      expect(snapState.saveAESKeyToSnap).toHaveBeenCalledWith(VALID_KEY, ADDR);
+      expect(snapState.saveAESKeyToSnap).not.toHaveBeenCalled();
     });
 
     it('does not persist to Snap for non-MetaMask contract onboarding', async () => {
@@ -327,7 +344,10 @@ describe('useAesKeyProvider (full branch coverage)', () => {
         },
       });
 
-      const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'metamask' })));
+      const { result } = renderHook(() => useAesKeyProvider(walletInfo({
+        walletType: 'metamask',
+        isMetaMaskWithSnap: true,
+      })));
 
       await act(async () => {
         await result.current.getAesKey(ADDR, undefined, { saveBackup: true });
@@ -426,7 +446,10 @@ describe('useAesKeyProvider (full branch coverage)', () => {
         },
       });
 
-      const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'metamask' })));
+      const { result } = renderHook(() => useAesKeyProvider(walletInfo({
+        walletType: 'metamask',
+        isMetaMaskWithSnap: true,
+      })));
 
       let key: string | null = null;
       await act(async () => {
@@ -832,6 +855,30 @@ describe('useAesKeyProvider (full branch coverage)', () => {
     it('returns null without error when onboarding signing is rejected (4001) on a COTI chain', async () => {
       ethersState.signer = makeSigner(VALID_KEY, { generateThrows: { code: 4001 } });
       wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
+      wagmiState.chainId = COTI_TESTNET;
+      const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'rabby' })));
+
+      let key: string | null = 'x';
+      await act(async () => {
+        key = await result.current.getAesKey(ADDR);
+      });
+      expect(key).toBeNull();
+      expect(result.current.onboardingError).toBeNull();
+    });
+
+    it('returns null without error when coti-ethers swallows a personal_sign rejection', async () => {
+      const provider = {
+        request: vi.fn().mockRejectedValueOnce({ code: 4001, message: 'User rejected' }),
+      };
+      ethersState.signer = makeSigner(VALID_KEY);
+      ethersState.signer.generateOrRecoverAes = vi.fn(async () => {
+        try {
+          await provider.request({ method: 'personal_sign', params: ['0xmessage', ADDR] });
+        } catch {
+          throw new Error('unable to onboard user.');
+        }
+      });
+      wagmiState.connector = { getProvider: vi.fn().mockResolvedValue(provider) };
       wagmiState.chainId = COTI_TESTNET;
       const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'rabby' })));
 

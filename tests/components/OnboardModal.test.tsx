@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { OnboardModal } from '../../src/components/OnboardModal';
+import { configureCotiPlugin } from '../../src/config/plugin';
 
 describe('OnboardModal', () => {
   const defaultProps = {
@@ -16,6 +17,7 @@ describe('OnboardModal', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    configureCotiPlugin({ debug: false });
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: { writeText: vi.fn().mockResolvedValue(undefined) },
@@ -43,8 +45,18 @@ describe('OnboardModal', () => {
   });
 
   it('shows progress screen title when in progress', () => {
-    render(<OnboardModal {...defaultProps} isLoading={true} />);
+    render(<OnboardModal {...defaultProps} isLoading={true} currentStep="preparing-onboard" />);
     expect(screen.getByText('Onboarding in Progress')).toBeInTheDocument();
+  });
+
+  it('does not render a main modal screen during backup signing', () => {
+    render(<OnboardModal {...defaultProps} currentStep="signing-backup" />);
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.queryByText('Onboard User')).not.toBeInTheDocument();
+    expect(screen.queryByText('Onboarding in Progress')).not.toBeInTheDocument();
+    expect(screen.queryByText('Onboarding Complete!')).not.toBeInTheDocument();
+    expect(screen.queryByText('Onboarding Failed')).not.toBeInTheDocument();
   });
 
   it('shows a visible grant service indicator while requesting funds', () => {
@@ -81,23 +93,33 @@ describe('OnboardModal', () => {
     ).toBeInTheDocument();
   });
 
+  it('shows callout text for the final progress steps', () => {
+    const { rerender } = render(
+      <OnboardModal
+        {...defaultProps}
+        isLoading={true}
+        currentStep="retrieving-key"
+      />
+    );
+
+    expect(screen.getByText(/Transaction submitted/i)).toBeInTheDocument();
+
+    rerender(
+      <OnboardModal
+        {...defaultProps}
+        isLoading={true}
+        currentStep="validating-key"
+      />
+    );
+
+    expect(screen.getByText(/Finalizing/i)).toBeInTheDocument();
+  });
+
   it('shows error screen with message and retry button', () => {
     render(<OnboardModal {...defaultProps} error="Network timeout" />);
     expect(screen.getByText('Onboarding Failed')).toBeInTheDocument();
     expect(screen.getByText('Network timeout')).toBeInTheDocument();
     expect(screen.getByText('Retry')).toBeInTheDocument();
-  });
-
-  it('shows debug trace on error screen when provided', () => {
-    render(
-      <OnboardModal
-        {...defaultProps}
-        error="Provider error"
-        debugTrace={['+0ms start — wallet=metamask', '+120ms rpc — personal_sign']}
-      />,
-    );
-    expect(screen.getByText('Debug trace')).toBeInTheDocument();
-    expect(screen.getByText('+120ms rpc — personal_sign')).toBeInTheDocument();
   });
 
   it('calls onConfirm when "Begin Onboarding" is clicked', () => {
@@ -249,59 +271,6 @@ describe('OnboardModal', () => {
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveAttribute('aria-modal', 'true');
     expect(dialog).toHaveAttribute('aria-labelledby', 'onboard-modal-title');
-  });
-
-  describe('MetaMask Snap install action', () => {
-    it('renders normally and does not auto-call onConfirm for metamask + hasSnap', () => {
-      const onConfirm = vi.fn();
-      render(
-        <OnboardModal {...defaultProps} walletType="metamask" hasSnap={true} onConfirm={onConfirm} />
-      );
-      expect(screen.getByRole('dialog')).toBeInTheDocument();
-      expect(screen.getByText('Begin Onboarding')).toBeInTheDocument();
-      expect(onConfirm).not.toHaveBeenCalled();
-      expect(screen.queryByText('Install COTI Snap')).not.toBeInTheDocument();
-    });
-
-    it.each([
-      ['metamask with hasSnap=false', 'metamask', false],
-      ['metamask with hasSnap=undefined', 'metamask', undefined],
-      ['coinbase with hasSnap=true', 'coinbase', true],
-    ])('renders modal normally for %s', (_label, walletType, hasSnap) => {
-      const onConfirm = vi.fn();
-      render(
-        <OnboardModal {...defaultProps} walletType={walletType as any} hasSnap={hasSnap} onConfirm={onConfirm} />
-      );
-      expect(screen.getByRole('dialog')).toBeInTheDocument();
-      expect(onConfirm).not.toHaveBeenCalled();
-    });
-
-    it('does not call onConfirm when isOpen is false', () => {
-      const onConfirm = vi.fn();
-      render(
-        <OnboardModal {...defaultProps} isOpen={false} walletType="metamask" hasSnap={true} onConfirm={onConfirm} />
-      );
-      expect(onConfirm).not.toHaveBeenCalled();
-    });
-
-    it('does not show a Snap install button in the modal', () => {
-      const onConfirm = vi.fn();
-      const onInstallSnap = vi.fn();
-
-      render(
-        <OnboardModal
-          {...defaultProps}
-          walletType="metamask"
-          hasSnap={false}
-          onConfirm={onConfirm}
-          onInstallSnap={onInstallSnap}
-        />
-      );
-
-      expect(screen.queryByText('Install COTI Snap')).not.toBeInTheDocument();
-      expect(onConfirm).not.toHaveBeenCalled();
-      expect(screen.getByText('Begin Onboarding')).toBeInTheDocument();
-    });
   });
 
   it('keeps checkbox and tooltip readable when app supplies a light theme', () => {

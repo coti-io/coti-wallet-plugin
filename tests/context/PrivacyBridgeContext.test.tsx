@@ -85,7 +85,6 @@ vi.mock('../../src/hooks/useAesKeyProvider', () => ({
     isOnboarding: false,
     onboardingError: null,
     currentStep: 'idle' as const,
-    onboardingDebugTrace: [],
   }),
 }));
 
