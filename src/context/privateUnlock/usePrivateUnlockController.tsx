@@ -87,6 +87,7 @@ export function usePrivateUnlockController(
 
   const unlockRequestIdRef = useRef(0);
   const pendingActionRef = useRef<(() => void | Promise<void>) | null>(null);
+  const pendingActionOwnerRef = useRef<number | null>(null);
   const prevWalletAddressRef = useRef(wallet.walletAddress);
   const snapConnectedInModalRef = useRef(false);
   const backupSaveProgressStartedAtRef = useRef<number | null>(null);
@@ -114,6 +115,8 @@ export function usePrivateUnlockController(
     const requestId = unlockRequestIdRef.current + 1;
     unlockRequestIdRef.current = requestId;
     unlockInProgressOwnerRef.current = requestId;
+    pendingActionRef.current = null;
+    pendingActionOwnerRef.current = null;
     setCurrentStep('idle');
     setModalError(null);
     setModalWarning(null);
@@ -122,6 +125,20 @@ export function usePrivateUnlockController(
     contractOnboardingCancelledRef.current = false;
     contractOnboardingFailureRef.current = null;
     return requestId;
+  }, []);
+
+  const clearPendingActionForRequest = useCallback((requestId: number) => {
+    if (pendingActionOwnerRef.current !== requestId) return;
+    pendingActionRef.current = null;
+    pendingActionOwnerRef.current = null;
+  }, []);
+
+  const setPendingActionForRequest = useCallback((
+    requestId: number,
+    pendingAction: () => void | Promise<void>,
+  ) => {
+    pendingActionRef.current = pendingAction;
+    pendingActionOwnerRef.current = requestId;
   }, []);
 
   const releaseUnlockInProgress = useCallback((requestId: number) => {
@@ -134,6 +151,7 @@ export function usePrivateUnlockController(
     unlockRequestIdRef.current += 1;
     unlockInProgressOwnerRef.current = null;
     pendingActionRef.current = null;
+    pendingActionOwnerRef.current = null;
     setShowOnboardModal(false);
     setCurrentStep('idle');
     setModalError(null);
@@ -146,9 +164,11 @@ export function usePrivateUnlockController(
     contractOnboardingFailureRef.current = null;
   }, []);
 
-  const runPendingAction = useCallback(async () => {
+  const runPendingAction = useCallback(async (requestId: number) => {
+    if (pendingActionOwnerRef.current !== requestId) return;
     const action = pendingActionRef.current;
     pendingActionRef.current = null;
+    pendingActionOwnerRef.current = null;
     if (!action) return;
     await action();
   }, []);
@@ -169,7 +189,7 @@ export function usePrivateUnlockController(
     setIsUnlocking(false);
     pendingCompleteRequestIdRef.current = null;
     await notifyUnlocked();
-    await runPendingAction();
+    await runPendingAction(unlockRequestIdRef.current);
   }, [notifyUnlocked, runPendingAction]);
 
   useEffect(() => {
@@ -245,7 +265,7 @@ export function usePrivateUnlockController(
     setCurrentStep('idle');
     releaseUnlockInProgress(requestId);
     await notifyUnlocked();
-    await runPendingAction();
+    await runPendingAction(requestId);
     return true;
   }, [isActiveUnlockRequest, notifyUnlocked, releaseUnlockInProgress, runPendingAction]);
 
@@ -280,6 +300,8 @@ export function usePrivateUnlockController(
     requestId: number,
     refreshSucceeded: boolean,
   ): boolean => {
+    clearPendingActionForRequest(requestId);
+
     const unlocked = refreshSucceeded || isPrivateUnlockedRef.current;
     if (!unlocked) return false;
 
@@ -295,14 +317,14 @@ export function usePrivateUnlockController(
       setIsUnlockInProgress(false);
     }
     return true;
-  }, []);
+  }, [clearPendingActionForRequest]);
 
   const restorePrivateUnlock = useCallback(async (
     requestId: number,
     pendingAction?: () => void | Promise<void>,
   ): Promise<boolean> => {
     if (pendingAction) {
-      pendingActionRef.current = pendingAction;
+      setPendingActionForRequest(requestId, pendingAction);
     }
 
     setModalError(null);
@@ -317,7 +339,7 @@ export function usePrivateUnlockController(
         onRestoreCancelled: () => {
           if (!isActiveUnlockRequest(requestId)) return;
           restoreCancelled = true;
-          pendingActionRef.current = null;
+          clearPendingActionForRequest(requestId);
           onRestoreCancelled?.();
         },
         onProgress: (step) => {
@@ -363,7 +385,7 @@ export function usePrivateUnlockController(
         setIsUnlocking(false);
       }
     }
-  }, [completeUnlock, handleRestoreUnlockProgress, handleStaleRestoreCompletion, isActiveUnlockRequest, onRestoreCancelled, releaseUnlockInProgress, unlock]);
+  }, [clearPendingActionForRequest, completeUnlock, handleRestoreUnlockProgress, handleStaleRestoreCompletion, isActiveUnlockRequest, onRestoreCancelled, releaseUnlockInProgress, setPendingActionForRequest, unlock]);
 
   const unlockPrivateBalances = useCallback(async () => {
     if (!connectedAddress) return false;

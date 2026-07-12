@@ -215,6 +215,90 @@ describe('usePrivateUnlockFlow', () => {
     expect(result.current.showOnboardModal).toBe(true);
   });
 
+  it('does not run a superseded pending action after openUnlockFlow replaces ensurePrivateUnlocked', async () => {
+    let resolveStaleRestore!: (value: boolean) => void;
+    const staleAction = vi.fn();
+    const onUnlocked = vi.fn();
+    mockRefreshPrivateBalances
+      .mockImplementationOnce(
+        () => new Promise(resolve => {
+          resolveStaleRestore = resolve;
+        }),
+      )
+      .mockResolvedValueOnce(false)
+      .mockImplementationOnce(async () => {
+        mockSessionAesKey = 'e'.repeat(32);
+        return true;
+      });
+
+    const { result } = renderHook(() => usePrivateUnlockFlow({ onUnlocked }));
+
+    let stalePromise!: Promise<boolean>;
+    act(() => {
+      stalePromise = result.current.ensurePrivateUnlocked(staleAction);
+    });
+
+    await act(async () => {
+      await result.current.openUnlockFlow();
+    });
+
+    await act(async () => {
+      resolveStaleRestore(true);
+      await stalePromise;
+    });
+
+    await act(async () => {
+      await result.current.onboardModal.props.onConfirm();
+    });
+
+    expect(staleAction).not.toHaveBeenCalled();
+    expect(onUnlocked).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await result.current.onboardModal.props.onClose();
+    });
+
+    expect(staleAction).not.toHaveBeenCalled();
+    expect(onUnlocked).toHaveBeenCalledTimes(1);
+  });
+
+  it('runs only the latest pending action when ensurePrivateUnlocked is superseded', async () => {
+    let resolveFirst!: (value: boolean) => void;
+    const firstAction = vi.fn();
+    const secondAction = vi.fn();
+    mockRefreshPrivateBalances
+      .mockImplementationOnce(
+        () => new Promise(resolve => {
+          resolveFirst = resolve;
+        }),
+      )
+      .mockResolvedValueOnce(true);
+
+    const { result } = renderHook(() => usePrivateUnlockFlow());
+
+    let firstPromise!: Promise<boolean>;
+    act(() => {
+      firstPromise = result.current.ensurePrivateUnlocked(firstAction);
+    });
+
+    let secondPromise!: Promise<boolean>;
+    act(() => {
+      secondPromise = result.current.ensurePrivateUnlocked(secondAction);
+    });
+
+    await act(async () => {
+      resolveFirst(true);
+      await firstPromise;
+    });
+
+    await act(async () => {
+      await secondPromise;
+    });
+
+    expect(firstAction).not.toHaveBeenCalled();
+    expect(secondAction).toHaveBeenCalledTimes(1);
+  });
+
   it('clears isUnlocking when a superseded restore completes after a newer attempt finishes', async () => {
     let resolveFirst!: (value: boolean) => void;
     let resolveSecond!: (value: boolean) => void;
