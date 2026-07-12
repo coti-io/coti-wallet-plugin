@@ -175,6 +175,34 @@ describe('usePrivateUnlockFlow', () => {
     expect(result.current.showOnboardModal).toBe(false);
   });
 
+  it('ignores restore backup progress after unlock is dismissed', async () => {
+    let capturedOnProgress!: (step: string) => void;
+    mockRefreshPrivateBalances.mockImplementationOnce(
+      (options?: { onProgress?: (step: string) => void }) => {
+        capturedOnProgress = options?.onProgress ?? (() => undefined);
+        return new Promise<boolean>(() => undefined);
+      },
+    );
+
+    const { result } = renderHook(() => usePrivateUnlockFlow());
+
+    act(() => {
+      void result.current.ensurePrivateUnlocked();
+    });
+
+    act(() => {
+      result.current.resetUnlockUi();
+    });
+
+    act(() => {
+      capturedOnProgress('signing-backup');
+    });
+
+    expect(result.current.walletSignPrompt.props.isOpen).toBe(false);
+    expect(result.current.showOnboardModal).toBe(false);
+    expect(result.current.onboardModal.props.currentStep).toBe('idle');
+  });
+
   it('runs pending action after successful restore', async () => {
     mockRefreshPrivateBalances.mockResolvedValueOnce(true);
     const pendingAction = vi.fn();
@@ -571,12 +599,13 @@ describe('usePrivateUnlockFlow', () => {
   });
 
   it('ignores contract progress from a cancelled onboarding attempt after retry opens', async () => {
-    let cancelledOnProgress!: (step: string) => void;
+    let cancelledOnProgress!: (step: string, details?: { cancelled?: boolean }) => void;
     mockRefreshPrivateBalances
       .mockResolvedValueOnce(false)
       .mockImplementationOnce(
-        (options?: { onProgress?: (step: string) => void }) => {
+        (options?: { onProgress?: (step: string, details?: { cancelled?: boolean }) => void }) => {
           cancelledOnProgress = options?.onProgress ?? (() => undefined);
+          cancelledOnProgress('idle', { cancelled: true });
           return false;
         },
       )
@@ -608,7 +637,12 @@ describe('usePrivateUnlockFlow', () => {
   it('dismisses the modal and shows inline status when contract onboarding is cancelled', async () => {
     mockRefreshPrivateBalances
       .mockResolvedValueOnce(false)
-      .mockResolvedValueOnce(false);
+      .mockImplementationOnce(
+        (options?: { onProgress?: (step: string, details?: { cancelled?: boolean }) => void }) => {
+          options?.onProgress?.('idle', { cancelled: true });
+          return false;
+        },
+      );
 
     const onOnboardingCancelled = vi.fn();
     const { result } = renderHook(() => usePrivateUnlockFlow({ onOnboardingCancelled }));
@@ -624,6 +658,59 @@ describe('usePrivateUnlockFlow', () => {
     expect(result.current.showOnboardModal).toBe(false);
     expect(result.current.statusMessage).toBe('Signature cancelled.');
     expect(onOnboardingCancelled).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows an error instead of cancelled when onboarding fails without a cancel signal', async () => {
+    mockRefreshPrivateBalances
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(false);
+
+    const onOnboardingCancelled = vi.fn();
+    const { result } = renderHook(() => usePrivateUnlockFlow({ onOnboardingCancelled }));
+
+    await act(async () => {
+      await result.current.openUnlockFlow();
+    });
+
+    await act(async () => {
+      await result.current.onboardModal.props.onConfirm();
+    });
+
+    expect(result.current.showOnboardModal).toBe(true);
+    expect(result.current.statusMessage).toBeNull();
+    expect(result.current.onboardModal.props.currentStep).toBe('error');
+    expect(result.current.onboardModal.props.error).toBe('Onboarding did not complete. Please retry.');
+    expect(onOnboardingCancelled).not.toHaveBeenCalled();
+  });
+
+  it('uses provider progress error details when onboarding error state is stale', async () => {
+    mockRefreshPrivateBalances
+      .mockResolvedValueOnce(false)
+      .mockImplementationOnce(
+        (options?: { onProgress?: (step: string, details?: { error?: string }) => void }) => {
+          options?.onProgress?.('error', {
+            error: 'Insufficient native COTI for onboarding gas. Add COTI and retry.',
+          });
+          return false;
+        },
+      );
+
+    const { result } = renderHook(() => usePrivateUnlockFlow());
+
+    await act(async () => {
+      await result.current.openUnlockFlow();
+    });
+
+    await act(async () => {
+      await result.current.onboardModal.props.onConfirm();
+    });
+
+    expect(result.current.showOnboardModal).toBe(true);
+    expect(result.current.statusMessage).toBeNull();
+    expect(result.current.onboardModal.props.currentStep).toBe('error');
+    expect(result.current.onboardModal.props.error).toBe(
+      'Insufficient native COTI for onboarding gas. Add COTI and retry.',
+    );
   });
 
   it('passes onboarding feedback to the modal', async () => {
@@ -741,6 +828,51 @@ describe('usePrivateUnlockFlow', () => {
     expect(mockLockPrivateBalances).toHaveBeenCalledTimes(1);
     expect(pendingAction).not.toHaveBeenCalled();
     expect(result.current.showOnboardModal).toBe(false);
+  });
+
+  it('ignores manual backup progress after unlock is dismissed', async () => {
+    let capturedOnProgress!: (step: string) => void;
+    let resolveManualSave!: (value: { backupWarning?: string }) => void;
+    mockSaveManualAesKey.mockImplementationOnce(
+      (_key, options) => {
+        capturedOnProgress = options?.onProgress ?? (() => undefined);
+        return new Promise<{ backupWarning?: string }>(resolve => {
+          resolveManualSave = resolve;
+        });
+      },
+    );
+    mockRefreshPrivateBalances.mockResolvedValueOnce(false);
+
+    const { result } = renderHook(() => usePrivateUnlockFlow());
+
+    await act(async () => {
+      await result.current.openUnlockFlow();
+    });
+
+    let manualSubmitPromise!: Promise<void>;
+    act(() => {
+      manualSubmitPromise = result.current.onboardModal.props.onManualAesKeySubmit?.(
+        'a'.repeat(32),
+        { saveBackup: true },
+      );
+    });
+
+    act(() => {
+      result.current.resetUnlockUi();
+    });
+
+    act(() => {
+      capturedOnProgress('signing-backup');
+    });
+
+    expect(result.current.walletSignPrompt.props.isOpen).toBe(false);
+    expect(result.current.showOnboardModal).toBe(false);
+    expect(result.current.onboardModal.props.currentStep).toBe('idle');
+
+    await act(async () => {
+      resolveManualSave({});
+      await manualSubmitPromise;
+    });
   });
 
   it('locks again when manual backup signing completes after dismiss', async () => {

@@ -69,10 +69,20 @@ export const ONBOARDING_STEPS: OnboardingStepInfo[] = [
   { id: 'persisting-key', label: 'Persisting Key', description: 'Persisting your AES encryption key' },
 ];
 
+export interface OnboardingProgressDetails {
+  /** True when the step transition was caused by explicit user cancellation. */
+  cancelled?: boolean;
+  /** Human-facing failure message for error transitions. */
+  error?: string;
+}
+
 /**
  * Callback type for receiving onboarding step progress updates.
  */
-export type OnboardingProgressCallback = (step: OnboardingStep) => void;
+export type OnboardingProgressCallback = (
+  step: OnboardingStep,
+  details?: OnboardingProgressDetails,
+) => void;
 
 export interface AesKeyProviderOptions {
   /**
@@ -275,9 +285,9 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
   const { getAESKeyFromSnap, saveAESKeyToSnap, clearSnapCache } = useSnap();
   const { connector, chainId: connectedChainId } = useAccount();
 
-  const emitStep = useCallback((step: OnboardingStep) => {
+  const emitStep = useCallback((step: OnboardingStep, details?: OnboardingProgressDetails) => {
     setCurrentStep(step);
-    progressCallbackRef.current?.(step);
+    progressCallbackRef.current?.(step, details);
   }, []);
 
   const getAesKey = useCallback(
@@ -745,20 +755,22 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
               && entry.detail.startsWith('personal_sign:'),
           );
         if (isUserRejection(error) || signRejectedDuringOnboarding) {
-          emitStep('idle');
+          emitStep('idle', { cancelled: true });
           return null;
         }
 
         if (isInsufficientFundsError(error)) {
+          const errorMessage = 'Insufficient native COTI for onboarding gas. Add COTI and retry.';
           logger.warn('[AesKeyProvider] Insufficient native COTI for onboarding; wallet surfaced the error');
-          emitStep('idle');
+          setOnboardingError(errorMessage);
+          emitStep('error', { error: errorMessage });
           return null;
         }
 
         // Set error state for UI display
         const errorMessage = formatOnboardingError(error);
         setOnboardingError(errorMessage);
-        emitStep('error');
+        emitStep('error', { error: errorMessage });
         trace.push('error', errorMessage);
         logger.error('❌ Onboarding contract AES key retrieval failed:', error);
         return null;
