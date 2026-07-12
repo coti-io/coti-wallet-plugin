@@ -8,6 +8,10 @@ import { podRequestsStorageKey } from '../../src/pod/podPortalRequestsStorage';
 import { logger } from '../../src/lib/logger';
 import { configureCotiPlugin } from '../../src/config/plugin';
 import { CotiErrorCode } from '../../src/errors';
+import {
+  clearAesKeyValidatedForUnlock,
+  markAesKeyValidatedForUnlock,
+} from '../../src/crypto/aesKeyValidation';
 
 // ─── Capturing mock state ────────────────────────────────────────────────────
 const h = vi.hoisted(() => ({
@@ -268,6 +272,7 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
     vi.clearAllMocks();
     configureCotiPlugin({ clearSessionKeyOnWagmiDisconnect: false });
     localStorage.clear();
+    clearAesKeyValidatedForUnlock();
     unmuteChainUpdates();
     reqMock.mockReset();
     reqMock.mockResolvedValue(undefined);
@@ -324,6 +329,7 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
   });
 
   afterEach(() => {
+    clearAesKeyValidatedForUnlock();
     unmuteChainUpdates();
     vi.useRealTimers();
   });
@@ -789,6 +795,20 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
       );
     });
 
+    it('saveManualAesKey fails locked when balance refresh fails softly', async () => {
+      await connectWagmi(WALLET_A, 11155111);
+      h.balanceUpdater.updateAccountState.mockResolvedValueOnce(false);
+
+      await expect(
+        act(async () => {
+          await latest!.saveManualAesKey('A'.repeat(32));
+        }),
+      ).rejects.toThrow('Wrong AES key');
+
+      expect(latest!.sessionAesKey).toBeNull();
+      expect(latest!.isPrivateUnlocked).toBe(false);
+    });
+
     it('returns null sessionAesKey when the bound wallet does not match', async () => {
       await connectWagmi(WALLET_A);
       await act(async () => {
@@ -907,6 +927,30 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
       await connectWagmi();
       h.balanceUpdater.updateAccountState.mockResolvedValue(false);
       await expect(latest!.refreshPrivateBalances()).resolves.toBe(false);
+      expect(latest!.isPrivateUnlocked).toBe(false);
+    });
+
+    it('does not unlock from a stale validated key after a soft failure', async () => {
+      await connectWagmi();
+      markAesKeyValidatedForUnlock(WALLET_A, 'a'.repeat(32));
+      h.balanceUpdater.updateAccountState.mockResolvedValue(false);
+
+      await expect(latest!.refreshPrivateBalances()).resolves.toBe(false);
+
+      expect(latest!.sessionAesKey).toBeNull();
+      expect(latest!.isPrivateUnlocked).toBe(false);
+    });
+
+    it('does not complete forced onboarding from a stale validated key after a soft failure', async () => {
+      await connectWagmi();
+      markAesKeyValidatedForUnlock(WALLET_A, 'b'.repeat(32));
+      h.balanceUpdater.updateAccountState.mockResolvedValue(false);
+
+      await expect(
+        latest!.refreshPrivateBalances({ forceContractOnboarding: true }),
+      ).resolves.toBe(false);
+
+      expect(latest!.sessionAesKey).toBeNull();
       expect(latest!.isPrivateUnlocked).toBe(false);
     });
 

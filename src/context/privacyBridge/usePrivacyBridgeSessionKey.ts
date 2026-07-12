@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { logger } from '../../lib/logger';
 
 /** Wallet-bound session AES key (prevents cross-account key bleed). */
@@ -30,10 +30,6 @@ export const usePrivacyBridgeSessionKey = (walletAddress: string) => {
     },
     [walletAddress],
   );
-
-  useEffect(() => {
-    if (sessionAesKey) setArePrivateBalancesHidden(false);
-  }, [sessionAesKey]);
 
   return {
     sessionAesKey,

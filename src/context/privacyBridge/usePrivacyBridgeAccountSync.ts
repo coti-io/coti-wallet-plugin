@@ -158,8 +158,10 @@ export const usePrivacyBridgeAccountSync = ({
     if (keyJustArrived && sessionAesKey && walletAddress && arePrivateBalancesHidden) {
       logger.log('Session AES Key arrived — refreshing private balances...');
       const chainOverride = wagmiSyncRef.current ? wagmiChainId : undefined;
-      updateAccountState(walletAddress, false, true, sessionAesKey, chainOverride).then(() => {
-        setArePrivateBalancesHidden(false);
+      updateAccountState(walletAddress, false, true, sessionAesKey, chainOverride).then((success) => {
+        if (success) {
+          setArePrivateBalancesHidden(false);
+        }
       });
     }
   }, [
