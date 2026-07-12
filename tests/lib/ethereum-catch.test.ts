@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { getEthereumProvider } from '../../src/lib/ethereum';
 
 describe('getEthereumProvider — catch branch (broken window.ethereum)', () => {

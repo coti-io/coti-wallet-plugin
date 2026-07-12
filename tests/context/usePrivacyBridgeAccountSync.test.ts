@@ -52,7 +52,6 @@ vi.mock('../../src/crypto/aesKeyValidation', () => ({
 
 import { usePrivacyBridgeAccountSync } from '../../src/context/privacyBridge/usePrivacyBridgeAccountSync';
 import type { PrivacyBridgeSessionCore, UpdateAccountStateRef } from '../../src/context/privacyBridge/sessionShared';
-import { createRef } from 'react';
 
 function makeCore(overrides: Partial<PrivacyBridgeSessionCore> = {}): PrivacyBridgeSessionCore {
   return {

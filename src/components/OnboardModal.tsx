@@ -994,7 +994,7 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      console.error('Failed to copy:', err);
+      logger.error('Failed to copy AES key:', err);
     }
   };
 
@@ -1022,8 +1022,8 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
       await onManualAesKeySubmit(normalizedKey, { saveBackup });
       setManualAesKey('');
       setShowManualKeyInput(false);
-    } catch (err: any) {
-      setManualAesKeyError(err?.message || 'Could not save AES key.');
+    } catch (err: unknown) {
+      setManualAesKeyError(err instanceof Error ? err.message : 'Could not save AES key.');
     } finally {
       setIsSubmittingManualKey(false);
     }

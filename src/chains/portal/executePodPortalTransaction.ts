@@ -8,11 +8,9 @@ import {
   summarizeInFlightLocalPodRequests,
   type BlockingPodRequestDiagnostics,
 } from "./podPTokenBlockingDiagnostics";
-import { getChainConfig } from "../index";
 import {
   buildPodMethodArgs,
   estimatePodFee,
-  getPodGasPrice,
   resolvePodTxGasPrice,
   quotePortalFeeOnly,
   resolvePodPortalMethod,

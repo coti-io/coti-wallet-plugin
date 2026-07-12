@@ -10,7 +10,6 @@ import {
   ETHEREUM_MAINNET_CHAIN_ID,
   COTI_MAINNET_RPC,
   COTI_TESTNET_RPC,
-  SEPOLIA_RPC,
   ETHEREUM_MAINNET_RPC,
   getRpcUrlForChainId,
 } from '../../src/config/chains';
