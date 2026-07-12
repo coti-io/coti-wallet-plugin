@@ -9,13 +9,14 @@ const mockHandleConnect = vi.fn();
 const mockRequestSnapConnection = vi.fn();
 let mockWalletType = 'rabby';
 let mockIsMetaMaskWithSnap = false;
+let mockIsPrivateUnlocked = false;
 let mockSessionAesKey: string | null = null;
 let mockOnboardingError: string | null = null;
 let mockOnboardingWarning: string | null = null;
 
 vi.mock('../../src/context/privacyBridge/contexts', () => ({
   usePrivacyBridgeUnlock: () => ({
-    isPrivateUnlocked: false,
+    isPrivateUnlocked: mockIsPrivateUnlocked,
     sessionAesKey: mockSessionAesKey,
     sendPrivateToken: vi.fn(),
     refreshPrivateBalances: mockRefreshPrivateBalances,
@@ -65,6 +66,7 @@ describe('usePrivateUnlockFlow', () => {
     mockSaveManualAesKey.mockResolvedValue({});
     mockWalletType = 'rabby';
     mockIsMetaMaskWithSnap = false;
+    mockIsPrivateUnlocked = false;
     mockSessionAesKey = null;
     mockOnboardingError = null;
     mockOnboardingWarning = null;
@@ -210,6 +212,179 @@ describe('usePrivateUnlockFlow', () => {
 
     expect(firstUnlocked).toBe(true);
     expect(mockLockPrivateBalances).not.toHaveBeenCalled();
+    expect(result.current.showOnboardModal).toBe(true);
+  });
+
+  it('clears isUnlocking when a superseded restore completes after a newer attempt finishes', async () => {
+    let resolveFirst!: (value: boolean) => void;
+    let resolveSecond!: (value: boolean) => void;
+    mockRefreshPrivateBalances
+      .mockImplementationOnce(
+        () => new Promise(resolve => {
+          resolveFirst = resolve;
+        }),
+      )
+      .mockImplementationOnce(
+        () => new Promise(resolve => {
+          resolveSecond = resolve;
+        }),
+      );
+
+    const { result } = renderHook(() => usePrivateUnlockFlow());
+
+    let firstPromise!: Promise<boolean>;
+    act(() => {
+      firstPromise = result.current.ensurePrivateUnlocked();
+    });
+
+    let secondPromise!: Promise<boolean>;
+    act(() => {
+      secondPromise = result.current.ensurePrivateUnlocked();
+    });
+
+    expect(result.current.isUnlocking).toBe(true);
+
+    await act(async () => {
+      resolveFirst(true);
+      await firstPromise;
+    });
+
+    expect(result.current.isUnlocking).toBe(true);
+
+    await act(async () => {
+      resolveSecond(false);
+      await secondPromise;
+    });
+
+    expect(result.current.isUnlocking).toBe(false);
+  });
+
+  it('does not clear isUnlocking when stale onboarding completes during a newer restore', async () => {
+    let resolveOnboard!: (value: boolean) => void;
+    let resolveRestore!: (value: boolean) => void;
+    mockRefreshPrivateBalances
+      .mockResolvedValueOnce(false)
+      .mockImplementationOnce(
+        () => new Promise(resolve => {
+          resolveOnboard = resolve;
+        }),
+      )
+      .mockImplementationOnce(
+        () => new Promise(resolve => {
+          resolveRestore = resolve;
+        }),
+      );
+
+    const { result } = renderHook(() => usePrivateUnlockFlow());
+
+    await act(async () => {
+      await result.current.openUnlockFlow();
+    });
+
+    let onboardPromise!: Promise<void>;
+    act(() => {
+      onboardPromise = result.current.onboardModal.props.onConfirm();
+    });
+
+    let restorePromise!: Promise<boolean>;
+    act(() => {
+      restorePromise = result.current.ensurePrivateUnlocked();
+    });
+
+    expect(result.current.isUnlocking).toBe(true);
+
+    await act(async () => {
+      resolveOnboard(false);
+      await onboardPromise;
+    });
+
+    expect(result.current.isUnlocking).toBe(true);
+
+    await act(async () => {
+      resolveRestore(false);
+      await restorePromise;
+    });
+
+    expect(result.current.isUnlocking).toBe(false);
+  });
+
+  it('clears unlock-in-progress gate when a stale restore unlocks the session', async () => {
+    let resolveFirst!: (value: boolean) => void;
+    let resolveSecond!: (value: boolean) => void;
+    mockRefreshPrivateBalances
+      .mockImplementationOnce(
+        () => new Promise(resolve => {
+          resolveFirst = resolve;
+        }),
+      )
+      .mockImplementationOnce(
+        () => new Promise(resolve => {
+          resolveSecond = resolve;
+        }),
+      );
+
+    const { result, rerender } = renderHook(() => usePrivateUnlockFlow());
+
+    let openPromise!: Promise<void>;
+    act(() => {
+      openPromise = result.current.openUnlockFlow();
+    });
+
+    let secondPromise!: Promise<boolean>;
+    act(() => {
+      secondPromise = result.current.ensurePrivateUnlocked();
+    });
+
+    await act(async () => {
+      mockIsPrivateUnlocked = true;
+      resolveFirst(true);
+      await openPromise;
+      rerender();
+    });
+
+    // Session unlocked: openUnlockFlow must early-return, not start another restore.
+    const refreshCallsBefore = mockRefreshPrivateBalances.mock.calls.length;
+    await act(async () => {
+      await result.current.openUnlockFlow();
+    });
+    expect(mockRefreshPrivateBalances.mock.calls.length).toBe(refreshCallsBefore);
+
+    await act(async () => {
+      resolveSecond(false);
+      await secondPromise;
+    });
+  });
+
+  it('clears unlock-in-progress when a dismissed restore is still the latest in-flight success', async () => {
+    let resolveRefresh!: (value: boolean) => void;
+    mockRefreshPrivateBalances.mockImplementationOnce(
+      () => new Promise(resolve => {
+        resolveRefresh = resolve;
+      }),
+    );
+
+    const { result } = renderHook(() => usePrivateUnlockFlow());
+
+    let openPromise!: Promise<void>;
+    act(() => {
+      openPromise = result.current.openUnlockFlow();
+    });
+
+    act(() => {
+      result.current.resetUnlockUi();
+    });
+
+    await act(async () => {
+      resolveRefresh(true);
+      await openPromise;
+    });
+
+    // Progress gate must be clear so a later unlock attempt can start.
+    mockRefreshPrivateBalances.mockResolvedValueOnce(false);
+    await act(async () => {
+      await result.current.openUnlockFlow();
+    });
+    expect(mockRefreshPrivateBalances).toHaveBeenCalledTimes(2);
     expect(result.current.showOnboardModal).toBe(true);
   });
 
