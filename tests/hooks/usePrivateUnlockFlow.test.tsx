@@ -145,7 +145,7 @@ describe('usePrivateUnlockFlow', () => {
     expect(result.current.showOnboardModal).toBe(false);
   });
 
-  it('does not lock when a dismissed in-flight restore later succeeds', async () => {
+  it('returns true when a dismissed in-flight restore later succeeds', async () => {
     let resolveRefresh!: (value: boolean) => void;
     mockRefreshPrivateBalances.mockImplementationOnce(
       () => new Promise(resolve => {
@@ -165,17 +165,19 @@ describe('usePrivateUnlockFlow', () => {
       result.current.resetUnlockUi();
     });
 
+    let unlocked = false;
     await act(async () => {
       resolveRefresh(true);
-      await unlockPromise;
+      unlocked = await unlockPromise;
     });
 
+    expect(unlocked).toBe(true);
     expect(mockLockPrivateBalances).not.toHaveBeenCalled();
     expect(pendingAction).not.toHaveBeenCalled();
     expect(result.current.showOnboardModal).toBe(false);
   });
 
-  it('does not lock when a stale restore succeeds during a newer unlock attempt', async () => {
+  it('returns true when a stale restore succeeds during a newer unlock attempt', async () => {
     let resolveFirst!: (value: boolean) => void;
     mockRefreshPrivateBalances
       .mockImplementationOnce(
@@ -200,11 +202,13 @@ describe('usePrivateUnlockFlow', () => {
       await result.current.openUnlockFlow();
     });
 
+    let firstUnlocked = false;
     await act(async () => {
       resolveFirst(true);
-      await firstPromise;
+      firstUnlocked = await firstPromise;
     });
 
+    expect(firstUnlocked).toBe(true);
     expect(mockLockPrivateBalances).not.toHaveBeenCalled();
     expect(result.current.showOnboardModal).toBe(true);
   });

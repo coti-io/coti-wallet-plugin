@@ -295,12 +295,14 @@ export function usePrivateUnlockController(
         },
       })) {
         if (!isActiveUnlockRequest(requestId)) {
-          return false;
+          return true;
         }
         return completeUnlock(requestId);
       }
 
-      if (!isActiveUnlockRequest(requestId)) return false;
+      if (!isActiveUnlockRequest(requestId)) {
+        return unlock.isPrivateUnlocked;
+      }
 
       if (restoreCancelled) {
         setIsUnlockInProgress(false);
@@ -312,7 +314,9 @@ export function usePrivateUnlockController(
       setShowOnboardModal(true);
       return false;
     } catch (error) {
-      if (!isActiveUnlockRequest(requestId)) return false;
+      if (!isActiveUnlockRequest(requestId)) {
+        return unlock.isPrivateUnlocked;
+      }
 
       setCurrentStep('idle');
       setShowOnboardModal(true);
