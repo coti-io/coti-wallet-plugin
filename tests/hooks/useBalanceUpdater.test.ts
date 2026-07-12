@@ -231,9 +231,10 @@ describe('useBalanceUpdater', () => {
     clearAesKeyValidatedForUnlock();
 
     const aesKey = 'e'.repeat(32);
+    const validateMetaMaskAesKeyOnUnlock = vi.fn().mockResolvedValue(undefined);
     const props = makeProps({
       sessionAesKey: aesKey,
-      validateMetaMaskAesKeyOnUnlock: vi.fn().mockResolvedValue(undefined),
+      validateMetaMaskAesKeyOnUnlock,
       fetchPrivateBalance: vi.fn().mockRejectedValue(new Error('network blip')),
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
@@ -248,7 +249,7 @@ describe('useBalanceUpdater', () => {
     );
 
     expect(ok).toBe(false);
-    expect(props.validateMetaMaskAesKeyOnUnlock).toHaveBeenCalled();
+    expect(validateMetaMaskAesKeyOnUnlock).toHaveBeenCalled();
     expect(isAesKeyValidatedForUnlock(ACCOUNT, aesKey)).toBe(false);
     clearAesKeyValidatedForUnlock();
   });
@@ -477,6 +478,48 @@ describe('useBalanceUpdater', () => {
     expect(props.getAESKeyFromSnap).not.toHaveBeenCalled();
     expect(validateMetaMaskAesKeyOnUnlock).not.toHaveBeenCalled();
     clearAesKeyValidatedForUnlock();
+
+    (window as any).ethereum = original;
+  });
+
+  it('fetches AES key for force-contract onboarding even when session key exists', async () => {
+    const original = (window as any).ethereum;
+    delete (window as any).ethereum;
+
+    const sessionKey = 'a'.repeat(32);
+    const contractKey = 'b'.repeat(32);
+    const props = makeProps({
+      sessionAesKey: sessionKey,
+      getAESKeyFromSnap: vi.fn().mockResolvedValue(contractKey),
+      fetchPrivateBalance: vi.fn().mockResolvedValue('42'),
+    });
+    const { result } = renderHook(() => useBalanceUpdater(props));
+
+    const ok = await result.current.updateAccountState(
+      ACCOUNT,
+      true,
+      true,
+      undefined,
+      COTI_TESTNET,
+      { validateOnUnlock: true, forceContractOnboarding: true },
+    );
+
+    expect(ok).toBe(true);
+    expect(props.getAESKeyFromSnap).toHaveBeenCalledWith(ACCOUNT, {
+      skipCache: true,
+      forceContractOnboarding: true,
+    });
+    expect(props.fetchPrivateBalance).toHaveBeenCalledWith(
+      ACCOUNT,
+      contractKey,
+      expect.any(String),
+      256,
+      expect.any(Number),
+      COTI_TESTNET,
+      expect.any(Boolean),
+      undefined,
+    );
+    expect(props.setSessionAesKey).toHaveBeenCalledWith(contractKey, ACCOUNT);
 
     (window as any).ethereum = original;
   });

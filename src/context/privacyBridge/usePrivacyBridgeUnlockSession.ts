@@ -101,6 +101,7 @@ export const usePrivacyBridgeUnlockSession = ({
     const success = await updateAccountState(walletAddress, true, true, key, chainOverride);
     if (!success) {
       setSessionAesKey(null);
+      clearAesKeyValidatedForUnlock(walletAddress);
       setArePrivateBalancesHidden(true);
       throw new Error('Wrong AES key');
     }
@@ -203,16 +204,16 @@ export const usePrivacyBridgeUnlockSession = ({
     }
 
     const unlockOptions = { validateOnUnlock: true as const, ...aesKeyOptions };
-    const sessionKey = resolveSessionAesKey();
-
     if (aesKeyOptions?.forceContractOnboarding) {
       return {
         unlockOptions,
-        checkSnap: !sessionKey,
-        keyForUnlock: sessionKey,
+        checkSnap: true,
+        keyForUnlock: undefined,
         accessMode: 'onboard' as const,
       };
     }
+
+    const sessionKey = resolveSessionAesKey();
 
     const chainIdNum = Number(currentChainId);
     if (!Number.isFinite(chainIdNum) || chainIdNum <= 0) {
