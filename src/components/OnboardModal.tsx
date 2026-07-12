@@ -1018,7 +1018,7 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
     try {
       normalizedKey = normalizeAesKey(key);
     } catch {
-      setManualAesKeyError('Paste a 32-character AES key.');
+      setManualAesKeyError('Wrong AES key');
       return;
     }
 

@@ -144,7 +144,7 @@ describe('OnboardModal', () => {
     });
     fireEvent.click(screen.getByLabelText('Use AES key'));
 
-    expect(screen.getByText('Paste a 32-character AES key.')).toBeInTheDocument();
+    expect(screen.getByText('Wrong AES key')).toBeInTheDocument();
     expect(onManualAesKeySubmit).not.toHaveBeenCalled();
   });
 
