@@ -7,7 +7,7 @@ import { MULTIPLE_WALLETS_ERROR_SUBSTRING } from '../../src/utils/walletErrors';
 import { podRequestsStorageKey } from '../../src/pod/podPortalRequestsStorage';
 import { logger } from '../../src/lib/logger';
 import { configureCotiPlugin } from '../../src/config/plugin';
-import { CotiErrorCode } from '../../src/errors';
+import { CotiErrorCode, CotiPluginError } from '../../src/errors';
 import {
   clearAesKeyValidatedForUnlock,
   getValidatedAesKeyForUnlock,
@@ -795,7 +795,7 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
       );
     });
 
-    it('saveManualAesKey fails locked when balance refresh fails softly', async () => {
+    it('saveManualAesKey reports retryable error when balance refresh fails softly', async () => {
       await connectWagmi(WALLET_A, 11155111);
       markAesKeyValidatedForUnlock(WALLET_A, 'c'.repeat(32));
       h.balanceUpdater.updateAccountState.mockResolvedValueOnce(false);
@@ -804,7 +804,25 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
         act(async () => {
           await latest!.saveManualAesKey('A'.repeat(32));
         }),
-      ).rejects.toThrow('Wrong AES key');
+      ).rejects.toThrow('Could not unlock private balances. Try again.');
+
+      expect(latest!.sessionAesKey).toBeNull();
+      expect(latest!.isPrivateUnlocked).toBe(false);
+      expect(getValidatedAesKeyForUnlock(WALLET_A)).toBe('c'.repeat(32));
+    });
+
+    it('saveManualAesKey clears session and rethrows AES_KEY_MISMATCH', async () => {
+      await connectWagmi(WALLET_A, 11155111);
+      markAesKeyValidatedForUnlock(WALLET_A, 'c'.repeat(32));
+      h.balanceUpdater.updateAccountState.mockRejectedValueOnce(
+        new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch'),
+      );
+
+      await expect(
+        act(async () => {
+          await latest!.saveManualAesKey('A'.repeat(32));
+        }),
+      ).rejects.toMatchObject({ code: CotiErrorCode.AES_KEY_MISMATCH });
 
       expect(latest!.sessionAesKey).toBeNull();
       expect(latest!.isPrivateUnlocked).toBe(false);

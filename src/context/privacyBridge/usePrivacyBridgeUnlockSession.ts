@@ -98,16 +98,27 @@ export const usePrivacyBridgeUnlockSession = ({
     }
 
     const chainOverride = wagmiSyncRef.current ? wagmiChainId : undefined;
-    const success = await updateAccountState(walletAddress, true, true, key, chainOverride);
-    if (!success) {
-      setSessionAesKey(null);
-      clearAesKeyValidatedForUnlock(walletAddress);
-      setArePrivateBalancesHidden(true);
-      throw new Error('Wrong AES key');
+    try {
+      const success = await updateAccountState(walletAddress, true, true, key, chainOverride);
+      if (!success) {
+        throw new Error('Could not unlock private balances. Try again.');
+      }
+      setSessionAesKey(key, walletAddress);
+      setSnapError(null);
+      setArePrivateBalancesHidden(false);
+    } catch (err: unknown) {
+      if (
+        err instanceof CotiPluginError
+        && (err.code === CotiErrorCode.AES_KEY_MISMATCH
+          || err.code === CotiErrorCode.ACCOUNT_NOT_ONBOARDED)
+      ) {
+        setSessionAesKey(null);
+        clearAesKeyValidatedForUnlock(walletAddress);
+        clearSnapCache();
+        setArePrivateBalancesHidden(true);
+      }
+      throw err;
     }
-    setSessionAesKey(key, walletAddress);
-    setSnapError(null);
-    setArePrivateBalancesHidden(false);
 
     if (options?.saveBackup && connector) {
       const targetChainId = resolveAesKeyChainId(
