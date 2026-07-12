@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import { OnboardModal, type OnboardModalTheme } from '../../components/OnboardModal';
-import { WalletSignPrompt } from '../../components/WalletSignPrompt';
+import { WalletSignPrompt, type WalletSignPromptPurpose } from '../../components/WalletSignPrompt';
 import { usePrivacyBridgeUnlock, usePrivacyBridgeWallet } from '../privacyBridge/contexts';
 import { isMetaMaskMobileBrowser } from '../../lib/metaMaskMobile';
 import type { OnboardingStep } from '../../hooks/useAesKeyProvider';
@@ -51,6 +51,8 @@ export function usePrivateUnlockController(
   const [snapConnectedInModal, setSnapConnectedInModal] = useState(false);
   const [saveBackup, setSaveBackup] = useState(true);
   const [currentStep, setCurrentStep] = useState<OnboardingStep>('idle');
+  const [walletSignPromptPurpose, setWalletSignPromptPurpose] =
+    useState<WalletSignPromptPurpose>('decrypt-backup');
   const [isUnlockInProgress, setIsUnlockInProgress] = useState(false);
   const [pendingUnlockAfterConnect, setPendingUnlockAfterConnect] = useState(false);
 
@@ -210,7 +212,12 @@ export function usePrivateUnlockController(
           pendingActionRef.current = null;
           onRestoreCancelled?.();
         },
-        onProgress: handleRestoreUnlockProgress,
+        onProgress: (step) => {
+          if (step === 'signing-backup') {
+            setWalletSignPromptPurpose('decrypt-backup');
+          }
+          handleRestoreUnlockProgress(step);
+        },
       })) {
         if (!isActiveUnlockRequest(requestId)) {
           unlock.lockPrivateBalances();
@@ -376,12 +383,13 @@ export function usePrivateUnlockController(
       isOpen={currentStep === 'signing-backup'}
       walletType={walletTypeInfo.walletType}
       theme={theme}
+      purpose={walletSignPromptPurpose}
     />
   );
 
   const onboardModal = (
     <OnboardModal
-      isOpen={showOnboardModal}
+      isOpen={showOnboardModal && currentStep !== 'signing-backup'}
       onClose={handleOnboardModalClose}
       onConfirm={beginOnboarding}
       isLoading={isUnlocking}
@@ -396,8 +404,17 @@ export function usePrivateUnlockController(
       saveBackup={saveBackup}
       showSaveBackupOption={!usesSnapStorage}
       onSaveBackupChange={setSaveBackup}
-      onManualAesKeySubmit={async (aesKey) => {
-        await unlock.saveManualAesKey(aesKey);
+      onManualAesKeySubmit={async (aesKey, { saveBackup: shouldSaveBackup }) => {
+        await unlock.saveManualAesKey(aesKey, {
+          saveBackup: shouldSaveBackup,
+          onProgress: (step) => {
+            if (step === 'signing-backup') {
+              setWalletSignPromptPurpose('save-backup');
+              setShowOnboardModal(false);
+            }
+            handleRestoreUnlockProgress(step);
+          },
+        });
         setShowOnboardModal(false);
         setIsUnlockInProgress(false);
         await notifyUnlocked();

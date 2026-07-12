@@ -15,4 +15,12 @@ describe('WalletSignPrompt', () => {
     rerender(<WalletSignPrompt isOpen={false} walletType="metamask" />);
     expect(screen.queryByTestId('wallet-sign-prompt')).not.toBeInTheDocument();
   });
+
+  it('renders save-backup copy when requested', () => {
+    render(
+      <WalletSignPrompt isOpen walletType="metamask" purpose="save-backup" />,
+    );
+
+    expect(screen.getByText(/encrypt and save your AES key backup/i)).toBeInTheDocument();
+  });
 });
