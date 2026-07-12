@@ -93,6 +93,10 @@ export function usePrivateUnlockController(
   const pendingCompleteRequestIdRef = useRef<number | null>(null);
   const contractOnboardingCancelledRef = useRef(false);
   const contractOnboardingFailureRef = useRef<string | null>(null);
+  const inFlightRestoreRequestIdRef = useRef<number | null>(null);
+  const unlockInProgressOwnerRef = useRef<number | null>(null);
+  const isPrivateUnlockedRef = useRef(unlock.isPrivateUnlocked);
+  isPrivateUnlockedRef.current = unlock.isPrivateUnlocked;
 
   const connectedAddress = wallet.walletAddress || '';
   const isMetaMaskWallet = walletTypeInfo.walletType === 'metamask';
@@ -109,6 +113,7 @@ export function usePrivateUnlockController(
   const beginUnlockRequest = useCallback(() => {
     const requestId = unlockRequestIdRef.current + 1;
     unlockRequestIdRef.current = requestId;
+    unlockInProgressOwnerRef.current = requestId;
     setCurrentStep('idle');
     setModalError(null);
     setModalWarning(null);
@@ -119,8 +124,15 @@ export function usePrivateUnlockController(
     return requestId;
   }, []);
 
+  const releaseUnlockInProgress = useCallback((requestId: number) => {
+    if (unlockInProgressOwnerRef.current !== requestId) return;
+    unlockInProgressOwnerRef.current = null;
+    setIsUnlockInProgress(false);
+  }, []);
+
   const dismissOnboardModal = useCallback(() => {
     unlockRequestIdRef.current += 1;
+    unlockInProgressOwnerRef.current = null;
     pendingActionRef.current = null;
     setShowOnboardModal(false);
     setCurrentStep('idle');
@@ -152,6 +164,7 @@ export function usePrivateUnlockController(
     setCurrentStep('idle');
     setModalError(null);
     setModalWarning(null);
+    unlockInProgressOwnerRef.current = null;
     setIsUnlockInProgress(false);
     setIsUnlocking(false);
     pendingCompleteRequestIdRef.current = null;
@@ -230,11 +243,11 @@ export function usePrivateUnlockController(
 
     setShowOnboardModal(false);
     setCurrentStep('idle');
-    setIsUnlockInProgress(false);
+    releaseUnlockInProgress(requestId);
     await notifyUnlocked();
     await runPendingAction();
     return true;
-  }, [isActiveUnlockRequest, notifyUnlocked, runPendingAction]);
+  }, [isActiveUnlockRequest, notifyUnlocked, releaseUnlockInProgress, runPendingAction]);
 
   const handleOnboardingIncomplete = useCallback((
     requestId: number,
@@ -253,15 +266,36 @@ export function usePrivateUnlockController(
       setCurrentStep('error');
       setModalError(failureMessage);
       setModalWarning(unlock.onboardingWarning ?? null);
-      setIsUnlockInProgress(false);
+      releaseUnlockInProgress(requestId);
       return;
     }
 
     setCurrentStep('error');
     setModalError('Onboarding did not complete. Please retry.');
     setModalWarning(unlock.onboardingWarning ?? null);
-    setIsUnlockInProgress(false);
-  }, [dismissOnboardModal, isActiveUnlockRequest, onOnboardingCancelled, unlock.onboardingWarning]);
+    releaseUnlockInProgress(requestId);
+  }, [dismissOnboardModal, isActiveUnlockRequest, onOnboardingCancelled, releaseUnlockInProgress, unlock.onboardingWarning]);
+
+  const handleStaleRestoreCompletion = useCallback((
+    requestId: number,
+    refreshSucceeded: boolean,
+  ): boolean => {
+    const unlocked = refreshSucceeded || isPrivateUnlockedRef.current;
+    if (!unlocked) return false;
+
+    // Stale request ids never match unlockInProgressOwnerRef after supersede/dismiss,
+    // so releaseUnlockInProgress(staleId) is a no-op. Clear the gate only when:
+    // - session is already unlocked (openUnlockFlow/ensure will early-return), or
+    // - this restore is still the latest in-flight restore finishing successfully.
+    if (
+      isPrivateUnlockedRef.current
+      || inFlightRestoreRequestIdRef.current === requestId
+    ) {
+      unlockInProgressOwnerRef.current = null;
+      setIsUnlockInProgress(false);
+    }
+    return true;
+  }, []);
 
   const restorePrivateUnlock = useCallback(async (
     requestId: number,
@@ -273,6 +307,7 @@ export function usePrivateUnlockController(
 
     setModalError(null);
     setModalWarning(null);
+    inFlightRestoreRequestIdRef.current = requestId;
     setIsUnlocking(true);
 
     try {
@@ -294,17 +329,17 @@ export function usePrivateUnlockController(
         },
       })) {
         if (!isActiveUnlockRequest(requestId)) {
-          return true;
+          return handleStaleRestoreCompletion(requestId, true);
         }
         return completeUnlock(requestId);
       }
 
       if (!isActiveUnlockRequest(requestId)) {
-        return unlock.isPrivateUnlocked;
+        return handleStaleRestoreCompletion(requestId, false);
       }
 
       if (restoreCancelled) {
-        setIsUnlockInProgress(false);
+        releaseUnlockInProgress(requestId);
         return false;
       }
 
@@ -314,7 +349,7 @@ export function usePrivateUnlockController(
       return false;
     } catch (error) {
       if (!isActiveUnlockRequest(requestId)) {
-        return unlock.isPrivateUnlocked;
+        return handleStaleRestoreCompletion(requestId, false);
       }
 
       setCurrentStep('idle');
@@ -323,11 +358,12 @@ export function usePrivateUnlockController(
       setModalError(message === 'SNAP_REQUIRED' ? null : message);
       return false;
     } finally {
-      if (isActiveUnlockRequest(requestId)) {
+      if (inFlightRestoreRequestIdRef.current === requestId) {
+        inFlightRestoreRequestIdRef.current = null;
         setIsUnlocking(false);
       }
     }
-  }, [completeUnlock, handleRestoreUnlockProgress, isActiveUnlockRequest, onRestoreCancelled, unlock]);
+  }, [completeUnlock, handleRestoreUnlockProgress, handleStaleRestoreCompletion, isActiveUnlockRequest, onRestoreCancelled, releaseUnlockInProgress, unlock]);
 
   const unlockPrivateBalances = useCallback(async () => {
     if (!connectedAddress) return false;
@@ -387,7 +423,7 @@ export function usePrivateUnlockController(
         setCurrentStep('error');
         setModalError(failureMessage);
         setModalWarning(unlock.onboardingWarning ?? null);
-        setIsUnlockInProgress(false);
+        releaseUnlockInProgress(unlockRequestIdRef.current);
       }
       return;
     }
@@ -400,7 +436,7 @@ export function usePrivateUnlockController(
     if (step === 'idle') {
       setModalError(null);
     }
-  }, [currentStep, showOnboardModal, unlock.onboardingWarning]);
+  }, [currentStep, showOnboardModal, releaseUnlockInProgress, unlock.onboardingWarning]);
 
   const showOnboardingComplete = useCallback((requestId: number) => {
     if (!isActiveUnlockRequest(requestId)) return;
@@ -408,9 +444,9 @@ export function usePrivateUnlockController(
     pendingCompleteRequestIdRef.current = null;
     setShowOnboardModal(true);
     setCurrentStep('complete');
-    setIsUnlockInProgress(false);
+    releaseUnlockInProgress(requestId);
     setIsUnlocking(false);
-  }, [isActiveUnlockRequest]);
+  }, [isActiveUnlockRequest, releaseUnlockInProgress]);
 
   useEffect(() => {
     const requestId = pendingCompleteRequestIdRef.current;
@@ -502,6 +538,7 @@ export function usePrivateUnlockController(
       setCurrentStep('error');
       setModalError(formatOnboardingError(error));
     } finally {
+      if (!isActiveUnlockRequest(requestId)) return;
       if (pendingCompleteRequestIdRef.current === null) {
         setIsUnlocking(false);
       }
@@ -523,6 +560,7 @@ export function usePrivateUnlockController(
       return;
     }
     if (unlock.isPrivateUnlocked) {
+      unlockInProgressOwnerRef.current = null;
       setIsUnlockInProgress(false);
       return;
     }
@@ -611,7 +649,7 @@ export function usePrivateUnlockController(
           setModalWarning(manualSaveResult.backupWarning);
           setShowOnboardModal(true);
           setCurrentStep('complete');
-          setIsUnlockInProgress(false);
+          releaseUnlockInProgress(requestId);
           return;
         }
         await completeUnlock(requestId);
