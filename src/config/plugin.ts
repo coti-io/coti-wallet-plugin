@@ -140,6 +140,9 @@ export function configureCotiPlugin(config: Partial<CotiPluginConfig>): void {
       ...config.onboardingServices,
     },
   };
+  if ('snapInstallEnabled' in config) {
+    console.log('[CotiPlugin] snapInstallEnabled:', isSnapInstallEnabled());
+  }
 }
 
 /**

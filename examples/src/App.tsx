@@ -67,10 +67,6 @@ const saveEncryptedAesBackup = async (
 const LOCAL_SNAP_ID = import.meta.env.VITE_SNAP_ID?.trim();
 const LOCAL_SNAP_VERSION = import.meta.env.VITE_SNAP_VERSION?.trim();
 const SNAP_INSTALL_ENABLED = import.meta.env.VITE_COTI_SNAP_INSTALL_ENABLED !== 'false';
-console.log('[example] VITE_COTI_SNAP_INSTALL_ENABLED:', {
-  raw: import.meta.env.VITE_COTI_SNAP_INSTALL_ENABLED,
-  snapInstallEnabled: SNAP_INSTALL_ENABLED,
-});
 const LOCAL_SNAP_AES_WRITE_ORIGINS =
   (LOCAL_SNAP_ID?.startsWith('local:') || import.meta.env.DEV) && typeof window !== 'undefined'
     ? [window.location.origin]
