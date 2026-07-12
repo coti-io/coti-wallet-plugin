@@ -973,7 +973,13 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
 
   // Determine which screen to show
   const showIntro = currentStep === 'idle' && !error && !aesKey;
-  const showProgress = isLoading || (currentStep !== 'idle' && currentStep !== 'complete' && currentStep !== 'error' && !aesKey);
+  const showProgress = isLoading || (
+    currentStep !== 'idle'
+    && currentStep !== 'complete'
+    && currentStep !== 'error'
+    && currentStep !== 'signing-backup'
+    && !aesKey
+  );
   const showSuccess = currentStep === 'complete' && aesKey && !error;
   const showError = !!error || currentStep === 'error';
 

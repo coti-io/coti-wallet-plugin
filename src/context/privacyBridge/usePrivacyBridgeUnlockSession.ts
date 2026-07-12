@@ -13,6 +13,8 @@ import type { PrivacyBridgeNetworkSession } from './usePrivacyBridgeNetworkSessi
 import type { PrivacyBridgeSessionCore } from './sessionShared';
 import type { AesKeyProviderOptions } from '../../hooks/useAesKeyProvider';
 import { normalizeAesKey } from '../../crypto/aesKey';
+import { resolveAesKeyChainId } from '../../lib/aesAccessStrategy';
+import { persistEncryptedAesBackup } from '../../lib/persistEncryptedAesBackup';
 import {
   type AesUnlockPlan,
   buildUnlockPlanFromStrategy,
@@ -81,11 +83,13 @@ export const usePrivacyBridgeUnlockSession = ({
     return key;
   };
 
-  const saveManualAesKey = async (aesKey: string) => {
+  const saveManualAesKey = async (
+    aesKey: string,
+    options?: Pick<AesKeyProviderOptions, 'saveBackup' | 'onProgress'>,
+  ) => {
     if (!walletAddress) throw new Error('Connect your wallet first.');
 
-    // Normalize and validate in-memory only — no localStorage persistence.
-    // The key lives in React state for this session and is lost on page refresh by design.
+    // Normalize and validate in-memory only — no localStorage persistence unless saveBackup is enabled.
     let key: string;
     try {
       key = normalizeAesKey(aesKey.trim());
@@ -103,6 +107,30 @@ export const usePrivacyBridgeUnlockSession = ({
     setSessionAesKey(key, walletAddress);
     setSnapError(null);
     setArePrivateBalancesHidden(false);
+
+    if (options?.saveBackup && connector) {
+      const targetChainId = resolveAesKeyChainId(
+        wagmiSyncRef.current ? wagmiChainId : Number(currentChainId),
+        aesKeyChainId,
+      );
+      const backupResult = await persistEncryptedAesBackup({
+        aesKey: key,
+        address: walletAddress,
+        chainId: targetChainId,
+        connector,
+        onBeforeSign: () => options.onProgress?.('signing-backup'),
+      });
+      options.onProgress?.('idle');
+
+      if (backupResult.status === 'failed') {
+        logger.warn(
+          'Manual AES unlock succeeded but encrypted backup save failed:',
+          backupResult.message,
+        );
+      } else if (backupResult.status === 'cancelled') {
+        logger.warn('Manual AES unlock succeeded but encrypted backup save was cancelled.');
+      }
+    }
   };
 
   const refreshPublicBalances = useCallback(async () => {

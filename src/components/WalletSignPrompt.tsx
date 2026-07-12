@@ -8,10 +8,13 @@ const SPINNER_KEYFRAMES = `
 }
 `;
 
+export type WalletSignPromptPurpose = 'decrypt-backup' | 'save-backup';
+
 export interface WalletSignPromptProps {
   isOpen: boolean;
   walletType: WalletType;
   theme?: OnboardModalTheme;
+  purpose?: WalletSignPromptPurpose;
 }
 
 function getWalletDisplayName(walletType: WalletType): string {
@@ -45,10 +48,19 @@ function mergeTheme(theme?: OnboardModalTheme) {
   return styles as typeof onboardModalDefaultStyles;
 }
 
+function getPurposeDescription(purpose: WalletSignPromptPurpose, walletName: string): string {
+  if (purpose === 'save-backup') {
+    return `Approve the signature in ${walletName} to encrypt and save your AES key backup.`;
+  }
+
+  return `Approve the signature in ${walletName} to decrypt your encrypted backup and unlock private balances.`;
+}
+
 export const WalletSignPrompt: React.FC<WalletSignPromptProps> = ({
   isOpen,
   walletType,
   theme,
+  purpose = 'decrypt-backup',
 }) => {
   if (!isOpen) return null;
 
@@ -79,8 +91,7 @@ export const WalletSignPrompt: React.FC<WalletSignPromptProps> = ({
           </h2>
 
           <p id="wallet-sign-prompt-description" style={styles.description}>
-            Approve the signature in {walletName} to decrypt your encrypted backup and unlock
-            private balances.
+            {getPurposeDescription(purpose, walletName)}
           </p>
 
           <div style={styles.calloutBox}>

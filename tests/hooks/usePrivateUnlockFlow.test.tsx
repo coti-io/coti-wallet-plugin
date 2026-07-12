@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import { usePrivateUnlockFlow } from '../../src/hooks/usePrivateUnlockFlow';
 
+const mockSaveManualAesKey = vi.fn();
 const mockRefreshPrivateBalances = vi.fn();
 const mockLockPrivateBalances = vi.fn();
 const mockHandleConnect = vi.fn();
@@ -17,7 +18,7 @@ vi.mock('../../src/context/privacyBridge/contexts', () => ({
     sendPrivateToken: vi.fn(),
     refreshPrivateBalances: mockRefreshPrivateBalances,
     lockPrivateBalances: mockLockPrivateBalances,
-    saveManualAesKey: vi.fn(),
+    saveManualAesKey: mockSaveManualAesKey,
     requestSnapConnection: mockRequestSnapConnection,
     encryptPrivateValue: vi.fn(),
     decryptPrivateValue: vi.fn(),
@@ -57,6 +58,7 @@ vi.mock('../../src/components/WalletSignPrompt', () => ({
 describe('usePrivateUnlockFlow', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSaveManualAesKey.mockResolvedValue(undefined);
     mockWalletType = 'rabby';
     mockIsMetaMaskWithSnap = false;
     mockSessionAesKey = null;
@@ -325,5 +327,31 @@ describe('usePrivateUnlockFlow', () => {
 
     expect(result.current.showOnboardModal).toBe(true);
     expect(result.current.onboardModal.props.currentStep).toBe('idle');
+  });
+
+  it('passes saveBackup and onProgress when submitting a manual AES key', async () => {
+    mockSaveManualAesKey.mockImplementation(async (_key, options) => {
+      options?.onProgress?.('signing-backup');
+      options?.onProgress?.('idle');
+    });
+    mockRefreshPrivateBalances.mockResolvedValueOnce(false);
+
+    const { result } = renderHook(() => usePrivateUnlockFlow());
+
+    await act(async () => {
+      await result.current.openUnlockFlow();
+    });
+
+    await act(async () => {
+      await result.current.onboardModal.props.onManualAesKeySubmit?.('a'.repeat(32), {
+        saveBackup: true,
+      });
+    });
+
+    expect(mockSaveManualAesKey).toHaveBeenCalledWith('a'.repeat(32), {
+      saveBackup: true,
+      onProgress: expect.any(Function),
+    });
+    expect(result.current.showOnboardModal).toBe(false);
   });
 });

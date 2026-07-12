@@ -65,7 +65,10 @@ export interface PrivacyBridgeUnlockContextValue {
   /** Hides private balances and clears plaintext AES session state. */
   lockPrivateBalances: () => void;
   handleOnboard: () => Promise<string | null>;
-  saveManualAesKey: (aesKey: string) => Promise<void>;
+  saveManualAesKey: (
+    aesKey: string,
+    options?: Pick<AesKeyProviderOptions, 'saveBackup' | 'onProgress'>,
+  ) => Promise<void>;
   handleVerifyKeys: () => Promise<void>;
   showSnapMissingModal: boolean;
   setShowSnapMissingModal: (show: boolean) => void;
