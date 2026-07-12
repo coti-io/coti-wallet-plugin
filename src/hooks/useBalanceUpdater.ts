@@ -88,6 +88,15 @@ export const useBalanceUpdater = ({
                 && !sessionAesKey;
 
             const hasChainOverride = typeof chainOverride === 'number';
+
+            if (!(window.ethereum || hasChainOverride)) {
+                if (fetchPrivate) {
+                    logger.warn('Cannot fetch private balances without wallet provider or chain override');
+                    return false;
+                }
+                return true;
+            }
+
             if (window.ethereum || hasChainOverride) {
                 const browserProvider = window.ethereum && !hasChainOverride
                     ? new ethers.BrowserProvider(window.ethereum)
@@ -125,6 +134,10 @@ export const useBalanceUpdater = ({
                 if (isStale()) return false;
 
                 const addresses = CONTRACT_ADDRESSES[currentChainId];
+                if (fetchPrivate && !addresses) {
+                    logger.warn(`No contract addresses configured for chain ${currentChainId}`);
+                    return false;
+                }
                 const readProvider = hasChainOverride
                     ? await createResilientJsonRpcProvider(currentChainId)
                     : browserProvider!;

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import { usePrivateUnlockFlow } from '../../src/hooks/usePrivateUnlockFlow';
+import { getVisibleOnboardingStep } from '../../src/lib/onboardingProgressDisplay';
 
 const mockSaveManualAesKey = vi.fn();
 const mockRefreshPrivateBalances = vi.fn();
@@ -608,6 +609,36 @@ describe('usePrivateUnlockFlow', () => {
     expect(pendingAction).toHaveBeenCalledTimes(1);
   });
 
+  it('runs pending action when closing during validating-key after unlock succeeded', async () => {
+    const onUnlocked = vi.fn();
+    const pendingAction = vi.fn();
+    mockRefreshPrivateBalances
+      .mockResolvedValueOnce(false)
+      .mockImplementationOnce(async () => true);
+
+    const { result } = renderHook(() => usePrivateUnlockFlow({ onUnlocked }));
+
+    await act(async () => {
+      await result.current.ensurePrivateUnlocked(pendingAction);
+    });
+
+    await act(async () => {
+      await result.current.onboardModal.props.onConfirm();
+    });
+
+    expect(result.current.onboardModal.props.currentStep).toBe('validating-key');
+    expect(pendingAction).not.toHaveBeenCalled();
+    expect(onUnlocked).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await result.current.onboardModal.props.onClose();
+    });
+
+    expect(result.current.showOnboardModal).toBe(false);
+    expect(onUnlocked).toHaveBeenCalledTimes(1);
+    expect(pendingAction).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps the progress modal while saving a contract onboarding backup', async () => {
     let resolveOnboard!: () => void;
     mockRefreshPrivateBalances
@@ -636,6 +667,7 @@ describe('usePrivateUnlockFlow', () => {
 
     expect(result.current.showOnboardModal).toBe(true);
     expect(result.current.onboardModal.props.currentStep).toBe('saving-backup');
+    expect(getVisibleOnboardingStep('saving-backup')).toBe('persisting-key');
     expect(result.current.walletSignPrompt.props.isOpen).toBe(false);
 
     await act(async () => {
@@ -858,6 +890,7 @@ describe('usePrivateUnlockFlow', () => {
 
       expect(result.current.showOnboardModal).toBe(true);
       expect(result.current.onboardModal.props.currentStep).toBe('saving-backup');
+      expect(result.current.walletSignPrompt.props.isOpen).toBe(false);
 
       await act(async () => {
         resolveOnboard(true);

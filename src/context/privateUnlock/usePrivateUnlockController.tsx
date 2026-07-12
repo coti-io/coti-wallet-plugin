@@ -568,7 +568,10 @@ export function usePrivateUnlockController(
   }, [canAttemptSnapInstall, connectSnap, connectedAddress, currentStep, dismissOnboardModal, handleContractOnboardingProgress, handleOnboardingIncomplete, isActiveUnlockRequest, onOnboardingCancelled, saveBackup, showOnboardingComplete, unlock, usesSnapStorage]);
 
   const handleOnboardModalClose = useCallback(() => {
-    if (currentStep === 'complete') {
+    if (
+      currentStep === 'complete'
+      || (currentStep === 'validating-key' && pendingCompleteRequestIdRef.current !== null)
+    ) {
       void finishSuccessfulOnboarding();
       return;
     }
