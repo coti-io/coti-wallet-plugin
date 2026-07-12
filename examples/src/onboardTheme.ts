@@ -2,6 +2,10 @@ import type { OnboardModalTheme } from '@coti-io/coti-wallet-plugin';
 
 export type ExampleThemeMode = 'light' | 'dark';
 
+/**
+ * Maps example palette tokens to every onboard modal control the host app can theme.
+ * See ONBOARD_MODAL_STYLE_KEYS in the plugin for the full list.
+ */
 const PALETTES: Record<
   ExampleThemeMode,
   {
@@ -15,19 +19,27 @@ const PALETTES: Record<
     overlayBlur: string;
     pageBg: string;
     pageText: string;
+    danger: string;
+    warning: string;
+    warningBg: string;
+    warningBorder: string;
   }
 > = {
   light: {
     foreground: '#0f172a',
-    mutedForeground: '#64748b',
+    mutedForeground: '#475569',
     primary: '#1E29F6',
     primaryForeground: '#ffffff',
-    border: '#e2e8f0',
+    border: '#cbd5e1',
     modalBg: '#ffffff',
     modalInset: '#f1f5f9',
     overlayBlur: 'rgba(4, 19, 61, 0.35)',
     pageBg: '#f8fafc',
     pageText: '#0f172a',
+    danger: '#b91c1c',
+    warning: '#78350f',
+    warningBg: 'rgba(245, 158, 11, 0.14)',
+    warningBorder: '1px solid rgba(180, 83, 9, 0.35)',
   },
   dark: {
     foreground: '#f8fafc',
@@ -40,6 +52,10 @@ const PALETTES: Record<
     overlayBlur: 'rgba(0, 0, 0, 0.6)',
     pageBg: '#0b1220',
     pageText: '#f8fafc',
+    danger: '#f87171',
+    warning: '#fef3c7',
+    warningBg: 'rgba(251, 191, 36, 0.1)',
+    warningBorder: '1px solid rgba(251, 191, 36, 0.3)',
   },
 };
 
@@ -64,17 +80,30 @@ export function buildExampleOnboardTheme(mode: ExampleThemeMode): OnboardModalTh
     modalBg,
     modalInset,
     overlayBlur,
+    danger,
+    warning,
+    warningBg,
+    warningBorder,
   } = PALETTES[mode];
+
+  const softBorder = `1px solid ${border}`;
+  const iconBorder = `1px solid ${withAlpha(foreground, mode === 'light' ? 0.18 : 0.14)}`;
 
   return {
     backdrop: { backgroundColor: overlayBlur },
     modal: {
       backgroundColor: modalBg,
       color: foreground,
-      border: `1px solid ${border}`,
+      border: softBorder,
+    },
+    closeButton: { color: mutedForeground },
+    iconContainer: {
+      backgroundColor: withAlpha(primary, 0.1),
+      border: `1px solid ${withAlpha(primary, 0.22)}`,
     },
     title: { color: foreground },
     description: { color: mutedForeground },
+    checkbox: { accentColor: primary },
     checkboxText: { color: foreground },
     tooltipButton: {
       color: mutedForeground,
@@ -86,6 +115,11 @@ export function buildExampleOnboardTheme(mode: ExampleThemeMode): OnboardModalTh
       color: mode === 'light' ? modalBg : foreground,
       border: `1px solid ${withAlpha(foreground, 0.14)}`,
     },
+    warningBox: {
+      backgroundColor: warningBg,
+      border: warningBorder,
+    },
+    warningText: { color: warning },
     primaryButton: {
       backgroundColor: primary,
       color: primaryForeground,
@@ -94,27 +128,59 @@ export function buildExampleOnboardTheme(mode: ExampleThemeMode): OnboardModalTh
       backgroundColor: withAlpha(primary, 0.5),
       color: withAlpha(primaryForeground, 0.6),
     },
-    cancelButton: { color: mutedForeground },
-    closeButton: { color: mutedForeground },
-    stepLabel: { color: foreground },
-    stepDescription: { color: mutedForeground },
+    cancelButton: {
+      color: foreground,
+      fontWeight: 600,
+    },
+    iconButton: {
+      backgroundColor: modalInset,
+      color: foreground,
+      border: iconBorder,
+    },
+    iconButtonPressed: {
+      backgroundColor: withAlpha(primary, 0.14),
+      color: primary,
+      border: `1px solid ${withAlpha(primary, 0.38)}`,
+      boxShadow: 'none',
+    },
+    iconButtonDisabled: {
+      backgroundColor: withAlpha(foreground, 0.04),
+      color: withAlpha(foreground, 0.38),
+      border: `1px solid ${withAlpha(foreground, 0.1)}`,
+    },
     manualKeyInput: {
       backgroundColor: modalInset,
       color: foreground,
-      border: `1px solid ${withAlpha(foreground, 0.16)}`,
+      border: softBorder,
     },
+    manualKeyErrorText: { color: danger },
+    inlineIconButton: {
+      backgroundColor: withAlpha(primary, 0.1),
+      color: primary,
+      border: `1px solid ${withAlpha(primary, 0.28)}`,
+    },
+    stepLabel: { color: foreground },
+    stepDescription: { color: mutedForeground },
     keyInput: {
       backgroundColor: modalInset,
       color: primary,
-      border: `1px solid ${border}`,
+      border: softBorder,
     },
-    iconButton: {
-      backgroundColor: withAlpha(foreground, 0.06),
-      color: foreground,
-      border: `1px solid ${withAlpha(foreground, 0.14)}`,
+    aesKeyBox: {
+      backgroundColor: modalInset,
+      color: primary,
+      border: softBorder,
+    },
+    calloutBox: {
+      backgroundColor: withAlpha(primary, 0.1),
+      border: `1px solid ${withAlpha(primary, 0.28)}`,
     },
     calloutText: { color: primary },
-    warningText: { color: mutedForeground },
+    errorBox: {
+      backgroundColor: withAlpha(danger, 0.1),
+      border: `1px solid ${withAlpha(danger, 0.3)}`,
+    },
+    errorText: { color: danger },
   };
 }
 
