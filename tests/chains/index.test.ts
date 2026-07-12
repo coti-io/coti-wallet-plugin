@@ -215,7 +215,7 @@ describe('chains/index', () => {
     it('uses native currency symbol when gas symbol is "native" (Sepolia)', () => {
       const ui = resolveIndexPageUi(SEPOLIA_CHAIN_ID);
       expect(ui.showPodRequestTracker).toBe(true);
-      expect(ui.amountModalGasLabel).toBe('Estimated Gas and PoD fee');
+      expect(ui.amountModalGasLabel).toBe('Estimated Network Gas');
       expect(ui.amountModalGasSymbol).toBe('ETH');
     });
 

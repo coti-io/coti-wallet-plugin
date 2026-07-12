@@ -41,8 +41,6 @@ import { createConfig, fallback, http } from 'wagmi';
 import { connectorsForWallets } from '@rainbow-me/rainbowkit';
 import {
   metaMaskWallet,
-  rabbyWallet,
-  oneKeyWallet,
   walletConnectWallet,
 } from '@rainbow-me/rainbowkit/wallets';
 

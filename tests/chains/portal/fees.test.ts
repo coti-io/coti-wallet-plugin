@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ethers } from 'ethers';
 
 const h = vi.hoisted(() => ({
   estimateDepositFees: vi.fn(),

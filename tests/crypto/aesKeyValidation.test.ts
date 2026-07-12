@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
 import * as CotiSDK from '@coti-io/coti-sdk-typescript';
-import { CotiPluginError, CotiErrorCode } from '../../src/errors';
+import { CotiErrorCode } from '../../src/errors';
 
 const ROUND_TRIP_TEST_VALUE = 0x0123456789abcdefn;
 

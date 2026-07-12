@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import type { PodPortalRequest } from '../../../src/contracts/pod';
 import { SEPOLIA_CHAIN_ID } from '../../../src/contracts/pod';
 import {
