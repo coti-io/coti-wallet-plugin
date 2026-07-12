@@ -660,6 +660,33 @@ describe('usePrivateUnlockFlow', () => {
     expect(onOnboardingCancelled).toHaveBeenCalledTimes(1);
   });
 
+  it('prefers cancel dismissal over stale onboardingError on retry', async () => {
+    mockOnboardingError = 'Previous onboarding exploded';
+    mockRefreshPrivateBalances
+      .mockResolvedValueOnce(false)
+      .mockImplementationOnce(
+        (options?: { onProgress?: (step: string, details?: { cancelled?: boolean }) => void }) => {
+          options?.onProgress?.('idle', { cancelled: true });
+          return false;
+        },
+      );
+
+    const onOnboardingCancelled = vi.fn();
+    const { result } = renderHook(() => usePrivateUnlockFlow({ onOnboardingCancelled }));
+
+    await act(async () => {
+      await result.current.openUnlockFlow();
+    });
+
+    await act(async () => {
+      await result.current.onboardModal.props.onConfirm();
+    });
+
+    expect(result.current.showOnboardModal).toBe(false);
+    expect(result.current.statusMessage).toBe('Signature cancelled.');
+    expect(onOnboardingCancelled).toHaveBeenCalledTimes(1);
+  });
+
   it('shows an error instead of cancelled when onboarding fails without a cancel signal', async () => {
     mockRefreshPrivateBalances
       .mockResolvedValueOnce(false)

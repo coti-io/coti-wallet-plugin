@@ -242,19 +242,19 @@ export function usePrivateUnlockController(
   ) => {
     if (!isActiveUnlockRequest(requestId)) return;
 
+    if (contractOnboardingCancelledRef.current) {
+      dismissOnboardModal();
+      setStatusMessage('Signature cancelled.');
+      onOnboardingCancelled?.();
+      return;
+    }
+
     const failureMessage = onboardingError ?? contractOnboardingFailureRef.current;
     if (failureMessage) {
       setCurrentStep('error');
       setModalError(failureMessage);
       setModalWarning(unlock.onboardingWarning ?? null);
       setIsUnlockInProgress(false);
-      return;
-    }
-
-    if (contractOnboardingCancelledRef.current) {
-      dismissOnboardModal();
-      setStatusMessage('Signature cancelled.');
-      onOnboardingCancelled?.();
       return;
     }
 
