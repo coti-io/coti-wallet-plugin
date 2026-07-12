@@ -95,7 +95,9 @@ describe('usePrivateTokenBalance (ciphertext shape coverage)', () => {
     const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(32), CONTRACT, 256, 18);
 
     expect(bal).toBe('formatted:42');
-    expect(h.getSigner).toHaveBeenCalled();
+    // Reads must not touch the signer — getSigner() triggers eth_accounts/
+    // eth_requestAccounts popups from unconnected wallets when several are installed.
+    expect(h.getSigner).not.toHaveBeenCalled();
   });
 
   it('treats a null flat ciphertext response as zero balance', async () => {

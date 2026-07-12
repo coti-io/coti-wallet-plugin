@@ -133,7 +133,10 @@ export const usePrivateTokenBalance = () => {
                         return null;
                     }
                 }
-                return browserProvider.getSigner();
+                // Balance reads are view calls only — use the provider directly.
+                // getSigner() would invoke eth_accounts/eth_requestAccounts, which
+                // pops up unconnected wallet extensions when several are installed.
+                return browserProvider;
             })();
 
             if (!runner) {

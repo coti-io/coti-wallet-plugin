@@ -210,8 +210,9 @@ export {
   getEip6963RabbyProvider,
   resolveMetaMaskInjectedTarget,
   resolveRabbyInjectedTarget,
+  resolveConnectedProvider,
 } from './lib/ethereum';
-export type { EIP1193Provider } from './lib/ethereum';
+export type { EIP1193Provider, ConnectorProviderSource } from './lib/ethereum';
 
 // Chain mute utilities (for suppressing UI reactions during cross-chain onboarding)
 export { muteChainUpdates, unmuteChainUpdates, isChainUpdatesMuted } from './lib/chainMute';

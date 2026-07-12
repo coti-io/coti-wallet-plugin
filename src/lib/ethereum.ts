@@ -199,3 +199,30 @@ export function getEthereumProvider(): EIP1193Provider | null {
     return null;
   }
 }
+
+/** Minimal wagmi-connector shape needed to resolve its EIP-1193 provider. */
+export interface ConnectorProviderSource {
+  getProvider?: (params?: { chainId?: number }) => Promise<unknown>;
+}
+
+/**
+ * Resolves the EIP-1193 provider for the wallet the user actually connected.
+ * Prefers the wagmi connector's provider (the exact wallet chosen via
+ * RainbowKit), then the EIP-6963 MetaMask provider, and only then the
+ * window.ethereum global — which belongs to whichever extension won the
+ * injection race when multiple wallets are installed, so signing through it
+ * can pop up a wallet the user never connected.
+ */
+export async function resolveConnectedProvider(
+  connector?: ConnectorProviderSource | null,
+): Promise<EIP1193Provider | null> {
+  if (connector?.getProvider) {
+    try {
+      const provider = await connector.getProvider();
+      if (provider) return provider as EIP1193Provider;
+    } catch {
+      /* connector may be mid-reconnect — fall through to discovery */
+    }
+  }
+  return getMetaMaskProvider() ?? getEthereumProvider();
+}

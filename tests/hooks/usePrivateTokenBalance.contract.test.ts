@@ -26,6 +26,9 @@ vi.mock('ethers', () => {
     constructor(_provider: unknown) {}
     getNetwork = h.getNetwork;
     getSigner = h.getSigner;
+    call = h.providerCall;
+    // ethers v6 providers return themselves from `.provider`
+    get provider() { return this; }
   }
   class JsonRpcProvider {
     constructor(_url: unknown, _chainId?: unknown) {}
@@ -219,7 +222,8 @@ describe('usePrivateTokenBalance (contract paths)', () => {
   });
 
   it('returns "0.00" on an unexpected (non-Coti) error', async () => {
-    h.getSigner.mockRejectedValue(new Error('signer unavailable'));
+    (window as any).ethereum = {};
+    h.balanceOf.mockRejectedValue(new Error('provider unavailable'));
     const { result } = renderHook(() => usePrivateTokenBalance());
     const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(32), CONTRACT, 256, 18);
     expect(bal).toBe('0.00');

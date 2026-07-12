@@ -1,5 +1,7 @@
 import { useCallback } from 'react';
+import { useAccount } from 'wagmi';
 import { logger } from '../../lib/logger';
+import { resolveConnectedProvider } from '../../lib/ethereum';
 import { CotiPluginError, CotiErrorCode } from '../../errors';
 import { clearAesKeyValidatedForUnlock, getValidatedAesKeyForUnlock } from '../../crypto/aesKeyValidation';
 import {
@@ -68,6 +70,10 @@ export const usePrivacyBridgeUnlockSession = ({
   const { wagmiChainId } = network;
   const { updateAccountState, currentChainId } = accountSync;
   const walletTypeInfo = useWalletType();
+  // Connector for the wallet the user selected via RainbowKit/wagmi — used to
+  // resolve the EIP-1193 provider instead of window.ethereum, which is
+  // unreliable when multiple wallet extensions are installed.
+  const { connector } = useAccount();
 
   const handleOnboard = async () => {
     const key = await handleManualOnboarding();
@@ -385,6 +391,7 @@ export const usePrivacyBridgeUnlockSession = ({
 
     const strategy = await resolveAesAccess();
     const sessionKey = resolveSessionAesKey();
+    const provider = await resolveConnectedProvider(connector);
 
     const result = await sendPrivateTokenTransfer({
       chainId: chainIdNum,
@@ -392,6 +399,7 @@ export const usePrivacyBridgeUnlockSession = ({
       recipient: params.recipient,
       amount: params.amount,
       walletAddress,
+      provider,
       sessionAesKey: sessionKey,
       hasSnap: strategy.snapInstalled,
       getAESKeyFromSnap: strategy.snapInstalled ? getAESKeyFromSnap : undefined,
@@ -403,6 +411,7 @@ export const usePrivacyBridgeUnlockSession = ({
     walletAddress,
     arePrivateBalancesHidden,
     currentChainId,
+    connector,
     getAESKeyFromSnap,
     refreshPrivateBalances,
     resolveAesAccess,

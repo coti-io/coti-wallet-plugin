@@ -212,7 +212,9 @@ export async function executePrivateTokenTransfer(
 
   const normalizedAesKey = normalizeAesKeyHex(aesKey);
   const provider = new ethers.BrowserProvider(eip1193);
-  const signer = await provider.getSigner();
+  // Pass walletAddress so ethers targets the connected account instead of
+  // calling eth_requestAccounts, which pops up unconnected wallet extensions.
+  const signer = await provider.getSigner(walletAddress);
   const amountWei = parseTransferAmountWei(amount, decimals);
   const transferSig = ethers.id(PRIVATE_ERC20_TRANSFER_256_SIG).slice(0, 10);
   const itValue = await encryptValue256(
@@ -266,7 +268,9 @@ export async function sendPrivateTokenTransfer(
   }
 
   const browserProvider = new ethers.BrowserProvider(eip1193);
-  const signer = await browserProvider.getSigner();
+  // Pass walletAddress so ethers targets the connected account instead of
+  // calling eth_requestAccounts, which pops up unconnected wallet extensions.
+  const signer = await browserProvider.getSigner(walletAddress);
   const amountWei = parseTransferAmountWei(amount, target.decimals);
   const transferSig = ethers.id(PRIVATE_ERC20_TRANSFER_256_SIG).slice(0, 10);
 
