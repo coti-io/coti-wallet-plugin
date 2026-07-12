@@ -115,7 +115,7 @@ export const avalancheFujiChain: ChainConfig = {
   },
   indexPage: {
     showPodRequestTracker: true,
-    amountModalGasLabel: "Estimated Gas and PoD fee",
+    amountModalGasLabel: "Estimated Network Gas",
     amountModalGasSymbol: "native",
   },
 };
