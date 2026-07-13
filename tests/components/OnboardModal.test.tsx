@@ -35,7 +35,6 @@ describe('OnboardModal', () => {
     expect(screen.getByText('Onboard User')).toBeInTheDocument();
     expect(screen.getByText('Onboard')).toBeInTheDocument();
     expect(screen.getByText('Save Locally')).toBeInTheDocument();
-    expect(screen.getByText(/Encrypted locally/i)).toBeInTheDocument();
     const backupDetails = screen.getByLabelText('How local save works');
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
     fireEvent.mouseEnter(backupDetails);
@@ -274,11 +273,10 @@ describe('OnboardModal', () => {
     expect(dialog).toHaveAttribute('aria-labelledby', 'onboard-modal-title');
   });
 
-  it('keeps the save option copy static when local save is disabled', () => {
+  it('keeps the save option visible when local save is disabled', () => {
     render(<OnboardModal {...defaultProps} saveBackup={false} />);
 
     expect(screen.getByText('Save Locally')).toBeInTheDocument();
-    expect(screen.getByText(/Encrypted locally/i)).toBeInTheDocument();
     expect(screen.getByRole('switch')).toHaveAttribute('aria-checked', 'false');
   });
 
@@ -341,7 +339,11 @@ describe('OnboardModal', () => {
     expect(saveTitle).toHaveStyle({ color: 'rgb(15, 23, 42)' });
 
     const tooltipButton = screen.getByLabelText('How local save works');
-    expect(tooltipButton).toHaveStyle({ color: 'rgb(100, 116, 139)' });
+    expect(tooltipButton).toHaveStyle({
+      color: 'rgb(100, 116, 139)',
+      backgroundColor: 'rgba(15, 23, 42, 0.08)',
+      borderColor: 'rgba(15, 23, 42, 0.2)',
+    });
 
     expect(screen.getByText('Cancel')).toHaveStyle({ color: 'rgb(15, 23, 42)' });
 
