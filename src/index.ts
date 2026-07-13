@@ -154,6 +154,7 @@ export type {
   PrivacyBridgeSwapContextValue,
   PrivacyBridgePodContextValue,
   PrivacyBridgeModalsContextValue,
+  RefreshPrivateBalancesOptions,
 } from './context/privacyBridge';
 export {
   PrivateUnlockProvider,
