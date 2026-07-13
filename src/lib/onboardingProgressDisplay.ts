@@ -5,14 +5,14 @@ import {
 
 export type OnboardingStepStatus = 'pending' | 'active' | 'complete' | 'error';
 
-export function getDisplayOnboardingSteps(saveBackup = true) {
-  if (saveBackup) return ONBOARDING_STEPS;
+export function getDisplayOnboardingSteps(includePersistStep = true) {
+  if (includePersistStep) return ONBOARDING_STEPS;
   return ONBOARDING_STEPS.filter(step => step.id !== 'persisting-key');
 }
 
 export function getVisibleOnboardingStep(
   stepId: OnboardingStep,
-  saveBackup = true,
+  includePersistStep = true,
 ): OnboardingStep {
   switch (stepId) {
     case 'restoring-backup':
@@ -26,7 +26,7 @@ export function getVisibleOnboardingStep(
     case 'restoring-network':
     case 'persisting-key':
     case 'saving-backup':
-      return saveBackup ? 'persisting-key' : 'retrieving-key';
+      return includePersistStep ? 'persisting-key' : 'retrieving-key';
     default:
       return stepId;
   }
@@ -36,15 +36,15 @@ export function getOnboardingStepStatus(
   stepId: OnboardingStep,
   currentStep: OnboardingStep,
   hasError: boolean,
-  saveBackup = true,
+  includePersistStep = true,
 ): OnboardingStepStatus {
-  const visibleCurrentStep = getVisibleOnboardingStep(currentStep, saveBackup);
+  const visibleCurrentStep = getVisibleOnboardingStep(currentStep, includePersistStep);
 
   if (hasError && (currentStep === 'error' || visibleCurrentStep === 'error')) {
     return 'error';
   }
 
-  const displaySteps = getDisplayOnboardingSteps(saveBackup);
+  const displaySteps = getDisplayOnboardingSteps(includePersistStep);
   const stepIndex = displaySteps.findIndex(step => step.id === stepId);
   const currentIndex = displaySteps.findIndex(step => step.id === visibleCurrentStep);
 

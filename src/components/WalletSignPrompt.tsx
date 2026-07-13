@@ -56,7 +56,7 @@ export const WalletSignPrompt: React.FC<WalletSignPromptProps> = ({
             <div style={styles.iconContainer}>
               <div style={{ ...styles.spinner, animation: 'wallet-sign-spin 0.8s linear infinite' }} />
             </div>
-            <h2 id="wallet-sign-prompt-title" style={styles.titleInline}>
+            <h2 id="wallet-sign-prompt-title" style={styles.title}>
               Sign in your wallet
             </h2>
           </div>
