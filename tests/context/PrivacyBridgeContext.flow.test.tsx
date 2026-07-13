@@ -72,6 +72,7 @@ const h = vi.hoisted(() => ({
   },
   resolvePodStatus: vi.fn(async () => null as unknown),
   wagmiBump: null as (() => void) | null,
+  sendPrivateTokenTransfer: vi.fn(async () => ({ txHash: '0xtx' })),
 }));
 
 vi.mock('wagmi', () => ({
@@ -209,6 +210,10 @@ vi.mock('../../src/chains/portal/podRequestStatus', () => ({
   resolvePodRequestStatus: (...args: unknown[]) => h.resolvePodStatus(...(args as [])),
 }));
 
+vi.mock('../../src/hooks/privacyBridge/executePrivateTokenTransfer', () => ({
+  sendPrivateTokenTransfer: (...args: unknown[]) => h.sendPrivateTokenTransfer(...(args as [])),
+}));
+
 import {
   PrivacyBridgeProvider,
   usePrivacyBridgeContext,
@@ -274,7 +279,10 @@ function makePodRequest(overrides: Partial<PodPortalRequest> = {}): PodPortalReq
 describe('PrivacyBridgeContext (flow coverage)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    configureCotiPlugin({ clearSessionKeyOnWagmiDisconnect: false });
+    configureCotiPlugin({
+      clearSessionKeyOnWagmiDisconnect: false,
+      waitForBalanceRefreshAfterTransfer: false,
+    });
     localStorage.clear();
     clearAesKeyValidatedForUnlock();
     unmuteChainUpdates();
@@ -966,6 +974,72 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
       });
     });
 
+    it('preserveSessionOnError keeps the session unlocked on AES/onboarding failures', async () => {
+      const sessionKey = 'aa'.repeat(16);
+      await act(async () => {
+        h.balanceUpdater.params?.setSessionAesKey(sessionKey, WALLET_A);
+      });
+      expect(latest!.isPrivateUnlocked).toBe(true);
+      expect(latest!.sessionAesKey).toBe(sessionKey);
+      h.snap.clearSnapCache.mockClear();
+
+      h.balanceUpdater.updateAccountState.mockRejectedValueOnce(
+        new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch'),
+      );
+
+      await expect(
+        latest!.refreshPrivateBalances({ preserveSessionOnError: true }),
+      ).rejects.toMatchObject({ code: CotiErrorCode.AES_KEY_MISMATCH });
+
+      expect(latest!.sessionAesKey).toBe(sessionKey);
+      expect(latest!.isPrivateUnlocked).toBe(true);
+      expect(h.snap.clearSnapCache).not.toHaveBeenCalled();
+    });
+
+    it('preserveSessionOnError keeps the session unlocked on ACCOUNT_NOT_ONBOARDED', async () => {
+      const sessionKey = 'bb'.repeat(16);
+      await act(async () => {
+        h.balanceUpdater.params?.setSessionAesKey(sessionKey, WALLET_A);
+      });
+      expect(latest!.isPrivateUnlocked).toBe(true);
+      h.snap.clearSnapCache.mockClear();
+
+      h.balanceUpdater.updateAccountState.mockRejectedValueOnce(new Error('ACCOUNT_NOT_ONBOARDED'));
+
+      await expect(
+        latest!.refreshPrivateBalances({ preserveSessionOnError: true }),
+      ).rejects.toMatchObject({ code: CotiErrorCode.ACCOUNT_NOT_ONBOARDED });
+
+      expect(latest!.sessionAesKey).toBe(sessionKey);
+      expect(latest!.isPrivateUnlocked).toBe(true);
+      expect(h.snap.clearSnapCache).not.toHaveBeenCalled();
+    });
+
+    it('clears session on AES_KEY_MISMATCH by default', async () => {
+      const sessionKey = 'cc'.repeat(16);
+      markAesKeyValidatedForUnlock(WALLET_A, sessionKey);
+      await act(async () => {
+        h.balanceUpdater.params?.setSessionAesKey(sessionKey, WALLET_A);
+      });
+      expect(latest!.isPrivateUnlocked).toBe(true);
+      h.snap.clearSnapCache.mockClear();
+
+      h.balanceUpdater.updateAccountState.mockRejectedValueOnce(
+        new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch'),
+      );
+
+      await expect(
+        act(async () => {
+          await latest!.refreshPrivateBalances();
+        }),
+      ).rejects.toMatchObject({
+        code: CotiErrorCode.AES_KEY_MISMATCH,
+      });
+
+      expect(h.snap.clearSnapCache).toHaveBeenCalled();
+      expect(getValidatedAesKeyForUnlock(WALLET_A)).toBeNull();
+    });
+
     it('does not onboard blindly when Snap AES key check is unknown', async () => {
       h.balanceUpdater.updateAccountState.mockClear();
       h.snap.isSnapInstalled.mockResolvedValue(true);
@@ -1087,6 +1161,78 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
         11155111,
         { validateOnUnlock: true, forceContractOnboarding: true },
       );
+    });
+  });
+
+  // ─── sendPrivateToken post-transfer refresh ───────────────────────────────
+  describe('sendPrivateToken', () => {
+    beforeEach(async () => {
+      configureCotiPlugin({ waitForBalanceRefreshAfterTransfer: false });
+      await connectWagmi();
+      h.sendPrivateTokenTransfer.mockResolvedValue({ txHash: '0xtx' });
+    });
+
+    it('keeps the session unlocked when background balance refresh hits AES errors', async () => {
+      const sessionKey = 'dd'.repeat(16);
+      await act(async () => {
+        h.balanceUpdater.params?.setSessionAesKey(sessionKey, WALLET_A);
+      });
+      expect(latest!.isPrivateUnlocked).toBe(true);
+      h.snap.clearSnapCache.mockClear();
+
+      h.balanceUpdater.updateAccountState.mockRejectedValue(
+        new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch'),
+      );
+      const errorSpy = vi.spyOn(logger, 'error').mockImplementation(() => {});
+
+      let result: { txHash: string } | undefined;
+      await act(async () => {
+        result = await latest!.sendPrivateToken({
+          symbol: 'p.COTI',
+          recipient: WALLET_B,
+          amount: '1',
+        });
+        // Let the background refresh settle.
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(result).toEqual({ txHash: '0xtx' });
+      expect(latest!.sessionAesKey).toBe(sessionKey);
+      expect(latest!.isPrivateUnlocked).toBe(true);
+      expect(h.snap.clearSnapCache).not.toHaveBeenCalled();
+      expect(errorSpy).toHaveBeenCalledWith(
+        'Background balance refresh after transfer failed',
+        expect.objectContaining({ code: CotiErrorCode.AES_KEY_MISMATCH }),
+      );
+      errorSpy.mockRestore();
+    });
+
+    it('awaits refresh and surfaces AES errors when waitForBalanceRefreshAfterTransfer is true', async () => {
+      configureCotiPlugin({ waitForBalanceRefreshAfterTransfer: true });
+      const sessionKey = 'ee'.repeat(16);
+      await act(async () => {
+        h.balanceUpdater.params?.setSessionAesKey(sessionKey, WALLET_A);
+      });
+      expect(latest!.isPrivateUnlocked).toBe(true);
+      h.snap.clearSnapCache.mockClear();
+
+      // Reject only after unlock-effect refresh has finished.
+      h.balanceUpdater.updateAccountState.mockRejectedValue(
+        new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch'),
+      );
+
+      await expect(
+        act(async () => {
+          await latest!.sendPrivateToken({
+            symbol: 'p.COTI',
+            recipient: WALLET_B,
+            amount: '1',
+          });
+        }),
+      ).rejects.toMatchObject({ code: CotiErrorCode.AES_KEY_MISMATCH });
+
+      expect(h.snap.clearSnapCache).toHaveBeenCalled();
     });
   });
 

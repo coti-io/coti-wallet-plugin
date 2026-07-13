@@ -20,5 +20,6 @@ export type {
   PrivacyBridgePodContextValue,
   PrivacyBridgeModalsContextValue,
   PrivacyBridgeContextSlices,
+  RefreshPrivateBalancesOptions,
 } from './types';
 export { mergePrivacyBridgeSlices } from './types';

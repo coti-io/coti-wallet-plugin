@@ -3,6 +3,15 @@ import type { AesKeyProviderOptions } from '../../hooks/useAesKeyProvider';
 import type { PodPortalRequest } from '../../contracts/pod';
 import type { OnboardModalWarnings } from '../../lib/onboardModalWarnings';
 
+/**
+ * Options for {@link PrivacyBridgeUnlockContextValue.refreshPrivateBalances}.
+ * `preserveSessionOnError` skips clearing the AES session / hiding balances when
+ * AES or onboarding errors are thrown (used for best-effort post-transfer refresh).
+ */
+export type RefreshPrivateBalancesOptions = AesKeyProviderOptions & {
+  preserveSessionOnError?: boolean;
+};
+
 /** Wallet connection slice — connect/disconnect and address. */
 export interface PrivacyBridgeWalletContextValue {
   isConnected: boolean;
@@ -62,7 +71,7 @@ export interface PrivacyBridgeUnlockContextValue {
     decimals?: number;
   }) => Promise<{ amount: string }>;
   /** Low-level balance/key refresh primitive. App UI should not orchestrate unlock with this. */
-  refreshPrivateBalances: (options?: AesKeyProviderOptions) => Promise<boolean>;
+  refreshPrivateBalances: (options?: RefreshPrivateBalancesOptions) => Promise<boolean>;
   /** Last contract-onboarding error produced by the AES provider. */
   onboardingError: string | null;
   /** Last non-blocking onboarding warnings produced by restore/backup flows. */

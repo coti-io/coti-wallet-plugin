@@ -36,6 +36,7 @@ import {
   formatPrivateAmountFromWei,
   serializeCtUint256,
 } from '../../hooks/privacyBridge/privateValueCrypto';
+import type { RefreshPrivateBalancesOptions } from './types';
 
 interface UsePrivacyBridgeUnlockSessionOptions {
   core: PrivacyBridgeSessionCore;
@@ -261,8 +262,18 @@ export const usePrivacyBridgeUnlockSession = ({
     return buildUnlockPlanFromStrategy(strategy, unlockOptions, sessionKey);
   }, [resolveAesAccess, resolveSessionAesKey, walletAddress, aesKeyChainId, checkSnapStatus, hasAesKeyInSnap, walletTypeInfo.walletType, currentChainId]);
 
-  const refreshPrivateBalances = useCallback(async (aesKeyOptions?: AesKeyProviderOptions) => {
+  const refreshPrivateBalances = useCallback(async (
+    aesKeyOptions?: RefreshPrivateBalancesOptions,
+  ) => {
     if (!walletAddress) return false;
+
+    const lockSessionOnAesFailure = !aesKeyOptions?.preserveSessionOnError;
+    const clearSessionAfterAesFailure = () => {
+      setSessionAesKey(null);
+      clearAesKeyValidatedForUnlock(walletAddress);
+      clearSnapCache();
+      setArePrivateBalancesHidden(true);
+    };
 
     logger.log('Triggering private balance fetch...');
     try {
@@ -369,10 +380,7 @@ export const usePrivacyBridgeUnlockSession = ({
       }
 
       if (errorInfo.message?.includes('ACCOUNT_NOT_ONBOARDED')) {
-        setSessionAesKey(null);
-        clearAesKeyValidatedForUnlock(walletAddress);
-        clearSnapCache();
-        setArePrivateBalancesHidden(true);
+        if (lockSessionOnAesFailure) clearSessionAfterAesFailure();
         throw new CotiPluginError(
           CotiErrorCode.ACCOUNT_NOT_ONBOARDED,
           'Account has not been onboarded to the COTI network.',
@@ -383,18 +391,12 @@ export const usePrivacyBridgeUnlockSession = ({
       if (
         err instanceof CotiPluginError && err.code === CotiErrorCode.AES_KEY_MISMATCH
       ) {
-        setSessionAesKey(null);
-        clearAesKeyValidatedForUnlock(walletAddress);
-        clearSnapCache();
-        setArePrivateBalancesHidden(true);
+        if (lockSessionOnAesFailure) clearSessionAfterAesFailure();
         throw err;
       }
 
       if (errorInfo.message?.includes('AES key') || errorInfo.message?.includes('onboarding')) {
-        setSessionAesKey(null);
-        clearAesKeyValidatedForUnlock(walletAddress);
-        clearSnapCache();
-        setArePrivateBalancesHidden(true);
+        if (lockSessionOnAesFailure) clearSessionAfterAesFailure();
         throw new CotiPluginError(
           CotiErrorCode.AES_KEY_MISMATCH,
           'AES key mismatch or onboarding error.',
@@ -452,9 +454,9 @@ export const usePrivacyBridgeUnlockSession = ({
       await refreshPrivateBalances();
     } else {
       // Don't block the success UI on balance decryption — refresh in the background.
-      // refreshPrivateBalances may rethrow CotiPluginError (Snap/AES); catch to avoid
-      // unhandled rejection after a successful transfer.
-      void refreshPrivateBalances().catch(err =>
+      // Preserve the session: AES/onboarding failures must not lock the wallet after a
+      // successful transfer when the caller already received success (errors are logged only).
+      void refreshPrivateBalances({ preserveSessionOnError: true }).catch(err =>
         logger.error('Background balance refresh after transfer failed', err),
       );
     }
