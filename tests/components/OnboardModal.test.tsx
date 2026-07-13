@@ -295,7 +295,7 @@ describe('OnboardModal', () => {
     expect(onSaveBackupChange).toHaveBeenCalledWith(false);
   });
 
-  it('hides the persisting step when save backup is disabled', () => {
+  it('hides the persisting step when local save is disabled', () => {
     render(
       <OnboardModal
         {...defaultProps}
@@ -311,6 +311,21 @@ describe('OnboardModal', () => {
     expect(screen.getByText('Execute Transaction')).toBeInTheDocument();
   });
 
+  it('keeps the persisting step for snap onboarding when local save is hidden', () => {
+    render(
+      <OnboardModal
+        {...defaultProps}
+        isLoading={true}
+        currentStep="signing-transaction"
+        saveBackup={false}
+        showSaveBackupOption={false}
+      />
+    );
+
+    expect(screen.getByText('Persisting Key')).toBeInTheDocument();
+    expect(screen.queryByText('Save Locally')).not.toBeInTheDocument();
+  });
+
   it('keeps checkbox and tooltip readable when app supplies a light theme', () => {
     const lightTheme = {
       modal: { backgroundColor: '#ffffff', color: '#0f172a' },
@@ -319,6 +334,8 @@ describe('OnboardModal', () => {
     };
 
     render(<OnboardModal {...defaultProps} theme={lightTheme} onManualAesKeySubmit={vi.fn()} />);
+
+    expect(screen.getByText('Onboard User')).toHaveStyle({ color: 'rgb(15, 23, 42)' });
 
     const saveTitle = screen.getByText('Save Locally');
     expect(saveTitle).toHaveStyle({ color: 'rgb(15, 23, 42)' });

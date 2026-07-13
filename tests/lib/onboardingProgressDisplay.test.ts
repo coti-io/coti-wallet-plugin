@@ -28,7 +28,7 @@ describe('onboardingProgressDisplay', () => {
     expect(getVisibleOnboardingStep('saving-backup', false)).toBe('retrieving-key');
   });
 
-  it('omits persisting-key from display steps when save backup is disabled', () => {
+  it('omits persisting-key from display steps when post-retrieval persistence is skipped', () => {
     expect(getDisplayOnboardingSteps(false).map(step => step.id)).toEqual([
       'preparing-onboard',
       'signing-transaction',

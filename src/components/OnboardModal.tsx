@@ -121,13 +121,6 @@ const defaultStyles = {
     fontSize: '20px',
     fontWeight: 700,
     lineHeight: 1.2,
-    marginBottom: '10px',
-    color: '#ffffff',
-  },
-  titleInline: {
-    fontSize: '20px',
-    fontWeight: 700,
-    lineHeight: 1.2,
     margin: 0,
     color: '#ffffff',
     textAlign: 'left' as const,
@@ -605,7 +598,7 @@ const FOREGROUND_TEXT_KEYS: OnboardStyleKey[] = [
   'stepLabel',
   'manualKeyInput',
   'iconButton',
-  'titleInline',
+  'title',
   'saveOptionTitle',
 ];
 const MUTED_TEXT_KEYS: OnboardStyleKey[] = [
@@ -1035,12 +1028,13 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
   }, [screen, currentStep, isOpen, isLoading, error, aesKey]);
 
   const walletName = getWalletDisplayName(walletType);
-  const displaySteps = getDisplayOnboardingSteps(saveBackup);
+  const includePersistStep = saveBackup || !showSaveBackupOption;
+  const displaySteps = getDisplayOnboardingSteps(includePersistStep);
 
   const renderTitleRow = (icon: React.ReactNode, title: string) => (
     <div style={styles.titleRow}>
       <div style={styles.iconContainer}>{icon}</div>
-      <h2 id="onboard-modal-title" style={styles.titleInline}>{title}</h2>
+      <h2 id="onboard-modal-title" style={styles.title}>{title}</h2>
     </div>
   );
 
@@ -1430,7 +1424,7 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
               {/* Step Progress */}
               <div style={styles.stepperContainer}>
                 {displaySteps.map((step) => {
-                  const status = getOnboardingStepStatus(step.id, currentStep, !!error, saveBackup);
+                  const status = getOnboardingStepStatus(step.id, currentStep, !!error, includePersistStep);
                   const isActive = status === 'active';
                   const isComplete = status === 'complete';
                   const isError = status === 'error';
