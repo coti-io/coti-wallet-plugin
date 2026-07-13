@@ -58,7 +58,7 @@
   "packageManager": "npm@11.9.0",
   "dependencies": {
     "@coti-io/coti-ethers": "^1.0.0",
-    "@coti-io/pod-sdk": "^0.1.2"
+    "@coti-io/pod-sdk": "^0.1.3"
   },
   "peerDependencies": {
     "@coti-io/coti-sdk-typescript": "^1.0.8",
