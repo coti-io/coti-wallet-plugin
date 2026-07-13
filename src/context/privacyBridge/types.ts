@@ -1,6 +1,7 @@
 import type { SwapProgressStage, Token } from '../../hooks/usePrivacyBridge';
 import type { AesKeyProviderOptions } from '../../hooks/useAesKeyProvider';
 import type { PodPortalRequest } from '../../contracts/pod';
+import type { OnboardModalWarnings } from '../../lib/onboardModalWarnings';
 
 /** Wallet connection slice — connect/disconnect and address. */
 export interface PrivacyBridgeWalletContextValue {
@@ -64,8 +65,8 @@ export interface PrivacyBridgeUnlockContextValue {
   refreshPrivateBalances: (options?: AesKeyProviderOptions) => Promise<boolean>;
   /** Last contract-onboarding error produced by the AES provider. */
   onboardingError: string | null;
-  /** Last non-blocking onboarding warning produced by restore/backup flows. */
-  onboardingWarning: string | null;
+  /** Last non-blocking onboarding warnings produced by restore/backup flows. */
+  onboardingWarnings: OnboardModalWarnings;
   /** Hides private balances and clears plaintext AES session state. */
   lockPrivateBalances: () => void;
   handleOnboard: () => Promise<string | null>;

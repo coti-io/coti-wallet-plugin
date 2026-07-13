@@ -60,8 +60,10 @@ export function ExampleThemeProvider({ children }: { children: ReactNode }) {
         <PrivacyBridgeProvider
           privateUnlock={{
             theme: onboardTheme,
-            warning:
-              'The example dApp never stores or receives the AES key. Onboarding, backup restore, Snap storage, and decrypt/encrypt operations stay inside the plugin.',
+            warnings: {
+              intro:
+                'The example dApp never stores or receives the AES key. Onboarding, backup restore, Snap storage, and decrypt/encrypt operations stay inside the plugin.',
+            },
           }}
         >
           {children}

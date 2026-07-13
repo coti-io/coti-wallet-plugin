@@ -522,7 +522,7 @@ describe('useAesKeyProvider (full branch coverage)', () => {
 
       expect(key).toBe(VALID_KEY);
       expect(signer.generateOrRecoverAes).toHaveBeenCalled();
-      expect(result.current.onboardingWarning).toContain('Encrypted backup could not be restored');
+      expect(result.current.onboardingWarnings.intro).toContain('Encrypted backup could not be restored');
     });
 
     it('calls grant and waits for balance when native COTI is below threshold', async () => {

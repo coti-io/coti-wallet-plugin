@@ -196,7 +196,7 @@ describe('privacyBridge facade', () => {
         sendPrivateToken: async () => ({ txHash: '0x1' }),
         refreshPrivateBalances: async () => false,
         onboardingError: null,
-        onboardingWarning: null,
+        onboardingWarnings: {},
         lockPrivateBalances: () => undefined,
         handleOnboard: async () => null,
         saveManualAesKey: async () => ({}),

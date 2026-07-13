@@ -1,11 +1,11 @@
 import type { ReactElement } from 'react';
-import type { OnboardModalTheme } from '../components/OnboardModal';
+import type { OnboardModalTheme, OnboardModalWarnings } from '../components/OnboardModal';
 import { usePrivacyBridgeUnlock } from '../context/privacyBridge/contexts';
 import { usePrivateUnlockController } from '../context/privateUnlock/usePrivateUnlockController';
 
 export interface UsePrivateUnlockFlowOptions {
   theme?: OnboardModalTheme;
-  warning?: string;
+  warnings?: OnboardModalWarnings;
   /** Called after a successful unlock (restore, onboarding, or manual key). */
   onUnlocked?: () => void | Promise<void>;
   /** Called when the user cancels backup-restore signing — modal is not opened. */

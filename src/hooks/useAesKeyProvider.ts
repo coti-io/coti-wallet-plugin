@@ -13,6 +13,7 @@ import { normalizeAesKey } from '../crypto/aesKey';
 import { muteChainUpdates, unmuteChainUpdates, isChainUpdatesMuted } from '../lib/chainMute';
 import { canPersistAesKeyToSnap } from '../lib/snapOrigins';
 import { resolveAesKeyChainId } from '../lib/aesAccessStrategy';
+import type { OnboardModalWarnings } from '../lib/onboardModalWarnings';
 import { isOnboardingServicesEnabled } from '../lib/onboardingServices';
 import { persistEncryptedAesBackup } from '../lib/persistEncryptedAesBackup';
 import { isInsufficientFundsError, isUserRejection } from '../lib/walletErrors';
@@ -125,8 +126,8 @@ export interface AesKeyProviderResult {
   isOnboarding: boolean;
   /** Error message from failed onboarding attempts; cleared on next call */
   onboardingError: string | null;
-  /** Non-blocking warning from restore/backup flows; cleared on next call */
-  onboardingWarning: string | null;
+  /** Non-blocking onboarding warnings keyed by onboard screen; cleared on next call */
+  onboardingWarnings: OnboardModalWarnings;
   /** True when the user cancelled the latest backup restore signature. */
   wasRestoreCancelled: boolean;
   /** Current onboarding step (for progress UI) */
@@ -275,7 +276,7 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProviderResult {
   const [isOnboarding, setIsOnboarding] = useState(false);
   const [onboardingError, setOnboardingError] = useState<string | null>(null);
-  const [onboardingWarning, setOnboardingWarning] = useState<string | null>(null);
+  const [onboardingWarnings, setOnboardingWarnings] = useState<OnboardModalWarnings>({});
   const [wasRestoreCancelled, setWasRestoreCancelled] = useState(false);
   const [currentStep, setCurrentStep] = useState<OnboardingStep>('idle');
   const progressCallbackRef = useRef<OnboardingProgressCallback | undefined>();
@@ -306,7 +307,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
       // Clear previous error and debug trace on each new retrieval attempt
       setOnboardingError(null);
       debugTraceRef.current.clear();
-      setOnboardingWarning(null);
+      setOnboardingWarnings({});
       setWasRestoreCancelled(false);
       const forceContractOnboarding = options?.forceContractOnboarding === true;
       if (!forceContractOnboarding) {
@@ -465,7 +466,9 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
             }
           } catch (restoreError) {
             if (isUserRejection(restoreError)) {
-              setOnboardingWarning('Backup restore was cancelled. Approve the wallet signature to unlock from your encrypted backup.');
+              setOnboardingWarnings({
+                intro: 'Backup restore was cancelled. Approve the wallet signature to unlock from your encrypted backup.',
+              });
               setWasRestoreCancelled(true);
               options.onRestoreCancelled?.();
               emitStep('idle');
@@ -476,7 +479,9 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
               : 'Encrypted AES backup could not be restored.';
             logger.warn('⚠️ AES backup restore failed, falling back to contract onboarding:', restoreError);
             restoreBackupFailed = true;
-            setOnboardingWarning(`Encrypted backup could not be restored. Continuing with onboarding. ${message}`);
+            setOnboardingWarnings({
+              intro: `Encrypted backup could not be restored. Continuing with onboarding. ${message}`,
+            });
           }
         }
 
@@ -685,9 +690,9 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           savedToSnap = await saveAESKeyToSnap(aesKey, address);
           if (!savedToSnap) {
             logger.warn('⚠️ AES key retrieved but could not persist to Snap');
-            setOnboardingWarning(
-              'Onboarding succeeded, but the AES key could not be saved to MetaMask Snap. You can retry by unlocking again.',
-            );
+            setOnboardingWarnings({
+              success: 'Onboarding succeeded, but the AES key could not be saved to MetaMask Snap. You can retry by unlocking again.',
+            });
           }
         } else if (
           aesKey
@@ -722,14 +727,14 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
               '⚠️ AES key retrieved but encrypted backup save failed:',
               backupResult.message,
             );
-            setOnboardingWarning(
-              `Onboarding succeeded, but encrypted backup was not saved. ${backupResult.message}`,
-            );
+            setOnboardingWarnings({
+              success: `Onboarding succeeded, but encrypted backup was not saved. ${backupResult.message}`,
+            });
           } else if (backupResult.status === 'cancelled') {
             logger.warn('⚠️ AES key retrieved but encrypted backup save was cancelled');
-            setOnboardingWarning(
-              'Onboarding succeeded, but encrypted backup save was cancelled. You can save it later by re-entering your AES key.',
-            );
+            setOnboardingWarnings({
+              success: 'Onboarding succeeded, but encrypted backup save was cancelled. You can save it later by re-entering your AES key.',
+            });
           }
         }
 
@@ -809,7 +814,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
     getAesKey,
     isOnboarding,
     onboardingError,
-    onboardingWarning,
+    onboardingWarnings,
     wasRestoreCancelled,
     currentStep,
   };
