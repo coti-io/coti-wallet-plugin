@@ -262,22 +262,25 @@ const defaultStyles = {
     position: 'relative' as const,
     width: '42px',
     height: '24px',
+    boxSizing: 'border-box' as const,
     borderRadius: '999px',
-    border: 'none',
+    border: '1px solid transparent',
     padding: 0,
     flexShrink: 0,
     cursor: 'pointer',
-    transition: 'background-color 0.2s',
+    transition: 'background-color 0.2s, border-color 0.2s',
   },
   saveOptionSwitchTrackOn: {
     backgroundColor: '#00E5FF',
+    borderColor: 'rgba(0, 229, 255, 0.45)',
   },
   saveOptionSwitchTrackOff: {
     backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    borderColor: 'rgba(255, 255, 255, 0.28)',
   },
   saveOptionSwitchKnob: {
     position: 'absolute' as const,
-    top: '2px',
+    top: '50%',
     left: '2px',
     width: '20px',
     height: '20px',
@@ -682,6 +685,8 @@ const LIGHT_INTERACTIVE_SURFACE_KEYS: OnboardStyleKey[] = [
   'iconContainer',
   'saveOptionCard',
   'saveOptionIconWrap',
+  'saveOptionSwitchTrackOff',
+  'saveOptionSwitchTrackOn',
 ];
 
 function isDefaultDarkSurfaceBackground(backgroundColor?: string): boolean {
@@ -692,8 +697,10 @@ function isDefaultDarkSurfaceBackground(backgroundColor?: string): boolean {
     || normalized.includes('rgba(255, 255, 255, 0.0')
     || normalized.includes('rgba(255, 255, 255, 0.04')
     || normalized.includes('rgba(255, 255, 255, 0.06)')
+    || normalized.includes('rgba(255, 255, 255, 0.18)')
     || normalized === 'rgba(0, 0, 0, 0.25)'
     || normalized === 'rgba(0, 0, 0, 0.3)'
+    || normalized === '#00e5ff'
   );
 }
 
@@ -795,6 +802,14 @@ function applyLightInteractiveSurfaceGaps(
       backgroundColor: colorWithAlpha(primary, 0.1),
       border: `1px solid ${colorWithAlpha(primary, 0.22)}`,
       color: primary,
+    },
+    saveOptionSwitchTrackOff: {
+      backgroundColor: colorWithAlpha(foreground, 0.2),
+      borderColor: colorWithAlpha(foreground, 0.34),
+    },
+    saveOptionSwitchTrackOn: {
+      backgroundColor: primary,
+      borderColor: colorWithAlpha(primary, 0.45),
     },
   };
 
@@ -1087,7 +1102,7 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
           <span
             style={{
               ...styles.saveOptionSwitchKnob,
-              transform: saveBackup ? 'translateX(18px)' : 'translateX(0)',
+              transform: saveBackup ? 'translate(18px, -50%)' : 'translateY(-50%)',
             }}
           />
         </button>
