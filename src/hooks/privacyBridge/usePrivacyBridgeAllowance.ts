@@ -468,9 +468,82 @@ export const usePrivacyBridgeAllowance = ({
                 );
                 if (privTokCfgApprove) privateDecimals = privTokCfgApprove.decimals;
 
-                // 2. Create itValue. Snap wallets build it inside Snap; non-Snap
-                // wallets use the plugin session key from onboarding/manual recovery.
                 setIsApproving(true);
+
+                // Sends one encrypted approve(address,itUint256) call and waits for it to actually
+                // land on-chain. waitForTransaction resolves on revert too, so callers must check
+                // status explicitly — otherwise a reverted approve (e.g. PrivateERC20's
+                // ERC20UnsafeApprove guard rejecting a non-zero-over-non-zero approve) is silently
+                // treated as success and the withdraw that follows fails on insufficient allowance.
+                const sendEncryptedApprove = async (valueToApprove: bigint): Promise<void> => {
+                    const approveSig = ethers.id('approve(address,((uint256,uint256),bytes))').slice(0, 10);
+                    const itValue = sessionAesKey
+                        ? await encryptValue256(
+                            valueToApprove,
+                            sessionAesKey,
+                            privateTokenAddress,
+                            approveSig,
+                            walletAddress,
+                            signer
+                        )
+                        : hasSnap
+                            ? await buildItUint256ViaSnap({
+                                value: valueToApprove,
+                                tokenAddress: privateTokenAddress,
+                                functionSelector: approveSig,
+                                chainId: currentChainId,
+                                accountAddress: walletAddress,
+                            })
+                            : null;
+                    if (!itValue) {
+                        throw new Error("Private approval requires unlock/onboarding first.");
+                    }
+                    logger.log('🔐 [Approve] Encrypted approval payload ready, encoding calldata...');
+
+                    // Manually encode the calldata
+                    const approveInterface = new ethers.Interface([
+                        "function approve(address spender, tuple(tuple(uint256 ciphertextHigh, uint256 ciphertextLow) ciphertext, bytes signature) value) returns (bool)"
+                    ]);
+                    const calldata = approveInterface.encodeFunctionData("approve", [
+                        bridgeAddress,
+                        [[itValue.ciphertext.ciphertextHigh, itValue.ciphertext.ciphertextLow], itValue.signature]
+                    ]);
+
+                    logger.log('🔐 [Approve] Sending approve tx (wallet confirmation expected)...');
+                    // Bypassing Coti provider — use the connected wallet's provider directly.
+                    const rawTxHash = await (injectedProvider as any).request({
+                        method: 'eth_sendTransaction',
+                        params: [{
+                            from: walletAddress,
+                            to: privateTokenAddress,
+                            data: calldata,
+                            gas: '0xB71B00'  // 12,000,000 in hex
+                        }]
+                    });
+
+                    logger.log('🔐 [Approve] Tx submitted, waiting for confirmation', { txHash: shortHash(rawTxHash) });
+                    const receipt = await provider.waitForTransaction(rawTxHash);
+                    if (!receipt || receipt.status !== 1) {
+                        throw new Error(
+                            `Approval for ${token.symbol} reverted on-chain. This can happen when a previous non-zero allowance is still set — please try again.`
+                        );
+                    }
+                    logger.log('🔐 [Approve] Tx confirmed');
+                };
+
+                // PrivateERC20.approve reverts with ERC20UnsafeApprove() if both the current and the
+                // new allowance are non-zero (mitigation for the classic ERC-20 approve race). Clear
+                // a stale non-zero allowance first so the real approve below doesn't get rejected.
+                if (parseFloat(allowance || '0') > 0) {
+                    logger.log('🔐 [Approve] Non-zero allowance detected — resetting to 0 first', { currentAllowance: allowance });
+                    setToastState({
+                        visible: true,
+                        title: 'Resetting Allowance',
+                        message: `Clearing previous allowance before approving ${token.symbol}...`
+                    });
+                    await sendEncryptedApprove(0n);
+                }
+
                 setToastState({
                     visible: true,
                     title: 'Approve Private Token',
@@ -478,57 +551,9 @@ export const usePrivacyBridgeAllowance = ({
                 });
 
                 const amountToApprove = amount ? ethers.parseUnits(amount, privateDecimals) : ethers.MaxUint256;
+                await sendEncryptedApprove(amountToApprove);
 
-                // approve(address,itUint256) — Encrypted approval using manual 256-bit encryption.
-                const approveSig = ethers.id('approve(address,((uint256,uint256),bytes))').slice(0, 10);
-                const itValue = sessionAesKey
-                    ? await encryptValue256(
-                        amountToApprove,
-                        sessionAesKey,
-                        privateTokenAddress,
-                        approveSig,
-                        walletAddress,
-                        signer
-                    )
-                    : hasSnap
-                        ? await buildItUint256ViaSnap({
-                            value: amountToApprove,
-                            tokenAddress: privateTokenAddress,
-                            functionSelector: approveSig,
-                            chainId: currentChainId,
-                            accountAddress: walletAddress,
-                        })
-                        : null;
-                if (!itValue) {
-                    throw new Error("Private approval requires unlock/onboarding first.");
-                }
-                logger.log('🔐 [Approve] Encrypted approval payload ready, encoding calldata...');
-
-                // Manually encode the calldata
-                const approveInterface = new ethers.Interface([
-                    "function approve(address spender, tuple(tuple(uint256 ciphertextHigh, uint256 ciphertextLow) ciphertext, bytes signature) value) returns (bool)"
-                ]);
-                const calldata = approveInterface.encodeFunctionData("approve", [
-                    bridgeAddress,
-                    [[itValue.ciphertext.ciphertextHigh, itValue.ciphertext.ciphertextLow], itValue.signature]
-                ]);
-
-                logger.log('🔐 [Approve] Sending approve tx (wallet confirmation expected)...');
-                // Bypassing Coti provider — use the connected wallet's provider directly.
-                const rawTxHash = await (injectedProvider as any).request({
-                    method: 'eth_sendTransaction',
-                    params: [{
-                        from: walletAddress,
-                        to: privateTokenAddress,
-                        data: calldata,
-                        gas: '0xB71B00'  // 12,000,000 in hex
-                    }]
-                });
-
-                logger.log('🔐 [Approve] Tx submitted, waiting for confirmation', { txHash: shortHash(rawTxHash) });
-                await provider.waitForTransaction(rawTxHash);
-                logger.log('🔐 [Approve] Tx confirmed, refreshing allowance...');
-
+                logger.log('🔐 [Approve] Refreshing allowance...');
                 setIsApproving(false);
                 setToastState(prev => ({ ...prev, visible: false }));
                 await checkAllowance();
