@@ -1,6 +1,6 @@
 {
   "name": "@coti-io/coti-wallet-plugin",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "COTI Wallet Plugin — high-level abstraction for Private Token (pToken) operations across EIP-1193 wallets",
   "repository": {
     "type": "git",
