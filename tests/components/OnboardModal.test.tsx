@@ -335,6 +335,22 @@ describe('OnboardModal', () => {
     });
   });
 
+  it('keeps the save switch off state visible on light themes', () => {
+    const lightTheme = {
+      modal: { backgroundColor: '#ffffff', color: '#0f172a' },
+      title: { color: '#0f172a' },
+      primaryButton: { backgroundColor: '#1E29F6' },
+    };
+
+    render(<OnboardModal {...defaultProps} theme={lightTheme} saveBackup={false} />);
+
+    const saveSwitch = screen.getByRole('switch', { name: 'Enable local save' });
+    expect(saveSwitch).toHaveStyle({
+      backgroundColor: 'rgba(15, 23, 42, 0.2)',
+      borderColor: 'rgba(15, 23, 42, 0.34)',
+    });
+  });
+
   it('keeps warning note padding when host theme zeroes it out', () => {
     const lightTheme = {
       modal: { backgroundColor: '#ffffff', color: '#0f172a' },
