@@ -77,7 +77,13 @@ export const quoteCotiBridgeFees = async (params: {
   }
 
   const decimals = direction === "to-private" ? publicDecimals : privateDecimals;
-  const amountWei = ethers.parseUnits("1", decimals);
+  let amountWei: bigint;
+  try {
+    amountWei = ethers.parseUnits(currentAmount, decimals);
+  } catch {
+    // e.g. user is still typing and has entered more decimals than the token supports
+    amountWei = ethers.parseUnits("1", decimals);
+  }
 
   let gasPrice = 1_000_000_000n;
   try {
@@ -87,20 +93,20 @@ export const quoteCotiBridgeFees = async (params: {
     logger.warn("eth_gasPrice failed, using default (1 Gwei).");
   }
 
-  const [feeEstimate, gasDisplay] = await Promise.all([
-    estimateBridgeFee(symbol, currentAmount, rpcProvider),
-    estimateCotiBridgeGasFeeDisplay({
-      provider: rpcProvider as unknown as ethers.BrowserProvider,
-      currentChainId: chainId,
-      bridgeAddress,
-      symbol,
-      direction,
-      amountWei,
-      gasPrice,
-      isErc20Token,
-      fromAddress: walletAddress,
-    }),
-  ]);
+  // Fee first: the gas estimate needs its oracle timestamps to build calldata
+  // the bridge won't reject on (OracleTimestampMismatch).
+  const feeEstimate = await estimateBridgeFee(symbol, currentAmount, rpcProvider);
+  const gasDisplay = await estimateCotiBridgeGasFeeDisplay({
+    provider: rpcProvider as unknown as ethers.BrowserProvider,
+    currentChainId: chainId,
+    bridgeAddress,
+    direction,
+    amountWei,
+    gasPrice,
+    isErc20Token,
+    fromAddress: walletAddress,
+    feeEstimate,
+  });
 
   const fee = direction === "to-private" ? feeEstimate.depositFee : feeEstimate.withdrawFee;
   if (fee === "Error") {

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ethers } from 'ethers';
+import type { FeeEstimate } from '../../src/hooks/useEstimateBridgeFees';
 
 const rpc = vi.hoisted(() => ({
   estimateGas: vi.fn(async () => 300000n),
@@ -23,18 +24,8 @@ vi.mock('ethers', async (importOriginal) => {
 vi.mock('../../src/chains/index', () => ({
   getRpcUrlForChain: vi.fn(() => 'https://rpc.test'),
 }));
-vi.mock('../../src/hooks/useEstimateBridgeFees', () => ({
-  estimateBridgeFee: vi.fn(async () => ({
-    depositFee: '0.01',
-    withdrawFee: '0.02',
-    cotiLastUpdated: '0',
-    tokenLastUpdated: '0',
-    blockTimestamp: '0',
-  })),
-}));
 
 import { estimateCotiBridgeGasFeeDisplay } from '../../src/chains/cotiBridgeGasEstimate';
-import { estimateBridgeFee } from '../../src/hooks/useEstimateBridgeFees';
 
 const makeProvider = () =>
   ({
@@ -44,10 +35,18 @@ const makeProvider = () =>
 
 const fmt = (wei: bigint) => ethers.formatEther(wei).replace(/\.?0+$/, '') || '0';
 
+const feeEstimate = (overrides: Partial<FeeEstimate> = {}): FeeEstimate => ({
+  depositFee: '0.01',
+  withdrawFee: '0.02',
+  cotiLastUpdated: '1700000000',
+  tokenLastUpdated: '1700000000',
+  blockTimestamp: '1700000000',
+  ...overrides,
+});
+
 const baseParams = {
   currentChainId: 7082400,
   bridgeAddress: '0x' + 'a'.repeat(40),
-  symbol: 'COTI',
   amountWei: ethers.parseEther('1'),
 };
 
@@ -57,145 +56,142 @@ describe('estimateCotiBridgeGasFeeDisplay', () => {
     rpc.estimateGas.mockResolvedValue(300000n);
   });
 
-  it('uses the 790000 gas constant for ERC20 deposits without calling eth_estimateGas', async () => {
-    const gasPrice = 2_000_000_000n;
+  it('returns null when cotiLastUpdated is missing (no oracle price data yet)', async () => {
     const result = await estimateCotiBridgeGasFeeDisplay({
       ...baseParams,
       provider: makeProvider(),
-      symbol: 'WETH',
       direction: 'to-private',
-      gasPrice,
+      gasPrice: 1_000_000_000n,
       isErc20Token: true,
+      feeEstimate: feeEstimate({ cotiLastUpdated: '0' }),
     });
-    expect(result).toBe(fmt(790000n * gasPrice));
+    expect(result).toBeNull();
     expect(rpc.estimateGas).not.toHaveBeenCalled();
   });
 
-  it('returns "0" for ERC20 deposits when gas price is zero (|| "0" branch)', async () => {
+  it('returns null when tokenLastUpdated is missing for an ERC20 quote', async () => {
     const result = await estimateCotiBridgeGasFeeDisplay({
       ...baseParams,
       provider: makeProvider(),
-      symbol: 'WETH',
       direction: 'to-private',
-      gasPrice: 0n,
+      gasPrice: 1_000_000_000n,
       isErc20Token: true,
+      feeEstimate: feeEstimate({ tokenLastUpdated: '0' }),
     });
-    expect(result).toBe('0');
+    expect(result).toBeNull();
+    expect(rpc.estimateGas).not.toHaveBeenCalled();
   });
 
-  it('returns "0" for native deposits when gas limit resolves to zero fee (|| "0" branch)', async () => {
-    rpc.estimateGas.mockResolvedValue(0n);
+  it('uses the live eth_estimateGas result for an ERC20 deposit', async () => {
+    const gasPrice = 2_000_000_000n;
+    rpc.estimateGas.mockResolvedValue(846_000n);
     const result = await estimateCotiBridgeGasFeeDisplay({
       ...baseParams,
       provider: makeProvider(),
       direction: 'to-private',
-      gasPrice: 0n,
-      isErc20Token: false,
+      gasPrice,
+      isErc20Token: true,
+      feeEstimate: feeEstimate(),
     });
-    expect(result).toBe('0');
+    expect(result).toBe(fmt(846_000n * gasPrice));
   });
 
-  it('uses the eth_estimateGas result for native COTI deposits', async () => {
+  it('returns null for an ERC20 deposit when eth_estimateGas reverts (no allowance yet)', async () => {
+    rpc.estimateGas.mockRejectedValue(new Error('execution reverted'));
+    const result = await estimateCotiBridgeGasFeeDisplay({
+      ...baseParams,
+      provider: makeProvider(),
+      direction: 'to-private',
+      gasPrice: 1_000_000_000n,
+      isErc20Token: true,
+      feeEstimate: feeEstimate(),
+    });
+    expect(result).toBeNull();
+  });
+
+  it('uses the live eth_estimateGas result for a native COTI deposit', async () => {
     const gasPrice = 1_000_000_000n;
-    rpc.estimateGas.mockResolvedValue(300000n);
+    rpc.estimateGas.mockResolvedValue(795_000n);
     const result = await estimateCotiBridgeGasFeeDisplay({
       ...baseParams,
       provider: makeProvider(),
       direction: 'to-private',
       gasPrice,
       isErc20Token: false,
+      feeEstimate: feeEstimate(),
     });
-    expect(result).toBe(fmt(300000n * gasPrice));
+    expect(result).toBe(fmt(795_000n * gasPrice));
   });
 
-  it('falls back to 660000 gas for native deposits when eth_estimateGas fails', async () => {
-    const gasPrice = 1_000_000_000n;
+  it('returns null for a native deposit when eth_estimateGas fails', async () => {
     rpc.estimateGas.mockRejectedValue(new Error('estimate failed'));
     const result = await estimateCotiBridgeGasFeeDisplay({
       ...baseParams,
       provider: makeProvider(),
       direction: 'to-private',
-      gasPrice,
+      gasPrice: 1_000_000_000n,
       isErc20Token: false,
+      feeEstimate: feeEstimate(),
     });
-    expect(result).toBe(fmt(660000n * gasPrice));
+    expect(result).toBeNull();
   });
 
-  it('falls back to 500000 gas for withdrawals when eth_estimateGas fails', async () => {
+  it('uses the live eth_estimateGas result for an ERC20 withdraw', async () => {
     const gasPrice = 1_000_000_000n;
-    rpc.estimateGas.mockRejectedValue(new Error('estimate failed'));
+    rpc.estimateGas.mockResolvedValue(1_600_000n);
+    const result = await estimateCotiBridgeGasFeeDisplay({
+      ...baseParams,
+      provider: makeProvider(),
+      direction: 'to-public',
+      gasPrice,
+      isErc20Token: true,
+      feeEstimate: feeEstimate(),
+    });
+    expect(result).toBe(fmt(1_600_000n * gasPrice));
+  });
+
+  it('uses the live eth_estimateGas result for a native COTI withdraw', async () => {
+    const gasPrice = 1_000_000_000n;
+    rpc.estimateGas.mockResolvedValue(1_260_000n);
     const result = await estimateCotiBridgeGasFeeDisplay({
       ...baseParams,
       provider: makeProvider(),
       direction: 'to-public',
       gasPrice,
       isErc20Token: false,
+      feeEstimate: feeEstimate(),
     });
-    expect(result).toBe(fmt(500000n * gasPrice));
+    expect(result).toBe(fmt(1_260_000n * gasPrice));
   });
 
-  it('still returns the ERC20 deposit constant when dynamic fee lookup throws', async () => {
-    vi.mocked(estimateBridgeFee).mockRejectedValueOnce(new Error('rpc down'));
-    const gasPrice = 2_000_000_000n;
+  it('returns null for a withdraw when eth_estimateGas fails', async () => {
+    rpc.estimateGas.mockRejectedValue(new Error('estimate failed'));
     const result = await estimateCotiBridgeGasFeeDisplay({
       ...baseParams,
       provider: makeProvider(),
-      symbol: 'WETH',
-      direction: 'to-private',
-      gasPrice,
-      isErc20Token: true,
+      direction: 'to-public',
+      gasPrice: 1_000_000_000n,
+      isErc20Token: false,
+      feeEstimate: feeEstimate(),
     });
-    expect(result).toBe(fmt(790000n * gasPrice));
+    expect(result).toBeNull();
   });
 
   it('treats an "Error" fee string as zero native fee for an ERC20 withdraw', async () => {
-    vi.mocked(estimateBridgeFee).mockResolvedValueOnce({
-      depositFee: 'Error',
-      withdrawFee: 'Error',
-      cotiLastUpdated: '0',
-      tokenLastUpdated: '0',
-      blockTimestamp: '0',
-    });
     const gasPrice = 1_000_000_000n;
     rpc.estimateGas.mockResolvedValue(200000n);
     const result = await estimateCotiBridgeGasFeeDisplay({
       ...baseParams,
       provider: makeProvider(),
-      symbol: 'WETH',
       direction: 'to-public',
       gasPrice,
       isErc20Token: true,
+      feeEstimate: feeEstimate({ withdrawFee: 'Error' }),
     });
     expect(result).toBe(fmt(200000n * gasPrice));
   });
 
-  it('uses the eth_estimateGas result for an ERC20 withdraw with a real fee', async () => {
-    const gasPrice = 1_000_000_000n;
-    rpc.estimateGas.mockResolvedValue(250000n);
-    const result = await estimateCotiBridgeGasFeeDisplay({
-      ...baseParams,
-      provider: makeProvider(),
-      symbol: 'WETH',
-      direction: 'to-public',
-      gasPrice,
-      isErc20Token: true,
-    });
-    expect(result).toBe(fmt(250000n * gasPrice));
-  });
-
-  it('returns "0" for an ERC20 deposit when gas price is zero', async () => {
-    const result = await estimateCotiBridgeGasFeeDisplay({
-      ...baseParams,
-      provider: makeProvider(),
-      symbol: 'WETH',
-      direction: 'to-private',
-      gasPrice: 0n,
-      isErc20Token: true,
-    });
-    expect(result).toBe('0');
-  });
-
-  it('returns "0" for a native deposit when gas price is zero', async () => {
+  it('returns "0" when gas price is zero', async () => {
     rpc.estimateGas.mockResolvedValue(300000n);
     const result = await estimateCotiBridgeGasFeeDisplay({
       ...baseParams,
@@ -203,7 +199,22 @@ describe('estimateCotiBridgeGasFeeDisplay', () => {
       direction: 'to-private',
       gasPrice: 0n,
       isErc20Token: false,
+      feeEstimate: feeEstimate(),
     });
     expect(result).toBe('0');
+  });
+
+  it('uses fromAddress instead of calling provider.getSigner()', async () => {
+    const provider = makeProvider();
+    await estimateCotiBridgeGasFeeDisplay({
+      ...baseParams,
+      provider,
+      direction: 'to-private',
+      gasPrice: 1_000_000_000n,
+      isErc20Token: false,
+      fromAddress: '0x' + '2'.repeat(40),
+      feeEstimate: feeEstimate(),
+    });
+    expect(provider.getSigner).not.toHaveBeenCalled();
   });
 });

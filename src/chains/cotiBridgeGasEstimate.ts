@@ -1,90 +1,80 @@
 import { ethers } from "ethers";
 import { getRpcUrlForChain } from "./index";
-import { estimateBridgeFee } from "../hooks/useEstimateBridgeFees";
+import type { FeeEstimate } from "../hooks/useEstimateBridgeFees";
 import { logger } from "../lib/logger";
 
 /**
  * Gas fee string for display on COTI bridge chains (not PoD portal).
- * Mirrors the estimation path in usePrivacyBridge `updateGasFee`.
+ *
+ * Builds the real bridge calldata (amount + live oracle timestamps + portal fee
+ * as msg.value) and estimates against it, the same way usePrivacyBridgeExecutor
+ * does at submit time. Returns null when no estimate can be produced — e.g. no
+ * oracle price data yet, or (for ERC20 deposits specifically) the user hasn't
+ * approved the token yet, since transferFrom() only succeeds once a real
+ * allowance exists. That resolves itself the moment the user approves.
  */
 export async function estimateCotiBridgeGasFeeDisplay(params: {
   provider: ethers.BrowserProvider;
   currentChainId: number;
   bridgeAddress: string;
-  symbol: string;
   direction: "to-private" | "to-public";
   amountWei: bigint;
   gasPrice: bigint;
   isErc20Token: boolean;
   /** When set, avoids provider.getSigner() (which may hit a hijacked window.ethereum). */
   fromAddress?: string;
-}): Promise<string> {
-  const { provider, currentChainId, bridgeAddress, symbol, direction, amountWei, gasPrice, isErc20Token, fromAddress } = params;
+  /** Portal fee + oracle timestamps, already fetched by the caller for this amount. */
+  feeEstimate: FeeEstimate;
+}): Promise<string | null> {
+  const { provider, currentChainId, bridgeAddress, direction, amountWei, gasPrice, isErc20Token, fromAddress, feeEstimate } = params;
 
-  let nativeCotiFee = 0n;
-  if (isErc20Token) {
-    try {
-      const rpcUrl = getRpcUrlForChain(Number((await provider.getNetwork()).chainId));
-      const rpcProvider = new ethers.JsonRpcProvider(rpcUrl);
-      const isDeposit = direction === "to-private";
-      const feeEstimate = await estimateBridgeFee(symbol, "1", rpcProvider);
-      const feeStr = isDeposit ? feeEstimate.depositFee : feeEstimate.withdrawFee;
-      if (feeStr !== "Error") {
-        nativeCotiFee = ethers.parseEther(feeStr);
-      }
-    } catch (e) {
-      logger.warn('Could not compute dynamic fee for gas estimation', e);
-    }
+  const cotiTs = BigInt(feeEstimate.cotiLastUpdated || "0");
+  const tokenTs = isErc20Token ? BigInt(feeEstimate.tokenLastUpdated || "0") : cotiTs;
+  // The bridge enforces strict equality between these timestamps and its
+  // on-chain oracle rows (OracleTimestampMismatch), so without them no
+  // estimate against real calldata is possible.
+  if (cotiTs === 0n || tokenTs === 0n) {
+    logger.warn("No oracle timestamps for display estimate", { direction, isErc20Token });
+    return null;
   }
 
-  let calldata: string;
-  let msgValue = nativeCotiFee;
+  const feeStr = direction === "to-private" ? feeEstimate.depositFee : feeEstimate.withdrawFee;
+  const feeWei = feeStr !== "Error" ? ethers.parseEther(feeStr) : 0n;
 
+  let calldata: string;
+  let msgValue: bigint;
   if (direction === "to-private" && isErc20Token) {
-    const estimatedFeeWei = 790000n * gasPrice;
-    logger.log('ERC20 deposit: using observed gas constant 790000');
-    /* v8 ignore next */
-    return ethers.formatEther(estimatedFeeWei).replace(/\.?0+$/, "") || "0";
+    const iface = new ethers.Interface(["function deposit(uint256 amount, uint256 cotiOracleTimestamp, uint256 tokenOracleTimestamp) payable"]);
+    calldata = iface.encodeFunctionData("deposit", [amountWei, cotiTs, tokenTs]);
+    msgValue = feeWei;
   } else if (direction === "to-private") {
     const iface = new ethers.Interface(["function deposit(uint256 cotiOracleTimestamp, uint256 tokenOracleTimestamp) payable"]);
-    calldata = iface.encodeFunctionData("deposit", [0, 0]);
+    calldata = iface.encodeFunctionData("deposit", [cotiTs, tokenTs]);
     msgValue = amountWei;
   } else {
     const iface = new ethers.Interface(["function withdraw(uint256 amount, uint256 cotiOracleTimestamp, uint256 tokenOracleTimestamp) payable"]);
-    calldata = iface.encodeFunctionData("withdraw", [amountWei, 0, 0]);
+    calldata = iface.encodeFunctionData("withdraw", [amountWei, cotiTs, tokenTs]);
+    msgValue = isErc20Token ? feeWei : 0n;
   }
 
-  let gasLimit: bigint;
   try {
     const walletAddr = fromAddress ?? await provider.getSigner().then(s => s.getAddress());
     // Use a direct COTI JsonRpcProvider for the display estimate rather than
     // window.ethereum. Routing through MetaMask makes it log every rejected RPC
     // (-32603) to the console even though we catch the error and fall back here.
-    // ethers' JsonRpcProvider surfaces the same error quietly via our try/catch.
     const rpcProvider = new ethers.JsonRpcProvider(getRpcUrlForChain(currentChainId));
-    gasLimit = await rpcProvider.estimateGas({
+    const gasLimit = await rpcProvider.estimateGas({
       from: walletAddr,
       to: bridgeAddress,
       data: calldata,
       value: msgValue,
     });
-    logger.log('eth_estimateGas succeeded', { gasLimit: gasLimit.toString() });
-  } catch (estimateErr: any) {
-    const isNativeCotiDeposit = !isErc20Token && direction === "to-private";
-    gasLimit = isNativeCotiDeposit ? 660000n : 500000n;
-    logger.warn('eth_estimateGas failed, using realistic fallback', {
-      gasLimit: gasLimit.toString(),
-      message: estimateErr?.message,
-    });
+    logger.log("Display gas estimate succeeded", { gasLimit: gasLimit.toString() });
+    return ethers.formatEther(gasLimit * gasPrice).replace(/\.?0+$/, "") || "0";
+  } catch (err: any) {
+    // Expected pre-approval for ERC20 deposits (transferFrom needs a real
+    // allowance); the next refresh after the user approves will succeed.
+    logger.warn("Display gas estimate failed, no estimate available", { message: err?.message });
+    return null;
   }
-
-  const estimatedFeeWei = gasLimit * gasPrice;
-  logger.log('Gas fee estimation', {
-    gasPrice: gasPrice.toString(),
-    gasLimit: gasLimit.toString(),
-    feeCoti: ethers.formatEther(estimatedFeeWei),
-  });
-
-  /* v8 ignore next */
-  return ethers.formatEther(estimatedFeeWei).replace(/\.?0+$/, "") || "0";
 }
