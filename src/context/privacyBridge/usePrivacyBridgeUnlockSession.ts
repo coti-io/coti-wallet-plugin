@@ -452,7 +452,11 @@ export const usePrivacyBridgeUnlockSession = ({
       await refreshPrivateBalances();
     } else {
       // Don't block the success UI on balance decryption — refresh in the background.
-      void refreshPrivateBalances();
+      // refreshPrivateBalances may rethrow CotiPluginError (Snap/AES); catch to avoid
+      // unhandled rejection after a successful transfer.
+      void refreshPrivateBalances().catch(err =>
+        logger.error('Background balance refresh after transfer failed', err),
+      );
     }
     return result;
   }, [
