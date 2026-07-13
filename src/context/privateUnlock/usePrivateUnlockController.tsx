@@ -670,6 +670,11 @@ export function usePrivateUnlockController(
         if (!isActiveUnlockRequest(requestId)) {
           return;
         }
+        if (manualSaveResult.backupCancelled) {
+          setStatusMessage(manualSaveResult.backupWarning ?? 'Local save was cancelled.');
+          await completeUnlock(requestId);
+          return;
+        }
         if (manualSaveResult.backupWarning) {
           setModalWarning(manualSaveResult.backupWarning);
           setShowOnboardModal(true);

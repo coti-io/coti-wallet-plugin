@@ -115,7 +115,7 @@ export const usePrivacyBridgeUnlockSession = ({
   const saveManualAesKey = async (
     aesKey: string,
     options?: Pick<AesKeyProviderOptions, 'saveBackup' | 'onProgress'>,
-  ): Promise<{ backupWarning?: string }> => {
+  ): Promise<{ backupWarning?: string; backupCancelled?: boolean }> => {
     if (!walletAddress) throw new Error('Connect your wallet first.');
 
     // Normalize and validate in-memory only — no localStorage persistence unless saveBackup is enabled.
@@ -154,6 +154,7 @@ export const usePrivacyBridgeUnlockSession = ({
         logger.warn('Manual AES unlock succeeded but encrypted backup save was cancelled.');
         return {
           backupWarning: 'Encrypted backup save was cancelled. Your key works for this session.',
+          backupCancelled: true,
         };
       }
     }

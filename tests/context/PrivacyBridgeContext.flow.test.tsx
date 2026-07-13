@@ -149,9 +149,13 @@ vi.mock('../../src/hooks/useWalletType', async importOriginal => {
   };
 });
 
-vi.mock('../../src/hooks/useAesKeyProvider', () => ({
-  useAesKeyProvider: () => ({ getAesKey: h.aesKeyProvider.getAesKey }),
-}));
+vi.mock('../../src/hooks/useAesKeyProvider', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/hooks/useAesKeyProvider')>();
+  return {
+    ...actual,
+    useAesKeyProvider: () => ({ getAesKey: h.aesKeyProvider.getAesKey }),
+  };
+});
 
 vi.mock('../../src/hooks/usePrivateTokenBalance', () => ({
   usePrivateTokenBalance: () => ({ fetchPrivateBalance: vi.fn(async () => '0') }),
