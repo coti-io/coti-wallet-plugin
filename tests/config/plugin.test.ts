@@ -12,6 +12,7 @@ describe('Plugin Configuration (README: Basic Setup)', () => {
       defaultNetworkId: undefined,
       aesKeyChainId: undefined,
       clearSessionKeyOnWagmiDisconnect: false,
+      waitForBalanceRefreshAfterTransfer: false,
     });
   });
 
@@ -60,6 +61,15 @@ describe('Plugin Configuration (README: Basic Setup)', () => {
   it('allows enabling clearSessionKeyOnWagmiDisconnect', () => {
     configureCotiPlugin({ clearSessionKeyOnWagmiDisconnect: true });
     expect(getPluginConfig().clearSessionKeyOnWagmiDisconnect).toBe(true);
+  });
+
+  it('defaults waitForBalanceRefreshAfterTransfer to false', () => {
+    expect(getPluginConfig().waitForBalanceRefreshAfterTransfer).toBe(false);
+  });
+
+  it('allows enabling waitForBalanceRefreshAfterTransfer', () => {
+    configureCotiPlugin({ waitForBalanceRefreshAfterTransfer: true });
+    expect(getPluginConfig().waitForBalanceRefreshAfterTransfer).toBe(true);
   });
 
   it('allows setting aesKeyChainId to COTI Testnet or Mainnet', () => {

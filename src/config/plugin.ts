@@ -78,6 +78,12 @@ export interface CotiPluginConfig {
    * the same wallet can skip Snap re-fetch; use true for stricter shared-browser security.
    */
   clearSessionKeyOnWagmiDisconnect?: boolean;
+  /**
+   * When true, private token transfers await `refreshPrivateBalances` before
+   * returning (confirmation UI stays open until balances decrypt). Default false
+   * refreshes in the background so success can show immediately.
+   */
+  waitForBalanceRefreshAfterTransfer?: boolean;
   /** Optional onboarding service hooks for grant and encrypted AES backup flows. */
   onboardingServices?: OnboardingServices;
   /**
@@ -106,6 +112,7 @@ let _config: CotiPluginConfig = {
   defaultNetworkId: undefined,
   debug: false,
   clearSessionKeyOnWagmiDisconnect: false,
+  waitForBalanceRefreshAfterTransfer: false,
   onboardingServices: { mode: 'disabled' },
   onboardingGrantMinBalanceWei: 0,
   onboardingGrantPollIntervalMs: 2000,

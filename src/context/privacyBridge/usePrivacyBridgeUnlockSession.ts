@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { useAccount } from 'wagmi';
+import { getPluginConfig } from '../../config/plugin';
 import { logger } from '../../lib/logger';
 import { resolveConnectedProvider } from '../../lib/ethereum';
 import { CotiPluginError, CotiErrorCode } from '../../errors';
@@ -447,7 +448,12 @@ export const usePrivacyBridgeUnlockSession = ({
       getAESKeyFromSnap: strategy.snapInstalled ? getAESKeyFromSnap : undefined,
     });
 
-    await refreshPrivateBalances();
+    if (getPluginConfig().waitForBalanceRefreshAfterTransfer) {
+      await refreshPrivateBalances();
+    } else {
+      // Don't block the success UI on balance decryption — refresh in the background.
+      void refreshPrivateBalances();
+    }
     return result;
   }, [
     walletAddress,
