@@ -104,7 +104,6 @@ export function buildExampleOnboardTheme(mode: ExampleThemeMode): OnboardModalTh
     title: { color: foreground },
     description: { color: mutedForeground },
     saveOptionTitle: { color: foreground },
-    saveOptionDescription: { color: mutedForeground },
     saveOptionCard: {
       backgroundColor: withAlpha(foreground, 0.04),
       border: softBorder,

@@ -229,27 +229,22 @@ const defaultStyles = {
   saveOptionBody: {
     flex: 1,
     minWidth: 0,
+    display: 'flex',
+    alignItems: 'center',
+    minHeight: '32px',
   },
   saveOptionTitleRow: {
     display: 'flex',
     alignItems: 'center',
     gap: '5px',
-    marginBottom: '2px',
   },
   saveOptionTitle: {
     fontSize: '13px',
     fontWeight: 600,
-    lineHeight: 1.25,
+    lineHeight: '14px',
     color: '#ffffff',
-  },
-  saveOptionDescription: {
-    fontSize: '11px',
-    lineHeight: 1.3,
-    color: 'rgba(255, 255, 255, 0.55)',
-    margin: 0,
-    whiteSpace: 'nowrap' as const,
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
+    display: 'inline-flex',
+    alignItems: 'center',
   },
   saveOptionSwitchTrack: {
     position: 'relative' as const,
@@ -291,12 +286,13 @@ const defaultStyles = {
   tooltipButton: {
     width: '14px',
     height: '14px',
+    boxSizing: 'border-box' as const,
     borderRadius: '50%',
     border: '1px solid rgba(255, 255, 255, 0.25)',
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
     color: 'rgba(255, 255, 255, 0.8)',
     fontSize: '9px',
-    lineHeight: 1,
+    lineHeight: '12px',
     padding: 0,
     cursor: 'help',
     flexShrink: 0,
@@ -606,7 +602,6 @@ const MUTED_TEXT_KEYS: OnboardStyleKey[] = [
   'tooltipButton',
   'cancelButton',
   'stepDescription',
-  'saveOptionDescription',
 ];
 const ACCENT_TEXT_KEYS: OnboardStyleKey[] = [
   'keyInput',
@@ -680,6 +675,7 @@ const LIGHT_INTERACTIVE_SURFACE_KEYS: OnboardStyleKey[] = [
   'saveOptionIconWrap',
   'saveOptionSwitchTrackOff',
   'saveOptionSwitchTrackOn',
+  'tooltipButton',
 ];
 
 function isDefaultDarkSurfaceBackground(backgroundColor?: string): boolean {
@@ -803,6 +799,11 @@ function applyLightInteractiveSurfaceGaps(
     saveOptionSwitchTrackOn: {
       backgroundColor: primary,
       borderColor: colorWithAlpha(primary, 0.45),
+    },
+    tooltipButton: {
+      color: muted,
+      backgroundColor: colorWithAlpha(foreground, 0.08),
+      border: `1px solid ${colorWithAlpha(foreground, 0.2)}`,
     },
   };
 
@@ -1077,9 +1078,6 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
               )}
             </span>
           </div>
-          <p style={styles.saveOptionDescription}>
-            Encrypted locally. Restore via wallet signature.
-          </p>
         </div>
 
         <button
@@ -1327,7 +1325,7 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
                       type="text"
                       value={manualAesKey}
                       onChange={(event) => setManualAesKey(event.target.value)}
-                      placeholder="Paste AES key"
+                      placeholder="Paste key"
                       aria-label="Manual AES key"
                       disabled={isSubmittingManualKey}
                       style={{ ...styles.manualKeyInput, ...styles.actionPrimary }}
