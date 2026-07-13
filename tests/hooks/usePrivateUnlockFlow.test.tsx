@@ -1263,6 +1263,36 @@ describe('usePrivateUnlockFlow', () => {
     expect(pendingAction).toHaveBeenCalledTimes(1);
   });
 
+  it('does not show complete screen when manual backup signing is rejected', async () => {
+    const onUnlocked = vi.fn();
+    const pendingAction = vi.fn();
+    mockSaveManualAesKey.mockResolvedValueOnce({
+      backupWarning: 'Encrypted backup save was cancelled. Your key works for this session.',
+      backupCancelled: true,
+    });
+    mockRefreshPrivateBalances.mockResolvedValueOnce(false);
+
+    const { result } = renderHook(() => usePrivateUnlockFlow({ onUnlocked }));
+
+    await act(async () => {
+      await result.current.ensurePrivateUnlocked(pendingAction);
+    });
+
+    await act(async () => {
+      await result.current.onboardModal.props.onManualAesKeySubmit?.('a'.repeat(32), {
+        saveBackup: true,
+      });
+    });
+
+    expect(result.current.showOnboardModal).toBe(false);
+    expect(result.current.onboardModal.props.currentStep).toBe('idle');
+    expect(result.current.statusMessage).toBe(
+      'Encrypted backup save was cancelled. Your key works for this session.',
+    );
+    expect(onUnlocked).toHaveBeenCalledTimes(1);
+    expect(pendingAction).toHaveBeenCalledTimes(1);
+  });
+
   it('does not lock when manual AES submit completes after dismiss', async () => {
     let resolveManualSave!: (value: { backupWarning?: string }) => void;
     mockSaveManualAesKey.mockImplementationOnce(

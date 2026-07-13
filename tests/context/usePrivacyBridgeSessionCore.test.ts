@@ -26,9 +26,13 @@ vi.mock('../../src/hooks/useWalletType', () => ({
   useWalletType: () => ({ walletType: 'metamask', isMetaMaskWithSnap: false }),
 }));
 
-vi.mock('../../src/hooks/useAesKeyProvider', () => ({
-  useAesKeyProvider: () => ({ getAesKey: vi.fn() }),
-}));
+vi.mock('../../src/hooks/useAesKeyProvider', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/hooks/useAesKeyProvider')>();
+  return {
+    ...actual,
+    useAesKeyProvider: () => ({ getAesKey: vi.fn() }),
+  };
+});
 
 vi.mock('../../src/hooks/usePrivateTokenBalance', () => ({
   usePrivateTokenBalance: () => ({ fetchPrivateBalance: vi.fn() }),

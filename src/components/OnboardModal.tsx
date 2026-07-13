@@ -1,12 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import type { WalletType } from '../hooks/useWalletType';
 import type { OnboardingStep } from '../hooks/useAesKeyProvider';
-import { ONBOARDING_STEPS } from '../hooks/useAesKeyProvider';
 import { normalizeAesKey } from '../crypto/aesKey';
 import { getWalletDisplayName } from '../lib/walletDisplayName';
 import {
+  getDisplayOnboardingSteps,
   getOnboardingStepStatus,
-  getProgressDescription,
   getProgressTitle,
 } from '../lib/onboardingProgressDisplay';
 import { deriveOnboardScreen } from './onboard/deriveOnboardScreen';
@@ -99,16 +98,24 @@ const defaultStyles = {
     lineHeight: 1,
     transition: 'color 0.2s',
   },
+  titleRow: {
+    width: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '12px',
+    marginBottom: '16px',
+  },
   iconContainer: {
-    width: '48px',
-    height: '48px',
+    width: '40px',
+    height: '40px',
     borderRadius: '12px',
     backgroundColor: 'rgba(30, 41, 246, 0.1)',
     border: '1px solid rgba(30, 41, 246, 0.2)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: '16px',
+    flexShrink: 0,
   },
   title: {
     fontSize: '20px',
@@ -116,6 +123,14 @@ const defaultStyles = {
     lineHeight: 1.2,
     marginBottom: '10px',
     color: '#ffffff',
+  },
+  titleInline: {
+    fontSize: '20px',
+    fontWeight: 700,
+    lineHeight: 1.2,
+    margin: 0,
+    color: '#ffffff',
+    textAlign: 'left' as const,
   },
   description: {
     color: 'rgba(255, 255, 255, 0.6)',
@@ -189,23 +204,87 @@ const defaultStyles = {
     fontWeight: 500,
     transition: 'color 0.2s',
   },
-  checkboxRow: {
+  saveOptionCard: {
     width: '100%',
+    boxSizing: 'border-box' as const,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    padding: '10px 12px',
+    marginBottom: '12px',
+    borderRadius: '8px',
+    border: '1px solid rgba(255, 255, 255, 0.12)',
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    textAlign: 'left' as const,
+  },
+  saveOptionCardActive: {
+    border: '1px solid rgba(0, 229, 255, 0.35)',
+    backgroundColor: 'rgba(0, 229, 255, 0.06)',
+  },
+  saveOptionIconWrap: {
+    width: '32px',
+    height: '32px',
+    borderRadius: '8px',
+    backgroundColor: 'rgba(0, 229, 255, 0.1)',
+    border: '1px solid rgba(0, 229, 255, 0.2)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: '8px',
-    marginBottom: '14px',
-    textAlign: 'center' as const,
+    flexShrink: 0,
+    color: '#00E5FF',
   },
-  checkbox: {
-    margin: 0,
-    accentColor: '#1E29F6',
+  saveOptionBody: {
+    flex: 1,
+    minWidth: 0,
   },
-  checkboxText: {
+  saveOptionTitleRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '5px',
+    marginBottom: '2px',
+  },
+  saveOptionTitle: {
+    fontSize: '13px',
+    fontWeight: 600,
+    lineHeight: 1.25,
+    color: '#ffffff',
+  },
+  saveOptionDescription: {
     fontSize: '11px',
-    lineHeight: 1.5,
-    color: 'rgba(255, 255, 255, 0.86)',
+    lineHeight: 1.3,
+    color: 'rgba(255, 255, 255, 0.55)',
+    margin: 0,
+    whiteSpace: 'nowrap' as const,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  },
+  saveOptionSwitchTrack: {
+    position: 'relative' as const,
+    width: '42px',
+    height: '24px',
+    borderRadius: '999px',
+    border: 'none',
+    padding: 0,
+    flexShrink: 0,
+    cursor: 'pointer',
+    transition: 'background-color 0.2s',
+  },
+  saveOptionSwitchTrackOn: {
+    backgroundColor: '#00E5FF',
+  },
+  saveOptionSwitchTrackOff: {
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+  },
+  saveOptionSwitchKnob: {
+    position: 'absolute' as const,
+    top: '2px',
+    left: '2px',
+    width: '20px',
+    height: '20px',
+    borderRadius: '50%',
+    backgroundColor: '#ffffff',
+    transition: 'transform 0.2s',
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.25)',
   },
   tooltipWrap: {
     position: 'relative' as const,
@@ -254,16 +333,28 @@ const defaultStyles = {
     gap: '8px',
     alignItems: 'stretch',
     marginBottom: '10px',
+    minHeight: '48px',
   },
   actionPrimary: {
     flex: 1,
     minWidth: 0,
+    minHeight: '48px',
+    boxSizing: 'border-box' as const,
+  },
+  actionFieldButton: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '0 16px',
+    marginBottom: 0,
   },
   iconButton: {
-    width: '42px',
-    minWidth: '42px',
+    width: '48px',
+    minWidth: '48px',
+    height: '48px',
+    minHeight: '48px',
     boxSizing: 'border-box' as const,
-    padding: '9px',
+    padding: '0',
     backgroundColor: 'rgba(255, 255, 255, 0.06)',
     color: '#ffffff',
     border: '1px solid rgba(255, 255, 255, 0.14)',
@@ -274,10 +365,12 @@ const defaultStyles = {
     cursor: 'pointer',
   },
   iconButtonPressed: {
-    width: '42px',
-    minWidth: '42px',
+    width: '48px',
+    minWidth: '48px',
+    height: '48px',
+    minHeight: '48px',
     boxSizing: 'border-box' as const,
-    padding: '9px',
+    padding: '0',
     backgroundColor: 'rgba(30, 41, 246, 0.22)',
     color: '#00E5FF',
     border: '1px solid rgba(0, 229, 255, 0.45)',
@@ -289,10 +382,12 @@ const defaultStyles = {
     boxShadow: 'inset 0 2px 6px rgba(0, 0, 0, 0.35)',
   },
   iconButtonDisabled: {
-    width: '42px',
-    minWidth: '42px',
+    width: '48px',
+    minWidth: '48px',
+    height: '48px',
+    minHeight: '48px',
     boxSizing: 'border-box' as const,
-    padding: '9px',
+    padding: '0',
     backgroundColor: 'rgba(255, 255, 255, 0.04)',
     color: 'rgba(255, 255, 255, 0.35)',
     border: '1px solid rgba(255, 255, 255, 0.08)',
@@ -304,24 +399,42 @@ const defaultStyles = {
   },
   manualKeyInput: {
     width: '100%',
-    height: '100%',
+    height: '48px',
+    minHeight: '48px',
     boxSizing: 'border-box' as const,
-    padding: '10px 12px',
+    padding: '0 12px',
     backgroundColor: 'rgba(0, 0, 0, 0.25)',
     color: '#ffffff',
     border: '1px solid rgba(255, 255, 255, 0.16)',
     borderRadius: '8px',
-    fontSize: '12px',
+    fontSize: '14px',
     fontFamily: 'monospace',
     outline: 'none',
+  },
+  manualKeyErrorRow: {
+    width: '100%',
+    display: 'flex',
+    gap: '8px',
+    alignItems: 'flex-start',
+    margin: '0 0 10px',
+  },
+  manualKeyErrorColumn: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: '17px',
+  },
+  actionSideSpacer: {
+    width: '48px',
+    minWidth: '48px',
+    flexShrink: 0,
   },
   manualKeyErrorText: {
     fontSize: '11px',
     color: '#b91c1c',
     lineHeight: 1.5,
-    margin: '-4px 0 10px',
+    margin: 0,
+    paddingLeft: '12px',
     textAlign: 'left' as const,
-    width: '100%',
   },
   spinner: {
     display: 'inline-block',
@@ -441,7 +554,7 @@ const defaultStyles = {
     backgroundColor: 'rgba(251, 191, 36, 0.1)',
     border: '1px solid rgba(251, 191, 36, 0.3)',
     borderRadius: '8px',
-    padding: '8px',
+    padding: '12px',
     marginBottom: '12px',
   },
   warningText: {
@@ -485,17 +598,19 @@ type OnboardStyleKey = keyof typeof defaultStyles;
 export const ONBOARD_MODAL_STYLE_KEYS = Object.keys(defaultStyles) as OnboardStyleKey[];
 
 const FOREGROUND_TEXT_KEYS: OnboardStyleKey[] = [
-  'checkboxText',
   'infoText',
   'stepLabel',
   'manualKeyInput',
   'iconButton',
+  'titleInline',
+  'saveOptionTitle',
 ];
 const MUTED_TEXT_KEYS: OnboardStyleKey[] = [
   'closeButton',
   'tooltipButton',
   'cancelButton',
   'stepDescription',
+  'saveOptionDescription',
 ];
 const ACCENT_TEXT_KEYS: OnboardStyleKey[] = [
   'keyInput',
@@ -565,7 +680,8 @@ const LIGHT_INTERACTIVE_SURFACE_KEYS: OnboardStyleKey[] = [
   'aesKeyBox',
   'calloutBox',
   'iconContainer',
-  'checkbox',
+  'saveOptionCard',
+  'saveOptionIconWrap',
 ];
 
 function isDefaultDarkSurfaceBackground(backgroundColor?: string): boolean {
@@ -671,7 +787,15 @@ function applyLightInteractiveSurfaceGaps(
       backgroundColor: colorWithAlpha(primary, 0.08),
       border: `1px solid ${colorWithAlpha(primary, 0.2)}`,
     },
-    checkbox: { accentColor: primary },
+    saveOptionCard: {
+      backgroundColor: colorWithAlpha(foreground, 0.04),
+      border: softBorder,
+    },
+    saveOptionIconWrap: {
+      backgroundColor: colorWithAlpha(primary, 0.1),
+      border: `1px solid ${colorWithAlpha(primary, 0.22)}`,
+      color: primary,
+    },
   };
 
   for (const key of LIGHT_INTERACTIVE_SURFACE_KEYS) {
@@ -784,6 +908,14 @@ function isLightBackgroundColor(color: string | undefined): boolean {
   return luminance >= 150;
 }
 
+function resolveWarningBoxStyle(box: React.CSSProperties): React.CSSProperties {
+  const padding = box.padding;
+  if (padding === undefined || padding === null || padding === 0 || padding === '0') {
+    return { ...box, padding: defaultStyles.warningBox.padding };
+  }
+  return box;
+}
+
 function getWarningStyles(styles: typeof defaultStyles) {
   const lightTheme = isLightBackgroundColor(
     typeof styles.modal.backgroundColor === 'string'
@@ -793,11 +925,11 @@ function getWarningStyles(styles: typeof defaultStyles) {
 
   if (lightTheme) {
     return {
-      box: {
+      box: resolveWarningBoxStyle({
         ...styles.warningBox,
         backgroundColor: 'rgba(245, 158, 11, 0.14)',
         border: '1px solid rgba(180, 83, 9, 0.35)',
-      },
+      }),
       text: {
         ...styles.warningText,
         color: '#78350f',
@@ -806,7 +938,7 @@ function getWarningStyles(styles: typeof defaultStyles) {
   }
 
   return {
-    box: styles.warningBox,
+    box: resolveWarningBoxStyle(styles.warningBox),
     text: {
       ...styles.warningText,
       color: '#fef3c7',
@@ -874,6 +1006,7 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
   const showProgress = screen === 'progress';
   const showSuccess = screen === 'success';
   const showError = screen === 'error';
+  const hasDescription = showIntro || showSuccess || showError;
 
   useEffect(() => {
     logger.debug('[OnboardModal] screen', {
@@ -887,6 +1020,80 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
   }, [screen, currentStep, isOpen, isLoading, error, aesKey]);
 
   const walletName = getWalletDisplayName(walletType);
+  const displaySteps = getDisplayOnboardingSteps(saveBackup);
+
+  const renderTitleRow = (icon: React.ReactNode, title: string) => (
+    <div style={styles.titleRow}>
+      <div style={styles.iconContainer}>{icon}</div>
+      <h2 id="onboard-modal-title" style={styles.titleInline}>{title}</h2>
+    </div>
+  );
+
+  const renderSaveLocallyOption = () => {
+    if (!showSaveBackupOption) return null;
+
+    return (
+      <div
+        style={{
+          ...styles.saveOptionCard,
+          ...(saveBackup ? styles.saveOptionCardActive : {}),
+        }}
+      >
+        <div style={styles.saveOptionIconWrap} aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4" />
+          </svg>
+        </div>
+
+        <div style={styles.saveOptionBody}>
+          <div style={styles.saveOptionTitleRow}>
+            <span style={styles.saveOptionTitle}>Save Locally</span>
+            <span style={styles.tooltipWrap}>
+              <button
+                type="button"
+                aria-label="How local save works"
+                aria-describedby={showBackupTooltip ? 'backup-details-tooltip' : undefined}
+                onMouseEnter={() => setShowBackupTooltip(true)}
+                onMouseLeave={() => setShowBackupTooltip(false)}
+                onFocus={() => setShowBackupTooltip(true)}
+                onBlur={() => setShowBackupTooltip(false)}
+                style={styles.tooltipButton}
+              >
+                ?
+              </button>
+              {showBackupTooltip && (
+                <span id="backup-details-tooltip" role="tooltip" style={styles.tooltipBubble}>
+                  Only an encrypted blob is stored locally. Restoring it requires a wallet signature.
+                </span>
+              )}
+            </span>
+          </div>
+          <p style={styles.saveOptionDescription}>
+            Encrypted locally. Restore via wallet signature.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          role="switch"
+          aria-checked={saveBackup}
+          aria-label={saveBackup ? 'Disable local save' : 'Enable local save'}
+          onClick={() => onSaveBackupChange?.(!saveBackup)}
+          style={{
+            ...styles.saveOptionSwitchTrack,
+            ...(saveBackup ? styles.saveOptionSwitchTrackOn : styles.saveOptionSwitchTrackOff),
+          }}
+        >
+          <span
+            style={{
+              ...styles.saveOptionSwitchKnob,
+              transform: saveBackup ? 'translateX(18px)' : 'translateX(0)',
+            }}
+          />
+        </button>
+      </div>
+    );
+  };
 
   const renderProgressCallout = (step: OnboardingStep) => {
     if (step === 'granting-funds') {
@@ -1054,7 +1261,7 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
           role="dialog"
           aria-modal="true"
           aria-labelledby="onboard-modal-title"
-          aria-describedby="onboard-modal-description"
+          {...(hasDescription ? { 'aria-describedby': 'onboard-modal-description' } : {})}
         >
           {/* Close Button */}
           {canClose && (
@@ -1070,11 +1277,10 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
           {/* INTRO SCREEN */}
           {showIntro && (
             <>
-              {/* Icon */}
-              <div style={styles.iconContainer}>
+              {renderTitleRow(
                 <svg
-                  width="24"
-                  height="24"
+                  width="22"
+                  height="22"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="#00E5FF"
@@ -1084,53 +1290,13 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
                 >
                   <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                   <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                </svg>
-              </div>
-
-              <h2 id="onboard-modal-title" style={styles.title}>
-                Onboard User
-              </h2>
+                </svg>,
+                'Onboard User',
+              )}
 
               <p id="onboard-modal-description" style={styles.description}>
-                This will execute a transaction on the COTI Network to retrieve your AES encryption key.
+                This will execute a transaction on the COTI Network to retrieve your encryption key.
               </p>
-
-              <div style={styles.checkboxRow}>
-                {showSaveBackupOption && (
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <input
-                    type="checkbox"
-                    checked={saveBackup}
-                    onChange={(event) => onSaveBackupChange?.(event.target.checked)}
-                    style={styles.checkbox}
-                  />
-                  <span style={styles.checkboxText}>
-                    Save encrypted backup
-                  </span>
-                </label>
-                )}
-                {showSaveBackupOption && (
-                <span style={styles.tooltipWrap}>
-                  <button
-                    type="button"
-                    aria-label="Backup details"
-                    aria-describedby={showBackupTooltip ? 'backup-details-tooltip' : undefined}
-                    onMouseEnter={() => setShowBackupTooltip(true)}
-                    onMouseLeave={() => setShowBackupTooltip(false)}
-                    onFocus={() => setShowBackupTooltip(true)}
-                    onBlur={() => setShowBackupTooltip(false)}
-                    style={styles.tooltipButton}
-                  >
-                    ?
-                  </button>
-                  {showBackupTooltip && (
-                    <span id="backup-details-tooltip" role="tooltip" style={styles.tooltipBubble}>
-                      Only the encrypted blob is stored. Restoring it requires a wallet signature.
-                    </span>
-                  )}
-                </span>
-                )}
-              </div>
 
               {warning && (
                 <div style={warningStyles.box}>
@@ -1138,7 +1304,14 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
                 </div>
               )}
 
-              <div style={styles.actionRow}>
+              {renderSaveLocallyOption()}
+
+              <div
+                style={{
+                  ...styles.actionRow,
+                  marginBottom: onManualAesKeySubmit ? 0 : styles.actionRow.marginBottom,
+                }}
+              >
                 {showManualKeyInput ? (
                   <>
                     <input
@@ -1172,9 +1345,13 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
                   <button
                     type="button"
                     onClick={onConfirm}
-                    style={{ ...styles.primaryButton, ...styles.actionPrimary, marginBottom: 0 }}
+                    style={{
+                      ...styles.primaryButton,
+                      ...styles.actionPrimary,
+                      ...styles.actionFieldButton,
+                    }}
                   >
-                    Begin Onboarding
+                    Onboard
                   </button>
                 )}
 
@@ -1200,8 +1377,16 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
                 )}
               </div>
 
-              {manualAesKeyError && (
-                <p style={styles.manualKeyErrorText}>{manualAesKeyError}</p>
+              {onManualAesKeySubmit && (
+                <div style={styles.manualKeyErrorRow}>
+                  <div style={styles.manualKeyErrorColumn}>
+                    {manualAesKeyError && (
+                      <p style={styles.manualKeyErrorText}>{manualAesKeyError}</p>
+                    )}
+                  </div>
+                  {showManualKeyInput && <div style={styles.actionSideSpacer} aria-hidden="true" />}
+                  <div style={styles.actionSideSpacer} aria-hidden="true" />
+                </div>
               )}
 
               <button
@@ -1216,18 +1401,10 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
           {/* PROGRESS SCREEN */}
           {showProgress && (
             <>
-              {/* Icon */}
-              <div style={styles.iconContainer}>
-                <div style={styles.spinner} />
-              </div>
-
-              <h2 id="onboard-modal-title" style={styles.title}>
-                {getProgressTitle(currentStep)}
-              </h2>
-
-              <p id="onboard-modal-description" style={styles.description}>
-                {getProgressDescription(currentStep)}
-              </p>
+              {renderTitleRow(
+                <div style={styles.spinner} />,
+                getProgressTitle(currentStep),
+              )}
 
               {warning && (
                 <div style={warningStyles.box}>
@@ -1237,8 +1414,8 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
 
               {/* Step Progress */}
               <div style={styles.stepperContainer}>
-                {ONBOARDING_STEPS.map((step) => {
-                  const status = getOnboardingStepStatus(step.id, currentStep, !!error);
+                {displaySteps.map((step) => {
+                  const status = getOnboardingStepStatus(step.id, currentStep, !!error, saveBackup);
                   const isActive = status === 'active';
                   const isComplete = status === 'complete';
                   const isError = status === 'error';
@@ -1282,11 +1459,10 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
           {/* SUCCESS SCREEN */}
           {showSuccess && (
             <>
-              {/* Icon */}
-              <div style={styles.iconContainer}>
+              {renderTitleRow(
                 <svg
-                  width="24"
-                  height="24"
+                  width="22"
+                  height="22"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="#22c55e"
@@ -1296,15 +1472,12 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
                 >
                   <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
                   <polyline points="22 4 12 14.01 9 11.01" />
-                </svg>
-              </div>
-
-              <h2 id="onboard-modal-title" style={styles.title}>
-                Onboarding Complete
-              </h2>
+                </svg>,
+                'Onboarding Complete',
+              )}
 
               <p id="onboard-modal-description" style={styles.description}>
-                Your AES encryption key has been successfully retrieved.
+                Your encryption key has been successfully retrieved.
               </p>
 
               <div style={styles.keyInputWrap}>
@@ -1384,11 +1557,10 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
           {/* ERROR SCREEN */}
           {showError && (
             <>
-              {/* Icon */}
-              <div style={styles.iconContainer}>
+              {renderTitleRow(
                 <svg
-                  width="24"
-                  height="24"
+                  width="22"
+                  height="22"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="#f87171"
@@ -1399,12 +1571,9 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
                   <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                   <line x1="12" y1="8" x2="12" y2="12" />
                   <line x1="12" y1="16" x2="12.01" y2="16" />
-                </svg>
-              </div>
-
-              <h2 id="onboard-modal-title" style={styles.title}>
-                Onboarding Failed
-              </h2>
+                </svg>,
+                'Onboarding Failed',
+              )}
 
               <p id="onboard-modal-description" style={styles.description}>
                 The onboarding process encountered an error. You can retry the signature request.

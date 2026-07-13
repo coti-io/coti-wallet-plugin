@@ -103,8 +103,17 @@ export function buildExampleOnboardTheme(mode: ExampleThemeMode): OnboardModalTh
     },
     title: { color: foreground },
     description: { color: mutedForeground },
-    checkbox: { accentColor: primary },
-    checkboxText: { color: foreground },
+    saveOptionTitle: { color: foreground },
+    saveOptionDescription: { color: mutedForeground },
+    saveOptionCard: {
+      backgroundColor: withAlpha(foreground, 0.04),
+      border: softBorder,
+    },
+    saveOptionIconWrap: {
+      backgroundColor: withAlpha(primary, 0.1),
+      border: `1px solid ${withAlpha(primary, 0.22)}`,
+      color: primary,
+    },
     tooltipButton: {
       color: mutedForeground,
       backgroundColor: withAlpha(foreground, 0.08),

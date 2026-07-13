@@ -72,7 +72,7 @@ export interface PrivacyBridgeUnlockContextValue {
   saveManualAesKey: (
     aesKey: string,
     options?: Pick<AesKeyProviderOptions, 'saveBackup' | 'onProgress'>,
-  ) => Promise<{ backupWarning?: string }>;
+  ) => Promise<{ backupWarning?: string; backupCancelled?: boolean }>;
   handleVerifyKeys: () => Promise<void>;
   showSnapMissingModal: boolean;
   setShowSnapMissingModal: (show: boolean) => void;

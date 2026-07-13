@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  getDisplayOnboardingSteps,
   getOnboardingStepStatus,
   getProgressDescription,
   getProgressTitle,
@@ -15,10 +16,24 @@ describe('onboardingProgressDisplay', () => {
     expect(getVisibleOnboardingStep('creating-provider')).toBe('preparing-onboard');
   });
 
-  it('maps hidden post-retrieval steps to the persisting step', () => {
+  it('maps hidden post-retrieval steps to the persisting step when saving locally', () => {
     expect(getVisibleOnboardingStep('validating-key')).toBe('persisting-key');
     expect(getVisibleOnboardingStep('restoring-network')).toBe('persisting-key');
     expect(getVisibleOnboardingStep('saving-backup')).toBe('persisting-key');
+  });
+
+  it('maps hidden post-retrieval steps to retrieving-key when not saving locally', () => {
+    expect(getVisibleOnboardingStep('validating-key', false)).toBe('retrieving-key');
+    expect(getVisibleOnboardingStep('restoring-network', false)).toBe('retrieving-key');
+    expect(getVisibleOnboardingStep('saving-backup', false)).toBe('retrieving-key');
+  });
+
+  it('omits persisting-key from display steps when save backup is disabled', () => {
+    expect(getDisplayOnboardingSteps(false).map(step => step.id)).toEqual([
+      'preparing-onboard',
+      'signing-transaction',
+      'retrieving-key',
+    ]);
   });
 
   it('computes step statuses from the visible current step', () => {
@@ -31,6 +46,10 @@ describe('onboardingProgressDisplay', () => {
     expect(getOnboardingStepStatus('preparing-onboard', 'granting-funds', false)).toBe('active');
     expect(getOnboardingStepStatus('persisting-key', 'validating-key', false)).toBe('active');
     expect(getOnboardingStepStatus('retrieving-key', 'validating-key', false)).toBe('complete');
+  });
+
+  it('keeps retrieving-key active when save backup is disabled', () => {
+    expect(getOnboardingStepStatus('retrieving-key', 'validating-key', false, false)).toBe('active');
   });
 
   it('returns error status only for the visible error step', () => {

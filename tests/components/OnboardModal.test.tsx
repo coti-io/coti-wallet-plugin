@@ -33,13 +33,14 @@ describe('OnboardModal', () => {
     render(<OnboardModal {...defaultProps} />);
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(screen.getByText('Onboard User')).toBeInTheDocument();
-    expect(screen.getByText('Begin Onboarding')).toBeInTheDocument();
-    expect(screen.getByText('Save encrypted backup')).toBeInTheDocument();
-    const backupDetails = screen.getByLabelText('Backup details');
+    expect(screen.getByText('Onboard')).toBeInTheDocument();
+    expect(screen.getByText('Save Locally')).toBeInTheDocument();
+    expect(screen.getByText(/Encrypted locally/i)).toBeInTheDocument();
+    const backupDetails = screen.getByLabelText('How local save works');
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
     fireEvent.mouseEnter(backupDetails);
     expect(screen.getByRole('tooltip')).toHaveTextContent(
-      'Only the encrypted blob is stored. Restoring it requires a wallet signature.'
+      'Only an encrypted blob is stored locally. Restoring it requires a wallet signature.'
     );
     expect(screen.getByText('Cancel')).toBeInTheDocument();
   });
@@ -70,8 +71,8 @@ describe('OnboardModal', () => {
 
     expect(screen.getByText('Requesting COTI Grant')).toBeInTheDocument();
     expect(
-      screen.getByText(/Waiting for the grant service to fund your wallet/)
-    ).toBeInTheDocument();
+      screen.queryByText(/Waiting for the grant service to fund your wallet/)
+    ).not.toBeInTheDocument();
     expect(
       screen.getByText(/Requesting native COTI from the grant service/)
     ).toBeInTheDocument();
@@ -87,7 +88,7 @@ describe('OnboardModal', () => {
     );
 
     expect(screen.getByText('Waiting for Grant Funds')).toBeInTheDocument();
-    expect(screen.getByText(/grant request was submitted/i)).toBeInTheDocument();
+    expect(screen.queryByText(/grant request was submitted/i)).not.toBeInTheDocument();
     expect(
       screen.getByText(/Waiting for the funded balance to appear on COTI/)
     ).toBeInTheDocument();
@@ -122,10 +123,10 @@ describe('OnboardModal', () => {
     expect(screen.getByText('Retry')).toBeInTheDocument();
   });
 
-  it('calls onConfirm when "Begin Onboarding" is clicked', () => {
+  it('calls onConfirm when "Onboard" is clicked', () => {
     const onConfirm = vi.fn();
     render(<OnboardModal {...defaultProps} onConfirm={onConfirm} />);
-    fireEvent.click(screen.getByText('Begin Onboarding'));
+    fireEvent.click(screen.getByText('Onboard'));
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 
@@ -142,7 +143,7 @@ describe('OnboardModal', () => {
     render(<OnboardModal {...defaultProps} onManualAesKeySubmit={onManualAesKeySubmit} />);
 
     fireEvent.click(screen.getByLabelText('Input AES key'));
-    expect(screen.queryByText('Begin Onboarding')).not.toBeInTheDocument();
+    expect(screen.queryByText('Onboard')).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Manual AES key'), {
       target: { value: 'ABCDEF0123456789ABCDEF0123456789' },
     });
@@ -219,7 +220,7 @@ describe('OnboardModal', () => {
     expect(screen.getByLabelText('Hide AES key input')).toHaveAttribute('aria-pressed', 'true');
 
     fireEvent.click(screen.getByLabelText('Hide AES key input'));
-    expect(screen.getByText('Begin Onboarding')).toBeInTheDocument();
+    expect(screen.getByText('Onboard')).toBeInTheDocument();
     expect(screen.queryByLabelText('Manual AES key')).not.toBeInTheDocument();
   });
 
@@ -273,6 +274,43 @@ describe('OnboardModal', () => {
     expect(dialog).toHaveAttribute('aria-labelledby', 'onboard-modal-title');
   });
 
+  it('keeps the save option copy static when local save is disabled', () => {
+    render(<OnboardModal {...defaultProps} saveBackup={false} />);
+
+    expect(screen.getByText('Save Locally')).toBeInTheDocument();
+    expect(screen.getByText(/Encrypted locally/i)).toBeInTheDocument();
+    expect(screen.getByRole('switch')).toHaveAttribute('aria-checked', 'false');
+  });
+
+  it('toggles local save from the switch control', () => {
+    const onSaveBackupChange = vi.fn();
+    render(
+      <OnboardModal
+        {...defaultProps}
+        onSaveBackupChange={onSaveBackupChange}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Disable local save' }));
+    expect(onSaveBackupChange).toHaveBeenCalledWith(false);
+  });
+
+  it('hides the persisting step when save backup is disabled', () => {
+    render(
+      <OnboardModal
+        {...defaultProps}
+        isLoading={true}
+        currentStep="signing-transaction"
+        saveBackup={false}
+      />
+    );
+
+    expect(screen.queryByText('Persisting Key')).not.toBeInTheDocument();
+    expect(screen.getByText('Preparing')).toBeInTheDocument();
+    expect(screen.getByText('Sign Transaction')).toBeInTheDocument();
+    expect(screen.getByText('Execute Transaction')).toBeInTheDocument();
+  });
+
   it('keeps checkbox and tooltip readable when app supplies a light theme', () => {
     const lightTheme = {
       modal: { backgroundColor: '#ffffff', color: '#0f172a' },
@@ -282,10 +320,10 @@ describe('OnboardModal', () => {
 
     render(<OnboardModal {...defaultProps} theme={lightTheme} onManualAesKeySubmit={vi.fn()} />);
 
-    const checkboxLabel = screen.getByText('Save encrypted backup');
-    expect(checkboxLabel).toHaveStyle({ color: 'rgb(15, 23, 42)' });
+    const saveTitle = screen.getByText('Save Locally');
+    expect(saveTitle).toHaveStyle({ color: 'rgb(15, 23, 42)' });
 
-    const tooltipButton = screen.getByLabelText('Backup details');
+    const tooltipButton = screen.getByLabelText('How local save works');
     expect(tooltipButton).toHaveStyle({ color: 'rgb(100, 116, 139)' });
 
     expect(screen.getByText('Cancel')).toHaveStyle({ color: 'rgb(15, 23, 42)' });
@@ -295,5 +333,25 @@ describe('OnboardModal', () => {
       backgroundColor: 'rgb(241, 245, 249)',
       color: 'rgb(15, 23, 42)',
     });
+  });
+
+  it('keeps warning note padding when host theme zeroes it out', () => {
+    const lightTheme = {
+      modal: { backgroundColor: '#ffffff', color: '#0f172a' },
+      title: { color: '#0f172a' },
+      warningBox: { padding: '0' },
+    };
+
+    render(
+      <OnboardModal
+        {...defaultProps}
+        theme={lightTheme}
+        currentStep="complete"
+        aesKey="abcdef0123456789abcdef0123456789"
+      />
+    );
+
+    const note = screen.getByText(/Important:/).closest('div');
+    expect(note).toHaveStyle({ padding: '12px' });
   });
 });
