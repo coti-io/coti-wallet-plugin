@@ -86,7 +86,7 @@ export const usePrivacyBridgeSessionCore = ({
     getAesKey: getAesKeyFromProvider,
     isOnboarding,
     onboardingError,
-    onboardingWarning,
+    onboardingWarnings,
   } = useAesKeyProvider(walletTypeInfo);
   const { fetchPrivateBalance } = usePrivateTokenBalance();
 
@@ -145,6 +145,6 @@ export const usePrivacyBridgeSessionCore = ({
     fetchPrivateBalance,
     getAesKeyFromProvider,
     onboardingError,
-    onboardingWarning,
+    onboardingWarnings,
   };
 };

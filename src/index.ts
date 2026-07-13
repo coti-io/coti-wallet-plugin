@@ -192,7 +192,7 @@ export type {
 } from './hooks/useAesKeyProvider';
 // Components — Onboarding
 export { OnboardModal, onboardModalDefaultStyles, ONBOARD_MODAL_STYLE_KEYS } from './components/OnboardModal';
-export type { OnboardModalProps, OnboardModalTheme } from './components/OnboardModal';
+export type { OnboardModalProps, OnboardModalTheme, OnboardModalPage, OnboardModalWarnings } from './components/OnboardModal';
 
 // Components — Network
 export { NetworkGuard } from './components/NetworkGuard';

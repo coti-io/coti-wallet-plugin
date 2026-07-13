@@ -4,6 +4,7 @@ import type { Token } from '../../hooks/usePrivacyBridge';
 import type { PrivacyBridgeModalsContextValue } from './types';
 import type { PrivateBalanceDecryptOptions } from '../../hooks/usePrivateTokenBalance';
 import type { BuildItUint256ViaSnapParams, SnapItUint256 } from '../../hooks/useSnap';
+import type { OnboardModalWarnings } from '../../lib/onboardModalWarnings';
 
 export type UpdateAccountStateOptions = {
     /** When true, validate MetaMask Snap keys on unlock (reuses session key when present). */
@@ -83,7 +84,7 @@ export interface PrivacyBridgeSessionCore {
     options?: AesKeyProviderOptions,
   ) => Promise<string | null>;
   onboardingError: string | null;
-  onboardingWarning: string | null;
+  onboardingWarnings: OnboardModalWarnings;
 }
 
 export type UpdateAccountStateRef = MutableRefObject<UpdateAccountStateFn | null>;

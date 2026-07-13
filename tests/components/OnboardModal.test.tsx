@@ -370,6 +370,36 @@ describe('OnboardModal', () => {
     });
   });
 
+  it('shows only the intro warning on the first screen', () => {
+    render(
+      <OnboardModal
+        {...defaultProps}
+        warnings={{
+          intro: 'Portal disclaimer',
+          progress: 'Should not show yet',
+        }}
+      />
+    );
+
+    expect(screen.getByText('Portal disclaimer')).toBeInTheDocument();
+    expect(screen.queryByText('Should not show yet')).not.toBeInTheDocument();
+  });
+
+  it('prefers runtime warnings over app warnings on the same page', () => {
+    render(
+      <OnboardModal
+        {...defaultProps}
+        isLoading
+        currentStep="signing-transaction"
+        warnings={{ progress: 'App progress warning' }}
+        runtimeWarnings={{ progress: 'Runtime progress warning' }}
+      />
+    );
+
+    expect(screen.getByText('Runtime progress warning')).toBeInTheDocument();
+    expect(screen.queryByText('App progress warning')).not.toBeInTheDocument();
+  });
+
   it('keeps warning note padding when host theme zeroes it out', () => {
     const lightTheme = {
       modal: { backgroundColor: '#ffffff', color: '#0f172a' },

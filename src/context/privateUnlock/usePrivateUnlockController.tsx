@@ -11,6 +11,8 @@ import type {
 import { isSnapInstallEnabled } from '../../config/plugin';
 import { useWalletType } from '../../hooks/useWalletType';
 import { logger } from '../../lib/logger';
+import type { OnboardModalWarnings } from '../../lib/onboardModalWarnings';
+import { hasOnboardModalWarnings, mergeOnboardModalWarnings } from '../../lib/onboardModalWarnings';
 
 const MIN_BACKUP_SAVE_PROGRESS_MS = 600;
 
@@ -34,7 +36,7 @@ function keepForwardContractProgress(previous: OnboardingStep, next: OnboardingS
 
 export interface PrivateUnlockControllerOptions {
   theme?: OnboardModalTheme;
-  warning?: string;
+  warnings?: OnboardModalWarnings;
   /** Called after a successful unlock (restore, onboarding, or manual key). */
   onUnlocked?: () => void | Promise<void>;
   /** Called when the user cancels backup-restore signing — modal is not opened. */
@@ -67,7 +69,7 @@ export interface PrivateUnlockController {
 export function usePrivateUnlockController(
   options: PrivateUnlockControllerOptions = {},
 ): PrivateUnlockController {
-  const { theme, warning, onUnlocked, onRestoreCancelled, onOnboardingCancelled } = options;
+  const { theme, warnings, onUnlocked, onRestoreCancelled, onOnboardingCancelled } = options;
   const unlock = usePrivacyBridgeUnlock();
   const wallet = usePrivacyBridgeWallet();
   const walletTypeInfo = useWalletType();
@@ -75,7 +77,7 @@ export function usePrivateUnlockController(
   const [showOnboardModal, setShowOnboardModal] = useState(false);
   const [isUnlocking, setIsUnlocking] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
-  const [modalWarning, setModalWarning] = useState<string | null>(null);
+  const [modalRuntimeWarnings, setModalRuntimeWarnings] = useState<OnboardModalWarnings>({});
   const [snapConnectedInModal, setSnapConnectedInModal] = useState(false);
   const [saveBackup, setSaveBackup] = useState(true);
   const [currentStep, setCurrentStep] = useState<OnboardingStep>('idle');
@@ -119,7 +121,7 @@ export function usePrivateUnlockController(
     pendingActionOwnerRef.current = null;
     setCurrentStep('idle');
     setModalError(null);
-    setModalWarning(null);
+    setModalRuntimeWarnings({});
     backupSaveProgressStartedAtRef.current = null;
     pendingCompleteRequestIdRef.current = null;
     contractOnboardingCancelledRef.current = false;
@@ -155,7 +157,7 @@ export function usePrivateUnlockController(
     setShowOnboardModal(false);
     setCurrentStep('idle');
     setModalError(null);
-    setModalWarning(null);
+    setModalRuntimeWarnings({});
     setIsUnlockInProgress(false);
     setIsUnlocking(false);
     backupSaveProgressStartedAtRef.current = null;
@@ -183,7 +185,7 @@ export function usePrivateUnlockController(
     setShowOnboardModal(false);
     setCurrentStep('idle');
     setModalError(null);
-    setModalWarning(null);
+    setModalRuntimeWarnings({});
     unlockInProgressOwnerRef.current = null;
     setIsUnlockInProgress(false);
     setIsUnlocking(false);
@@ -230,14 +232,18 @@ export function usePrivateUnlockController(
     try {
       const connected = await unlock.requestSnapConnection();
       if (!connected) {
-        setModalWarning('Snap connection was skipped or rejected. Continuing without Snap storage.');
+        setModalRuntimeWarnings({
+          intro: 'Snap connection was skipped or rejected. Continuing without Snap storage.',
+        });
         return false;
       }
       snapConnectedInModalRef.current = true;
       setSnapConnectedInModal(true);
       return true;
     } catch {
-      setModalWarning('Snap connection failed. Continuing without Snap storage.');
+      setModalRuntimeWarnings({
+        intro: 'Snap connection failed. Continuing without Snap storage.',
+      });
       return false;
     }
   }, [canAttemptSnapInstall, unlock]);
@@ -285,16 +291,14 @@ export function usePrivateUnlockController(
     if (failureMessage) {
       setCurrentStep('error');
       setModalError(failureMessage);
-      setModalWarning(unlock.onboardingWarning ?? null);
       releaseUnlockInProgress(requestId);
       return;
     }
 
     setCurrentStep('error');
     setModalError('Onboarding did not complete. Please retry.');
-    setModalWarning(unlock.onboardingWarning ?? null);
     releaseUnlockInProgress(requestId);
-  }, [dismissOnboardModal, isActiveUnlockRequest, onOnboardingCancelled, releaseUnlockInProgress, unlock.onboardingWarning]);
+  }, [dismissOnboardModal, isActiveUnlockRequest, onOnboardingCancelled, releaseUnlockInProgress]);
 
   const handleStaleRestoreCompletion = useCallback((
     requestId: number,
@@ -328,7 +332,7 @@ export function usePrivateUnlockController(
     }
 
     setModalError(null);
-    setModalWarning(null);
+    setModalRuntimeWarnings({});
     inFlightRestoreRequestIdRef.current = requestId;
     setIsUnlocking(true);
 
@@ -366,7 +370,6 @@ export function usePrivateUnlockController(
       }
 
       setCurrentStep('idle');
-      setModalWarning(unlock.onboardingWarning ?? null);
       setShowOnboardModal(true);
       return false;
     } catch (error) {
@@ -444,7 +447,6 @@ export function usePrivateUnlockController(
         contractOnboardingFailureRef.current = failureMessage;
         setCurrentStep('error');
         setModalError(failureMessage);
-        setModalWarning(unlock.onboardingWarning ?? null);
         releaseUnlockInProgress(unlockRequestIdRef.current);
       }
       return;
@@ -458,7 +460,7 @@ export function usePrivateUnlockController(
     if (step === 'idle') {
       setModalError(null);
     }
-  }, [currentStep, showOnboardModal, releaseUnlockInProgress, unlock.onboardingWarning]);
+  }, [currentStep, showOnboardModal, releaseUnlockInProgress]);
 
   const showOnboardingComplete = useCallback((requestId: number) => {
     if (!isActiveUnlockRequest(requestId)) return;
@@ -482,7 +484,7 @@ export function usePrivateUnlockController(
 
     const requestId = unlockRequestIdRef.current;
     setModalError(null);
-    setModalWarning(null);
+    setModalRuntimeWarnings({});
     setIsUnlocking(true);
     setShowOnboardModal(true);
     setCurrentStep('preparing-onboard');
@@ -523,7 +525,7 @@ export function usePrivateUnlockController(
         currentStep,
         hasSessionAesKey: !!unlock.sessionAesKey,
         hasOnboardingError: !!unlock.onboardingError,
-        hasOnboardingWarning: !!unlock.onboardingWarning,
+        hasOnboardingWarning: hasOnboardModalWarnings(unlock.onboardingWarnings),
       });
 
       const backupSaveProgressStartedAt = backupSaveProgressStartedAtRef.current;
@@ -655,7 +657,7 @@ export function usePrivateUnlockController(
       onSaveBackupChange={setSaveBackup}
       onManualAesKeySubmit={async (aesKey, { saveBackup: shouldSaveBackup }) => {
         const requestId = unlockRequestIdRef.current;
-        setModalWarning(null);
+        setModalRuntimeWarnings({});
         const manualSaveResult = await unlock.saveManualAesKey(aesKey, {
           saveBackup: shouldSaveBackup,
           onProgress: (step) => {
@@ -676,7 +678,7 @@ export function usePrivateUnlockController(
           return;
         }
         if (manualSaveResult.backupWarning) {
-          setModalWarning(manualSaveResult.backupWarning);
+          setModalRuntimeWarnings({ success: manualSaveResult.backupWarning });
           setShowOnboardModal(true);
           setCurrentStep('complete');
           releaseUnlockInProgress(requestId);
@@ -685,7 +687,8 @@ export function usePrivateUnlockController(
         await completeUnlock(requestId);
       }}
       theme={theme}
-      warning={modalWarning ?? unlock.onboardingWarning ?? warning ?? null}
+      warnings={warnings}
+      runtimeWarnings={mergeOnboardModalWarnings(unlock.onboardingWarnings, modalRuntimeWarnings)}
     />
   );
 

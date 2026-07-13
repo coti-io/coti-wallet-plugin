@@ -13,7 +13,7 @@ let mockIsMetaMaskWithSnap = false;
 let mockIsPrivateUnlocked = false;
 let mockSessionAesKey: string | null = null;
 let mockOnboardingError: string | null = null;
-let mockOnboardingWarning: string | null = null;
+let mockOnboardingWarnings: Record<string, string> = {};
 
 vi.mock('../../src/context/privacyBridge/contexts', () => ({
   usePrivacyBridgeUnlock: () => ({
@@ -22,7 +22,7 @@ vi.mock('../../src/context/privacyBridge/contexts', () => ({
     sendPrivateToken: vi.fn(),
     refreshPrivateBalances: mockRefreshPrivateBalances,
     onboardingError: mockOnboardingError,
-    onboardingWarning: mockOnboardingWarning,
+    onboardingWarnings: mockOnboardingWarnings,
     lockPrivateBalances: mockLockPrivateBalances,
     saveManualAesKey: mockSaveManualAesKey,
     requestSnapConnection: mockRequestSnapConnection,
@@ -70,7 +70,7 @@ describe('usePrivateUnlockFlow', () => {
     mockIsPrivateUnlocked = false;
     mockSessionAesKey = null;
     mockOnboardingError = null;
-    mockOnboardingWarning = null;
+    mockOnboardingWarnings = {};
     mockRefreshPrivateBalances.mockResolvedValue(false);
     mockRequestSnapConnection.mockResolvedValue(false);
   });
@@ -569,9 +569,9 @@ describe('usePrivateUnlockFlow', () => {
       saveBackup: true,
       onProgress: expect.any(Function),
     });
-    expect(result.current.onboardModal.props.warning).toBe(
-      'Snap connection was skipped or rejected. Continuing without Snap storage.',
-    );
+    expect(result.current.onboardModal.props.runtimeWarnings).toEqual({
+      intro: 'Snap connection was skipped or rejected. Continuing without Snap storage.',
+    });
   });
 
   it('keeps success screen open with AES key after contract onboarding until dismissed', async () => {
@@ -1185,7 +1185,7 @@ describe('usePrivateUnlockFlow', () => {
   });
 
   it('passes onboarding warning to the modal without stale provider errors on open', async () => {
-    mockOnboardingWarning = 'Backup restore failed; continuing.';
+    mockOnboardingWarnings = { intro: 'Backup restore failed; continuing.' };
     mockOnboardingError = 'Onboarding exploded';
     mockRefreshPrivateBalances.mockResolvedValueOnce(false);
 
@@ -1197,7 +1197,9 @@ describe('usePrivateUnlockFlow', () => {
 
     expect(result.current.showOnboardModal).toBe(true);
     expect(result.current.onboardModal.props.error).toBeNull();
-    expect(result.current.onboardModal.props.warning).toBe('Backup restore failed; continuing.');
+    expect(result.current.onboardModal.props.runtimeWarnings).toEqual({
+      intro: 'Backup restore failed; continuing.',
+    });
   });
 
   it('passes saveBackup and onProgress when submitting a manual AES key', async () => {
@@ -1249,9 +1251,9 @@ describe('usePrivateUnlockFlow', () => {
 
     expect(result.current.showOnboardModal).toBe(true);
     expect(result.current.onboardModal.props.currentStep).toBe('complete');
-    expect(result.current.onboardModal.props.warning).toBe(
-      'Encrypted backup was not saved. storage failed',
-    );
+    expect(result.current.onboardModal.props.runtimeWarnings).toEqual({
+      success: 'Encrypted backup was not saved. storage failed',
+    });
     expect(onUnlocked).not.toHaveBeenCalled();
     expect(pendingAction).not.toHaveBeenCalled();
 

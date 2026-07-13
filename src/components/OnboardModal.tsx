@@ -10,6 +10,13 @@ import {
 } from '../lib/onboardingProgressDisplay';
 import { deriveOnboardScreen } from './onboard/deriveOnboardScreen';
 import { logger } from '../lib/logger';
+import {
+  type OnboardModalPage,
+  type OnboardModalWarnings,
+  resolveOnboardPageWarning,
+} from '../lib/onboardModalWarnings';
+
+export type { OnboardModalPage, OnboardModalWarnings };
 
 /**
  * Props for the OnboardModal component.
@@ -42,8 +49,10 @@ export interface OnboardModalProps {
     aesKey: string,
     options: { saveBackup: boolean },
   ) => void | Promise<void>;
-  /** Non-blocking warning from restore/backup flows */
-  warning?: string | null;
+  /** App-configured warning copy, one message per onboard screen */
+  warnings?: OnboardModalWarnings;
+  /** Runtime warnings from unlock/onboarding flows, one message per screen */
+  runtimeWarnings?: OnboardModalWarnings;
   /** Optional theme overrides for customizing the modal appearance */
   theme?: OnboardModalTheme;
 }
@@ -984,7 +993,8 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
   showSaveBackupOption = true,
   onSaveBackupChange,
   onManualAesKeySubmit,
-  warning,
+  warnings,
+  runtimeWarnings,
   theme,
 }) => {
   const [copied, setCopied] = useState(false);
@@ -1038,6 +1048,21 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
       <h2 id="onboard-modal-title" style={styles.title}>{title}</h2>
     </div>
   );
+
+  const renderPageWarning = (page: OnboardModalPage) => {
+    const message = resolveOnboardPageWarning(page, {
+      warnings,
+      runtimeWarnings,
+      saveBackup,
+    });
+    if (!message) return null;
+
+    return (
+      <div style={warningStyles.box}>
+        <p style={warningStyles.text}>{message}</p>
+      </div>
+    );
+  };
 
   const renderSaveLocallyOption = () => {
     if (!showSaveBackupOption) return null;
@@ -1305,11 +1330,7 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
                 This will execute a transaction on the COTI Network to retrieve your encryption key.
               </p>
 
-              {warning && (
-                <div style={warningStyles.box}>
-                  <p style={warningStyles.text}>{warning}</p>
-                </div>
-              )}
+              {renderPageWarning('intro')}
 
               {renderSaveLocallyOption()}
 
@@ -1413,11 +1434,7 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
                 getProgressTitle(currentStep),
               )}
 
-              {warning && (
-                <div style={warningStyles.box}>
-                  <p style={warningStyles.text}>{warning}</p>
-                </div>
-              )}
+              {renderPageWarning('progress')}
 
               {/* Step Progress */}
               <div style={styles.stepperContainer}>
@@ -1540,17 +1557,7 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
                 </div>
               </div>
 
-              <div style={warningStyles.box}>
-                <p style={warningStyles.text}>
-                  <strong>Important:</strong> {saveBackup ? 'An encrypted backup can help restore this key later, but you should still store it safely.' : 'This key will be lost when you refresh the page. Store it in a secure location.'}
-                </p>
-              </div>
-
-              {warning && (
-                <div style={warningStyles.box}>
-                  <p style={warningStyles.text}>{warning}</p>
-                </div>
-              )}
+              {renderPageWarning('success')}
 
               <button
                 onClick={onClose}
@@ -1589,6 +1596,8 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
               <div style={styles.errorBox}>
                 <p style={styles.errorText}>{error || 'An unknown error occurred'}</p>
               </div>
+
+              {renderPageWarning('error')}
 
               <button
                 onClick={onConfirm}
