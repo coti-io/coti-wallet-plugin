@@ -16,7 +16,9 @@ const SYMBOL_TO_ORACLE_BASE: Record<string, string> = {
   USDC: 'USDC',
   'USDC.e': 'USDC',
   WADA: 'ADA',
-  // gCOTI is not in the on-chain price consumer
+  // Consumer base is uppercase GCOTI (lowercase gCOTI reverts).
+  gCOTI: 'GCOTI',
+  NIGHT: 'NIGHT',
 };
 
 /**
@@ -256,6 +258,7 @@ const TOKEN_TO_ORACLE_SYMBOL: Record<string, string> = {
   'USDC.e': 'USDC',
   WADA: 'ADA',
   gCOTI: 'GCOTI',
+  NIGHT: 'NIGHT',
 };
 
 /** Maps bridge token symbols to their decimals */
@@ -267,6 +270,7 @@ const TOKEN_DECIMALS: Record<string, number> = {
   'USDC.e': 6,
   WADA: 6,
   gCOTI: 18,
+  NIGHT: 6,
 };
 
 export interface SimulationResult {

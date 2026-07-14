@@ -95,6 +95,8 @@ describe('useBridgeFees on-chain helpers (coverage)', () => {
     it('maps known symbols', () => {
       expect(getTokenSimulationMeta('WETH')).toEqual({ oracleSymbol: 'ETH', decimals: 18 });
       expect(getTokenSimulationMeta('WBTC')).toEqual({ oracleSymbol: 'WBTC', decimals: 8 });
+      expect(getTokenSimulationMeta('gCOTI')).toEqual({ oracleSymbol: 'GCOTI', decimals: 18 });
+      expect(getTokenSimulationMeta('NIGHT')).toEqual({ oracleSymbol: 'NIGHT', decimals: 6 });
     });
 
     it('falls back to the raw symbol and 18 decimals for unknown tokens', () => {
@@ -115,6 +117,16 @@ describe('useBridgeFees on-chain helpers (coverage)', () => {
       expect(price).toBe(2.5);
       expect(h.jsonRpcCtor).not.toHaveBeenCalled();
       expect(h.getPrice).toHaveBeenCalledWith('ETH');
+    });
+
+    it('maps gCOTI to consumer base GCOTI and NIGHT to NIGHT', async () => {
+      h.getPrice.mockResolvedValueOnce(ethers.parseEther('0.002'));
+      expect(await fetchTokenUsdPrice('gCOTI', anyProvider, COTI_TESTNET)).toBe(0.002);
+      expect(h.getPrice).toHaveBeenCalledWith('GCOTI');
+
+      h.getPrice.mockResolvedValueOnce(ethers.parseEther('0.03'));
+      expect(await fetchTokenUsdPrice('NIGHT', anyProvider, COTI_TESTNET)).toBe(0.03);
+      expect(h.getPrice).toHaveBeenCalledWith('NIGHT');
     });
 
     it('creates a JsonRpcProvider when none is supplied and falls back to the testnet oracle for an unknown chain', async () => {
