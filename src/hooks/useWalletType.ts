@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAccount } from 'wagmi';
-import { getPluginConfig } from '../config/plugin';
+import { getPluginConfig, isSnapEnabled } from '../config/plugin';
 import { isMetaMaskMobileBrowser } from '../lib/metaMaskMobile';
 
 /**
@@ -99,7 +99,7 @@ export function useWalletType(): WalletTypeInfo {
   useEffect(() => {
     let cancelled = false;
 
-    if (walletType !== 'metamask' || !connector) {
+    if (walletType !== 'metamask' || !connector || !isSnapEnabled()) {
       setIsMetaMaskWithSnap(false);
       return;
     }

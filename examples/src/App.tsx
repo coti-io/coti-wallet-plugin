@@ -66,7 +66,7 @@ const saveEncryptedAesBackup = async (
 
 const LOCAL_SNAP_ID = import.meta.env.VITE_SNAP_ID?.trim();
 const LOCAL_SNAP_VERSION = import.meta.env.VITE_SNAP_VERSION?.trim();
-const SNAP_INSTALL_ENABLED = import.meta.env.VITE_COTI_SNAP_INSTALL_ENABLED !== 'false';
+const SNAP_ENABLED = import.meta.env.VITE_COTI_SNAP_ENABLED !== 'false';
 const LOCAL_SNAP_AES_WRITE_ORIGINS =
   (LOCAL_SNAP_ID?.startsWith('local:') || import.meta.env.DEV) && typeof window !== 'undefined'
     ? [window.location.origin]
@@ -75,7 +75,7 @@ const LOCAL_SNAP_AES_WRITE_ORIGINS =
 configureCotiPlugin({
   ...(LOCAL_SNAP_ID ? { snapId: LOCAL_SNAP_ID } : {}),
   ...(LOCAL_SNAP_VERSION ? { snapVersion: LOCAL_SNAP_VERSION } : {}),
-  snapInstallEnabled: SNAP_INSTALL_ENABLED,
+  snapEnabled: SNAP_ENABLED,
   aesKeyChainId: COTI_TESTNET_CHAIN_ID,
   additionalSnapAesWriteOrigins: LOCAL_SNAP_AES_WRITE_ORIGINS,
   debug: true,

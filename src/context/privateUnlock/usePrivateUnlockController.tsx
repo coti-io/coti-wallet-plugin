@@ -8,7 +8,7 @@ import type {
   OnboardingProgressDetails,
   OnboardingStep,
 } from '../../hooks/useAesKeyProvider';
-import { isSnapInstallEnabled } from '../../config/plugin';
+import { isSnapEnabled } from '../../config/plugin';
 import { useWalletType } from '../../hooks/useWalletType';
 import { logger } from '../../lib/logger';
 import type { OnboardModalWarnings } from '../../lib/onboardModalWarnings';
@@ -103,10 +103,10 @@ export function usePrivateUnlockController(
 
   const connectedAddress = wallet.walletAddress || '';
   const isMetaMaskWallet = walletTypeInfo.walletType === 'metamask';
-  const canAttemptSnapInstall =
-    isMetaMaskWallet && !isMetaMaskMobileBrowser() && isSnapInstallEnabled();
+  const canUseSnap =
+    isMetaMaskWallet && !isMetaMaskMobileBrowser() && isSnapEnabled();
   const usesSnapStorage =
-    canAttemptSnapInstall && (walletTypeInfo.isMetaMaskWithSnap || snapConnectedInModal);
+    canUseSnap && (walletTypeInfo.isMetaMaskWithSnap || snapConnectedInModal);
 
   const isActiveUnlockRequest = useCallback(
     (requestId: number) => requestId === unlockRequestIdRef.current,
@@ -226,7 +226,7 @@ export function usePrivateUnlockController(
   }, [dismissOnboardModal, wallet.walletAddress]);
 
   const connectSnap = useCallback(async () => {
-    if (!canAttemptSnapInstall) return false;
+    if (!canUseSnap) return false;
 
     setModalError(null);
     try {
@@ -246,7 +246,7 @@ export function usePrivateUnlockController(
       });
       return false;
     }
-  }, [canAttemptSnapInstall, unlock]);
+  }, [canUseSnap, unlock]);
 
   const handleRestoreUnlockProgress = useCallback((step: OnboardingStep) => {
     if (step === 'signing-backup') {
@@ -494,7 +494,7 @@ export function usePrivateUnlockController(
       let useSnapStorageForOnboarding =
         usesSnapStorage || snapConnectedInModalRef.current;
 
-      if (!useSnapStorageForOnboarding && canAttemptSnapInstall) {
+      if (!useSnapStorageForOnboarding && canUseSnap) {
         useSnapStorageForOnboarding = await connectSnap();
       }
 
@@ -505,6 +505,8 @@ export function usePrivateUnlockController(
       const ok = await unlock.refreshPrivateBalances({
         forceContractOnboarding: true,
         saveBackup: useSnapStorageForOnboarding ? false : saveBackup,
+        // Explicit: don't rely on isMetaMaskWithSnap which can lag after connectSnap.
+        persistToSnap: useSnapStorageForOnboarding,
         onProgress: (step, details) => {
           if (isActiveUnlockRequest(requestId)) {
             handleContractOnboardingProgress(step, details);
@@ -567,7 +569,7 @@ export function usePrivateUnlockController(
         setIsUnlocking(false);
       }
     }
-  }, [canAttemptSnapInstall, connectSnap, connectedAddress, currentStep, dismissOnboardModal, handleContractOnboardingProgress, handleOnboardingIncomplete, isActiveUnlockRequest, onOnboardingCancelled, saveBackup, showOnboardingComplete, unlock, usesSnapStorage]);
+  }, [canUseSnap, connectSnap, connectedAddress, currentStep, dismissOnboardModal, handleContractOnboardingProgress, handleOnboardingIncomplete, isActiveUnlockRequest, onOnboardingCancelled, saveBackup, showOnboardingComplete, unlock, usesSnapStorage]);
 
   const handleOnboardModalClose = useCallback(() => {
     if (

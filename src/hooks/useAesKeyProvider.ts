@@ -93,6 +93,12 @@ export interface AesKeyProviderOptions {
   forceContractOnboarding?: boolean;
   /** Whether contract-onboarding should save a client-encrypted AES backup. */
   saveBackup?: boolean;
+  /**
+   * Persist the onboarded AES key to Snap after contract onboarding.
+   * Used when the unlock UI just connected Snap (`wallet_requestSnaps`) but
+   * `isMetaMaskWithSnap` may still be stale.
+   */
+  persistToSnap?: boolean;
   /** Only restore via Snap-side decrypt / backup; never export raw key or run contract onboarding. */
   restoreOnly?: boolean;
   /** Unlock via Snap typed decrypt RPC (no raw AES export). Used when AES is already stored in Snap. */
@@ -672,10 +678,12 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
 
         // Step: Persist key (MetaMask Snap / encrypted backup) or finalize
         let savedToSnap = false;
+        const shouldPersistToSnap =
+          walletTypeInfo.isMetaMaskWithSnap || options.persistToSnap === true;
         const canSaveToConnectedSnap =
-          aesKey
+          !!aesKey
           && walletTypeInfo.walletType === 'metamask'
-          && walletTypeInfo.isMetaMaskWithSnap
+          && shouldPersistToSnap
           && canPersistAesKeyToSnap();
         const canSaveEncryptedBackup =
           aesKey &&
@@ -698,7 +706,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           aesKey
           && walletTypeInfo.walletType === 'metamask'
           && canPersistAesKeyToSnap()
-          && !walletTypeInfo.isMetaMaskWithSnap
+          && !shouldPersistToSnap
         ) {
           logger.log(
             'ℹ️ Skipping Snap AES persist — Snap is not connected to this origin',
@@ -807,7 +815,17 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         }
       }
     },
-    [walletTypeInfo.walletType, getAESKeyFromSnap, saveAESKeyToSnap, clearSnapCache, connector, connectedChainId, emitStep, reportOnboardingFailure]
+    [
+      walletTypeInfo.walletType,
+      walletTypeInfo.isMetaMaskWithSnap,
+      getAESKeyFromSnap,
+      saveAESKeyToSnap,
+      clearSnapCache,
+      connector,
+      connectedChainId,
+      emitStep,
+      reportOnboardingFailure,
+    ]
   );
 
   return {

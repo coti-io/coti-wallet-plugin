@@ -356,6 +356,30 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       expect(snapState.saveAESKeyToSnap).toHaveBeenCalledWith(VALID_KEY, ADDR);
       expect(saveEncryptedAesBackup).not.toHaveBeenCalled();
     });
+
+    it('persists to Snap via persistToSnap even when isMetaMaskWithSnap is still false', async () => {
+      snapState.getAESKeyFromSnap.mockRejectedValue(
+        new CotiPluginError(CotiErrorCode.SNAP_CONNECT_FAILED, 'no snap'),
+      );
+      snapState.saveAESKeyToSnap.mockResolvedValue(true);
+      wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
+      wagmiState.chainId = COTI_TESTNET;
+
+      const { result } = renderHook(() => useAesKeyProvider(walletInfo({
+        walletType: 'metamask',
+        isMetaMaskWithSnap: false,
+      })));
+
+      await act(async () => {
+        await result.current.getAesKey(ADDR, undefined, {
+          forceContractOnboarding: true,
+          persistToSnap: true,
+          saveBackup: false,
+        });
+      });
+
+      expect(snapState.saveAESKeyToSnap).toHaveBeenCalledWith(VALID_KEY, ADDR);
+    });
   });
 
   // ─── Contract route, no chain switch (already on COTI) ───────────────────

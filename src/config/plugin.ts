@@ -53,11 +53,11 @@ export interface CotiPluginConfig {
    */
   snapVersion?: string;
   /**
-   * When false, the plugin will not call `wallet_requestSnaps` to install or
-   * reconnect the Snap. An already-installed Snap can still be used for AES
-   * key retrieval. Default: true.
+   * When false, Snap is fully disabled for this app: no install/connect,
+   * no AES key probe/retrieval, and strategy routing ignores an already-installed
+   * Snap. Default: true.
    */
-  snapInstallEnabled?: boolean;
+  snapEnabled?: boolean;
   /** If set, enforces a specific network chain ID (decimal string or hex). */
   defaultNetworkId?: string;
   /** Sepolia RPC URL for PoD portal operations. */
@@ -108,7 +108,7 @@ export interface CotiPluginConfig {
 
 let _config: CotiPluginConfig = {
   snapId: 'npm:@coti-io/coti-snap',
-  snapInstallEnabled: true,
+  snapEnabled: true,
   defaultNetworkId: undefined,
   debug: false,
   clearSessionKeyOnWagmiDisconnect: false,
@@ -147,10 +147,10 @@ export function configureCotiPlugin(config: Partial<CotiPluginConfig>): void {
       ...config.onboardingServices,
     },
   };
-  if ('snapInstallEnabled' in config && _config.debug) {
-    console.log('[CotiPlugin] snapInstallEnabled:', {
-      snapInstallEnabled: config.snapInstallEnabled,
-      effective: isSnapInstallEnabled(),
+  if ('snapEnabled' in config && _config.debug) {
+    console.log('[CotiPlugin] snapEnabled:', {
+      snapEnabled: config.snapEnabled,
+      effective: isSnapEnabled(),
     });
   }
 }
@@ -174,7 +174,7 @@ export function getPluginConfig(): Readonly<CotiPluginConfig> {
   return _config;
 }
 
-/** Whether `wallet_requestSnaps` install/connect is allowed for this app. */
-export function isSnapInstallEnabled(): boolean {
-  return getPluginConfig().snapInstallEnabled !== false;
+/** Whether Snap usage (install, probe, AES key retrieve/save) is allowed for this app. */
+export function isSnapEnabled(): boolean {
+  return getPluginConfig().snapEnabled !== false;
 }

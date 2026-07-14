@@ -126,8 +126,8 @@ describe('useSnap (success & lifecycle paths)', () => {
       configureCotiPlugin({ snapVersion: undefined });
     });
 
-    it('requestSnapConnection returns false when snap install is disabled', async () => {
-      configureCotiPlugin({ snapInstallEnabled: false });
+    it('requestSnapConnection returns false when snap is disabled', async () => {
+      configureCotiPlugin({ snapEnabled: false });
       const setSnapError = vi.fn();
       const { result } = renderHook(() => useSnap(setSnapError));
 
@@ -136,7 +136,18 @@ describe('useSnap (success & lifecycle paths)', () => {
       expect(ok).toBe(false);
       expect(setSnapError).not.toHaveBeenCalled();
       expect(mockRequest).not.toHaveBeenCalled();
-      configureCotiPlugin({ snapInstallEnabled: true });
+      configureCotiPlugin({ snapEnabled: true });
+    });
+
+    it('isSnapInstalled returns false when snap is disabled even if installed', async () => {
+      configureCotiPlugin({ snapEnabled: false });
+      const { result } = renderHook(() => useSnap());
+
+      expect(await result.current.isSnapInstalled()).toBe(false);
+      expect(mockRequest).not.toHaveBeenCalledWith(
+        expect.objectContaining({ method: 'wallet_getSnaps' }),
+      );
+      configureCotiPlugin({ snapEnabled: true });
     });
 
     it('requestSnapConnection returns false and sets error on -32601', async () => {
