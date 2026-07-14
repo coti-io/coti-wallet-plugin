@@ -228,4 +228,43 @@ describe('usePrivateTokenBalance (contract paths)', () => {
     const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(32), CONTRACT, 256, 18);
     expect(bal).toBe('0.00');
   });
+
+  it('throws AES_KEY_MISMATCH on Invalid encrypted payload Snap errors', async () => {
+    (window as any).ethereum = {};
+    const snapError = Object.assign(
+      new Error('Invalid encrypted payload. Expected JSON with ciphertext and r byte maps.'),
+      { code: -32603 },
+    );
+    h.balanceOf.mockRejectedValue(snapError);
+
+    const { result } = renderHook(() => usePrivateTokenBalance());
+    await expect(
+      result.current.fetchPrivateBalance(USER, 'a'.repeat(32), CONTRACT, 256, 18),
+    ).rejects.toMatchObject({
+      code: CotiErrorCode.AES_KEY_MISMATCH,
+      message: expect.stringContaining('Could not decrypt private balances'),
+    });
+  });
+
+  it('throws AES_KEY_MISMATCH when Snap-side decrypt fails', async () => {
+    (window as any).ethereum = {};
+    h.balanceOf.mockResolvedValue({ ciphertextHigh: 1n, ciphertextLow: 2n });
+    const decryptCtUint256 = vi.fn().mockRejectedValue(
+      Object.assign(new Error('MetaMask - RPC Error'), { code: -32603 }),
+    );
+
+    const { result } = renderHook(() => usePrivateTokenBalance());
+    await expect(
+      result.current.fetchPrivateBalance(
+        USER,
+        '',
+        CONTRACT,
+        256,
+        18,
+        undefined,
+        false,
+        { decryptCtUint256 },
+      ),
+    ).rejects.toMatchObject({ code: CotiErrorCode.AES_KEY_MISMATCH });
+  });
 });

@@ -148,6 +148,28 @@ export const usePrivateTokenBalance = () => {
             if (error instanceof CotiPluginError) {
                 throw error;
             }
+
+            const message = error instanceof Error
+                ? error.message
+                : String((error as { message?: unknown } | null)?.message ?? error ?? '');
+            const code = (error as { code?: number | string } | null)?.code;
+            // Snap untyped decrypt throws this when the payload/key is missing or malformed.
+            // Returning "0.00" would falsely mark unlock as successful with zero balances.
+            const isDecryptPayloadFailure =
+                message.includes('Invalid encrypted payload')
+                || (code === -32603 && /encrypt|decrypt|ciphertext/i.test(message));
+
+            if (isDecryptPayloadFailure || canUseSnapDecrypt) {
+                logger.error(`❌ Failed to decrypt private balance for ${contractAddress}`, error);
+                throw new CotiPluginError(
+                    CotiErrorCode.AES_KEY_MISMATCH,
+                    isDecryptPayloadFailure
+                        ? 'Could not decrypt private balances. The Snap AES key may be missing or invalid — re-onboarding is required.'
+                        : 'Could not decrypt private balances via Snap. Re-onboarding may be required.',
+                    message,
+                );
+            }
+
             logger.error(`❌ Failed to fetch/decrypt for ${contractAddress}`, error);
             return '0.00';
         }

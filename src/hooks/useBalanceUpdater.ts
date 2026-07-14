@@ -279,10 +279,15 @@ export const useBalanceUpdater = ({
                                 } catch (e: any) {
                                     const msg = e?.message || '';
                                     const isMismatch =
-                                        msg.includes('AES key mismatch') ||
-                                        msg.includes('onboarding') ||
-                                        msg.includes('ACCOUNT_NOT_ONBOARDED') ||
-                                        msg.includes('implausible decrypted balance');
+                                        (e instanceof CotiPluginError && (
+                                            e.code === CotiErrorCode.AES_KEY_MISMATCH
+                                            || e.code === CotiErrorCode.ACCOUNT_NOT_ONBOARDED
+                                        ))
+                                        || msg.includes('AES key mismatch')
+                                        || msg.includes('Invalid encrypted payload')
+                                        || msg.includes('onboarding')
+                                        || msg.includes('ACCOUNT_NOT_ONBOARDED')
+                                        || msg.includes('implausible decrypted balance');
                                     if (isMismatch) {
                                         logger.warn(`⚠️ Private token decrypt mismatch for ${tokenAddress}. Falling back to 0.`);
                                         return { symbol: token.symbol, value: '0', isMismatch: true };
