@@ -55,6 +55,9 @@
   "publishConfig": {
     "access": "public"
   },
+  "engines": {
+    "node": ">=22.16.0"
+  },
   "packageManager": "npm@11.9.0",
   "dependencies": {
     "@coti-io/coti-ethers": "^1.0.0",
