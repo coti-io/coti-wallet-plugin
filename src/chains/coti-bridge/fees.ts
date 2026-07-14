@@ -33,6 +33,7 @@ const resolveBridgeAddress = (
   if (symbol === "USDC.e") return addresses.PrivacyBridgeUSDCe;
   if (symbol === "WADA") return addresses.PrivacyBridgeWADA;
   if (symbol === "gCOTI") return addresses.PrivacyBridgegCOTI;
+  if (symbol === "NIGHT") return addresses.PrivacyBridgeNight;
   return addresses.PrivacyBridgeCotiNative;
 };
 
@@ -73,7 +74,7 @@ export const quoteCotiBridgeFees = async (params: {
   let privateDecimals = pubTok?.decimals ?? 18;
   if (!pubTok) {
     if (isWbtc) { publicDecimals = 8; privateDecimals = 8; }
-    else if (isUsdt || isUsdcE || isWada) { publicDecimals = 6; privateDecimals = 6; }
+    else if (isUsdt || isUsdcE || isWada || isNight) { publicDecimals = 6; privateDecimals = 6; }
   }
 
   const decimals = direction === "to-private" ? publicDecimals : privateDecimals;
