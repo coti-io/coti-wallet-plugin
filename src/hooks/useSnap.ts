@@ -494,8 +494,13 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
         options?: GetAESKeyFromSnapOptions,
     ): Promise<string | null> => {
         if (!isSnapEnabled()) {
-            logger.log('ℹ️ Snap disabled via plugin config — skipping AES key retrieval');
-            return null;
+            // Throw (don't return null): getAesKey treats null as user cancel and
+            // only falls through to contract onboarding on SNAP_CONNECT_FAILED.
+            logger.log('ℹ️ Snap disabled via plugin config — treating as unavailable');
+            throw new CotiPluginError(
+                CotiErrorCode.SNAP_CONNECT_FAILED,
+                'COTI Snap is disabled for this app',
+            );
         }
 
         if (setSnapError) setSnapError(null);

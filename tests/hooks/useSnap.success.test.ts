@@ -150,6 +150,17 @@ describe('useSnap (success & lifecycle paths)', () => {
       configureCotiPlugin({ snapEnabled: true });
     });
 
+    it('getAESKeyFromSnap throws SNAP_CONNECT_FAILED when snap is disabled', async () => {
+      configureCotiPlugin({ snapEnabled: false });
+      const { result } = renderHook(() => useSnap());
+
+      await expect(result.current.getAESKeyFromSnap(ACCOUNT)).rejects.toMatchObject({
+        code: CotiErrorCode.SNAP_CONNECT_FAILED,
+      });
+      expect(mockRequest).not.toHaveBeenCalled();
+      configureCotiPlugin({ snapEnabled: true });
+    });
+
     it('requestSnapConnection returns false and sets error on -32601', async () => {
       mockRequest.mockRejectedValue({ code: -32601 });
       const setSnapError = vi.fn();

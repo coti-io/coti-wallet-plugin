@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
+import { configureCotiPlugin } from '../../src/config/plugin';
 
 // ─── Hoisted mock state ─────────────────────────────────────────────────────
 const h = vi.hoisted(() => ({
@@ -129,6 +130,7 @@ function makeNetwork(overrides: Partial<any> = {}) {
 describe('usePrivacyBridgeAccountSync — sessionAesKey effect', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    configureCotiPlugin({ snapEnabled: true });
     h.updateAccountState.mockResolvedValue(true);
     h.isChainUpdatesMuted.mockReturnValue(false);
     h.balanceUpdaterParams = undefined;
@@ -281,6 +283,29 @@ describe('usePrivacyBridgeAccountSync — sessionAesKey effect', () => {
       '0xabc123',
       undefined,
       { skipCache: true, forceContractOnboarding: true },
+    );
+  });
+
+  it('routes MetaMask skipCache to provider when Snap is disabled (continue without Snap)', async () => {
+    configureCotiPlugin({ snapEnabled: false });
+    const getAESKeyFromSnap = vi.fn().mockResolvedValue('snap-key');
+    const getAesKeyFromProvider = vi.fn().mockResolvedValue('contract-key');
+    const core = makeCore({ getAESKeyFromSnap, getAesKeyFromProvider });
+    const network = makeNetwork();
+    const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
+
+    renderHook(() => usePrivacyBridgeAccountSync({ core, network, updateAccountStateRef }));
+
+    const key = await h.balanceUpdaterParams.getAESKeyFromSnap('0xabc123', {
+      skipCache: true,
+    });
+
+    expect(key).toBe('contract-key');
+    expect(getAESKeyFromSnap).not.toHaveBeenCalled();
+    expect(getAesKeyFromProvider).toHaveBeenCalledWith(
+      '0xabc123',
+      undefined,
+      { skipCache: true },
     );
   });
 
