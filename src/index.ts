@@ -3,7 +3,7 @@ export {
   configureCotiPlugin,
   getPluginConfig,
   getSnapRequestParams,
-  isSnapInstallEnabled,
+  isSnapEnabled,
 } from './config/plugin';
 export type {
   CotiPluginConfig,

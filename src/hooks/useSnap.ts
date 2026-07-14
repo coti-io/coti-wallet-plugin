@@ -3,7 +3,7 @@ import * as CotiSDK from '@coti-io/coti-sdk-typescript';
 const { generateRSAKeyPair, decryptRSA } = CotiSDK;
 import { MetaMaskInpageProvider } from '@metamask/providers';
 import { useAccount } from 'wagmi';
-import { getPluginConfig, getSnapRequestParams, isSnapInstallEnabled } from '../config/plugin';
+import { getPluginConfig, getSnapRequestParams, isSnapEnabled } from '../config/plugin';
 import { getMetaMaskProvider } from '../lib/ethereum';
 import { CotiPluginError, CotiErrorCode } from '../errors';
 import { logger } from '../lib/logger';
@@ -230,6 +230,11 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
      * Also returns false for non-MetaMask wallets that don't support wallet_getSnaps.
      */
     const isSnapInstalled = useCallback(async (): Promise<boolean> => {
+        if (!isSnapEnabled()) {
+            logger.log('ℹ️ Snap disabled via plugin config — treating as not installed');
+            return false;
+        }
+
         const provider = await resolveProvider();
         if (!provider) {
             logger.log('❌ isSnapInstalled: No MetaMask provider');
@@ -274,8 +279,8 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
      * Returns false immediately for wallets that don't support snaps.
      */
     const connectToSnap = useCallback(async (): Promise<boolean> => {
-        if (!isSnapInstallEnabled()) {
-            logger.log('ℹ️ Snap install disabled via plugin config');
+        if (!isSnapEnabled()) {
+            logger.log('ℹ️ Snap disabled via plugin config');
             return false;
         }
 
@@ -488,6 +493,11 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
         accountAddress: string,
         options?: GetAESKeyFromSnapOptions,
     ): Promise<string | null> => {
+        if (!isSnapEnabled()) {
+            logger.log('ℹ️ Snap disabled via plugin config — skipping AES key retrieval');
+            return null;
+        }
+
         if (setSnapError) setSnapError(null);
 
         const skipCache = options?.skipCache === true;
@@ -666,6 +676,8 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
      * Does not prompt the user. Returns null when the Snap is unavailable.
      */
     const hasAesKeyInSnap = useCallback(async (accountAddress?: string): Promise<boolean | null> => {
+        if (!isSnapEnabled()) return null;
+
         const provider = await resolveProvider();
         if (!provider) return null;
 
@@ -707,6 +719,11 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
      * Save AES key to Snap (persist it for future sessions)
      */
     const saveAESKeyToSnap = useCallback(async (key: string, accountAddress: string = ''): Promise<boolean> => {
+        if (!isSnapEnabled()) {
+            logger.log('ℹ️ Snap disabled via plugin config — skipping AES key save');
+            return false;
+        }
+
         const provider = await resolveProvider();
         if (!provider) return false;
         try {
