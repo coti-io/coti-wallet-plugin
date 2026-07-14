@@ -55,7 +55,8 @@ export interface CotiPluginConfig {
   /**
    * When false, Snap is fully disabled for this app: no install/connect,
    * no AES key probe/retrieval, and strategy routing ignores an already-installed
-   * Snap. Default: true.
+   * Snap. Unlock continues via encrypted backup restore and/or contract
+   * onboarding. Default: true.
    */
   snapEnabled?: boolean;
   /** If set, enforces a specific network chain ID (decimal string or hex). */

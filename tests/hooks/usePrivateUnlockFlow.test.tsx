@@ -539,6 +539,7 @@ describe('usePrivateUnlockFlow', () => {
     expect(mockRefreshPrivateBalances).toHaveBeenLastCalledWith({
       forceContractOnboarding: true,
       saveBackup: false,
+      persistToSnap: true,
       onProgress: expect.any(Function),
     });
   });
@@ -567,6 +568,7 @@ describe('usePrivateUnlockFlow', () => {
     expect(mockRefreshPrivateBalances).toHaveBeenLastCalledWith({
       forceContractOnboarding: true,
       saveBackup: true,
+      persistToSnap: false,
       onProgress: expect.any(Function),
     });
     expect(result.current.onboardModal.props.runtimeWarnings).toEqual({

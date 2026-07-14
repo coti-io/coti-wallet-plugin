@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useAccount } from 'wagmi';
+import { isSnapEnabled } from '../../config/plugin';
 import { useBalanceUpdater } from '../../hooks/useBalanceUpdater';
 import { isChainUpdatesMuted } from '../../lib/chainMute';
 import { logger } from '../../lib/logger';
@@ -77,6 +78,7 @@ export const usePrivacyBridgeAccountSync = ({
       if (
         options?.skipCache
         && walletTypeInfo.walletType === 'metamask'
+        && isSnapEnabled()
         && !options.forceContractOnboarding
         && !options.restoreOnly
       ) {
@@ -88,14 +90,14 @@ export const usePrivacyBridgeAccountSync = ({
       if (sessionAesKey && !options?.forceContractOnboarding) return sessionAesKey;
 
       // Fall through to the wallet-type-aware provider (useAesKeyProvider).
-      // For MetaMask: tries Snap (non-interactive if already connected)
+      // For MetaMask: tries Snap (non-interactive if already connected).
       // For non-MetaMask: triggers contract onboarding (interactive — but only called
       // when checkSnap=true, i.e. explicit user-initiated unlock flows).
       return options === undefined
         ? getAesKeyFromProvider(accountAddress)
         : getAesKeyFromProvider(accountAddress, options.onProgress, options);
     },
-    [sessionAesKey, getAesKeyFromProvider, getAESKeyFromSnap],
+    [sessionAesKey, getAesKeyFromProvider, getAESKeyFromSnap, walletTypeInfo.walletType],
   );
 
   const { updateAccountState } = useBalanceUpdater({
