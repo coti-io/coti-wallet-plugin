@@ -33,9 +33,15 @@ const getFailedRequestHex = async (
 
 export async function resolvePodRequestStatus(request: PodPortalRequest) {
   if (!request.requestId) {
+    const eventHint =
+      request.kind === "deposit"
+        ? "DepositRequested"
+        : request.kind === "withdraw"
+          ? "WithdrawalRequested"
+          : "TransferRequestSubmitted";
     logger.warn(
-      `[PoD][resolveStatus] Missing requestId for tx ${request.sourceTxHash}. ` +
-        "PoD cannot be tracked — DepositRequested event may not have been parsed.",
+      `[PoD][resolveStatus] Missing requestId for tx ${request.sourceTxHash} (kind=${request.kind}). ` +
+        `PoD cannot be tracked — ${eventHint} event may not have been parsed.`,
     );
     return {
       status: "source-mined" as const,
