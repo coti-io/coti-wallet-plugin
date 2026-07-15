@@ -1,4 +1,4 @@
-import { parseEther, type BigNumberish } from 'ethers';
+import type { BigNumberish } from 'ethers';
 import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID } from '../chains';
 
 /** Default COTI Testnet gas-grant endpoint. */
@@ -8,10 +8,8 @@ export const DEFAULT_GRANT_API_URL_TESTNET =
 /** Default native COTI balance threshold before requesting a grant. */
 export const DEFAULT_ONBOARDING_GRANT_MIN_BALANCE_COTI = '0.2';
 
-/** Default onboarding min-balance in wei (0.2 COTI). */
-export const DEFAULT_ONBOARDING_GRANT_MIN_BALANCE_WEI = parseEther(
-  DEFAULT_ONBOARDING_GRANT_MIN_BALANCE_COTI,
-).toString();
+/** Default onboarding min-balance in wei (0.2 COTI). Hardcoded so module init does not depend on ethers. */
+export const DEFAULT_ONBOARDING_GRANT_MIN_BALANCE_WEI = '200000000000000000';
 
 export type AesKeyChainId = typeof COTI_TESTNET_CHAIN_ID | typeof COTI_MAINNET_CHAIN_ID;
 
