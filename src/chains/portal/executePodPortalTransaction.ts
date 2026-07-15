@@ -2,6 +2,7 @@ import { ethers } from "ethers";
 import { PRIVACY_PORTAL_ABI, POD_PTOKEN_ABI, SEPOLIA_CHAIN_ID, type PodPortalRequest } from "../../contracts/pod";
 import type { SwapProgressStage } from "../../hooks/usePrivacyBridge";
 import { logger } from "../../lib/logger";
+import { waitForTransactionResilient } from "../../lib/rpcProvider";
 import {
   diagnoseBlockingPodRequest,
   formatBlockingPodLogSummary,
@@ -617,7 +618,9 @@ export async function executePodPortalTransaction(params: {
 
     onProgress?.("transfer-start", tx.hash);
 
-    const receipt = await tx.wait();
+    const receipt = await waitForTransactionResilient(chainId, tx.hash, {
+      primary: provider ?? signer.provider ?? undefined,
+    });
     if (!receipt || receipt.status !== 1) {
       const failed = new Error("PoD deposit transaction failed") as Error & { txHash?: string };
       failed.txHash = tx.hash;
@@ -724,7 +727,9 @@ export async function executePodPortalTransaction(params: {
 
   onProgress?.("transfer-start", tx.hash);
 
-  const receipt = await tx.wait();
+  const receipt = await waitForTransactionResilient(chainId, tx.hash, {
+    primary: provider ?? signer.provider ?? undefined,
+  });
   if (!receipt || receipt.status !== 1) {
     const failed = new Error("Sepolia withdraw transaction failed") as Error & { txHash?: string };
     failed.txHash = tx.hash;

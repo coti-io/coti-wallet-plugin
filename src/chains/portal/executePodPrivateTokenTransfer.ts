@@ -3,6 +3,7 @@ import { POD_PTOKEN_ABI, type PodPortalRequest } from "../../contracts/pod";
 import { getChainConfig } from "../index";
 import { getEthereumProvider, type EIP1193Provider } from "../../lib/ethereum";
 import { logger } from "../../lib/logger";
+import { waitForTransactionResilient } from "../../lib/rpcProvider";
 import { assertPodPTokenReady } from "./executePodPortalTransaction";
 import { resolvePodTxGasPrice } from "./podPortalFees";
 import {
@@ -135,7 +136,9 @@ export async function executePodPrivateTokenTransfer(
     fee: podFee,
   });
 
-  const receipt = await tx.wait();
+  const receipt = await waitForTransactionResilient(chainId, tx.hash, {
+    primary: browserProvider,
+  });
   if (!receipt || receipt.status !== 1) {
     const failed = new Error("PoD private token transfer failed") as Error & { txHash?: string };
     failed.txHash = tx.hash;

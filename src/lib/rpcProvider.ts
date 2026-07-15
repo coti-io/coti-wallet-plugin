@@ -88,6 +88,9 @@ export const isTransientRpcError = (error: unknown): boolean => {
   return false;
 };
 
+export const createJsonRpcProvider = (url: string, chainId: number) =>
+  new ethers.JsonRpcProvider(url, chainId);
+
 const isWaitTimeoutError = (error: unknown): boolean => {
   const text = collectErrorText(error).toLowerCase();
   return text.includes("timeout") || text.includes("timed out") || text.includes("waitfortx");
@@ -113,6 +116,8 @@ export type WaitForTransactionResilientOptions = {
   pollIntervalMs?: number;
   /** Prefer waiting via the submitting provider first (wallet / BrowserProvider). */
   primary?: ethers.Provider;
+  /** Optional provider factory (tests / custom RPC clients). */
+  createProvider?: (url: string, chainId: number) => ethers.JsonRpcProvider;
 };
 
 /**
@@ -133,6 +138,7 @@ export async function waitForTransactionResilient(
     timeoutMs = 180_000,
     pollIntervalMs = 2_000,
     primary,
+    createProvider = createJsonRpcProvider,
   } = options;
 
   if (!txHash) {
@@ -163,7 +169,7 @@ export async function waitForTransactionResilient(
   let delay = pollIntervalMs;
   while (Date.now() < deadline) {
     try {
-      const receipt = await getTransactionReceiptAcrossRpcs(chainId, txHash);
+      const receipt = await getTransactionReceiptAcrossRpcs(chainId, txHash, createProvider);
       if (receipt) {
         if (confirmations <= 1) return receipt;
         const blockNumber = await withRpcFallback(chainId, provider => provider.getBlockNumber());
@@ -196,13 +202,14 @@ export async function waitForTransactionResilient(
 async function getTransactionReceiptAcrossRpcs(
   chainId: number,
   txHash: string,
+  createProvider: (url: string, chainId: number) => ethers.JsonRpcProvider = createJsonRpcProvider,
 ): Promise<ethers.TransactionReceipt | null> {
   const urls = resolveRpcUrlsForChain(chainId);
   let lastError: unknown;
   let sawNotFound = false;
 
   for (const url of urls) {
-    const provider = createJsonRpcProvider(url, chainId);
+    const provider = createProvider(url, chainId);
     try {
       const receipt = await provider.getTransactionReceipt(txHash);
       if (receipt) return receipt;
@@ -219,9 +226,6 @@ async function getTransactionReceiptAcrossRpcs(
     ? lastError
     : new Error(`All RPC endpoints failed reading receipt for ${txHash} on chain ${chainId}`);
 }
-
-export const createJsonRpcProvider = (url: string, chainId: number) =>
-  new ethers.JsonRpcProvider(url, chainId);
 
 /** Picks the first RPC endpoint that responds to `getNetwork()`. */
 export const createResilientJsonRpcProvider = async (
