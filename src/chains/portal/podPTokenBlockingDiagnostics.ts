@@ -390,7 +390,7 @@ const pickBlockingRequest = (
   const actionMatch = pool
     .filter(candidate => {
       if (!candidate.requestId) return false;
-      if (candidate.kind === actionKind) return true;
+      if (candidate.kind === blockedAction) return true;
       // Portal withdraw and peer Send both emit TransferRequestSubmitted on the pToken.
       return (
         blockedAction === "withdraw" &&
