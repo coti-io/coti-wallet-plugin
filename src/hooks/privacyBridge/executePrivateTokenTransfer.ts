@@ -2,6 +2,7 @@ import { ethers } from 'ethers';
 import { normalizeAesKey } from '../../crypto/aesKey';
 import { getEthereumProvider, type EIP1193Provider } from '../../lib/ethereum';
 import { logger } from '../../lib/logger';
+import { waitForTransactionResilient } from '../../lib/rpcProvider';
 import { CONTRACT_ADDRESSES } from '../../contracts/config';
 import { getPrivateTokensForChain } from '../../chains';
 import { getChainConfig } from '../../chains';
@@ -166,6 +167,8 @@ async function submitPrivateTokenTransferTx(params: {
   });
 
   const browserProvider = new ethers.BrowserProvider(eip1193);
+  const network = await browserProvider.getNetwork();
+  const chainId = Number(network.chainId);
   const rawTxHash = (await eip1193.request({
     method: 'eth_sendTransaction',
     params: [
@@ -179,7 +182,9 @@ async function submitPrivateTokenTransferTx(params: {
   })) as string;
 
   logger.log('Waiting for private transfer tx', { txHash: shortHash(rawTxHash) });
-  const receipt = await browserProvider.waitForTransaction(rawTxHash);
+  const receipt = await waitForTransactionResilient(chainId, rawTxHash, {
+    primary: browserProvider,
+  });
   if (!receipt || receipt.status !== 1) {
     throw new Error('Private token transfer failed');
   }

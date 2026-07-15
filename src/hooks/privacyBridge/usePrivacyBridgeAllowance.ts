@@ -14,6 +14,7 @@ import {
   skipsPublicDepositApproval,
 } from '../../chains/portal/helpers';
 import { logger } from '../../lib/logger';
+import { waitForTransactionResilient } from '../../lib/rpcProvider';
 import { decryptCtUint256 } from '../../crypto/decryption';
 import { encryptValue256 } from './encryptValue256';
 import { shortHash } from './utils';
@@ -526,7 +527,9 @@ export const usePrivacyBridgeAllowance = ({
                 });
 
                 logger.log('🔐 [Approve] Tx submitted, waiting for confirmation', { txHash: shortHash(rawTxHash) });
-                await provider.waitForTransaction(rawTxHash);
+                await waitForTransactionResilient(currentChainId, rawTxHash, {
+                    primary: provider,
+                });
                 logger.log('🔐 [Approve] Tx confirmed, refreshing allowance...');
 
                 setIsApproving(false);
@@ -549,7 +552,9 @@ export const usePrivacyBridgeAllowance = ({
                 message: 'Waiting for allowance confirmation...'
             });
 
-            await tx.wait();
+            await waitForTransactionResilient(currentChainId, tx.hash, {
+                primary: provider,
+            });
 
             // Refresh allowance
             await checkAllowance();

@@ -10,6 +10,7 @@ import { estimateBridgeFee } from '../useEstimateBridgeFees';
 import { getChainConfig, getExplorerBaseUrlForChain, getPrivateTokensForChain, getPublicTokensForChain, getRpcUrlForChain } from '../../chains';
 import { isPodPortalPublicToken, podPortalNotConfiguredError, resolveConfiguredAddress, resolvePodPortalAddresses } from '../../chains/portal/helpers';
 import { logger } from '../../lib/logger';
+import { waitForTransactionResilient } from '../../lib/rpcProvider';
 import { truncateAddress } from '../../lib/format';
 import { shortHash } from './utils';
 import type { SwapProgressStage, Token, ToastState } from './types';
@@ -349,7 +350,9 @@ export const usePrivacyBridgeExecutor = ({
                         logger.log('ERC20 deposit tx sent', { txHash: shortHash(rawDepositTxHash) });
                         tx = {
                             hash: rawDepositTxHash,
-                            wait: async () => await provider.waitForTransaction(rawDepositTxHash)
+                            wait: async () => await waitForTransactionResilient(currentChainId, rawDepositTxHash, {
+                                primary: provider,
+                            }),
                         } as any;
 
                     } else {
@@ -571,7 +574,9 @@ export const usePrivacyBridgeExecutor = ({
                     // We mock a transaction response shape for the shared logic below
                     tx = {
                         hash: rawWithdrawTxHash,
-                        wait: async () => await provider.waitForTransaction(rawWithdrawTxHash)
+                        wait: async () => await waitForTransactionResilient(currentChainId, rawWithdrawTxHash, {
+                            primary: provider,
+                        }),
                     } as any;
 
                 } catch (e) {
@@ -598,12 +603,13 @@ export const usePrivacyBridgeExecutor = ({
                 message: 'Transaction sent to network. Waiting for confirmation...'
             });
 
-            const receipt = await tx.wait();
+            const receipt = await waitForTransactionResilient(currentChainId, tx.hash, {
+                primary: provider,
+            });
             logger.log('Transaction confirmed', {
                 status: receipt.status,
                 blockNumber: receipt.blockNumber,
                 gasUsed: receipt.gasUsed?.toString(),
-                gasLimit: receipt.gasLimit?.toString() ?? 'n/a',
             });
 
             // Validate transaction succeeded on-chain
@@ -626,11 +632,12 @@ export const usePrivacyBridgeExecutor = ({
                     const replayProvider = new ethers.JsonRpcProvider(
                         getRpcUrlForChain(Number(network.chainId))
                     );
+                    const broadcastTx = await replayProvider.getTransaction(txHashStr);
                     await replayProvider.call({
-                        to: receipt.to,
-                        from: receipt.from,
-                        data: receipt.data || undefined,
-                        value: receipt.value || undefined,
+                        to: broadcastTx?.to ?? receipt.to,
+                        from: broadcastTx?.from ?? receipt.from,
+                        data: broadcastTx?.data,
+                        value: broadcastTx?.value,
                     });
                 } catch (replayErr: any) {
                     // The replay should fail with the revert reason
