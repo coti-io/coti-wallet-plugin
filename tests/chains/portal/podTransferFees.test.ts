@@ -36,6 +36,8 @@ import {
   resolvePodTransferFeeEstimationConfig,
   sendPodTransferMethod,
   POD_TRANSFER_METHOD,
+  POD_TRANSFER_FORWARD_DATA_SIZE,
+  POD_TRANSFER_L1_EXECUTION_GAS_FALLBACK,
 } from '../../../src/chains/portal/podTransferFees';
 import { POD_DEFAULT_CALLBACK_DATA_SIZE } from '../../../src/chains/podInbox';
 import { SEPOLIA_CHAIN_ID } from '../../../src/chains/sepolia';
@@ -64,11 +66,12 @@ beforeEach(() => {
 });
 
 describe('resolvePodTransferFeeEstimationConfig', () => {
-  it('uses transfer limits and default callback data size', () => {
+  it('uses transfer limits, encrypted forwardDataSize, and default callback data size', () => {
     const cfg = resolvePodTransferFeeEstimationConfig(SEPOLIA_CHAIN_ID, 1_000_000_000n);
     expect(cfg.forwardGasLimit).toBe(850_000n);
     expect(cfg.callBackGasLimit).toBe(2_000_000n);
     expect(cfg.callBackDataSize).toBe(POD_DEFAULT_CALLBACK_DATA_SIZE);
+    expect(cfg.forwardDataSize).toBe(512n);
     expect(cfg.gasPrice).toBe(1_000_000_000n);
   });
 });
@@ -93,9 +96,11 @@ describe('buildPodTransferMethodArgs', () => {
 });
 
 describe('estimatePodTransferExecutionGasWei', () => {
-  it('uses configured forward gas × gasPrice', () => {
+  it('uses L1 execution fallback × gasPrice (not inbox forwardGasLimit)', () => {
     const wei = estimatePodTransferExecutionGasWei(SEPOLIA_CHAIN_ID, 2n);
-    expect(wei).toBe(850_000n * 2n);
+    expect(wei).toBe(POD_TRANSFER_L1_EXECUTION_GAS_FALLBACK * 2n);
+    expect(POD_TRANSFER_L1_EXECUTION_GAS_FALLBACK).toBe(2_000_000n);
+    expect(POD_TRANSFER_FORWARD_DATA_SIZE).toBe(512n);
   });
 });
 
@@ -116,11 +121,12 @@ describe('quotePodTransferFees', () => {
       expect.objectContaining({
         forwardGasLimit: 850_000n,
         gasPrice: 1_000_000_000n,
+        forwardDataSize: 512n,
       }),
     );
     expect(quote.podInboxFeeWei).toBe(2100n);
     expect(quote.podCallbackFeeWei).toBe(500n);
-    expect(quote.l1ExecutionGasWei).toBe(850_000n * 1_000_000_000n);
+    expect(quote.l1ExecutionGasWei).toBe(POD_TRANSFER_L1_EXECUTION_GAS_FALLBACK * 1_000_000_000n);
     expect(quote.display.feeSymbol).toBe('ETH');
   });
 });
@@ -159,5 +165,11 @@ describe('sendPodTransferMethod', () => {
         gasLimit: 900_000n,
       }),
     );
+  });
+
+  it('exposes 2M L1 gas fallback for estimateGas failure path', () => {
+    // sendPodTransferMethod catches simulation failures and assigns this limit;
+    // covered here as a constant contract (ESM prevents spying JsonRpcProvider).
+    expect(POD_TRANSFER_L1_EXECUTION_GAS_FALLBACK).toBe(2_000_000n);
   });
 });
