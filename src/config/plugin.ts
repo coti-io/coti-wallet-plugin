@@ -1,5 +1,17 @@
-import type { BigNumberish } from 'ethers';
+import { parseEther, type BigNumberish } from 'ethers';
 import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID } from '../chains';
+
+/** Default COTI Testnet gas-grant endpoint. */
+export const DEFAULT_GRANT_API_URL_TESTNET =
+  'https://testnet-apps-1-gw.coti.io/cms-coti-2bb8/api/v1/gas-grant';
+
+/** Default native COTI balance threshold before requesting a grant. */
+export const DEFAULT_ONBOARDING_GRANT_MIN_BALANCE_COTI = '0.2';
+
+/** Default onboarding min-balance in wei (0.2 COTI). */
+export const DEFAULT_ONBOARDING_GRANT_MIN_BALANCE_WEI = parseEther(
+  DEFAULT_ONBOARDING_GRANT_MIN_BALANCE_COTI,
+).toString();
 
 export type AesKeyChainId = typeof COTI_TESTNET_CHAIN_ID | typeof COTI_MAINNET_CHAIN_ID;
 
@@ -92,7 +104,16 @@ export interface CotiPluginConfig {
    * Only COTI Testnet and COTI Mainnet can hold AES keys.
    */
   aesKeyChainId?: AesKeyChainId;
-  /** Native COTI threshold required before contract onboarding. Defaults to 0. */
+  /**
+   * When false, skips native COTI grant requests during onboarding.
+   * Default: true. Uses built-in grant API when no custom grantNativeCoti is set.
+   */
+  onboardingGrantEnabled?: boolean;
+  /** COTI Testnet gas-grant endpoint. Default: official COTI Testnet grant API. */
+  grantApiUrlTestnet?: string;
+  /** COTI Mainnet gas-grant endpoint. No default — grant is skipped on mainnet until set. */
+  grantApiUrlMainnet?: string;
+  /** Native COTI threshold required before contract onboarding. Defaults to 0.2 COTI. */
   onboardingGrantMinBalanceWei?: BigNumberish;
   /** Polling interval after grant callback. Defaults to 2000ms. */
   onboardingGrantPollIntervalMs?: number;
@@ -115,11 +136,61 @@ let _config: CotiPluginConfig = {
   clearSessionKeyOnWagmiDisconnect: false,
   waitForBalanceRefreshAfterTransfer: false,
   onboardingServices: { mode: 'disabled' },
-  onboardingGrantMinBalanceWei: 0,
+  onboardingGrantEnabled: true,
+  grantApiUrlTestnet: DEFAULT_GRANT_API_URL_TESTNET,
+  onboardingGrantMinBalanceWei: DEFAULT_ONBOARDING_GRANT_MIN_BALANCE_WEI,
   onboardingGrantPollIntervalMs: 2000,
   onboardingGrantTimeoutMs: 60000,
   additionalSnapAesWriteOrigins: [],
 };
+
+/** Whether native COTI grants are enabled. Default: true. */
+export function isOnboardingGrantEnabled(): boolean {
+  return getPluginConfig().onboardingGrantEnabled !== false;
+}
+
+function resolveGrantApiUrl(chainId: number): string | undefined {
+  const config = getPluginConfig();
+  if (chainId === COTI_TESTNET_CHAIN_ID) {
+    return config.grantApiUrlTestnet?.replace(/\/$/, '') || DEFAULT_GRANT_API_URL_TESTNET;
+  }
+  if (chainId === COTI_MAINNET_CHAIN_ID) {
+    return config.grantApiUrlMainnet?.replace(/\/$/, '') || undefined;
+  }
+  return undefined;
+}
+
+/** POST to the configured grant API URL for the request chain (config override or baked-in fallback). */
+async function requestGrantNativeCoti(
+  request: OnboardingServiceRequest,
+): Promise<GrantResult> {
+  const grantApiUrl = resolveGrantApiUrl(request.chainId);
+  if (!grantApiUrl) return { status: 'skipped' };
+
+  const response = await fetch(grantApiUrl, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ address: request.address, chainId: request.chainId }),
+  });
+  if (!response.ok) return { status: 'skipped' };
+
+  try {
+    return (await response.json()) as GrantResult;
+  } catch {
+    return { status: 'submitted' };
+  }
+}
+
+/**
+ * Custom grantNativeCoti when set; otherwise requestGrantNativeCoti when enabled.
+ * Returns undefined when grants are disabled.
+ */
+export function resolveGrantNativeCoti():
+  | ((request: OnboardingServiceRequest) => Promise<GrantResult>)
+  | undefined {
+  if (!isOnboardingGrantEnabled()) return undefined;
+  return getPluginConfig().onboardingServices?.grantNativeCoti ?? requestGrantNativeCoti;
+}
 
 export function isAesKeyChainId(chainId: unknown): chainId is AesKeyChainId {
   return chainId === COTI_TESTNET_CHAIN_ID || chainId === COTI_MAINNET_CHAIN_ID;

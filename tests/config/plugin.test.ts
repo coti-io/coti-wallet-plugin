@@ -1,5 +1,14 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { configureCotiPlugin, getPluginConfig, getSnapRequestParams, isSnapEnabled } from '../../src/config/plugin';
+import {
+  configureCotiPlugin,
+  DEFAULT_GRANT_API_URL_TESTNET,
+  DEFAULT_ONBOARDING_GRANT_MIN_BALANCE_WEI,
+  getPluginConfig,
+  getSnapRequestParams,
+  isOnboardingGrantEnabled,
+  isSnapEnabled,
+  resolveGrantNativeCoti,
+} from '../../src/config/plugin';
 import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID, SEPOLIA_CHAIN_ID } from '../../src/config/chains';
 
 describe('Plugin Configuration (README: Basic Setup)', () => {
@@ -13,6 +22,11 @@ describe('Plugin Configuration (README: Basic Setup)', () => {
       aesKeyChainId: undefined,
       clearSessionKeyOnWagmiDisconnect: false,
       waitForBalanceRefreshAfterTransfer: false,
+      onboardingGrantEnabled: true,
+      grantApiUrlTestnet: DEFAULT_GRANT_API_URL_TESTNET,
+      grantApiUrlMainnet: undefined,
+      onboardingGrantMinBalanceWei: DEFAULT_ONBOARDING_GRANT_MIN_BALANCE_WEI,
+      onboardingServices: { mode: 'disabled' },
     });
   });
 
@@ -20,6 +34,20 @@ describe('Plugin Configuration (README: Basic Setup)', () => {
     const config = getPluginConfig();
     expect(config.snapId).toBe('npm:@coti-io/coti-snap');
     expect(config.defaultNetworkId).toBeUndefined();
+    expect(config.onboardingGrantEnabled).toBe(true);
+    expect(config.grantApiUrlTestnet).toBe(DEFAULT_GRANT_API_URL_TESTNET);
+    expect(config.onboardingGrantMinBalanceWei).toBe(DEFAULT_ONBOARDING_GRANT_MIN_BALANCE_WEI);
+  });
+
+  it('resolves a grant callback when enabled and no custom callback is set', () => {
+    expect(isOnboardingGrantEnabled()).toBe(true);
+    expect(resolveGrantNativeCoti()).toEqual(expect.any(Function));
+  });
+
+  it('disables grant resolution when onboardingGrantEnabled is false', () => {
+    configureCotiPlugin({ onboardingGrantEnabled: false });
+    expect(isOnboardingGrantEnabled()).toBe(false);
+    expect(resolveGrantNativeCoti()).toBeUndefined();
   });
 
   it('allows overriding snapId', () => {

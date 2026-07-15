@@ -119,6 +119,9 @@ describe('useAesKeyProvider (full branch coverage)', () => {
     ethersState.getBalance.mockResolvedValue(1n);
     mobileState.isMetaMaskMobileBrowser.mockReturnValue(false);
     configureCotiPlugin({
+      // Keep grant off for generic coverage paths; grant cases enable it explicitly.
+      onboardingGrantEnabled: false,
+      onboardingGrantMinBalanceWei: 0,
       onboardingServices: {
         mode: 'disabled',
         grantNativeCoti: undefined,
@@ -557,6 +560,7 @@ describe('useAesKeyProvider (full branch coverage)', () => {
         .mockResolvedValueOnce(10n);
       const grantNativeCoti = vi.fn().mockResolvedValue({ status: 'submitted' });
       configureCotiPlugin({
+        onboardingGrantEnabled: true,
         onboardingServices: {
           mode: 'custom',
           grantNativeCoti,
@@ -583,6 +587,7 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       ethersState.getBalance.mockResolvedValue(0n);
       const grantNativeCoti = vi.fn().mockResolvedValue({ status: 'skipped' });
       configureCotiPlugin({
+        onboardingGrantEnabled: true,
         onboardingServices: {
           mode: 'custom',
           grantNativeCoti,
@@ -612,6 +617,7 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       const signer = makeSigner(VALID_KEY);
       ethersState.signer = signer;
       configureCotiPlugin({
+        onboardingGrantEnabled: true,
         onboardingServices: {
           mode: 'custom',
           grantNativeCoti,
@@ -640,6 +646,7 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       const signer = makeSigner(VALID_KEY);
       ethersState.signer = signer;
       configureCotiPlugin({
+        onboardingGrantEnabled: true,
         onboardingServices: {
           mode: 'custom',
           grantNativeCoti,

@@ -7,7 +7,12 @@ import type { WalletTypeInfo } from './useWalletType';
 import { CotiPluginError, CotiErrorCode } from '../errors';
 import { logger } from '../lib/logger';
 import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID, getRpcUrlForChainId } from '../config/chains';
-import { getPluginConfig, type EncryptedAesBackup } from '../config/plugin';
+import {
+  DEFAULT_ONBOARDING_GRANT_MIN_BALANCE_WEI,
+  getPluginConfig,
+  resolveGrantNativeCoti,
+  type EncryptedAesBackup,
+} from '../config/plugin';
 import { decryptAesKeyBackup } from '../crypto/aesKeyBackupVault';
 import { normalizeAesKey } from '../crypto/aesKey';
 import { muteChainUpdates, unmuteChainUpdates, isChainUpdatesMuted } from '../lib/chainMute';
@@ -578,8 +583,12 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           });
         }
 
-        const configuredMinBalanceWei = toBigInt(config.onboardingGrantMinBalanceWei, 0n);
-        if (servicesEnabled && services?.grantNativeCoti) {
+        const configuredMinBalanceWei = toBigInt(
+          config.onboardingGrantMinBalanceWei ?? DEFAULT_ONBOARDING_GRANT_MIN_BALANCE_WEI,
+          0n,
+        );
+        const grantNativeCoti = resolveGrantNativeCoti();
+        if (grantNativeCoti) {
           let nativeBalance = await provider.getBalance(address);
           const requiredBalanceWei = configuredMinBalanceWei > 0n ? configuredMinBalanceWei : 1n;
           logger.log('[AesKeyProvider] Native COTI balance before onboarding', {
@@ -591,7 +600,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           if (nativeBalance < requiredBalanceWei) {
             emitStep('granting-funds');
             try {
-              const grantResult = await services.grantNativeCoti({ address, chainId: targetCotiChainId });
+              const grantResult = await grantNativeCoti({ address, chainId: targetCotiChainId });
               logger.log('[AesKeyProvider] Native COTI grant requested', grantResult);
 
               if (grantResult?.status !== 'skipped') {
