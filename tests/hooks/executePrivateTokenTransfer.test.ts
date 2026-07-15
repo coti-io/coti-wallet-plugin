@@ -10,6 +10,7 @@ const AES_KEY = 'a'.repeat(32);
 
 const eth = vi.hoisted(() => ({
   getSigner: vi.fn(),
+  getNetwork: vi.fn(),
   waitForTransaction: vi.fn(),
 }));
 
@@ -18,6 +19,7 @@ vi.mock('ethers', async (importOriginal) => {
   class MockBrowserProvider {
     constructor(_provider: unknown) {}
     getSigner = (...args: unknown[]) => eth.getSigner(...args);
+    getNetwork = (...args: unknown[]) => eth.getNetwork(...args);
     waitForTransaction = (...args: unknown[]) => eth.waitForTransaction(...args);
   }
   return {
@@ -78,6 +80,7 @@ describe('executePrivateTokenTransfer', () => {
       signMessage: vi.fn(),
       getAddress: vi.fn(async () => WALLET),
     });
+    eth.getNetwork.mockResolvedValue({ chainId: BigInt(COTI_TESTNET_CHAIN_ID) });
     eth.waitForTransaction.mockResolvedValue({ status: 1 });
     mockRequest.mockImplementation(async ({ method }: { method: string }) => {
       if (method === 'eth_estimateGas') {
@@ -164,7 +167,7 @@ describe('executePrivateTokenTransfer', () => {
 
     const transferSig = realEthers.id(PRIVATE_ERC20_TRANSFER_256_SIG).slice(0, 10);
     expect(txParams.data.startsWith(transferSig)).toBe(true);
-    expect(eth.waitForTransaction).toHaveBeenCalledWith('0xdeadbeef');
+    expect(eth.waitForTransaction).toHaveBeenCalledWith('0xdeadbeef', 1, expect.any(Number));
   });
 
   it('uses gas fallback when estimation fails', async () => {

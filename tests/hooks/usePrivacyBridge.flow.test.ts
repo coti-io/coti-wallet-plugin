@@ -12,6 +12,7 @@ const eth = vi.hoisted(() => ({
   getNetwork: vi.fn(),
   getSigner: vi.fn(),
   waitForTransaction: vi.fn(),
+  getTransaction: vi.fn(),
   call: vi.fn(),
   send: vi.fn(),
   allowance: vi.fn(),
@@ -36,6 +37,7 @@ vi.mock('ethers', async (importOriginal) => {
   class MockJsonRpcProvider {
     constructor(..._a: unknown[]) {}
     getNetwork = (...a: unknown[]) => eth.getNetwork(...a);
+    getTransaction = (...a: unknown[]) => eth.getTransaction(...a);
     call = (...a: unknown[]) => eth.call(...a);
     estimateGas = (...a: unknown[]) => eth.estimateGas(...a);
   }
@@ -200,6 +202,7 @@ import { logger } from '../../src/lib/logger';
 import { useAccount } from 'wagmi';
 
 const WALLET = '0x' + '9'.repeat(40);
+const TX_HASH = '0x' + 'a'.repeat(64);
 
 const COTI_PUBLIC_TOKEN_CONFIGS = [
   {
@@ -337,6 +340,9 @@ beforeEach(() => {
   eth.getNetwork.mockResolvedValue({ chainId: 7082400n });
   eth.getSigner.mockResolvedValue(signer);
   eth.waitForTransaction.mockResolvedValue({ status: 1 });
+  eth.getTransaction.mockResolvedValue(null);
+  eth.depositUint2.mockResolvedValue({ hash: TX_HASH });
+  eth.approve.mockResolvedValue({ hash: TX_HASH });
   eth.send.mockResolvedValue('0x' + (1_000_000_000).toString(16));
   eth.allowance.mockResolvedValue(0n);
   eth.balanceOf.mockResolvedValue(10n ** 24n);
@@ -713,7 +719,7 @@ describe('usePrivacyBridge - executeTransaction (COTI bridge)', () => {
     sib.getPublicTokensForChain.mockReturnValue([
       { symbol: 'COTI', isPrivate: false, bridgeAddressKey: 'PrivacyBridgeCotiNative', decimals: 18 },
     ]);
-    eth.depositUint2.mockResolvedValue({ wait: async () => ({ status: 1 }) });
+    eth.depositUint2.mockResolvedValue({ hash: TX_HASH });
     eth.estimateGas.mockResolvedValue(800000n);
     routeRequest();
     const props = makeProps({
@@ -731,7 +737,7 @@ describe('usePrivacyBridge - executeTransaction (COTI bridge)', () => {
     sib.getPublicTokensForChain.mockReturnValue([
       { symbol: 'COTI', isPrivate: false, bridgeAddressKey: 'PrivacyBridgeCotiNative', decimals: 18 },
     ]);
-    eth.depositUint2.mockResolvedValue({ wait: async () => ({ status: 1 }) });
+    eth.depositUint2.mockResolvedValue({ hash: TX_HASH });
     eth.estimateGas.mockRejectedValue(Object.assign(new Error('gas fail'), { reason: 'r', data: '0xd' }));
     // Fee lookup still succeeds so oracle timestamps are available; gas estimate fails separately.
     routeRequest();
@@ -895,10 +901,11 @@ describe('usePrivacyBridge - executeTransaction error decoding', () => {
     sib.getPublicTokensForChain.mockReturnValue([
       { symbol: 'COTI', isPrivate: false, bridgeAddressKey: 'PrivacyBridgeCotiNative', decimals: 18 },
     ]);
-    eth.depositUint2.mockResolvedValue({
-      wait: async () => {
-        throw { code: 'CALL_EXCEPTION', errorName: 'DepositBelowMinimum', receipt: { gasUsed: 1n } };
-      },
+    eth.depositUint2.mockResolvedValue({ hash: TX_HASH });
+    eth.waitForTransaction.mockRejectedValue({
+      code: 'CALL_EXCEPTION',
+      errorName: 'DepositBelowMinimum',
+      receipt: { gasUsed: 1n },
     });
     routeRequest();
     const props = makeProps({
@@ -916,10 +923,10 @@ describe('usePrivacyBridge - executeTransaction error decoding', () => {
     sib.getPublicTokensForChain.mockReturnValue([
       { symbol: 'COTI', isPrivate: false, bridgeAddressKey: 'PrivacyBridgeCotiNative', decimals: 18 },
     ]);
-    eth.depositUint2.mockResolvedValue({
-      wait: async () => {
-        throw { code: 'CALL_EXCEPTION', data: '0xcbca5aa2' + '0'.repeat(8) };
-      },
+    eth.depositUint2.mockResolvedValue({ hash: TX_HASH });
+    eth.waitForTransaction.mockRejectedValue({
+      code: 'CALL_EXCEPTION',
+      data: '0xcbca5aa2' + '0'.repeat(8),
     });
     routeRequest();
     const props = makeProps({
@@ -937,10 +944,10 @@ describe('usePrivacyBridge - executeTransaction error decoding', () => {
     sib.getPublicTokensForChain.mockReturnValue([
       { symbol: 'COTI', isPrivate: false, bridgeAddressKey: 'PrivacyBridgeCotiNative', decimals: 18 },
     ]);
-    eth.depositUint2.mockResolvedValue({
-      wait: async () => {
-        throw { code: 'CALL_EXCEPTION', reason: 'custom revert' };
-      },
+    eth.depositUint2.mockResolvedValue({ hash: TX_HASH });
+    eth.waitForTransaction.mockRejectedValue({
+      code: 'CALL_EXCEPTION',
+      reason: 'custom revert',
     });
     routeRequest();
     const props = makeProps({
@@ -958,11 +965,8 @@ describe('usePrivacyBridge - executeTransaction error decoding', () => {
     sib.getPublicTokensForChain.mockReturnValue([
       { symbol: 'COTI', isPrivate: false, bridgeAddressKey: 'PrivacyBridgeCotiNative', decimals: 18 },
     ]);
-    eth.depositUint2.mockResolvedValue({
-      wait: async () => {
-        throw new Error('user rejected the request');
-      },
-    });
+    eth.depositUint2.mockResolvedValue({ hash: TX_HASH });
+    eth.waitForTransaction.mockRejectedValue(new Error('user rejected the request'));
     routeRequest();
     const props = makeProps({
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
@@ -981,9 +985,13 @@ describe('usePrivacyBridge - executeTransaction error decoding', () => {
     sib.getPublicTokensForChain.mockReturnValue([
       { symbol: 'COTI', isPrivate: false, bridgeAddressKey: 'PrivacyBridgeCotiNative', decimals: 18 },
     ]);
-    eth.depositUint2.mockResolvedValue({
-      hash: '0xrevert',
-      wait: async () => ({ status: 0, gasUsed: 5n, to: '0xto', from: WALLET, blockNumber: 1 }),
+    eth.depositUint2.mockResolvedValue({ hash: '0xrevert' });
+    eth.waitForTransaction.mockResolvedValue({
+      status: 0,
+      gasUsed: 5n,
+      to: '0xto',
+      from: WALLET,
+      blockNumber: 1,
     });
     eth.call.mockRejectedValue({ errorName: 'BridgePaused' });
     routeRequest();
@@ -1023,7 +1031,7 @@ describe('usePrivacyBridge - handleApprove', () => {
 
   it('approves a public ERC20 token (standard path)', async () => {
     sib.getPublicTokensForChain.mockReturnValue(ercPublicCfg('WETH'));
-    eth.approve.mockResolvedValue({ wait: async () => ({}) });
+    eth.approve.mockResolvedValue({ hash: TX_HASH });
     eth.allowance.mockResolvedValue(10n ** 18n);
     const props = makeProps({ direction: 'to-private' });
     const { result } = renderHook(() => usePrivacyBridge(props));
@@ -1035,7 +1043,7 @@ describe('usePrivacyBridge - handleApprove', () => {
 
   it('approves a public ERC20 token with MaxUint256 when no amount is set', async () => {
     sib.getPublicTokensForChain.mockReturnValue(ercPublicCfg('WETH'));
-    eth.approve.mockResolvedValue({ wait: async () => ({}) });
+    eth.approve.mockResolvedValue({ hash: TX_HASH });
     const props = makeProps({ direction: 'to-private', amount: '' });
     const { result } = renderHook(() => usePrivacyBridge(props));
     await act(async () => {
@@ -1253,7 +1261,7 @@ describe('usePrivacyBridge - handleSwap', () => {
     sib.getPublicTokensForChain.mockReturnValue([
       { symbol: 'COTI', isPrivate: false, bridgeAddressKey: 'PrivacyBridgeCotiNative', decimals: 18 },
     ]);
-    eth.depositUint2.mockResolvedValue({ wait: async () => ({ status: 1 }) });
+    eth.depositUint2.mockResolvedValue({ hash: TX_HASH });
     eth.estimateGas.mockRejectedValue(new Error('gas margin fail'));
     routeRequest();
     eth.waitForTransaction.mockResolvedValue({ status: 1 });
@@ -1531,7 +1539,7 @@ describe('usePrivacyBridge - handleApprove fallback resolution', () => {
     ['gCOTI', 18],
   ] as const) {
     it(`approves ${symbol} via the symbol fallback (public deposit)`, async () => {
-      eth.approve.mockResolvedValue({ wait: async () => ({}) });
+      eth.approve.mockResolvedValue({ hash: TX_HASH });
       const props = makeProps({
         direction: 'to-private',
         publicTokens: [{ symbol, name: symbol, balance: '0', isPrivate: false }],
@@ -1548,7 +1556,7 @@ describe('usePrivacyBridge - handleApprove fallback resolution', () => {
 
   it('returns when COTI to-public has no native bridge configured', async () => {
     // COTI hits the native branch (no tokenAddress); to-public still requires bridge.
-    eth.approve.mockResolvedValue({ wait: async () => ({}) });
+    eth.approve.mockResolvedValue({ hash: TX_HASH });
     const props = makeProps({
       direction: 'to-public',
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '0', isPrivate: false }],
@@ -1600,7 +1608,7 @@ describe('usePrivacyBridge - executeTransaction fallback resolution', () => {
   it('bridges native COTI via the symbol fallback (else branch)', async () => {
     sib.getPublicTokensForChain.mockReturnValue([]);
     sib.getPrivateTokensForChain.mockReturnValue([]);
-    eth.depositUint2.mockResolvedValue({ wait: async () => ({ status: 1 }) });
+    eth.depositUint2.mockResolvedValue({ hash: TX_HASH });
     routeRequest();
     const props = makeProps({
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
@@ -1679,9 +1687,13 @@ describe('usePrivacyBridge - revert replay branches', () => {
     sib.getPublicTokensForChain.mockReturnValue([
       { symbol: 'COTI', isPrivate: false, bridgeAddressKey: 'PrivacyBridgeCotiNative', decimals: 18 },
     ]);
-    eth.depositUint2.mockResolvedValue({
-      hash: '0xrev',
-      wait: async () => ({ status: 0, gasUsed: 5n, to: '0xto', from: WALLET, blockNumber: 1 }),
+    eth.depositUint2.mockResolvedValue({ hash: '0xrev' });
+    eth.waitForTransaction.mockResolvedValue({
+      status: 0,
+      gasUsed: 5n,
+      to: '0xto',
+      from: WALLET,
+      blockNumber: 1,
     });
     eth.call.mockRejectedValue(callRejection);
     routeRequest();
@@ -2003,7 +2015,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
       tokenLastUpdated: '',
       blockTimestamp: '',
     });
-    eth.depositUint2.mockResolvedValue({ wait: async () => ({ status: 1 }) });
+    eth.depositUint2.mockResolvedValue({ hash: TX_HASH });
     routeRequest();
     const props = makeProps({
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
@@ -2061,7 +2073,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
       { symbol: 'COTI', isPrivate: false, bridgeAddressKey: 'PrivacyBridgeCotiNative', decimals: 18 },
     ]);
     eth.estimateGas.mockRejectedValue(new Error('plain'));
-    eth.depositUint2.mockResolvedValue({ wait: async () => ({ status: 1 }) });
+    eth.depositUint2.mockResolvedValue({ hash: TX_HASH });
     routeRequest();
     const props = makeProps({
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
@@ -2094,8 +2106,12 @@ describe('usePrivacyBridge - additional branch coverage', () => {
     sib.getPublicTokensForChain.mockReturnValue([
       { symbol: 'COTI', isPrivate: false, bridgeAddressKey: 'PrivacyBridgeCotiNative', decimals: 18 },
     ]);
-    eth.depositUint2.mockResolvedValue({
-      wait: async () => ({ status: 0, to: '0xto', from: WALLET, blockNumber: 1 }),
+    eth.depositUint2.mockResolvedValue({ hash: TX_HASH });
+    eth.waitForTransaction.mockResolvedValue({
+      status: 0,
+      to: '0xto',
+      from: WALLET,
+      blockNumber: 1,
     });
     eth.call.mockResolvedValue('0x'); // replay does not throw -> no revertReason
     routeRequest();
@@ -2129,10 +2145,11 @@ describe('usePrivacyBridge - additional branch coverage', () => {
     sib.getPublicTokensForChain.mockReturnValue([
       { symbol: 'COTI', isPrivate: false, bridgeAddressKey: 'PrivacyBridgeCotiNative', decimals: 18 },
     ]);
-    eth.depositUint2.mockResolvedValue({
-      wait: async () => {
-        throw { code: 'CALL_EXCEPTION', data: '0xffffffff' + '0'.repeat(8), shortMessage: 'short fallback' };
-      },
+    eth.depositUint2.mockResolvedValue({ hash: TX_HASH });
+    eth.waitForTransaction.mockRejectedValue({
+      code: 'CALL_EXCEPTION',
+      data: '0xffffffff' + '0'.repeat(8),
+      shortMessage: 'short fallback',
     });
     routeRequest();
     const props = makeProps({
@@ -2150,11 +2167,8 @@ describe('usePrivacyBridge - additional branch coverage', () => {
     sib.getPublicTokensForChain.mockReturnValue([
       { symbol: 'COTI', isPrivate: false, bridgeAddressKey: 'PrivacyBridgeCotiNative', decimals: 18 },
     ]);
-    eth.depositUint2.mockResolvedValue({
-      wait: async () => {
-        throw { code: 'CALL_EXCEPTION' };
-      },
-    });
+    eth.depositUint2.mockResolvedValue({ hash: TX_HASH });
+    eth.waitForTransaction.mockRejectedValue({ code: 'CALL_EXCEPTION' });
     routeRequest();
     const props = makeProps({
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
@@ -2171,11 +2185,8 @@ describe('usePrivacyBridge - additional branch coverage', () => {
     sib.getPublicTokensForChain.mockReturnValue([
       { symbol: 'COTI', isPrivate: false, bridgeAddressKey: 'PrivacyBridgeCotiNative', decimals: 18 },
     ]);
-    eth.depositUint2.mockResolvedValue({
-      wait: async () => {
-        throw { reason: 'reasoned failure' };
-      },
-    });
+    eth.depositUint2.mockResolvedValue({ hash: TX_HASH });
+    eth.waitForTransaction.mockRejectedValue({ reason: 'reasoned failure' });
     routeRequest();
     const props = makeProps({
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
@@ -2194,11 +2205,8 @@ describe('usePrivacyBridge - additional branch coverage', () => {
     sib.getPublicTokensForChain.mockReturnValue([
       { symbol: 'COTI', isPrivate: false, bridgeAddressKey: 'PrivacyBridgeCotiNative', decimals: 18 },
     ]);
-    eth.depositUint2.mockResolvedValue({
-      wait: async () => {
-        throw {};
-      },
-    });
+    eth.depositUint2.mockResolvedValue({ hash: TX_HASH });
+    eth.waitForTransaction.mockRejectedValue({});
     routeRequest();
     const props = makeProps({
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
@@ -2277,7 +2285,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
 
   it('returns from approve for an unknown symbol on a deposit (no addresses)', async () => {
     sib.getPublicTokensForChain.mockReturnValue([]);
-    eth.approve.mockResolvedValue({ wait: async () => ({}) });
+    eth.approve.mockResolvedValue({ hash: TX_HASH });
     const props = makeProps({
       direction: 'to-private',
       publicTokens: [{ symbol: 'XYZ', name: 'XYZ', balance: '0', isPrivate: false }],
@@ -2360,9 +2368,13 @@ describe('usePrivacyBridge - additional branch coverage', () => {
     sib.getPublicTokensForChain.mockReturnValue([
       { symbol: 'COTI', isPrivate: false, bridgeAddressKey: 'PrivacyBridgeCotiNative', decimals: 18 },
     ]);
-    eth.depositUint2.mockResolvedValue({
-      hash: '0xrev',
-      wait: async () => ({ status: 0, gasUsed: 1n, to: '0xto', from: WALLET, blockNumber: 1 }),
+    eth.depositUint2.mockResolvedValue({ hash: '0xrev' });
+    eth.waitForTransaction.mockResolvedValue({
+      status: 0,
+      gasUsed: 1n,
+      to: '0xto',
+      from: WALLET,
+      blockNumber: 1,
     });
     eth.call.mockRejectedValue({ data: '0x1234567890abcdef' });
     routeRequest();
@@ -2393,9 +2405,13 @@ describe('usePrivacyBridge - additional branch coverage', () => {
     sib.getPublicTokensForChain.mockReturnValue([
       { symbol: 'COTI', isPrivate: false, bridgeAddressKey: 'PrivacyBridgeCotiNative', decimals: 18 },
     ]);
-    eth.depositUint2.mockResolvedValue({
-      hash: '0xrev',
-      wait: async () => ({ status: 0, gasUsed: 1n, to: '0xto', from: WALLET, blockNumber: 1 }),
+    eth.depositUint2.mockResolvedValue({ hash: '0xrev' });
+    eth.waitForTransaction.mockResolvedValue({
+      status: 0,
+      gasUsed: 1n,
+      to: '0xto',
+      from: WALLET,
+      blockNumber: 1,
     });
     eth.call.mockRejectedValue({});
     routeRequest();
@@ -2435,7 +2451,7 @@ describe('usePrivacyBridge - handleApprove edge paths', () => {
     sib.getPublicTokensForChain.mockReturnValue([
       { symbol: 'COTI', isPrivate: false, bridgeAddressKey: 'PrivacyBridgeCotiNative', decimals: 18 },
     ]);
-    eth.approve.mockResolvedValue({ wait: async () => ({}) });
+    eth.approve.mockResolvedValue({ hash: TX_HASH });
     const props = makeProps({
       direction: 'to-private',
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
