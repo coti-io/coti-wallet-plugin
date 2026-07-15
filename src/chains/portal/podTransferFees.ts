@@ -21,6 +21,15 @@ import {
 
 export const POD_TRANSFER_METHOD = "transfer";
 
+/** Matches PodERC20.FEE_ESTIMATE_REMOTE_CALL_SIZE for encrypted itUint256 transfers. */
+export const POD_TRANSFER_FORWARD_DATA_SIZE = 512n;
+
+/**
+ * L1 execution gas fallback for broadcast / display — not the inbox forwardGasLimit.
+ * Aligned with portal deposit broadcast fallback when estimateGas is unavailable.
+ */
+export const POD_TRANSFER_L1_EXECUTION_GAS_FALLBACK = 2_000_000n;
+
 export type PodTransferFeeQuote = {
   gasPrice: bigint;
   podInboxFeeWei: bigint;
@@ -64,6 +73,8 @@ export const resolvePodTransferFeeEstimationConfig = (
   const config: PodFeeEstimationConfig = {
     forwardGasLimit: limits.forwardGasLimit,
     gasPrice,
+    // Encrypted itUint256 — never rely on plaintext arg-length heuristics.
+    forwardDataSize: limits.forwardDataSize ?? POD_TRANSFER_FORWARD_DATA_SIZE,
   };
   if (limits.callBackGasLimit !== undefined) {
     config.callBackGasLimit = limits.callBackGasLimit;
@@ -84,16 +95,14 @@ export const estimatePodTransferFee = async (params: {
   return pod.estimateFee(POD_TRANSFER_METHOD, params.args, feeCfg);
 };
 
-const fallbackTransferGasLimit = (chainId: number): bigint => {
-  const limits = getChainConfig(chainId)?.podFeeEstimation?.transfer;
-  return limits?.forwardGasLimit ?? 850_000n;
-};
+const fallbackTransferGasLimit = (_chainId: number): bigint =>
+  POD_TRANSFER_L1_EXECUTION_GAS_FALLBACK;
 
 /** L1 execution gas display — plaintext simulation is not possible for encrypted transfer. */
 export const estimatePodTransferExecutionGasWei = (
-  chainId: number,
+  _chainId: number,
   gasPrice: bigint,
-): bigint => fallbackTransferGasLimit(chainId) * gasPrice;
+): bigint => POD_TRANSFER_L1_EXECUTION_GAS_FALLBACK * gasPrice;
 
 const resolveNativeFeeSymbol = (chainId: number): string => {
   const symbol = getChainConfig(chainId)?.walletNetwork.nativeCurrency.symbol;

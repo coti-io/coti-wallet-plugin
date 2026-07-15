@@ -35,6 +35,12 @@ export interface PodFeeEstimationLimits {
   forwardGasLimit: bigint;
   callBackGasLimit: bigint;
   callBackDataSize?: bigint;
+  /**
+   * Inbox forward calldata size (bytes). Required for encrypted methods (e.g. itUint256
+   * transfer) — plaintext arg-length heuristics understate encrypted payloads.
+   * PodERC20 uses 512 for remote call size.
+   */
+  forwardDataSize?: bigint;
 }
 
 export interface ChainIndexPageUi {

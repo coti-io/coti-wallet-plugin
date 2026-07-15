@@ -125,6 +125,6 @@ export const usePodTransferFees = ({
     feeSymbol,
     isGasEstimating,
     refreshFees,
-    isPodChain: true,
+    isPodChain: getChainConfig(chainId)?.portalStrategy === 'pod-privacy-portal',
   };
 };

@@ -31,7 +31,12 @@ export const avalancheFujiChain: ChainConfig = {
   podFeeEstimation: {
     deposit: { forwardGasLimit: 850_000n, callBackGasLimit: 2_000_000n },
     withdraw: { forwardGasLimit: 900_000n, callBackGasLimit: 2_000_000n },
-    transfer: { forwardGasLimit: 850_000n, callBackGasLimit: 2_000_000n },
+    // forwardDataSize matches PodERC20.FEE_ESTIMATE_REMOTE_CALL_SIZE (encrypted itUint256).
+    transfer: {
+      forwardGasLimit: 850_000n,
+      callBackGasLimit: 2_000_000n,
+      forwardDataSize: 512n,
+    },
   },
   addresses: {
     MTT,

@@ -387,9 +387,17 @@ const pickBlockingRequest = (
   const callbackFailure = pool.find(candidate => candidate.source === "pToken-callback-failed-event");
   if (callbackFailure) return callbackFailure;
 
-  const actionKind = blockedAction;
   const actionMatch = pool
-    .filter(candidate => candidate.kind === actionKind && candidate.requestId)
+    .filter(candidate => {
+      if (!candidate.requestId) return false;
+      if (candidate.kind === actionKind) return true;
+      // Portal withdraw and peer Send both emit TransferRequestSubmitted on the pToken.
+      return (
+        blockedAction === "withdraw" &&
+        candidate.kind === "transfer" &&
+        candidate.source === "pToken-transfer-event"
+      );
+    })
     .sort((a, b) => (b.blockNumber ?? 0) - (a.blockNumber ?? 0))[0];
   if (actionMatch) return actionMatch;
 
