@@ -4,6 +4,7 @@ import { getEthereumProvider, type EIP1193Provider } from '../../lib/ethereum';
 import { logger } from '../../lib/logger';
 import { CONTRACT_ADDRESSES } from '../../contracts/config';
 import { getPrivateTokensForChain } from '../../chains';
+import { getChainConfig } from '../../chains';
 import { encryptValue256 } from './encryptValue256';
 import { shortHash } from './utils';
 
@@ -37,6 +38,8 @@ export interface ExecutePrivateTokenTransferParams {
 
 export interface ExecutePrivateTokenTransferResult {
   txHash: string;
+  /** Present for PoD async transfers tracked via TransferRequestSubmitted. */
+  request?: import('../../contracts/pod').PodPortalRequest;
 }
 
 type ItUint256TransferPayload = {
@@ -237,8 +240,8 @@ export async function executePrivateTokenTransfer(
 }
 
 /**
- * Plugin-owned private send — resolves token metadata and encrypts via session key
- * or Snap without exposing the AES key to dApp code.
+ * Plugin-owned private send — routes PoD chains through `@coti-io/pod-sdk`,
+ * otherwise encrypts via session key / Snap (COTI PrivateERC20).
  */
 export async function sendPrivateTokenTransfer(
   params: SendPrivateTokenTransferParams,
@@ -254,6 +257,20 @@ export async function sendPrivateTokenTransfer(
     hasSnap,
     getAESKeyFromSnap,
   } = params;
+
+  if (getChainConfig(chainId)?.portalStrategy === 'pod-privacy-portal') {
+    const { executePodPrivateTokenTransfer } = await import(
+      '../../chains/portal/executePodPrivateTokenTransfer'
+    );
+    return executePodPrivateTokenTransfer({
+      chainId,
+      symbol,
+      recipient,
+      amount,
+      walletAddress,
+      provider: injectedProvider,
+    });
+  }
 
   const target = resolvePrivateTokenTransferTarget(chainId, symbol);
   if (!target) {

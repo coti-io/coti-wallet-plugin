@@ -36,13 +36,38 @@ vi.mock('../../src/hooks/privacyBridge/encryptValue256', () => ({
   })),
 }));
 
+const podTransfer = vi.hoisted(() => ({
+  executePodPrivateTokenTransfer: vi.fn(async () => ({
+    txHash: '0xpod',
+    request: {
+      id: '0xpod',
+      kind: 'transfer' as const,
+      chainId: 11155111,
+      sourceTxHash: '0xpod',
+      wallet: '0x1111111111111111111111111111111111111111',
+      token: 'p.MTT',
+      amount: '1',
+      status: 'source-mined' as const,
+      createdAt: 1,
+      updatedAt: 1,
+    },
+  })),
+}));
+
+vi.mock('../../src/chains/portal/executePodPrivateTokenTransfer', () => ({
+  executePodPrivateTokenTransfer: (...args: unknown[]) =>
+    podTransfer.executePodPrivateTokenTransfer(...args),
+}));
+
 import {
   executePrivateTokenTransfer,
+  sendPrivateTokenTransfer,
   normalizeAesKeyHex,
   resolvePrivateTokenContractAddress,
   resolvePrivateTokenTransferTarget,
   PRIVATE_ERC20_TRANSFER_256_SIG,
 } from '../../src/hooks/privacyBridge/executePrivateTokenTransfer';
+import { SEPOLIA_CHAIN_ID } from '../../src/chains/sepolia';
 
 describe('executePrivateTokenTransfer', () => {
   const mockRequest = vi.fn();
@@ -210,5 +235,80 @@ describe('resolvePrivateTokenTransferTarget', () => {
 
   it('returns null for unknown symbol', () => {
     expect(resolvePrivateTokenTransferTarget(COTI_TESTNET_CHAIN_ID, 'p.UNKNOWN')).toBeNull();
+  });
+});
+
+describe('sendPrivateTokenTransfer strategy branching', () => {
+  const mockRequest = vi.fn(async ({ method }: { method: string }) => {
+    if (method === 'eth_estimateGas') return '0x5208';
+    if (method === 'eth_sendTransaction') return '0xdeadbeef';
+    return null;
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    eth.getSigner.mockResolvedValue({
+      signMessage: vi.fn(),
+      getAddress: vi.fn(async () => WALLET),
+    });
+    eth.waitForTransaction.mockResolvedValue({ status: 1 });
+    podTransfer.executePodPrivateTokenTransfer.mockResolvedValue({
+      txHash: '0xpod',
+      request: {
+        id: '0xpod',
+        kind: 'transfer',
+        chainId: 11155111,
+        sourceTxHash: '0xpod',
+        wallet: WALLET,
+        token: 'p.MTT',
+        amount: '1',
+        status: 'source-mined',
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    });
+    Object.defineProperty(window, 'ethereum', {
+      value: { request: mockRequest },
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  it('routes PoD chains to executePodPrivateTokenTransfer without AES', async () => {
+    const result = await sendPrivateTokenTransfer({
+      chainId: SEPOLIA_CHAIN_ID,
+      symbol: 'p.MTT',
+      recipient: RECIPIENT,
+      amount: '1',
+      walletAddress: WALLET,
+      provider: { request: mockRequest } as never,
+    });
+
+    expect(podTransfer.executePodPrivateTokenTransfer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chainId: SEPOLIA_CHAIN_ID,
+        symbol: 'p.MTT',
+        recipient: RECIPIENT,
+        amount: '1',
+        walletAddress: WALLET,
+      }),
+    );
+    expect(result.txHash).toBe('0xpod');
+    expect(result.request?.kind).toBe('transfer');
+  });
+
+  it('keeps COTI path on AES PrivateERC20 transfer', async () => {
+    const result = await sendPrivateTokenTransfer({
+      chainId: COTI_TESTNET_CHAIN_ID,
+      symbol: 'p.WETH',
+      recipient: RECIPIENT,
+      amount: '1',
+      walletAddress: WALLET,
+      sessionAesKey: AES_KEY,
+      provider: { request: mockRequest } as never,
+    });
+
+    expect(podTransfer.executePodPrivateTokenTransfer).not.toHaveBeenCalled();
+    expect(result.txHash).toBe('0xdeadbeef');
   });
 });

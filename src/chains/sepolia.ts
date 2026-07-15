@@ -29,6 +29,7 @@ export const sepoliaChain: ChainConfig = {
   podFeeEstimation: {
     deposit: { forwardGasLimit: 850_000n, callBackGasLimit: 2_000_000n },
     withdraw: { forwardGasLimit: 900_000n, callBackGasLimit: 2_000_000n },
+    transfer: { forwardGasLimit: 850_000n, callBackGasLimit: 2_000_000n },
   },
   priceOracleAddress: "0x7eecdceec31d285aee99c7960b405f63593903d1",
   addresses: {

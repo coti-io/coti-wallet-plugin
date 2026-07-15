@@ -120,7 +120,17 @@ export const PrivacyBridgeProvider: React.FC<PrivacyBridgeProviderProps> = ({
       aesKeyChainId: session.aesKeyChainId,
       setAesKeyChainId: session.setAesKeyChainId,
       isPrivateUnlocked: session.isPrivateUnlocked,
-      sendPrivateToken: session.sendPrivateToken,
+      sendPrivateToken: async (params: {
+        symbol: string;
+        recipient: string;
+        amount: string;
+      }) => {
+        const result = await session.sendPrivateToken(params);
+        if (result.request) {
+          podState.upsertPodRequest(result.request);
+        }
+        return result;
+      },
       encryptPrivateValue: session.encryptPrivateValue,
       decryptPrivateValue: session.decryptPrivateValue,
       refreshPrivateBalances: session.refreshPrivateBalances,
@@ -194,6 +204,7 @@ export const PrivacyBridgeProvider: React.FC<PrivacyBridgeProviderProps> = ({
     feeDebugInfo,
     podState.podRequests,
     podState.refreshPodRequest,
+    podState.upsertPodRequest,
   ]);
 
   const legacyValue = useMemo(() => mergePrivacyBridgeSlices(slices), [slices]);
