@@ -15,20 +15,13 @@ import {
 import { useExampleTheme } from './ExampleThemeContext';
 
 const COTI_TESTNET_CHAIN_ID = 7082400;
-const COTI_MAINNET_CHAIN_ID = 2632500;
 
 const AES_BACKUP_API_URL = import.meta.env.VITE_AES_BACKUP_API_URL?.replace(/\/$/, '');
-const GRANT_API_URL_BY_CHAIN: Record<number, string | undefined> = {
-  [COTI_TESTNET_CHAIN_ID]: normalizeGrantApiUrl(import.meta.env.VITE_GRANT_API_URL_TESTNET),
-  [COTI_MAINNET_CHAIN_ID]: normalizeGrantApiUrl(import.meta.env.VITE_GRANT_API_URL_MAINNET),
-};
-const HAS_GRANT_API_URL = Object.values(GRANT_API_URL_BY_CHAIN).some(Boolean);
+const ONBOARDING_GRANT_ENABLED = import.meta.env.VITE_ONBOARDING_GRANT_ENABLED !== 'false';
+const GRANT_API_URL_TESTNET = import.meta.env.VITE_GRANT_API_URL_TESTNET?.replace(/\/$/, '');
+const GRANT_API_URL_MAINNET = import.meta.env.VITE_GRANT_API_URL_MAINNET?.replace(/\/$/, '');
 const ONBOARDING_GRANT_MIN_BALANCE_COTI =
   import.meta.env.VITE_ONBOARDING_GRANT_MIN_BALANCE_COTI ?? '0.2';
-
-function normalizeGrantApiUrl(url: string | undefined): string | undefined {
-  return url?.replace(/\/$/, '');
-}
 
 const backupKey = (address: string, chainId: number) =>
   `coti-example:aes-backup:${chainId}:${address.toLowerCase()}`;
@@ -79,6 +72,9 @@ configureCotiPlugin({
   aesKeyChainId: COTI_TESTNET_CHAIN_ID,
   additionalSnapAesWriteOrigins: LOCAL_SNAP_AES_WRITE_ORIGINS,
   debug: true,
+  onboardingGrantEnabled: ONBOARDING_GRANT_ENABLED,
+  ...(GRANT_API_URL_TESTNET ? { grantApiUrlTestnet: GRANT_API_URL_TESTNET } : {}),
+  ...(GRANT_API_URL_MAINNET ? { grantApiUrlMainnet: GRANT_API_URL_MAINNET } : {}),
   onboardingGrantMinBalanceWei: (
     BigInt(Math.trunc(Number(ONBOARDING_GRANT_MIN_BALANCE_COTI) * 1e6)) *
     10n ** 12n
@@ -91,19 +87,6 @@ configureCotiPlugin({
       saveEncryptedAesBackup(address, chainId, backup, 'save'),
     replaceEncryptedAesBackup: async ({ address, chainId, backup }) =>
       saveEncryptedAesBackup(address, chainId, backup, 'replace'),
-    grantNativeCoti: HAS_GRANT_API_URL
-      ? async ({ address, chainId }) => {
-          const grantApiUrl = GRANT_API_URL_BY_CHAIN[chainId];
-          if (!grantApiUrl) return { status: 'skipped' };
-          const response = await fetch(grantApiUrl, {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ address, chainId }),
-          });
-          if (!response.ok) return { status: 'skipped' };
-          return response.json();
-        }
-      : undefined,
   },
 });
 
