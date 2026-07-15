@@ -41,7 +41,7 @@ export type PodPortalRequestStatus =
 
 export interface PodPortalRequest {
   id: string;
-  kind: "deposit" | "withdraw";
+  kind: "deposit" | "withdraw" | "transfer";
   chainId: number;
   sourceTxHash: string;
   requestId?: string;
@@ -107,6 +107,9 @@ export const POD_PTOKEN_ABI = [
   "function balanceOf(address account) view returns (tuple(uint256 ciphertextHigh,uint256 ciphertextLow))",
   "function balanceWithState(address account) view returns (tuple(uint256 ciphertextHigh,uint256 ciphertextLow) balance,bool pending,bool callbackErrored)",
   "function balanceOfWithStatus(address account) view returns (tuple(uint256 ciphertextHigh,uint256 ciphertextLow),bool)",
+  // Prefer the explicit callback-fee overload so PodContract method resolution is unambiguous.
+  "function transfer(address to, ((uint256,uint256),bytes) value, uint256 callbackFeeLocalWei) payable returns (bytes32)",
+  "function estimateFee() view returns (uint256 totalFeeWei, uint256 targetFeeWei, uint256 callbackFeeWei)",
   "error TransferAlreadyPending(address from, address to, bytes32 requestId)",
   "event TransferRequestSubmitted(address indexed from,address indexed to,bytes32 requestId)",
   "event Transfer(address indexed from,address indexed to,bytes senderValue,bytes receiverValue)",

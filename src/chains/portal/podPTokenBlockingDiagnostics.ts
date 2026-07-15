@@ -61,7 +61,7 @@ export type BlockingPodRequestDiagnostics = {
 
 export const formatBlockingPodLogSummary = (
   blockingRequest: BlockingPodRequestCandidate | null,
-  action: "deposit" | "withdraw",
+  action: "deposit" | "withdraw" | "transfer",
 ) => {
   if (!blockingRequest?.requestId) {
     return `PoD ${action} blocked: wallet has on-chain pending=true but no requestId was resolved (check eventScan / candidateRequests in the log object below).`;
@@ -171,7 +171,7 @@ const isPodRequestStillInFlight = (
   if (tracking.execution?.errorCode && BigInt(tracking.execution.errorCode) !== 0n) {
     return false;
   }
-  if (kind === "deposit") {
+  if (kind === "deposit" || kind === "transfer") {
     return !tracking.response?.minedOnTarget;
   }
   if (kind === "withdraw") {
@@ -270,8 +270,8 @@ const fetchRecentPTokenEvents = async (
     return withExplorerUrl({
       source: "pToken-transfer-event",
       confidence: "medium",
-      kind: "withdraw",
-      requestId: parsed?.args?.requestId as string | undefined,
+                  kind: "transfer",
+                  requestId: parsed?.args?.requestId as string | undefined,
       blockNumber: log.blockNumber,
       sourceTxHash: log.transactionHash,
     });
@@ -372,7 +372,7 @@ const dedupeCandidates = (candidates: BlockingPodRequestCandidate[]) => {
 
 const pickBlockingRequest = (
   candidates: BlockingPodRequestCandidate[],
-  blockedAction: "deposit" | "withdraw",
+  blockedAction: "deposit" | "withdraw" | "transfer",
 ): BlockingPodRequestCandidate | null => {
   if (candidates.length === 0) return null;
 
@@ -387,7 +387,7 @@ const pickBlockingRequest = (
   const callbackFailure = pool.find(candidate => candidate.source === "pToken-callback-failed-event");
   if (callbackFailure) return callbackFailure;
 
-  const actionKind = blockedAction === "deposit" ? "deposit" : "withdraw";
+  const actionKind = blockedAction;
   const actionMatch = pool
     .filter(candidate => candidate.kind === actionKind && candidate.requestId)
     .sort((a, b) => (b.blockNumber ?? 0) - (a.blockNumber ?? 0))[0];
@@ -401,7 +401,7 @@ const pickBlockingRequest = (
 export async function diagnoseBlockingPodRequest(params: {
   account: string;
   pTokenAddress: string;
-  blockedAction: "deposit" | "withdraw";
+  blockedAction: "deposit" | "withdraw" | "transfer";
   portalAddress?: string;
   tokenSymbol?: string;
   chainId?: number;

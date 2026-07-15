@@ -32,6 +32,7 @@ export {
 } from "./podPortalFees";
 export { quotePodPortalTransactionFees } from "./fees";
 export type { PodPortalFeeQuote } from "./fees";
+// assertPodPTokenReady is exported above as a named function declaration.
 
 const getErrorMessage = (error: unknown) =>
   error && typeof error === "object" && "message" in error && typeof error.message === "string"
@@ -216,7 +217,7 @@ const logPodPTokenReadinessProbe = async (
   pToken: ethers.Contract,
   account: string,
   pTokenAddress: string,
-  action: "deposit" | "withdraw",
+  action: "deposit" | "withdraw" | "transfer",
   probe: PodPTokenPendingProbe,
   debugContext?: PodPTokenReadinessDebugContext,
 ) => {
@@ -239,7 +240,7 @@ const logPodPTokenReadinessBlocked = async (
   pToken: ethers.Contract,
   account: string,
   pTokenAddress: string,
-  action: "deposit" | "withdraw",
+  action: "deposit" | "withdraw" | "transfer",
   probe: PodPTokenPendingProbe,
   reason: "pending" | "callback-errored",
   debugContext?: PodPTokenReadinessDebugContext,
@@ -396,10 +397,10 @@ const readPodPTokenPendingState = async (
   }
 };
 
-const assertPodPTokenReady = async (
+export const assertPodPTokenReady = async (
   pToken: ethers.Contract,
   account: string,
-  action: "deposit" | "withdraw",
+  action: "deposit" | "withdraw" | "transfer",
   debugContext?: PodPTokenReadinessDebugContext,
 ) => {
   const pTokenAddress = await pToken.getAddress();

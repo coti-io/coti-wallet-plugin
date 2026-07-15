@@ -59,7 +59,7 @@ export interface PrivacyBridgeUnlockContextValue {
     symbol: string;
     recipient: string;
     amount: string;
-  }) => Promise<{ txHash: string }>;
+  }) => Promise<{ txHash: string; request?: PodPortalRequest }>;
   /** Encrypt a human-readable amount into ctUint256 JSON without exposing the AES key. */
   encryptPrivateValue: (params: {
     amount: string;

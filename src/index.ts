@@ -82,6 +82,7 @@ export { resolvePodRequestStatus } from './chains/portal/podRequestStatus';
 export {
   executePodPortalTransaction,
   signPodWithdrawPermit,
+  assertPodPTokenReady,
   getPodInboxAddress,
   getPodSdkConfig,
   getPodGasPrice,
@@ -94,6 +95,14 @@ export {
   formatPodFeeDisplay,
 } from './chains/portal/executePodPortalTransaction';
 export type { PodWithdrawPermit, PodPortalFeeQuote } from './chains/portal/executePodPortalTransaction';
+export {
+  executePodPrivateTokenTransfer,
+  quotePodPrivateTokenTransferFees,
+  quotePodTransferFees,
+  buildPodTransferMethodArgs,
+} from './chains/portal/executePodPrivateTokenTransfer';
+export type { PodTransferFeeQuote } from './chains/portal/executePodPrivateTokenTransfer';
+export { usePodTransferFees } from './hooks/privacyBridge/usePodTransferFees';
 export { fetchPodOracleTokenUsdPrice, POD_PRICE_ORACLE_ABI } from './chains/podPriceOracle';
 export { fetchPodBridgeData, simulatePodPortalFee } from './chains/portal/podPortalAdminData';
 

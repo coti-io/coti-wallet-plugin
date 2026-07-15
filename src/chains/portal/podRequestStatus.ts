@@ -116,11 +116,17 @@ export async function resolvePodRequestStatus(request: PodPortalRequest) {
       message: tracking.execution?.errorMessage || "PoD request execution failed.",
       refreshPrivateBalances: false,
     };
-  } else if (request.kind === "deposit" && tracking.response?.minedOnTarget) {
+  } else if (
+    (request.kind === "deposit" || request.kind === "transfer") &&
+    tracking.response?.minedOnTarget
+  ) {
     resolution = "succeeded";
     result = {
       status: "succeeded",
-      message: `PoD mint callback completed on ${sourceChainName}.`,
+      message:
+        request.kind === "transfer"
+          ? `PoD transfer callback completed on ${sourceChainName}.`
+          : `PoD mint callback completed on ${sourceChainName}.`,
       refreshPrivateBalances: true,
     };
   } else if (request.kind === "withdraw" && request.withdrawalId) {

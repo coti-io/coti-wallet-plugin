@@ -61,10 +61,11 @@ export interface ChainConfig {
   unlockStrategy: UnlockStrategy;
   portalStrategy: PortalStrategy;
   walletNetwork: WalletNetworkConfig;
-  /** Inbox fee estimation gas limits for PoD portal deposit/withdraw. */
+  /** Inbox fee estimation gas limits for PoD portal deposit/withdraw and pToken transfer. */
   podFeeEstimation?: {
     deposit: PodFeeEstimationLimits;
     withdraw: PodFeeEstimationLimits;
+    transfer: PodFeeEstimationLimits;
   };
   /** Main Index page: which chrome and labels to show for this chain. */
   indexPage: ChainIndexPageUi;
