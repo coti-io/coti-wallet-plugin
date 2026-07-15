@@ -587,7 +587,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           config.onboardingGrantMinBalanceWei ?? DEFAULT_ONBOARDING_GRANT_MIN_BALANCE_WEI,
           0n,
         );
-        const grantNativeCoti = resolveGrantNativeCoti();
+        const grantNativeCoti = resolveGrantNativeCoti(targetCotiChainId);
         if (grantNativeCoti) {
           let nativeBalance = await provider.getBalance(address);
           const requiredBalanceWei = configuredMinBalanceWei > 0n ? configuredMinBalanceWei : 1n;
@@ -598,8 +598,8 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
             requiredBalanceWei: requiredBalanceWei.toString(),
           });
           if (nativeBalance < requiredBalanceWei) {
-            emitStep('granting-funds');
             try {
+              emitStep('granting-funds');
               const grantResult = await grantNativeCoti({ address, chainId: targetCotiChainId });
               logger.log('[AesKeyProvider] Native COTI grant requested', grantResult);
 

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
+import { configureCotiPlugin } from '../../src/config/plugin';
 import {
   unmuteChainUpdates,
   isChainUpdatesMuted,
@@ -81,6 +82,7 @@ describe('useAesKeyProvider — unmute delay is approximately 500ms', () => {
     wagmiState.connector = undefined;
     wagmiState.chainId = undefined;
     ethersState.signer = makeSigner(VALID_KEY);
+    configureCotiPlugin({ onboardingGrantEnabled: false });
   });
 
   afterEach(() => {

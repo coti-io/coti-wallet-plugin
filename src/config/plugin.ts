@@ -5,9 +5,6 @@ import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID } from '../chains';
 export const DEFAULT_GRANT_API_URL_TESTNET =
   'https://testnet-apps-1-gw.coti.io/cms-coti-2bb8/api/v1/gas-grant';
 
-/** Default native COTI balance threshold before requesting a grant. */
-export const DEFAULT_ONBOARDING_GRANT_MIN_BALANCE_COTI = '0.2';
-
 /** Default onboarding min-balance in wei (0.2 COTI). Hardcoded so module init does not depend on ethers. */
 export const DEFAULT_ONBOARDING_GRANT_MIN_BALANCE_WEI = '200000000000000000';
 
@@ -175,19 +172,26 @@ async function requestGrantNativeCoti(
   try {
     return (await response.json()) as GrantResult;
   } catch {
-    return { status: 'submitted' };
+    // Treat non-JSON 200s like a failed grant — do not start waiting-for-funds polling.
+    return { status: 'skipped' };
   }
 }
 
 /**
- * Custom grantNativeCoti when set; otherwise requestGrantNativeCoti when enabled.
- * Returns undefined when grants are disabled.
+ * Custom grantNativeCoti when set; otherwise built-in grant when enabled and a URL exists for chainId.
+ * Pass chainId so mainnet (no default URL) does not open the grant UI for an instant skip.
  */
-export function resolveGrantNativeCoti():
+export function resolveGrantNativeCoti(chainId?: number):
   | ((request: OnboardingServiceRequest) => Promise<GrantResult>)
   | undefined {
   if (!isOnboardingGrantEnabled()) return undefined;
-  return getPluginConfig().onboardingServices?.grantNativeCoti ?? requestGrantNativeCoti;
+
+  const custom = getPluginConfig().onboardingServices?.grantNativeCoti;
+  if (custom) return custom;
+
+  if (chainId !== undefined && !resolveGrantApiUrl(chainId)) return undefined;
+
+  return requestGrantNativeCoti;
 }
 
 export function isAesKeyChainId(chainId: unknown): chainId is AesKeyChainId {

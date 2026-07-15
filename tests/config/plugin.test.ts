@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   configureCotiPlugin,
   DEFAULT_GRANT_API_URL_TESTNET,
@@ -41,13 +41,38 @@ describe('Plugin Configuration (README: Basic Setup)', () => {
 
   it('resolves a grant callback when enabled and no custom callback is set', () => {
     expect(isOnboardingGrantEnabled()).toBe(true);
-    expect(resolveGrantNativeCoti()).toEqual(expect.any(Function));
+    expect(resolveGrantNativeCoti(COTI_TESTNET_CHAIN_ID)).toEqual(expect.any(Function));
+  });
+
+  it('does not resolve built-in grant for mainnet without a grant URL', () => {
+    expect(resolveGrantNativeCoti(COTI_MAINNET_CHAIN_ID)).toBeUndefined();
   });
 
   it('disables grant resolution when onboardingGrantEnabled is false', () => {
     configureCotiPlugin({ onboardingGrantEnabled: false });
     expect(isOnboardingGrantEnabled()).toBe(false);
-    expect(resolveGrantNativeCoti()).toBeUndefined();
+    expect(resolveGrantNativeCoti(COTI_TESTNET_CHAIN_ID)).toBeUndefined();
+  });
+
+  it('skips grant polling when the grant API returns a non-JSON 200 body', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockRejectedValue(new SyntaxError('Unexpected token < in JSON')),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const grant = resolveGrantNativeCoti(COTI_TESTNET_CHAIN_ID);
+    expect(grant).toEqual(expect.any(Function));
+
+    await expect(
+      grant!({ address: '0xabc', chainId: COTI_TESTNET_CHAIN_ID }),
+    ).resolves.toEqual({ status: 'skipped' });
+
+    vi.unstubAllGlobals();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('allows overriding snapId', () => {
