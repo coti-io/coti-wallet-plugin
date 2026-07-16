@@ -73,6 +73,24 @@ function extractOwnerCiphertextFromAllowance(
   }
 }
 
+type PrivateAllowanceInterpretation =
+  | { kind: 'zero' }
+  | { kind: 'value'; wei: bigint }
+  /** Non-zero ciphertext but decrypt/sanity returned null (e.g. MaxUint256). */
+  | { kind: 'opaque_nonzero' }
+  /** allowance() payload could not be parsed. */
+  | { kind: 'unreadable' };
+
+function interpretPrivateAllowance(
+  ownerCt: { ciphertextHigh: bigint; ciphertextLow: bigint } | null,
+  decrypted: bigint | null | undefined,
+): PrivateAllowanceInterpretation {
+  if (!ownerCt) return { kind: 'unreadable' };
+  if (ownerCt.ciphertextHigh === 0n && ownerCt.ciphertextLow === 0n) return { kind: 'zero' };
+  if (decrypted === null || decrypted === undefined) return { kind: 'opaque_nonzero' };
+  return { kind: 'value', wei: decrypted };
+}
+
 
 export interface UsePrivacyBridgeAllowanceOptions {
   isConnected: boolean;
@@ -102,6 +120,8 @@ export const usePrivacyBridgeAllowance = ({
   chainId,
 }: UsePrivacyBridgeAllowanceOptions) => {
   const [allowance, setAllowance] = useState<string>('0');
+  /** True when private allowance() could not be parsed — do not treat as zero. */
+  const [privateAllowanceUnreadable, setPrivateAllowanceUnreadable] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
   const [podWithdrawPermit, setPodWithdrawPermit] = useState<PodWithdrawPermit | null>(null);
   /** Synchronous store so transfer can run in the same tick as approve (before React re-renders). */
@@ -193,15 +213,18 @@ export const usePrivacyBridgeAllowance = ({
 
         // Native deposits skip ERC-20 approve; PoD withdraw uses a typed permit instead of allowance.
         if (skipsPublicDepositApproval(pubCfgEarly, direction)) {
+            setPrivateAllowanceUnreadable(false);
             setAllowance('999999999999999999');
             return;
         }
         if (direction === 'to-public' && isPodPortalPublicToken(currentChainId, pubCfgEarly)) {
+            setPrivateAllowanceUnreadable(false);
             setAllowance('999999999999999999');
             return;
         }
 
         // Reset to 0 to prevent stale state from previous token
+        setPrivateAllowanceUnreadable(false);
         setAllowance('0');
 
         try {
@@ -299,8 +322,15 @@ export const usePrivacyBridgeAllowance = ({
                     const rawAllowance = await tokenContract.allowance(walletAddress, bridgeAddress);
                     const ownerCt = extractOwnerCiphertextFromAllowance(rawAllowance);
 
-                    // If the allowance is clearly uninitialized or 0, return early:
-                    if (!ownerCt || (ownerCt.ciphertextHigh === 0n && ownerCt.ciphertextLow === 0n)) {
+                    if (!ownerCt) {
+                        // Do not coerce to "0" — that prompts approve while handleApprove fails closed.
+                        logger.warn('Could not parse private allowance response');
+                        setPrivateAllowanceUnreadable(true);
+                        return;
+                    }
+                    setPrivateAllowanceUnreadable(false);
+
+                    if (ownerCt.ciphertextHigh === 0n && ownerCt.ciphertextLow === 0n) {
                         setAllowance('0');
                         return;
                     }
@@ -313,16 +343,18 @@ export const usePrivacyBridgeAllowance = ({
                                 ? decryptCtUint256(ownerCt, sessionAesKey, { decimals: privateDecimals })
                                 : await decryptCtUint256ViaSnap(ownerCt, currentChainId, walletAddress);
 
-                            if (decryptedVal === null) {
-                                // Sanity filter may reject MaxUint256 / other huge values.
-                                // Non-zero ciphertext still means allowance is not zero — do not
-                                // force the UI into another approve() cycle.
+                            const interpreted = interpretPrivateAllowance(ownerCt, decryptedVal);
+                            if (interpreted.kind === 'opaque_nonzero') {
+                                // Sanity filter may reject MaxUint256. Same treatment as handleApprove:
+                                // skip approve mutations and do not show zero.
                                 logger.warn(
                                     'Could not decrypt private allowance value; treating as unlimited for UI',
                                 );
                                 setAllowance(ethers.formatUnits(ethers.MaxUint256, privateDecimals));
+                            } else if (interpreted.kind === 'value') {
+                                setAllowance(ethers.formatUnits(interpreted.wei, privateDecimals));
                             } else {
-                                setAllowance(ethers.formatUnits(decryptedVal, privateDecimals));
+                                setAllowance('0');
                             }
                             return;
                         } catch (decryptErr) {
@@ -334,6 +366,7 @@ export const usePrivacyBridgeAllowance = ({
                     setAllowance('0');
                 } catch (e) {
                     logger.warn("Could not check private allowance, defaulting to 0", e);
+                    setPrivateAllowanceUnreadable(false);
                     setAllowance('0');
                 }
                 return;
@@ -539,7 +572,7 @@ export const usePrivacyBridgeAllowance = ({
                 let method: PrivateAllowanceMethod = 'approve';
                 let encryptAmount = amountToApprove;
 
-                const readPrivateAllowanceWei = async (): Promise<bigint | null> => {
+                const readPrivateAllowance = async (): Promise<PrivateAllowanceInterpretation> => {
                     const allowanceReader = new ethers.Contract(
                         privateTokenAddress,
                         PRIVATE_ALLOWANCE_ABI,
@@ -548,10 +581,10 @@ export const usePrivacyBridgeAllowance = ({
                     const raw = await allowanceReader.allowance(walletAddress, bridgeAddress);
                     const ownerCt = extractOwnerCiphertextFromAllowance(raw);
                     if (!ownerCt) {
-                        return null;
+                        return { kind: 'unreadable' };
                     }
                     if (ownerCt.ciphertextHigh === 0n && ownerCt.ciphertextLow === 0n) {
-                        return 0n;
+                        return { kind: 'zero' };
                     }
                     if (!sessionAesKey && !hasSnap) {
                         throw new Error("Private approval requires unlock/onboarding first.");
@@ -559,21 +592,32 @@ export const usePrivacyBridgeAllowance = ({
                     const decrypted = sessionAesKey
                         ? decryptCtUint256(ownerCt, sessionAesKey, { decimals: privateDecimals })
                         : await decryptCtUint256ViaSnap(ownerCt, currentChainId, walletAddress);
-                    // null = decrypt/sanity failure (e.g. MaxUint256). Callers must not
-                    // coerce this to 0n — that would incorrectly select approve().
-                    return decrypted;
+                    return interpretPrivateAllowance(ownerCt, decrypted);
                 };
 
                 if (isCotiBridgeChain(currentChainId)) {
-                    const currentAllowanceWei = await readPrivateAllowanceWei();
-                    // Fail closed: never treat an unreadable allowance as zero — that
-                    // would call approve() while on-chain allowance may be non-zero
-                    // and revert with ERC20UnsafeApprove.
-                    if (currentAllowanceWei === null) {
+                    const current = await readPrivateAllowance();
+
+                    if (current.kind === 'unreadable') {
+                        // Fail closed: never approve() when we cannot tell zero vs non-zero.
                         throw new Error(
                             'Could not read current private allowance. Please try again.',
                         );
                     }
+
+                    if (current.kind === 'opaque_nonzero') {
+                        // Same as checkAllowance UI (unlimited): non-zero CT with failed
+                        // decrypt/sanity — do not approve/increase/decrease.
+                        logger.log(
+                            '🔐 [Approve] Opaque non-zero private allowance; skipping mutation tx',
+                        );
+                        setIsApproving(false);
+                        setToastState(prev => ({ ...prev, visible: false }));
+                        await checkAllowance();
+                        return;
+                    }
+
+                    const currentAllowanceWei = current.kind === 'zero' ? 0n : current.wei;
 
                     if (currentAllowanceWei === 0n) {
                         method = 'approve';
@@ -651,15 +695,21 @@ export const usePrivacyBridgeAllowance = ({
                 // decrypt is unavailable (e.g. MaxUint256 filtered by the sanity check).
                 if (isCotiBridgeChain(currentChainId)) {
                     try {
-                        const verified = await readPrivateAllowanceWei();
-                        if (verified !== null && verified < amountToApprove) {
+                        const verified = await readPrivateAllowance();
+                        if (verified.kind === 'value' && verified.wei < amountToApprove) {
                             throw new Error(
                                 'Approval completed but allowance is still insufficient. Please try again.',
                             );
                         }
-                        if (verified === null) {
+                        if (verified.kind === 'zero' && amountToApprove > 0n) {
+                            throw new Error(
+                                'Approval completed but allowance is still insufficient. Please try again.',
+                            );
+                        }
+                        if (verified.kind === 'opaque_nonzero' || verified.kind === 'unreadable') {
                             logger.warn(
-                                '🔐 [Approve] Post-tx allowance decrypt unavailable; trusting successful receipt',
+                                '🔐 [Approve] Post-tx allowance verify inconclusive; trusting successful receipt',
+                                { kind: verified.kind },
                             );
                         }
                     } catch (verifyErr) {
@@ -734,6 +784,11 @@ export const usePrivacyBridgeAllowance = ({
 
         if (direction === 'to-public' && token?.bridgeAddressKey?.startsWith('PrivacyPortal')) {
             return isPodWithdrawPermitStale(podWithdrawPermit, token, chainId);
+        }
+
+        // Unreadable private allowance must not look like "zero → approve needed".
+        if (direction === 'to-public' && privateAllowanceUnreadable) {
+            return false;
         }
 
         const amountNum = parseFloat(amount || '0');

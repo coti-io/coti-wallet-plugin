@@ -513,6 +513,16 @@ describe('usePrivacyBridge - checkAllowance', () => {
     expect(result.current.isApprovalNeeded).toBe(false);
   });
 
+  it('does not treat an unparseable private allowance as zero (avoids doomed approve)', async () => {
+    eth.allowance.mockResolvedValue(0n);
+    const props = makeProps({ direction: 'to-public', amount: '1' });
+    const { result } = renderHook(() => usePrivacyBridge(props));
+    await act(async () => {
+      await result.current.checkAllowance();
+    });
+    await waitFor(() => expect(result.current.isApprovalNeeded).toBe(false));
+  });
+
   it('reads private allowance from an ethers Result tuple (no enumerable named keys)', async () => {
     const ethersStyleAllowance = Object.create(null, {
       0: { value: [0n, 0n], enumerable: true },
@@ -1448,6 +1458,25 @@ describe('usePrivacyBridge - handleApprove COTI private allowance when non-zero'
 
     expect(lastPrivateAllowanceMethod()).toBe('approve');
     expect(signer.signMessage).toHaveBeenCalled();
+  });
+
+  it('skips mutation when current private allowance is opaque non-zero (decrypt null)', async () => {
+    sib.getPublicTokensForChain.mockReturnValue(ercPublicCfg('WETH'));
+    sib.getPrivateTokensForChain.mockReturnValue(ercPrivateCfg('WETH'));
+    eth.allowance.mockResolvedValue({
+      ownerCiphertext: { ciphertextHigh: 1n, ciphertextLow: 2n },
+    });
+    vi.mocked(decryptCtUint256).mockReturnValue(null);
+    routeRequest();
+
+    const props = makeProps({ direction: 'to-public', amount: '1' });
+    const { result } = renderHook(() => usePrivacyBridge(props));
+    await act(async () => {
+      await result.current.handleApprove();
+    });
+
+    expect(lastPrivateAllowanceMethod()).toBeNull();
+    expect(signer.signMessage).not.toHaveBeenCalled();
   });
 });
 
