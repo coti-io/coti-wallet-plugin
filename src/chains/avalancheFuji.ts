@@ -48,6 +48,8 @@ export const avalancheFujiChain: ChainConfig = {
     PrivacyPortalMTT: "0x64D99D761aC68D1a495B4f7E5bE7277586EDFE78",
     PrivacyPortalUSDC: PORTAL_USDC,
     PrivacyPortalAVAX: PORTAL_AVAX,
+    // PrivacyPortalFactory — pauseController of all portals above (verified on-chain 2026-07-16).
+    PrivacyPortalFactory: "0xCf06fBf94Af5e9ECEb15aa1Ba6458b72521424FD",
   },
   tokens: [
     {

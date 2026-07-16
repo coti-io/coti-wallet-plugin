@@ -94,8 +94,23 @@ export const POD_PORTAL_ADMIN_ABI = [
   "function setWithdrawFee(uint256 fixedFee, uint256 percentageBps, uint256 maxFee)",
   "function getFeeConfig(bool isDeposit) view returns (uint256 fixedFee, uint256 percentageBps, uint256 maxFee)",
   "function accumulatedPortalFees() view returns (uint256)",
+  "function pauseController() view returns (address)",
   "function estimateDepositFees(uint256 amount) view returns (uint256 portalFee,bool usedDynamicPricing,uint256 mintTotalFee,uint256 mintCallbackFee)",
   "function estimateWithdrawFees(uint256 amount) view returns (uint256 portalFee,bool usedDynamicPricing,uint256 transferTotalFee,uint256 transferCallbackFee)",
+] as const;
+
+/**
+ * PrivacyPortalFactory — every deployed portal's `pauseController`. Pause state
+ * is factory-level: flipping a flag pauses that direction on ALL portals of the
+ * chain at once. Setters are owner-only (deployed factory is OZ Ownable).
+ */
+export const POD_PORTAL_FACTORY_ABI = [
+  "function owner() view returns (address)",
+  "function depositsPaused() view returns (bool)",
+  "function withdrawalsPaused() view returns (bool)",
+  "function setDepositsPaused(bool paused)",
+  "function setWithdrawalsPaused(bool paused)",
+  "function setOperationsPaused(bool paused)",
 ] as const;
 
 export const POD_PTOKEN_ABI = [

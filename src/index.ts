@@ -72,6 +72,7 @@ export {
   PRIVACY_PORTAL_ABI,
   POD_PTOKEN_ABI,
   POD_PORTAL_ADMIN_ABI,
+  POD_PORTAL_FACTORY_ABI,
 } from './contracts/pod';
 export type { PodPortalRequest, PodPortalRequestStatus, PodBalanceState, PodBalanceTrustState } from './contracts/pod';
 export { loadPodRequests, savePodRequests, podRequestsStorageKey } from './pod/podPortalRequestsStorage';

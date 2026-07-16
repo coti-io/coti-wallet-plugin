@@ -23,6 +23,9 @@ export interface BridgeData extends BridgeFees {
   nativeCotiFee: string;
   bridgeBalance: string;
   isPaused: boolean;
+  /** PoD portals pause deposits and withdrawals independently (factory-level flags). */
+  depositsPaused?: boolean;
+  withdrawalsPaused?: boolean;
   tokenDecimals: number;
   /** Symbol the fee values are denominated in (native coin on PoD chains; COTI otherwise). */
   feeTokenSymbol?: string;

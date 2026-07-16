@@ -1,5 +1,5 @@
 import { ethers } from "ethers";
-import { POD_PORTAL_ADMIN_ABI } from "../../contracts/pod";
+import { POD_PORTAL_ADMIN_ABI, POD_PORTAL_FACTORY_ABI } from "../../contracts/pod";
 import { getChainConfig } from "../index";
 import { getRpcUrlsForChain } from "../rpcUrls";
 import { fetchPodOracleTokenUsdPrice } from "../podPriceOracle";
@@ -20,11 +20,58 @@ export const POD_NO_MAX_FEE_SENTINEL = (1n << 128n) - 1n;
 const formatFee = (value: bigint): string =>
   value >= POD_NO_MAX_FEE_SENTINEL ? "0" : ethers.formatEther(value);
 
+interface PauseFlags {
+  depositsPaused: boolean;
+  withdrawalsPaused: boolean;
+}
+
+const UNPAUSED: PauseFlags = { depositsPaused: false, withdrawalsPaused: false };
+
+/**
+ * Reads the pause flags a portal's `pauseController` reports (in practice the
+ * PrivacyPortalFactory, so the flags are chain-wide). Mirrors the portal's own
+ * `_pauseFlag` semantics: zero/code-less controller means unpaused; a controller
+ * that has code but fails to answer blocks operations (fail-closed), so it is
+ * reported as fully paused.
+ */
+async function fetchControllerPauseFlags(
+  provider: ethers.JsonRpcProvider,
+  controllerAddress: string,
+): Promise<PauseFlags> {
+  if (!controllerAddress || controllerAddress === ethers.ZeroAddress) return UNPAUSED;
+  const controller = new ethers.Contract(controllerAddress, POD_PORTAL_FACTORY_ABI, provider);
+  try {
+    const [depositsPaused, withdrawalsPaused] = await Promise.all([
+      controller.depositsPaused(),
+      controller.withdrawalsPaused(),
+    ]);
+    return { depositsPaused, withdrawalsPaused };
+  } catch {
+    if ((await provider.getCode(controllerAddress).catch(() => "0x")) === "0x") return UNPAUSED;
+    return { depositsPaused: true, withdrawalsPaused: true };
+  }
+}
+
+/** Promise-cached pause-flag lookup so parallel portal rows share one controller read. */
+const makePauseFlagResolver = (provider: ethers.JsonRpcProvider) => {
+  const cache = new Map<string, Promise<PauseFlags>>();
+  return (controllerAddress: string): Promise<PauseFlags> => {
+    const key = controllerAddress.toLowerCase();
+    let flags = cache.get(key);
+    if (!flags) {
+      flags = fetchControllerPauseFlags(provider, controllerAddress);
+      cache.set(key, flags);
+    }
+    return flags;
+  };
+};
+
 async function fetchPortalRow(
   token: TokenConfig,
   config: ChainConfig,
   provider: ethers.JsonRpcProvider,
   nativeSymbol: string,
+  resolvePauseFlags: ReturnType<typeof makePauseFlagResolver>,
 ): Promise<BridgeData> {
   const portalAddress = config.addresses[token.bridgeAddressKey!];
   const privateToken = config.tokens.find(
@@ -39,21 +86,21 @@ async function fetchPortalRow(
     privateTokenIcon: privateToken?.icon || "",
     tokenDecimals: token.decimals,
     feeTokenSymbol: nativeSymbol,
-    // PoD portals have no deposit/withdraw limits
+    // Deployed PoD portals have no deposit/withdraw limits (setLimits exists only
+    // in newer, not-yet-deployed contract source)
     minDepositAmount: "N/A",
     maxDepositAmount: "N/A",
     minWithdrawAmount: "N/A",
     maxWithdrawAmount: "N/A",
     accumulatedFees: "0",
     nativeCotiFee: "0",
-    // No readable pause flag on the portal (pausing goes through a controller)
     isPaused: false,
     isLoading: false,
   };
 
   try {
     const portal = new ethers.Contract(portalAddress, POD_PORTAL_ADMIN_ABI, provider);
-    const [depCfg, wdCfg, accFees, balance] = await Promise.all([
+    const [depCfg, wdCfg, accFees, balance, pauseFlags] = await Promise.all([
       portal.getFeeConfig(true),
       portal.getFeeConfig(false),
       portal.accumulatedPortalFees().catch(() => 0n),
@@ -63,6 +110,9 @@ async function fetchPortalRow(
           ? new ethers.Contract(config.addresses[token.addressKey], ERC20_BALANCE_ABI, provider)
               .balanceOf(portalAddress).catch(() => 0n)
           : Promise.resolve(0n),
+      portal.pauseController()
+        .then((controller: string) => resolvePauseFlags(controller))
+        .catch(() => UNPAUSED),
     ]);
     return {
       ...base,
@@ -74,6 +124,9 @@ async function fetchPortalRow(
       withdrawMaxFee: formatFee(wdCfg[2]),
       accumulatedCotiFees: ethers.formatEther(accFees),
       bridgeBalance: ethers.formatUnits(balance, token.decimals),
+      isPaused: pauseFlags.depositsPaused || pauseFlags.withdrawalsPaused,
+      depositsPaused: pauseFlags.depositsPaused,
+      withdrawalsPaused: pauseFlags.withdrawalsPaused,
       error: null,
     };
   } catch (err) {
@@ -95,10 +148,11 @@ async function fetchPortalRow(
 
 /**
  * Live backoffice reader for PoD privacy portals (Sepolia/Fuji).
- * Reads the deposit/withdraw fee configs, accumulated portal fees and portal
- * balance for every public token with a configured portal, shaped as
- * {@link BridgeData} rows. Fee values are native-coin denominated; the row's
- * `feeTokenSymbol` carries the display symbol (ETH/AVAX).
+ * Reads the deposit/withdraw fee configs, accumulated portal fees, portal
+ * balance and pause state (via each portal's pauseController — the factory,
+ * so pause flags are chain-wide) for every public token with a configured
+ * portal, shaped as {@link BridgeData} rows. Fee values are native-coin
+ * denominated; the row's `feeTokenSymbol` carries the display symbol (ETH/AVAX).
  */
 export async function fetchPodBridgeData(chainId: number): Promise<BridgeData[]> {
   const config = getChainConfig(chainId);
@@ -113,8 +167,9 @@ export async function fetchPodBridgeData(chainId: number): Promise<BridgeData[]>
     const provider = new ethers.JsonRpcProvider(rpcUrl);
     try {
       await provider.getBlockNumber(); // probe before fanning out
+      const resolvePauseFlags = makePauseFlagResolver(provider);
       return await Promise.all(
-        publicTokens.map(token => fetchPortalRow(token, config, provider, nativeSymbol))
+        publicTokens.map(token => fetchPortalRow(token, config, provider, nativeSymbol, resolvePauseFlags))
       );
     } catch (err) {
       lastError = err;
