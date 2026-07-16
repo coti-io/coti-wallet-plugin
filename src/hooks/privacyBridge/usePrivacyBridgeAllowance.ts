@@ -564,7 +564,15 @@ export const usePrivacyBridgeAllowance = ({
                 };
 
                 if (isCotiBridgeChain(currentChainId)) {
-                    const currentAllowanceWei = (await readPrivateAllowanceWei()) ?? 0n;
+                    const currentAllowanceWei = await readPrivateAllowanceWei();
+                    // Fail closed: never treat an unreadable allowance as zero — that
+                    // would call approve() while on-chain allowance may be non-zero
+                    // and revert with ERC20UnsafeApprove.
+                    if (currentAllowanceWei === null) {
+                        throw new Error(
+                            'Could not read current private allowance. Please try again.',
+                        );
+                    }
 
                     if (currentAllowanceWei === 0n) {
                         method = 'approve';
