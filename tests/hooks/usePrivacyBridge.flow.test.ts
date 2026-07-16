@@ -1287,6 +1287,64 @@ describe('usePrivacyBridge - handleApprove COTI private allowance when non-zero'
 
     expect(lastPrivateAllowanceMethod()).toBe('approve');
   });
+
+  it('uses increaseAllowance when allowance is an ethers Result (no enumerable named keys)', async () => {
+    sib.getPublicTokensForChain.mockReturnValue(ercPublicCfg('WETH'));
+    sib.getPrivateTokensForChain.mockReturnValue(ercPrivateCfg('WETH'));
+
+    // Mimic ethers v6 Result: named getters work, but `in` / Object.keys do not.
+    const ethersStyleAllowance = Object.create(null, {
+      0: { value: [0n, 0n], enumerable: true },
+      1: { value: [1n, 2n], enumerable: true },
+      2: { value: [0n, 0n], enumerable: true },
+      ownerCiphertext: {
+        get() {
+          return this[1];
+        },
+        enumerable: false,
+      },
+    });
+    Object.defineProperty(ethersStyleAllowance[1], 'ciphertextHigh', {
+      get() {
+        return this[0];
+      },
+      enumerable: false,
+    });
+    Object.defineProperty(ethersStyleAllowance[1], 'ciphertextLow', {
+      get() {
+        return this[1];
+      },
+      enumerable: false,
+    });
+
+    eth.allowance.mockResolvedValue(ethersStyleAllowance);
+    let decrypted = 5n * 10n ** 6n; // existing 5 USDC (6 decimals) style wei
+    vi.mocked(decryptCtUint256).mockImplementation(() => decrypted);
+    req().mockImplementation(async (arg: { method: string }) => {
+      if (arg.method === 'eth_estimateGas') return '0x' + (300000).toString(16);
+      if (arg.method === 'eth_sendTransaction') {
+        decrypted = 7n * 10n ** 6n;
+        return '0x' + 'a'.repeat(64);
+      }
+      if (arg.method === 'eth_gasPrice') return '0x' + (1_000_000_000).toString(16);
+      return '0x0';
+    });
+    eth.waitForTransaction.mockResolvedValue({ status: 1 });
+
+    const props = makeProps({
+      direction: 'to-public',
+      amount: '7',
+      publicTokens: [{ symbol: 'USDC.e', name: 'USDC.e', balance: '10', isPrivate: false }],
+    });
+    const { result } = renderHook(() => usePrivacyBridge(props));
+    await act(async () => {
+      await result.current.handleApprove();
+    });
+
+    expect(lastPrivateAllowanceMethod()).toBe('increaseAllowance');
+    // Must not treat missing enumerable keys as zero allowance → approve.
+    expect(lastPrivateAllowanceMethod()).not.toBe('approve');
+  });
 });
 
 describe('usePrivacyBridge - handleSwap', () => {
