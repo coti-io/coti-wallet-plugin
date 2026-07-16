@@ -608,6 +608,26 @@ function routeRequest({
   });
 }
 
+/** Zero on-chain private allowance that becomes `afterWei` after the approve tx. */
+function stubZeroPrivateAllowanceApprovingTo(afterWei: bigint) {
+  eth.allowance.mockResolvedValue({
+    ownerCiphertext: { ciphertextHigh: 0n, ciphertextLow: 0n },
+  });
+  vi.mocked(decryptCtUint256).mockImplementation(() => afterWei);
+  req().mockImplementation(async (arg: { method: string }) => {
+    if (arg.method === 'eth_estimateGas') return '0x' + (300000).toString(16);
+    if (arg.method === 'eth_sendTransaction') {
+      eth.allowance.mockResolvedValue({
+        ownerCiphertext: { ciphertextHigh: 1n, ciphertextLow: 2n },
+      });
+      return '0x' + 'a'.repeat(64);
+    }
+    if (arg.method === 'eth_gasPrice') return '0x' + (1_000_000_000).toString(16);
+    return '0x0';
+  });
+  eth.waitForTransaction.mockResolvedValue({ status: 1 });
+}
+
 const ercPublicCfg = (symbol: string, decimals = 18) => [
   {
     symbol,
@@ -1095,8 +1115,7 @@ describe('usePrivacyBridge - handleApprove', () => {
   it('signs an encrypted private approval (to-public, 128-bit path)', async () => {
     sib.getPublicTokensForChain.mockReturnValue(ercPublicCfg('WETH'));
     sib.getPrivateTokensForChain.mockReturnValue(ercPrivateCfg('WETH'));
-    routeRequest();
-    eth.waitForTransaction.mockResolvedValue({ status: 1 });
+    stubZeroPrivateAllowanceApprovingTo(10n ** 18n);
     const props = makeProps({ direction: 'to-public', amount: '1' });
     const { result } = renderHook(() => usePrivacyBridge(props));
     await act(async () => {
@@ -1108,8 +1127,7 @@ describe('usePrivacyBridge - handleApprove', () => {
   it('encrypts a zero-amount private approval (bitSize 0 path)', async () => {
     sib.getPublicTokensForChain.mockReturnValue(ercPublicCfg('WETH'));
     sib.getPrivateTokensForChain.mockReturnValue(ercPrivateCfg('WETH'));
-    routeRequest();
-    eth.waitForTransaction.mockResolvedValue({ status: 1 });
+    stubZeroPrivateAllowanceApprovingTo(0n);
     const props = makeProps({ direction: 'to-public', amount: '0' });
     const { result } = renderHook(() => usePrivacyBridge(props));
     await act(async () => {
@@ -1121,8 +1139,7 @@ describe('usePrivacyBridge - handleApprove', () => {
   it('encrypts a MaxUint256 private approval (>128-bit path)', async () => {
     sib.getPublicTokensForChain.mockReturnValue(ercPublicCfg('WETH'));
     sib.getPrivateTokensForChain.mockReturnValue(ercPrivateCfg('WETH'));
-    routeRequest();
-    eth.waitForTransaction.mockResolvedValue({ status: 1 });
+    stubZeroPrivateAllowanceApprovingTo(ethers.MaxUint256);
     const props = makeProps({ direction: 'to-public', amount: '' });
     const { result } = renderHook(() => usePrivacyBridge(props));
     await act(async () => {
@@ -1134,6 +1151,9 @@ describe('usePrivacyBridge - handleApprove', () => {
   it('throws when the AES key is unavailable for a private approval', async () => {
     sib.getPublicTokensForChain.mockReturnValue(ercPublicCfg('WETH'));
     sib.getPrivateTokensForChain.mockReturnValue(ercPrivateCfg('WETH'));
+    eth.allowance.mockResolvedValue({
+      ownerCiphertext: { ciphertextHigh: 0n, ciphertextLow: 0n },
+    });
     const props = makeProps({
       direction: 'to-public',
       hasSnap: false,
@@ -1344,6 +1364,23 @@ describe('usePrivacyBridge - handleApprove COTI private allowance when non-zero'
     expect(lastPrivateAllowanceMethod()).toBe('increaseAllowance');
     // Must not treat missing enumerable keys as zero allowance → approve.
     expect(lastPrivateAllowanceMethod()).not.toBe('approve');
+  });
+
+  it('throws instead of approving when private allowance cannot be parsed', async () => {
+    sib.getPublicTokensForChain.mockReturnValue(ercPublicCfg('WETH'));
+    sib.getPrivateTokensForChain.mockReturnValue(ercPrivateCfg('WETH'));
+    // Unparseable shape (same class of failure as the old `'ownerCiphertext' in raw` bug).
+    eth.allowance.mockResolvedValue(0n);
+    routeRequest();
+
+    const props = makeProps({ direction: 'to-public', amount: '1' });
+    const { result } = renderHook(() => usePrivacyBridge(props));
+    await expect(
+      act(async () => {
+        await result.current.handleApprove();
+      }),
+    ).rejects.toThrow(/Could not read current private allowance/);
+    expect(lastPrivateAllowanceMethod()).toBeNull();
   });
 });
 
@@ -1763,6 +1800,7 @@ describe('usePrivacyBridge - handleApprove fallback resolution', () => {
   it('returns when COTI to-public has no native bridge configured', async () => {
     // COTI hits the native branch (no tokenAddress); to-public still requires bridge.
     eth.approve.mockResolvedValue({ hash: TX_HASH });
+    stubZeroPrivateAllowanceApprovingTo(10n ** 18n);
     const props = makeProps({
       direction: 'to-public',
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '0', isPrivate: false }],
@@ -1776,8 +1814,7 @@ describe('usePrivacyBridge - handleApprove fallback resolution', () => {
 
   it('approves WBTC private token (to-public) with 8 decimals', async () => {
     sib.getPublicTokensForChain.mockReturnValue([]);
-    routeRequest();
-    eth.waitForTransaction.mockResolvedValue({ status: 1 });
+    stubZeroPrivateAllowanceApprovingTo(10n ** 8n);
     const props = makeProps({
       direction: 'to-public',
       publicTokens: [{ symbol: 'WBTC', name: 'WBTC', balance: '0', isPrivate: false }],
@@ -2041,8 +2078,7 @@ describe('usePrivacyBridge - remaining allowance/approval branches', () => {
 
   it('approves a USDT private token (to-public) using 6 decimals', async () => {
     sib.getPublicTokensForChain.mockReturnValue([]);
-    routeRequest();
-    eth.waitForTransaction.mockResolvedValue({ status: 1 });
+    stubZeroPrivateAllowanceApprovingTo(10n ** 6n);
     const props = makeProps({
       direction: 'to-public',
       publicTokens: [{ symbol: 'USDT', name: 'USDT', balance: '0', isPrivate: false }],
@@ -2117,8 +2153,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
 
   it('approves a USDC.e private token (to-public) via the p.USDC_E key', async () => {
     sib.getPublicTokensForChain.mockReturnValue([]);
-    routeRequest();
-    eth.waitForTransaction.mockResolvedValue({ status: 1 });
+    stubZeroPrivateAllowanceApprovingTo(10n ** 6n);
     const props = makeProps({
       direction: 'to-public',
       publicTokens: [{ symbol: 'USDC.e', name: 'USDC.e', balance: '0', isPrivate: false }],
