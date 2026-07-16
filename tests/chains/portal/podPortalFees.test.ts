@@ -40,9 +40,12 @@ import {
   buildPodPortalTxGasOverrides,
   formatPodFeeDisplay,
   formatPortalFeeDisplay,
+  getPodGasPrice,
+  POD_GAS_PRICE_BUFFER_BPS,
   quotePortalFeeOnly,
   resolvePodFeeEstimationConfig,
   resolvePodPortalMethod,
+  resolvePodTxGasPrice,
   estimatePodExecutionGasWei,
   sendPodPortalMethod,
 } from '../../../src/chains/portal/podPortalFees';
@@ -51,16 +54,36 @@ import { POD_DEFAULT_CALLBACK_DATA_SIZE } from '../../../src/chains/podInbox';
 const PORTAL = '0x' + 'a'.repeat(40);
 const WALLET = '0x' + '1'.repeat(40);
 
-const makeSigner = (feeData: { gasPrice?: bigint; maxFeePerGas?: bigint; maxPriorityFeePerGas?: bigint } = {}) => ({
-  getAddress: vi.fn(async () => WALLET),
-  provider: {
-    send: vi.fn(async () => '0x' + (1_000_000_000).toString(16)),
-    getFeeData: vi.fn(async () => ({
-      gasPrice: 1_000_000_000n,
-      ...feeData,
-    })),
-  },
+const makeProvider = (opts: {
+  gasPriceWei?: bigint;
+  baseFeePerGas?: bigint | null;
+  getBlockError?: Error;
+  sendError?: Error;
+} = {}) => ({
+  send: vi.fn(async () => {
+    if (opts.sendError) throw opts.sendError;
+    const wei = opts.gasPriceWei ?? 1_000_000_000n;
+    return '0x' + wei.toString(16);
+  }),
+  getBlock: vi.fn(async () => {
+    if (opts.getBlockError) throw opts.getBlockError;
+    if (opts.baseFeePerGas === null) return null;
+    return {
+      baseFeePerGas: opts.baseFeePerGas === undefined ? null : opts.baseFeePerGas,
+    };
+  }),
 });
+
+const makeSigner = (opts: Parameters<typeof makeProvider>[0] & { omitProvider?: boolean } = {}) => {
+  const provider = makeProvider(opts);
+  if (opts.omitProvider) {
+    return provider;
+  }
+  return {
+    getAddress: vi.fn(async () => WALLET),
+    provider,
+  };
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -71,6 +94,39 @@ beforeEach(() => {
   h.sendFn.mockResolvedValue({ hash: '0xtx' });
 });
 
+describe('getPodGasPrice / resolvePodTxGasPrice', () => {
+  it('reads spot gas price via eth_gasPrice', async () => {
+    const provider = makeProvider({ gasPriceWei: 2_000_000_000n });
+    await expect(getPodGasPrice(provider as never)).resolves.toBe(2_000_000_000n);
+    expect(provider.send).toHaveBeenCalledWith('eth_gasPrice', []);
+  });
+
+  it('applies the 10% buffer with integer rounding', async () => {
+    const provider = makeProvider({ gasPriceWei: 999n });
+    const buffered = await resolvePodTxGasPrice(provider as never);
+    expect(buffered).toBe((999n * POD_GAS_PRICE_BUFFER_BPS) / 1000n);
+    expect(buffered).toBe(1098n);
+  });
+
+  it('handles very low and very high gas prices', async () => {
+    const low = makeProvider({ gasPriceWei: 1n });
+    await expect(resolvePodTxGasPrice(low as never)).resolves.toBe(1n);
+
+    const highWei = 1_000_000_000_000n; // 1000 gwei
+    const high = makeProvider({ gasPriceWei: highWei });
+    await expect(resolvePodTxGasPrice(high as never)).resolves.toBe(
+      (highWei * POD_GAS_PRICE_BUFFER_BPS) / 1000n,
+    );
+  });
+
+  it('propagates eth_gasPrice RPC failures', async () => {
+    const provider = makeProvider({
+      sendError: new Error('RPC error: method not found'),
+    });
+    await expect(getPodGasPrice(provider as never)).rejects.toThrow('method not found');
+  });
+});
+
 describe('resolvePodFeeEstimationConfig', () => {
   it('pairs callBackGasLimit with default callBackDataSize', () => {
     const cfg = resolvePodFeeEstimationConfig(11155111, 'to-private', 1_000_000_000n);
@@ -78,6 +134,19 @@ describe('resolvePodFeeEstimationConfig', () => {
     expect(cfg.callBackGasLimit).toBe(2_000_000n);
     expect(cfg.callBackDataSize).toBe(POD_DEFAULT_CALLBACK_DATA_SIZE);
     expect(cfg.gasPrice).toBe(1_000_000_000n);
+  });
+
+  it('uses withdraw limits for to-public direction', () => {
+    const cfg = resolvePodFeeEstimationConfig(11155111, 'to-public', 5n);
+    expect(cfg.forwardGasLimit).toBe(900_000n);
+    expect(cfg.callBackGasLimit).toBe(2_000_000n);
+    expect(cfg.gasPrice).toBe(5n);
+  });
+
+  it('throws for chains without PoD fee estimation config', () => {
+    expect(() => resolvePodFeeEstimationConfig(1, 'to-private', 1n)).toThrow(
+      'PoD fee estimation is not configured for chain 1',
+    );
   });
 });
 
@@ -93,12 +162,51 @@ describe('quotePortalFeeOnly', () => {
     expect(quote.portalFee).toBe(200n);
     expect(quote.usedDynamicPricing).toBe(false);
   });
+
+  it('uses an explicit gasPrice snapshot when provided', async () => {
+    const signer = makeSigner({ gasPriceWei: 9_999n });
+    const quote = await quotePortalFeeOnly(
+      signer as never,
+      PORTAL,
+      0n,
+      'to-private',
+      42_000n,
+    );
+    expect(quote.gasPrice).toBe(42_000n);
+    expect(signer.provider.send).not.toHaveBeenCalled();
+  });
+
+  it('resolves gas price from the runner provider when omitted', async () => {
+    const signer = makeSigner({ gasPriceWei: 1_000n });
+    const quote = await quotePortalFeeOnly(signer as never, PORTAL, 1n, 'to-private');
+    expect(quote.gasPrice).toBe(1100n);
+    expect(signer.provider.send).toHaveBeenCalledWith('eth_gasPrice', []);
+  });
+
+  it('works when the runner is the provider itself', async () => {
+    const provider = makeProvider({ gasPriceWei: 2_000n });
+    const quote = await quotePortalFeeOnly(provider as never, PORTAL, 1n, 'to-public', 77n);
+    expect(quote.gasPrice).toBe(77n);
+    expect(quote.portalFee).toBe(200n);
+  });
 });
 
 describe('formatters', () => {
   it('formats portal and pod fees', () => {
     expect(formatPortalFeeDisplay(ethers.parseEther('0.05'), true)).toBe('0.05');
     expect(formatPodFeeDisplay(ethers.parseEther('0.0009'))).toBe('0.0009');
+  });
+
+  it('formats zero and strips trailing zeros', () => {
+    expect(formatPortalFeeDisplay(0n)).toBe('0');
+    expect(formatPodFeeDisplay(0n)).toBe('0');
+    expect(formatPortalFeeDisplay(ethers.parseEther('1'))).toBe('1');
+    expect(formatPodFeeDisplay(ethers.parseEther('1.5000'))).toBe('1.5');
+  });
+
+  it('formats very small and very large wei amounts', () => {
+    expect(formatPortalFeeDisplay(1n)).toBe('0.000000000000000001');
+    expect(formatPodFeeDisplay(ethers.parseEther('1000000'))).toBe('1000000');
   });
 });
 
@@ -112,6 +220,89 @@ describe('buildPodMethodArgs', () => {
     });
     expect(args).toHaveLength(4);
     expect(args[3].isCallBackFee).toBe(true);
+  });
+
+  it('includes zero portal fees and max uint-sized amounts', () => {
+    const maxUint = 2n ** 256n - 1n;
+    const args = buildPodMethodArgs({
+      direction: 'to-private',
+      wallet: WALLET,
+      amountWei: maxUint,
+      portalFee: 0n,
+    });
+    expect(args[1].value).toBe(maxUint.toString());
+    expect(args[2].value).toBe('0');
+  });
+
+  it('uses a real withdraw permit when wallet and amount match', () => {
+    const permit = {
+      wallet: WALLET,
+      pTokenAddress: '0x' + '2'.repeat(40),
+      portalAddress: PORTAL,
+      amountWei: '1000',
+      deadline: '1700000000',
+      v: 28,
+      r: '0x' + '3'.repeat(64),
+      s: '0x' + '4'.repeat(64),
+    };
+    const args = buildPodMethodArgs({
+      direction: 'to-public',
+      wallet: WALLET,
+      amountWei: 1000n,
+      portalFee: 200n,
+      withdrawPermit: permit,
+      remoteFee: 1600n,
+    });
+    expect(args).toHaveLength(9);
+    expect(args[3].value).toBe('1600');
+    expect(args[5].value).toBe('1700000000');
+    expect(args[6].value).toBe('28');
+    expect(args[7].value).toBe(permit.r);
+    expect(args[8].value).toBe(permit.s);
+  });
+
+  it('falls back to placeholder permit fields when permit does not match', () => {
+    const args = buildPodMethodArgs({
+      direction: 'to-public',
+      wallet: WALLET,
+      amountWei: 1000n,
+      portalFee: 200n,
+      withdrawPermit: {
+        wallet: '0x' + '9'.repeat(40),
+        pTokenAddress: '0x' + '2'.repeat(40),
+        portalAddress: PORTAL,
+        amountWei: '999',
+        deadline: '1700000000',
+        v: 27,
+        r: '0x' + '3'.repeat(64),
+        s: '0x' + '4'.repeat(64),
+      },
+    });
+    expect(args[5].value).not.toBe('1700000000');
+    expect(args[6].value).toBe('0');
+    expect(args[7].value).toBe(ethers.ZeroHash);
+    expect(args[8].value).toBe(ethers.ZeroHash);
+  });
+
+  it('treats wallet case differences as matching for withdraw permits', () => {
+    const upperWallet = WALLET.toUpperCase();
+    const args = buildPodMethodArgs({
+      direction: 'to-public',
+      wallet: WALLET,
+      amountWei: 1000n,
+      portalFee: 1n,
+      withdrawPermit: {
+        wallet: upperWallet,
+        pTokenAddress: '0x' + '2'.repeat(40),
+        portalAddress: PORTAL,
+        amountWei: '1000',
+        deadline: '42',
+        v: 27,
+        r: '0x' + '3'.repeat(64),
+        s: '0x' + '4'.repeat(64),
+      },
+    });
+    expect(args[5].value).toBe('42');
   });
 
   it('resolves portal methods', () => {
@@ -194,7 +385,7 @@ describe('buildPodPortalTxGasOverrides', () => {
 
   it('uses EIP-1559 fields equivalent to gasPrice when supported', async () => {
     const overrides = await buildPodPortalTxGasOverrides(
-      makeSigner({ maxFeePerGas: 2_000_000_000n, maxPriorityFeePerGas: 1_000_000_000n }) as never,
+      makeSigner({ baseFeePerGas: 1_000_000_000n }) as never,
       1_100_000_000n,
     );
     expect(overrides).toEqual({
@@ -203,6 +394,50 @@ describe('buildPodPortalTxGasOverrides', () => {
       maxPriorityFeePerGas: 1_100_000_000n,
     });
     expect(overrides.gasPrice).toBeUndefined();
+  });
+
+  it('falls back to legacy gasPrice when getBlock throws (e.g. MetaMask -32601)', async () => {
+    const runner = makeSigner({
+      getBlockError: new Error('RPC error: -32601 eth_getBlockByNumber not supported'),
+    });
+    const overrides = await buildPodPortalTxGasOverrides(runner as never, 5n);
+    expect(overrides).toEqual({ gasPrice: 5n });
+    expect(runner.provider.getBlock).toHaveBeenCalledWith('latest');
+  });
+
+  it('falls back to legacy gasPrice when latest block is missing', async () => {
+    const overrides = await buildPodPortalTxGasOverrides(
+      makeSigner({ baseFeePerGas: null }) as never,
+      1n,
+    );
+    expect(overrides).toEqual({ gasPrice: 1n });
+  });
+
+  it('treats baseFeePerGas of 0 as EIP-1559 support', async () => {
+    const overrides = await buildPodPortalTxGasOverrides(
+      makeSigner({ baseFeePerGas: 0n }) as never,
+      1_000_000_000_000n,
+    );
+    expect(overrides).toEqual({
+      type: 2,
+      maxFeePerGas: 1_000_000_000_000n,
+      maxPriorityFeePerGas: 1_000_000_000_000n,
+    });
+  });
+
+  it('works when the runner is the provider itself', async () => {
+    const provider = makeProvider({ baseFeePerGas: 7n });
+    const overrides = await buildPodPortalTxGasOverrides(provider as never, 99n);
+    expect(overrides.type).toBe(2);
+    expect(overrides.maxFeePerGas).toBe(99n);
+  });
+
+  it('does not call getFeeData', async () => {
+    const runner = makeSigner({ baseFeePerGas: 1n });
+    const provider = runner.provider as { getFeeData?: () => unknown };
+    provider.getFeeData = vi.fn();
+    await buildPodPortalTxGasOverrides(runner as never, 1n);
+    expect(provider.getFeeData).not.toHaveBeenCalled();
   });
 });
 
@@ -215,7 +450,7 @@ describe('sendPodPortalMethod', () => {
       portalFee: 200n,
     });
     await sendPodPortalMethod({
-      runner: makeSigner({ maxFeePerGas: 2_000_000_000n, maxPriorityFeePerGas: 1_000_000_000n }) as never,
+      runner: makeSigner({ baseFeePerGas: 1_000_000_000n }) as never,
       portalAddress: PORTAL,
       chainId: 11155111,
       direction: 'to-public',

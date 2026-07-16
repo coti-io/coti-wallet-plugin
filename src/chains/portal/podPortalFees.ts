@@ -52,19 +52,17 @@ export const getPodGasPrice = async (
 
 /**
  * Gas price for PoD inbox fee estimation and tx send.
- * Uses `getFeeData().gasPrice` when available, with a 10% buffer so estimate
- * and `tx.gasprice` stay aligned per pod-sdk inbox rules.
+ * Uses `eth_gasPrice` only (with a 10% buffer) so estimate and `tx.gasprice`
+ * stay aligned per pod-sdk inbox rules.
+ *
+ * Avoids `provider.getFeeData()` — ethers maps that to
+ * `eth_maxPriorityFeePerGas`, which MetaMask rejects (-32601) on the injected
+ * provider even when the chain RPC supports the method.
  */
 export const resolvePodTxGasPrice = async (
   provider: ethers.BrowserProvider | ethers.JsonRpcProvider | ethers.Provider,
 ): Promise<bigint> => {
-  let base: bigint;
-  try {
-    const feeData = await provider.getFeeData();
-    base = feeData.gasPrice ?? await getPodGasPrice(provider);
-  } catch {
-    base = await getPodGasPrice(provider);
-  }
+  const base = await getPodGasPrice(provider);
   return (base * POD_GAS_PRICE_BUFFER_BPS) / 1000n;
 };
 
@@ -355,8 +353,10 @@ export const buildPodPortalTxGasOverrides = async (
   let supportsEip1559 = false;
   if (provider) {
     try {
-      const feeData = await provider.getFeeData();
-      supportsEip1559 = feeData.maxFeePerGas != null && feeData.maxPriorityFeePerGas != null;
+      // Detect London via baseFeePerGas — do not call getFeeData()/eth_maxPriorityFeePerGas
+      // through MetaMask (method -32601 on the injected provider).
+      const block = await provider.getBlock("latest");
+      supportsEip1559 = block?.baseFeePerGas != null;
     } catch {
       supportsEip1559 = false;
     }
