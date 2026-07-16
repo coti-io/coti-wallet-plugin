@@ -39,6 +39,40 @@ type PrivateAllowanceMethod = 'approve' | 'increaseAllowance' | 'decreaseAllowan
 const isCotiBridgeChain = (chainId: number) =>
   chainId === COTI_TESTNET_CHAIN_ID || chainId === COTI_MAINNET_CHAIN_ID;
 
+/**
+ * ethers v6 `Result` tuples expose named fields via getters, but
+ * `'ownerCiphertext' in result` is false (only numeric keys are enumerable).
+ * Prefer named access, then positional fallbacks.
+ */
+function extractOwnerCiphertextFromAllowance(
+  raw: unknown,
+): { ciphertextHigh: bigint; ciphertextLow: bigint } | null {
+  if (raw == null || typeof raw !== 'object') return null;
+
+  const row = raw as {
+    ownerCiphertext?: unknown;
+    1?: unknown;
+  };
+  const ownerCt = row.ownerCiphertext ?? row[1];
+  if (ownerCt == null || typeof ownerCt !== 'object') return null;
+
+  const limbs = ownerCt as {
+    ciphertextHigh?: unknown;
+    ciphertextLow?: unknown;
+    0?: unknown;
+    1?: unknown;
+  };
+  const high = limbs.ciphertextHigh ?? limbs[0];
+  const low = limbs.ciphertextLow ?? limbs[1];
+  if (high === undefined || low === undefined) return null;
+
+  try {
+    return { ciphertextHigh: BigInt(high as bigint), ciphertextLow: BigInt(low as bigint) };
+  } catch {
+    return null;
+  }
+}
+
 
 export interface UsePrivacyBridgeAllowanceOptions {
   isConnected: boolean;
@@ -510,25 +544,19 @@ export const usePrivacyBridgeAllowance = ({
                         provider,
                     );
                     const raw = await allowanceReader.allowance(walletAddress, bridgeAddress);
-                    if (!raw || typeof raw !== 'object' || !('ownerCiphertext' in raw)) {
+                    const ownerCt = extractOwnerCiphertextFromAllowance(raw);
+                    if (!ownerCt) {
                         return null;
                     }
-                    const ownerCt = (raw as {
-                        ownerCiphertext: { ciphertextHigh: bigint; ciphertextLow: bigint };
-                    }).ownerCiphertext;
                     if (ownerCt.ciphertextHigh === 0n && ownerCt.ciphertextLow === 0n) {
                         return 0n;
                     }
                     if (!sessionAesKey && !hasSnap) {
                         throw new Error("Private approval requires unlock/onboarding first.");
                     }
-                    const ciphertext = {
-                        ciphertextHigh: ownerCt.ciphertextHigh,
-                        ciphertextLow: ownerCt.ciphertextLow,
-                    };
                     const decrypted = sessionAesKey
-                        ? decryptCtUint256(ciphertext, sessionAesKey, { decimals: privateDecimals })
-                        : await decryptCtUint256ViaSnap(ciphertext, currentChainId, walletAddress);
+                        ? decryptCtUint256(ownerCt, sessionAesKey, { decimals: privateDecimals })
+                        : await decryptCtUint256ViaSnap(ownerCt, currentChainId, walletAddress);
                     if (decrypted === null) {
                         throw new Error("Could not decrypt current private allowance.");
                     }
