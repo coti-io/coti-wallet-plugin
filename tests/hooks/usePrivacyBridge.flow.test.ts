@@ -1138,6 +1138,9 @@ describe('usePrivacyBridge - handleApprove', () => {
   it('rejects when a private approval reverts on-chain (status 0)', async () => {
     sib.getPublicTokensForChain.mockReturnValue(ercPublicCfg('WETH'));
     sib.getPrivateTokensForChain.mockReturnValue(ercPrivateCfg('WETH'));
+    eth.allowance.mockResolvedValue({
+      ownerCiphertext: { ciphertextHigh: 0n, ciphertextLow: 0n },
+    });
     routeRequest();
     eth.waitForTransaction.mockResolvedValue({ status: 0, hash: TX_HASH });
     const props = makeProps({ direction: 'to-public', amount: '1' });

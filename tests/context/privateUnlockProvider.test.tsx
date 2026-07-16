@@ -157,10 +157,17 @@ describe('PrivateUnlockProvider', () => {
       return false;
     });
 
+    let unlockPromise: Promise<void> | undefined;
     function TestApp() {
       const unlock = usePrivateUnlock();
       return (
-        <button type="button" onClick={() => void unlock.unlock()} data-testid="unlock-btn">
+        <button
+          type="button"
+          onClick={() => {
+            unlockPromise = unlock.unlock();
+          }}
+          data-testid="unlock-btn"
+        >
           Unlock
         </button>
       );
@@ -185,6 +192,12 @@ describe('PrivateUnlockProvider', () => {
       capturedOnProgress?.('complete');
     });
     expect(view.queryByTestId('wallet-sign-prompt')).not.toBeInTheDocument();
+
+    // Drain unlock's finally (setIsUnlocking) before unmount — otherwise jsdom is
+    // torn down and React throws "window is not defined" as an unhandled rejection.
+    await act(async () => {
+      await unlockPromise;
+    });
   });
 
   it('locks through the controller', () => {
