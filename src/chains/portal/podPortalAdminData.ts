@@ -27,6 +27,9 @@ interface PauseFlags {
 
 const UNPAUSED: PauseFlags = { depositsPaused: false, withdrawalsPaused: false };
 
+/** Fail-closed value for pause state we could not observe. */
+const PAUSED_FAIL_CLOSED: PauseFlags = { depositsPaused: true, withdrawalsPaused: true };
+
 /**
  * Reads the pause flags a portal's `pauseController` reports (in practice the
  * PrivacyPortalFactory, so the flags are chain-wide). Mirrors the portal's own
@@ -56,6 +59,23 @@ async function fetchControllerPauseFlags(
     depositsPaused: deposits.status === "fulfilled" ? deposits.value : true,
     withdrawalsPaused: withdrawals.status === "fulfilled" ? withdrawals.value : true,
   };
+}
+
+/**
+ * Pause flags for one portal, via its `pauseController()`. A portal that does
+ * not expose the getter has no pause mechanism (ethers reports the empty call
+ * result as BAD_DATA) — genuinely unpaused. Any other failure means the pause
+ * state exists but could not be observed, which fails closed.
+ */
+async function fetchPortalPauseFlags(
+  portal: ethers.Contract,
+  resolvePauseFlags: ReturnType<typeof makePauseFlagResolver>,
+): Promise<PauseFlags> {
+  try {
+    return await resolvePauseFlags(await portal.pauseController());
+  } catch (err) {
+    return (err as { code?: string })?.code === "BAD_DATA" ? UNPAUSED : PAUSED_FAIL_CLOSED;
+  }
 }
 
 /** Promise-cached pause-flag lookup so parallel portal rows share one controller read. */
@@ -107,9 +127,7 @@ async function fetchPortalRow(
   const portal = new ethers.Contract(portalAddress, POD_PORTAL_ADMIN_ABI, provider);
   // Resolved independently of the fee/balance batch so a failure there still
   // yields a truthful paused badge on the error row.
-  const pauseFlags = await portal.pauseController()
-    .then((controller: string) => resolvePauseFlags(controller))
-    .catch(() => UNPAUSED);
+  const pauseFlags = await fetchPortalPauseFlags(portal, resolvePauseFlags);
   const pauseFields = {
     isPaused: pauseFlags.depositsPaused || pauseFlags.withdrawalsPaused,
     depositsPaused: pauseFlags.depositsPaused,
