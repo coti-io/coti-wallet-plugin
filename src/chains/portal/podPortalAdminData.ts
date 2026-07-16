@@ -40,16 +40,22 @@ async function fetchControllerPauseFlags(
 ): Promise<PauseFlags> {
   if (!controllerAddress || controllerAddress === ethers.ZeroAddress) return UNPAUSED;
   const controller = new ethers.Contract(controllerAddress, POD_PORTAL_FACTORY_ABI, provider);
-  try {
-    const [depositsPaused, withdrawalsPaused] = await Promise.all([
-      controller.depositsPaused(),
-      controller.withdrawalsPaused(),
-    ]);
-    return { depositsPaused, withdrawalsPaused };
-  } catch {
-    if ((await provider.getCode(controllerAddress).catch(() => "0x")) === "0x") return UNPAUSED;
-    return { depositsPaused: true, withdrawalsPaused: true };
+  const [deposits, withdrawals] = await Promise.allSettled([
+    controller.depositsPaused(),
+    controller.withdrawalsPaused(),
+  ]);
+  if (deposits.status === "fulfilled" && withdrawals.status === "fulfilled") {
+    return { depositsPaused: deposits.value, withdrawalsPaused: withdrawals.value };
   }
+  // A code-less controller is disabled on-chain, so its unanswerable flags mean
+  // unpaused. Anything else (controller has code, or getCode itself failed) is
+  // fail-closed, but only for the flags that actually failed.
+  const code = await provider.getCode(controllerAddress).catch(() => null);
+  if (code === "0x") return UNPAUSED;
+  return {
+    depositsPaused: deposits.status === "fulfilled" ? deposits.value : true,
+    withdrawalsPaused: withdrawals.status === "fulfilled" ? withdrawals.value : true,
+  };
 }
 
 /** Promise-cached pause-flag lookup so parallel portal rows share one controller read. */
@@ -98,9 +104,20 @@ async function fetchPortalRow(
     isLoading: false,
   };
 
+  const portal = new ethers.Contract(portalAddress, POD_PORTAL_ADMIN_ABI, provider);
+  // Resolved independently of the fee/balance batch so a failure there still
+  // yields a truthful paused badge on the error row.
+  const pauseFlags = await portal.pauseController()
+    .then((controller: string) => resolvePauseFlags(controller))
+    .catch(() => UNPAUSED);
+  const pauseFields = {
+    isPaused: pauseFlags.depositsPaused || pauseFlags.withdrawalsPaused,
+    depositsPaused: pauseFlags.depositsPaused,
+    withdrawalsPaused: pauseFlags.withdrawalsPaused,
+  };
+
   try {
-    const portal = new ethers.Contract(portalAddress, POD_PORTAL_ADMIN_ABI, provider);
-    const [depCfg, wdCfg, accFees, balance, pauseFlags] = await Promise.all([
+    const [depCfg, wdCfg, accFees, balance] = await Promise.all([
       portal.getFeeConfig(true),
       portal.getFeeConfig(false),
       portal.accumulatedPortalFees().catch(() => 0n),
@@ -110,9 +127,6 @@ async function fetchPortalRow(
           ? new ethers.Contract(config.addresses[token.addressKey], ERC20_BALANCE_ABI, provider)
               .balanceOf(portalAddress).catch(() => 0n)
           : Promise.resolve(0n),
-      portal.pauseController()
-        .then((controller: string) => resolvePauseFlags(controller))
-        .catch(() => UNPAUSED),
     ]);
     return {
       ...base,
@@ -124,9 +138,7 @@ async function fetchPortalRow(
       withdrawMaxFee: formatFee(wdCfg[2]),
       accumulatedCotiFees: ethers.formatEther(accFees),
       bridgeBalance: ethers.formatUnits(balance, token.decimals),
-      isPaused: pauseFlags.depositsPaused || pauseFlags.withdrawalsPaused,
-      depositsPaused: pauseFlags.depositsPaused,
-      withdrawalsPaused: pauseFlags.withdrawalsPaused,
+      ...pauseFields,
       error: null,
     };
   } catch (err) {
@@ -141,6 +153,7 @@ async function fetchPortalRow(
       withdrawMaxFee: "Error",
       accumulatedCotiFees: "0",
       bridgeBalance: "0",
+      ...pauseFields,
       error: "Failed to fetch portal data",
     };
   }
