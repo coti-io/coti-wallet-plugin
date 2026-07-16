@@ -5,6 +5,7 @@ import { CONTRACT_ADDRESSES, ERC20_ABI } from '../../contracts/config';
 import type { PodWithdrawPermit } from '../../chains/portal/executePodPortalTransaction';
 import { signPodWithdrawPermit } from '../../chains/portal/executePodPortalTransaction';
 import { getPrivateTokensForChain, getPublicTokensForChain } from '../../chains';
+import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID } from '../../chains/coti';
 import {
   findPublicTokenConfig,
   isPodPortalPublicToken,
@@ -21,6 +22,23 @@ import { shortHash } from './utils';
 import type { Token, ToastState } from './types';
 import { getMetaMaskProvider } from '../../lib/ethereum';
 import { useSnap } from '../useSnap';
+
+const PRIVATE_ALLOWANCE_ABI = [
+  'function allowance(address owner, address spender) view returns (tuple(tuple(uint256 ciphertextHigh, uint256 ciphertextLow) ciphertext, tuple(uint256 ciphertextHigh, uint256 ciphertextLow) ownerCiphertext, tuple(uint256 ciphertextHigh, uint256 ciphertextLow) spenderCiphertext))',
+] as const;
+
+const PRIVATE_ALLOWANCE_MUTATION_ABI = [
+  'function approve(address spender, tuple(tuple(uint256 ciphertextHigh, uint256 ciphertextLow) ciphertext, bytes signature) value) returns (bool)',
+  'function increaseAllowance(address spender, tuple(tuple(uint256 ciphertextHigh, uint256 ciphertextLow) ciphertext, bytes signature) addedValue) returns (bool)',
+  'function decreaseAllowance(address spender, tuple(tuple(uint256 ciphertextHigh, uint256 ciphertextLow) ciphertext, bytes signature) subtractedValue) returns (bool)',
+] as const;
+
+type PrivateAllowanceMethod = 'approve' | 'increaseAllowance' | 'decreaseAllowance';
+
+/** COTI L2 (bridge) chains — PrivateERC20 unsafe-approve rules apply; not PoD. */
+const isCotiBridgeChain = (chainId: number) =>
+  chainId === COTI_TESTNET_CHAIN_ID || chainId === COTI_MAINNET_CHAIN_ID;
+
 
 export interface UsePrivacyBridgeAllowanceOptions {
   isConnected: boolean;
@@ -242,9 +260,7 @@ export const usePrivacyBridgeAllowance = ({
                 if (privTokCfg) privateDecimals = privTokCfg.decimals;
 
                 try {
-                    const tokenContract = new ethers.Contract(privateTokenAddress, [
-                        "function allowance(address owner, address spender) view returns (tuple(tuple(uint256 ciphertextHigh, uint256 ciphertextLow) ciphertext, tuple(uint256 ciphertextHigh, uint256 ciphertextLow) ownerCiphertext, tuple(uint256 ciphertextHigh, uint256 ciphertextLow) spenderCiphertext))"
-                    ], provider);
+                    const tokenContract = new ethers.Contract(privateTokenAddress, PRIVATE_ALLOWANCE_ABI, provider);
                     
                     const currentAllowance = await tokenContract.allowance(walletAddress, bridgeAddress);
 
@@ -480,22 +496,83 @@ export const usePrivacyBridgeAllowance = ({
 
                 const amountToApprove = amount ? ethers.parseUnits(amount, privateDecimals) : ethers.MaxUint256;
 
-                // approve(address,itUint256) — Encrypted approval using manual 256-bit encryption.
-                const approveSig = ethers.id('approve(address,((uint256,uint256),bytes))').slice(0, 10);
+                // COTI PrivateERC20 reverts ERC20UnsafeApprove when approve() is called
+                // with a non-zero value while allowance is already non-zero. On COTI
+                // bridge chains (testnet/mainnet) portal-out: approve only if zero;
+                // otherwise increase/decrease. PoD chains use permits instead.
+                let method: PrivateAllowanceMethod = 'approve';
+                let encryptAmount = amountToApprove;
+
+                const readPrivateAllowanceWei = async (): Promise<bigint | null> => {
+                    const allowanceReader = new ethers.Contract(
+                        privateTokenAddress,
+                        PRIVATE_ALLOWANCE_ABI,
+                        provider,
+                    );
+                    const raw = await allowanceReader.allowance(walletAddress, bridgeAddress);
+                    if (!raw || typeof raw !== 'object' || !('ownerCiphertext' in raw)) {
+                        return null;
+                    }
+                    const ownerCt = (raw as {
+                        ownerCiphertext: { ciphertextHigh: bigint; ciphertextLow: bigint };
+                    }).ownerCiphertext;
+                    if (ownerCt.ciphertextHigh === 0n && ownerCt.ciphertextLow === 0n) {
+                        return 0n;
+                    }
+                    if (!sessionAesKey && !hasSnap) {
+                        throw new Error("Private approval requires unlock/onboarding first.");
+                    }
+                    const ciphertext = {
+                        ciphertextHigh: ownerCt.ciphertextHigh,
+                        ciphertextLow: ownerCt.ciphertextLow,
+                    };
+                    const decrypted = sessionAesKey
+                        ? decryptCtUint256(ciphertext, sessionAesKey, { decimals: privateDecimals })
+                        : await decryptCtUint256ViaSnap(ciphertext, currentChainId, walletAddress);
+                    if (decrypted === null) {
+                        throw new Error("Could not decrypt current private allowance.");
+                    }
+                    return decrypted;
+                };
+
+                if (isCotiBridgeChain(currentChainId)) {
+                    const currentAllowanceWei = (await readPrivateAllowanceWei()) ?? 0n;
+
+                    if (currentAllowanceWei === 0n) {
+                        method = 'approve';
+                        encryptAmount = amountToApprove;
+                    } else if (amountToApprove > currentAllowanceWei) {
+                        method = 'increaseAllowance';
+                        encryptAmount = amountToApprove - currentAllowanceWei;
+                    } else if (amountToApprove < currentAllowanceWei) {
+                        method = 'decreaseAllowance';
+                        encryptAmount = currentAllowanceWei - amountToApprove;
+                    } else {
+                        logger.log('🔐 [Approve] Allowance already matches requested amount; skipping tx');
+                        setIsApproving(false);
+                        setToastState(prev => ({ ...prev, visible: false }));
+                        await checkAllowance();
+                        return;
+                    }
+                }
+
+                const methodSig = ethers.id(
+                    `${method}(address,((uint256,uint256),bytes))`,
+                ).slice(0, 10);
                 const itValue = sessionAesKey
                     ? await encryptValue256(
-                        amountToApprove,
+                        encryptAmount,
                         sessionAesKey,
                         privateTokenAddress,
-                        approveSig,
+                        methodSig,
                         walletAddress,
                         signer
                     )
                     : hasSnap
                         ? await buildItUint256ViaSnap({
-                            value: amountToApprove,
+                            value: encryptAmount,
                             tokenAddress: privateTokenAddress,
-                            functionSelector: approveSig,
+                            functionSelector: methodSig,
                             chainId: currentChainId,
                             accountAddress: walletAddress,
                         })
@@ -503,19 +580,15 @@ export const usePrivacyBridgeAllowance = ({
                 if (!itValue) {
                     throw new Error("Private approval requires unlock/onboarding first.");
                 }
-                logger.log('🔐 [Approve] Encrypted approval payload ready, encoding calldata...');
+                logger.log('🔐 [Approve] Encrypted approval payload ready', { method });
 
-                // Manually encode the calldata
-                const approveInterface = new ethers.Interface([
-                    "function approve(address spender, tuple(tuple(uint256 ciphertextHigh, uint256 ciphertextLow) ciphertext, bytes signature) value) returns (bool)"
-                ]);
-                const calldata = approveInterface.encodeFunctionData("approve", [
+                const approveInterface = new ethers.Interface(PRIVATE_ALLOWANCE_MUTATION_ABI);
+                const calldata = approveInterface.encodeFunctionData(method, [
                     bridgeAddress,
                     [[itValue.ciphertext.ciphertextHigh, itValue.ciphertext.ciphertextLow], itValue.signature]
                 ]);
 
-                logger.log('🔐 [Approve] Sending approve tx (wallet confirmation expected)...');
-                // Bypassing Coti provider — use the connected wallet's provider directly.
+                logger.log('🔐 [Approve] Sending approve tx (wallet confirmation expected)...', { method });
                 const rawTxHash = await (injectedProvider as any).request({
                     method: 'eth_sendTransaction',
                     params: [{
@@ -535,6 +608,17 @@ export const usePrivacyBridgeAllowance = ({
                     failed.txHash = typeof rawTxHash === 'string' ? rawTxHash : receipt?.hash;
                     throw failed;
                 }
+
+                // COTI bridge: confirm on-chain allowance now covers the requested amount.
+                if (isCotiBridgeChain(currentChainId)) {
+                    const verified = await readPrivateAllowanceWei();
+                    if (verified !== null && verified < amountToApprove) {
+                        throw new Error(
+                            'Approval completed but allowance is still insufficient. Please try again.',
+                        );
+                    }
+                }
+
                 logger.log('🔐 [Approve] Tx confirmed, refreshing allowance...');
 
                 setIsApproving(false);

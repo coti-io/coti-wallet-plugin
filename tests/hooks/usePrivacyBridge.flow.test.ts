@@ -196,6 +196,7 @@ vi.mock('../../src/contracts/config', () => ({
   TOKEN_ABI: [],
 }));
 
+import { ethers } from 'ethers';
 import { usePrivacyBridge, type Token } from '../../src/hooks/usePrivacyBridge';
 import { decryptCtUint256 } from '../../src/crypto/decryption';
 import { logger } from '../../src/lib/logger';
@@ -1165,6 +1166,126 @@ describe('usePrivacyBridge - handleApprove', () => {
       await result.current.handleApprove();
     });
     expect(sib.signPodWithdrawPermit).toHaveBeenCalled();
+  });
+});
+
+describe('usePrivacyBridge - handleApprove COTI private allowance when non-zero', () => {
+  const privateAllowanceIface = new ethers.Interface([
+    'function approve(address spender, tuple(tuple(uint256 ciphertextHigh, uint256 ciphertextLow) ciphertext, bytes signature) value) returns (bool)',
+    'function increaseAllowance(address spender, tuple(tuple(uint256 ciphertextHigh, uint256 ciphertextLow) ciphertext, bytes signature) addedValue) returns (bool)',
+    'function decreaseAllowance(address spender, tuple(tuple(uint256 ciphertextHigh, uint256 ciphertextLow) ciphertext, bytes signature) subtractedValue) returns (bool)',
+  ]);
+
+  const nonZeroOwnerCiphertext = {
+    ownerCiphertext: { ciphertextHigh: 1n, ciphertextLow: 2n },
+  };
+
+  function lastPrivateAllowanceMethod(): string | null {
+    const sendCall = [...req().mock.calls]
+      .reverse()
+      .find((c) => (c[0] as { method?: string } | undefined)?.method === 'eth_sendTransaction');
+    if (!sendCall) return null;
+    const data = (sendCall[0] as { params: [{ data: string }] }).params[0].data;
+    return privateAllowanceIface.parseTransaction({ data })!.name;
+  }
+
+  /**
+   * checkAllowance runs on mount and would burn a mockReturnValueOnce sequence.
+   * Keep a mutable decrypted allowance and only bump it once the approve tx is sent.
+   */
+  function stubPrivateAllowance(currentWei: bigint, afterTxWei: bigint) {
+    eth.allowance.mockResolvedValue(nonZeroOwnerCiphertext);
+    let decrypted = currentWei;
+    vi.mocked(decryptCtUint256).mockImplementation(() => decrypted);
+    req().mockImplementation(async (arg: { method: string }) => {
+      if (arg.method === 'eth_estimateGas') return '0x' + (300000).toString(16);
+      if (arg.method === 'eth_sendTransaction') {
+        decrypted = afterTxWei;
+        return '0x' + 'a'.repeat(64);
+      }
+      if (arg.method === 'eth_gasPrice') return '0x' + (1_000_000_000).toString(16);
+      return '0x0';
+    });
+    eth.waitForTransaction.mockResolvedValue({ status: 1 });
+  }
+
+  it('calls increaseAllowance when current allowance is below the requested amount', async () => {
+    sib.getPublicTokensForChain.mockReturnValue(ercPublicCfg('WETH'));
+    sib.getPrivateTokensForChain.mockReturnValue(ercPrivateCfg('WETH'));
+    stubPrivateAllowance(5n * 10n ** 17n, 10n ** 18n);
+    const encryptMod = await import('../../src/hooks/privacyBridge/encryptValue256');
+    const encryptSpy = vi.spyOn(encryptMod, 'encryptValue256');
+
+    const props = makeProps({ direction: 'to-public', amount: '1' });
+    const { result } = renderHook(() => usePrivacyBridge(props));
+    await act(async () => {
+      await result.current.handleApprove();
+    });
+
+    expect(lastPrivateAllowanceMethod()).toBe('increaseAllowance');
+    expect(encryptSpy).toHaveBeenCalledWith(
+      5n * 10n ** 17n,
+      expect.any(String),
+      expect.any(String),
+      expect.any(String),
+      expect.any(String),
+      expect.anything(),
+    );
+    encryptSpy.mockRestore();
+  });
+
+  it('calls decreaseAllowance when current allowance is above the requested amount', async () => {
+    sib.getPublicTokensForChain.mockReturnValue(ercPublicCfg('WETH'));
+    sib.getPrivateTokensForChain.mockReturnValue(ercPrivateCfg('WETH'));
+    stubPrivateAllowance(2n * 10n ** 18n, 10n ** 18n);
+    const encryptMod = await import('../../src/hooks/privacyBridge/encryptValue256');
+    const encryptSpy = vi.spyOn(encryptMod, 'encryptValue256');
+
+    const props = makeProps({ direction: 'to-public', amount: '1' });
+    const { result } = renderHook(() => usePrivacyBridge(props));
+    await act(async () => {
+      await result.current.handleApprove();
+    });
+
+    expect(lastPrivateAllowanceMethod()).toBe('decreaseAllowance');
+    expect(encryptSpy).toHaveBeenCalledWith(
+      10n ** 18n,
+      expect.any(String),
+      expect.any(String),
+      expect.any(String),
+      expect.any(String),
+      expect.anything(),
+    );
+    encryptSpy.mockRestore();
+  });
+
+  it('skips the approval tx when current allowance already matches the requested amount', async () => {
+    sib.getPublicTokensForChain.mockReturnValue(ercPublicCfg('WETH'));
+    sib.getPrivateTokensForChain.mockReturnValue(ercPrivateCfg('WETH'));
+    stubPrivateAllowance(10n ** 18n, 10n ** 18n);
+
+    const props = makeProps({ direction: 'to-public', amount: '1' });
+    const { result } = renderHook(() => usePrivacyBridge(props));
+    await act(async () => {
+      await result.current.handleApprove();
+    });
+
+    expect(lastPrivateAllowanceMethod()).toBeNull();
+    expect(signer.signMessage).not.toHaveBeenCalled();
+  });
+
+  it('still uses approve when decrypted current allowance is zero', async () => {
+    sib.getPublicTokensForChain.mockReturnValue(ercPublicCfg('WETH'));
+    sib.getPrivateTokensForChain.mockReturnValue(ercPrivateCfg('WETH'));
+    stubPrivateAllowance(0n, 10n ** 18n);
+
+    const props = makeProps({ direction: 'to-public', amount: '1' });
+    const { result } = renderHook(() => usePrivacyBridge(props));
+    await act(async () => {
+      await result.current.handleApprove();
+    });
+
+    expect(lastPrivateAllowanceMethod()).toBe('approve');
   });
 });
 
