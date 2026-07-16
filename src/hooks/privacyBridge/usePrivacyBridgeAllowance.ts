@@ -296,11 +296,11 @@ export const usePrivacyBridgeAllowance = ({
                 try {
                     const tokenContract = new ethers.Contract(privateTokenAddress, PRIVATE_ALLOWANCE_ABI, provider);
                     
-                    const currentAllowance = await tokenContract.allowance(walletAddress, bridgeAddress);
+                    const rawAllowance = await tokenContract.allowance(walletAddress, bridgeAddress);
+                    const ownerCt = extractOwnerCiphertextFromAllowance(rawAllowance);
 
                     // If the allowance is clearly uninitialized or 0, return early:
-                    if (currentAllowance.ownerCiphertext.ciphertextHigh === 0n &&
-                        currentAllowance.ownerCiphertext.ciphertextLow === 0n) {
+                    if (!ownerCt || (ownerCt.ciphertextHigh === 0n && ownerCt.ciphertextLow === 0n)) {
                         setAllowance('0');
                         return;
                     }
@@ -309,16 +309,18 @@ export const usePrivacyBridgeAllowance = ({
                     // Snap wallets decrypt inside Snap; non-Snap wallets use the plugin session key.
                     if (hasSnap || sessionAesKey) {
                         try {
-                            const ciphertext = {
-                                ciphertextHigh: currentAllowance.ownerCiphertext.ciphertextHigh,
-                                ciphertextLow: currentAllowance.ownerCiphertext.ciphertextLow
-                            };
                             const decryptedVal = sessionAesKey
-                                ? decryptCtUint256(ciphertext, sessionAesKey, { decimals: privateDecimals })
-                                : await decryptCtUint256ViaSnap(ciphertext, currentChainId, walletAddress);
+                                ? decryptCtUint256(ownerCt, sessionAesKey, { decimals: privateDecimals })
+                                : await decryptCtUint256ViaSnap(ownerCt, currentChainId, walletAddress);
 
                             if (decryptedVal === null) {
-                                setAllowance('0');
+                                // Sanity filter may reject MaxUint256 / other huge values.
+                                // Non-zero ciphertext still means allowance is not zero — do not
+                                // force the UI into another approve() cycle.
+                                logger.warn(
+                                    'Could not decrypt private allowance value; treating as unlimited for UI',
+                                );
+                                setAllowance(ethers.formatUnits(ethers.MaxUint256, privateDecimals));
                             } else {
                                 setAllowance(ethers.formatUnits(decryptedVal, privateDecimals));
                             }
@@ -557,9 +559,8 @@ export const usePrivacyBridgeAllowance = ({
                     const decrypted = sessionAesKey
                         ? decryptCtUint256(ownerCt, sessionAesKey, { decimals: privateDecimals })
                         : await decryptCtUint256ViaSnap(ownerCt, currentChainId, walletAddress);
-                    if (decrypted === null) {
-                        throw new Error("Could not decrypt current private allowance.");
-                    }
+                    // null = decrypt/sanity failure (e.g. MaxUint256). Callers must not
+                    // coerce this to 0n — that would incorrectly select approve().
                     return decrypted;
                 };
 
@@ -646,11 +647,31 @@ export const usePrivacyBridgeAllowance = ({
                 }
 
                 // COTI bridge: confirm on-chain allowance now covers the requested amount.
+                // Soft-verify only — a successful receipt must not become a UI failure when
+                // decrypt is unavailable (e.g. MaxUint256 filtered by the sanity check).
                 if (isCotiBridgeChain(currentChainId)) {
-                    const verified = await readPrivateAllowanceWei();
-                    if (verified !== null && verified < amountToApprove) {
-                        throw new Error(
-                            'Approval completed but allowance is still insufficient. Please try again.',
+                    try {
+                        const verified = await readPrivateAllowanceWei();
+                        if (verified !== null && verified < amountToApprove) {
+                            throw new Error(
+                                'Approval completed but allowance is still insufficient. Please try again.',
+                            );
+                        }
+                        if (verified === null) {
+                            logger.warn(
+                                '🔐 [Approve] Post-tx allowance decrypt unavailable; trusting successful receipt',
+                            );
+                        }
+                    } catch (verifyErr) {
+                        if (
+                            verifyErr instanceof Error &&
+                            verifyErr.message.includes('still insufficient')
+                        ) {
+                            throw verifyErr;
+                        }
+                        logger.warn(
+                            '🔐 [Approve] Post-tx allowance verification skipped',
+                            verifyErr,
                         );
                     }
                 }

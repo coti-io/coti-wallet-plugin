@@ -499,7 +499,7 @@ describe('usePrivacyBridge - checkAllowance', () => {
     await waitFor(() => expect(result.current.allowance).toBe('3.0'));
   });
 
-  it('caps an insane decrypted private allowance to 0', async () => {
+  it('treats undecryptable non-zero private allowance as unlimited for UI', async () => {
     eth.allowance.mockResolvedValue({ ownerCiphertext: { ciphertextHigh: 1n, ciphertextLow: 2n } });
     vi.mocked(decryptCtUint256).mockReturnValue(null);
     const props = makeProps({ direction: 'to-public' });
@@ -507,7 +507,44 @@ describe('usePrivacyBridge - checkAllowance', () => {
     await act(async () => {
       await result.current.checkAllowance();
     });
-    await waitFor(() => expect(result.current.allowance).toBe('0'));
+    await waitFor(() =>
+      expect(result.current.allowance).toBe(ethers.formatUnits(ethers.MaxUint256, 18)),
+    );
+    expect(result.current.isApprovalNeeded).toBe(false);
+  });
+
+  it('reads private allowance from an ethers Result tuple (no enumerable named keys)', async () => {
+    const ethersStyleAllowance = Object.create(null, {
+      0: { value: [0n, 0n], enumerable: true },
+      1: { value: [1n, 2n], enumerable: true },
+      2: { value: [0n, 0n], enumerable: true },
+      ownerCiphertext: {
+        get() {
+          return this[1];
+        },
+        enumerable: false,
+      },
+    });
+    Object.defineProperty(ethersStyleAllowance[1], 'ciphertextHigh', {
+      get() {
+        return this[0];
+      },
+      enumerable: false,
+    });
+    Object.defineProperty(ethersStyleAllowance[1], 'ciphertextLow', {
+      get() {
+        return this[1];
+      },
+      enumerable: false,
+    });
+    eth.allowance.mockResolvedValue(ethersStyleAllowance);
+    vi.mocked(decryptCtUint256).mockReturnValue(3n * 10n ** 18n);
+    const props = makeProps({ direction: 'to-public' });
+    const { result } = renderHook(() => usePrivacyBridge(props));
+    await act(async () => {
+      await result.current.checkAllowance();
+    });
+    await waitFor(() => expect(result.current.allowance).toBe('3.0'));
   });
 
   it('returns 0 for an uninitialized private allowance ciphertext', async () => {
@@ -1381,6 +1418,36 @@ describe('usePrivacyBridge - handleApprove COTI private allowance when non-zero'
       }),
     ).rejects.toThrow(/Could not read current private allowance/);
     expect(lastPrivateAllowanceMethod()).toBeNull();
+  });
+
+  it('succeeds after tx when post-tx allowance decrypt returns null (e.g. MaxUint256)', async () => {
+    sib.getPublicTokensForChain.mockReturnValue(ercPublicCfg('WETH'));
+    sib.getPrivateTokensForChain.mockReturnValue(ercPrivateCfg('WETH'));
+    eth.allowance.mockResolvedValue({
+      ownerCiphertext: { ciphertextHigh: 0n, ciphertextLow: 0n },
+    });
+    vi.mocked(decryptCtUint256).mockImplementation(() => null);
+    req().mockImplementation(async (arg: { method: string }) => {
+      if (arg.method === 'eth_estimateGas') return '0x' + (300000).toString(16);
+      if (arg.method === 'eth_sendTransaction') {
+        eth.allowance.mockResolvedValue({
+          ownerCiphertext: { ciphertextHigh: 1n, ciphertextLow: 2n },
+        });
+        return '0x' + 'a'.repeat(64);
+      }
+      if (arg.method === 'eth_gasPrice') return '0x' + (1_000_000_000).toString(16);
+      return '0x0';
+    });
+    eth.waitForTransaction.mockResolvedValue({ status: 1 });
+
+    const props = makeProps({ direction: 'to-public', amount: '1' });
+    const { result } = renderHook(() => usePrivacyBridge(props));
+    await act(async () => {
+      await result.current.handleApprove();
+    });
+
+    expect(lastPrivateAllowanceMethod()).toBe('approve');
+    expect(signer.signMessage).toHaveBeenCalled();
   });
 });
 
