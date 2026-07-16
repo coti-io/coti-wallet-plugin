@@ -46,15 +46,24 @@ const PTOKEN = '0x' + 'b'.repeat(40);
 const WALLET = '0x' + '1'.repeat(40);
 const RECIPIENT = '0x' + '2'.repeat(40);
 
-const makeSigner = () => ({
+const makeSigner = (opts: {
+  gasPriceWei?: bigint;
+  baseFeePerGas?: bigint | null;
+  getBlockError?: Error;
+} = {}) => ({
   getAddress: vi.fn(async () => WALLET),
   provider: {
-    send: vi.fn(async () => '0x' + (1_000_000_000).toString(16)),
-    getFeeData: vi.fn(async () => ({
-      gasPrice: 1_000_000_000n,
-      maxFeePerGas: 1_000_000_000n,
-      maxPriorityFeePerGas: 1_000_000_000n,
-    })),
+    send: vi.fn(async () => {
+      const wei = opts.gasPriceWei ?? 1_000_000_000n;
+      return '0x' + wei.toString(16);
+    }),
+    getBlock: vi.fn(async () => {
+      if (opts.getBlockError) throw opts.getBlockError;
+      if (opts.baseFeePerGas === null) return null;
+      return {
+        baseFeePerGas: opts.baseFeePerGas === undefined ? 1_000_000_000n : opts.baseFeePerGas,
+      };
+    }),
   },
 });
 
@@ -129,6 +138,37 @@ describe('quotePodTransferFees', () => {
     expect(quote.l1ExecutionGasWei).toBe(POD_TRANSFER_L1_EXECUTION_GAS_FALLBACK * 1_000_000_000n);
     expect(quote.display.feeSymbol).toBe('ETH');
   });
+
+  it('resolves gas price from eth_gasPrice when not provided', async () => {
+    const signer = makeSigner({ gasPriceWei: 2_000n });
+    const quote = await quotePodTransferFees({
+      runner: signer as never,
+      chainId: SEPOLIA_CHAIN_ID,
+      pTokenAddress: PTOKEN,
+      recipient: RECIPIENT,
+      amountWei: 0n,
+      gasPrice: undefined,
+    });
+
+    expect(quote.gasPrice).toBe(2200n);
+    expect(signer.provider.send).toHaveBeenCalledWith('eth_gasPrice', []);
+    expect(quote.l1ExecutionGasWei).toBe(POD_TRANSFER_L1_EXECUTION_GAS_FALLBACK * 2200n);
+  });
+
+  it('uses an explicit gasPrice override for very large values', async () => {
+    const hugeGasPrice = 1_000_000_000_000n;
+    const quote = await quotePodTransferFees({
+      runner: makeSigner() as never,
+      chainId: SEPOLIA_CHAIN_ID,
+      pTokenAddress: PTOKEN,
+      recipient: RECIPIENT,
+      amountWei: ethers.MaxUint256,
+      gasPrice: hugeGasPrice,
+    });
+
+    expect(quote.gasPrice).toBe(hugeGasPrice);
+    expect(quote.l1ExecutionGasWei).toBe(POD_TRANSFER_L1_EXECUTION_GAS_FALLBACK * hugeGasPrice);
+  });
 });
 
 describe('sendPodTransferMethod', () => {
@@ -171,5 +211,45 @@ describe('sendPodTransferMethod', () => {
     // sendPodTransferMethod catches simulation failures and assigns this limit;
     // covered here as a constant contract (ESM prevents spying JsonRpcProvider).
     expect(POD_TRANSFER_L1_EXECUTION_GAS_FALLBACK).toBe(2_000_000n);
+  });
+
+  it('falls back to legacy gasPrice when getBlock fails', async () => {
+    await sendPodTransferMethod({
+      runner: makeSigner({
+        getBlockError: new Error('RPC error: -32601 eth_getBlockByNumber not supported'),
+      }) as never,
+      pTokenAddress: PTOKEN,
+      chainId: SEPOLIA_CHAIN_ID,
+      args: buildPodTransferMethodArgs({
+        recipient: RECIPIENT,
+        amountWei: 1n,
+      }),
+      gasPrice: 3n,
+      fee: { totalFee: 1n, remoteFee: 1n, callBackFee: 0n },
+    });
+
+    const overrides = h.sendFn.mock.calls[0][3] as Record<string, unknown>;
+    expect(overrides.gasPrice).toBe(3n);
+    expect(overrides.type).toBeUndefined();
+  });
+
+  it('pins EIP-1559 fees when baseFeePerGas is present', async () => {
+    await sendPodTransferMethod({
+      runner: makeSigner({ baseFeePerGas: 500n }) as never,
+      pTokenAddress: PTOKEN,
+      chainId: SEPOLIA_CHAIN_ID,
+      args: buildPodTransferMethodArgs({
+        recipient: RECIPIENT,
+        amountWei: 1000n,
+      }),
+      gasPrice: 1_000_000_000n,
+      fee: { totalFee: 2100n, remoteFee: 1600n, callBackFee: 500n },
+    });
+
+    const overrides = h.sendFn.mock.calls[0][3] as Record<string, unknown>;
+    expect(overrides.type).toBe(2);
+    expect(overrides.maxFeePerGas).toBe(1_000_000_000n);
+    expect(overrides.maxPriorityFeePerGas).toBe(1_000_000_000n);
+    expect(overrides.gasPrice).toBeUndefined();
   });
 });

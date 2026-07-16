@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const h = vi.hoisted(() => ({
   estimateDepositFees: vi.fn(),
+  estimateWithdrawFees: vi.fn(),
   estimateFee: vi.fn(),
   estimateGas: vi.fn(),
 }));
@@ -11,8 +12,10 @@ vi.mock('ethers', async (importOriginal) => {
   class MockContract {
     constructor(_address: string, _abi: unknown, _runner: unknown) {}
     estimateDepositFees = (...a: unknown[]) => h.estimateDepositFees(...a);
+    estimateWithdrawFees = (...a: unknown[]) => h.estimateWithdrawFees(...a);
     deposit = { estimateGas: (...a: unknown[]) => h.estimateGas(...a) };
     depositNative = { estimateGas: (...a: unknown[]) => h.estimateGas(...a) };
+    requestWithdrawWithPermit = { estimateGas: (...a: unknown[]) => h.estimateGas(...a) };
   }
   return { ...actual, ethers: { ...actual.ethers, Contract: MockContract } };
 });
@@ -35,17 +38,29 @@ import { quotePodPortalTransactionFees } from '../../../src/chains/portal/fees';
 const PORTAL = '0x' + 'a'.repeat(40);
 const WALLET = '0x' + '1'.repeat(40);
 
-const makeSigner = () => ({
+const makeSigner = (opts: {
+  gasPriceWei?: bigint;
+  baseFeePerGas?: bigint | null;
+  getBlockError?: Error;
+} = {}) => ({
   getAddress: vi.fn(async () => WALLET),
   provider: {
-    send: vi.fn(async () => '0x' + (2_000_000_000).toString(16)),
-    getFeeData: vi.fn(async () => ({ gasPrice: 2_000_000_000n })),
+    send: vi.fn(async () => {
+      const wei = opts.gasPriceWei ?? 2_000_000_000n;
+      return '0x' + wei.toString(16);
+    }),
+    getBlock: vi.fn(async () => {
+      if (opts.getBlockError) throw opts.getBlockError;
+      if (opts.baseFeePerGas === null) return null;
+      return { baseFeePerGas: opts.baseFeePerGas ?? 1_000_000_000n };
+    }),
   },
 });
 
 beforeEach(() => {
   vi.clearAllMocks();
   h.estimateDepositFees.mockResolvedValue([100n, true, 2000n, 500n]);
+  h.estimateWithdrawFees.mockResolvedValue([250n, false, 3000n, 600n]);
   h.estimateFee.mockResolvedValue({ totalFee: 2100n, remoteFee: 1600n, callBackFee: 500n });
   h.estimateGas.mockResolvedValue(400_000n);
 });
@@ -70,5 +85,51 @@ describe('quotePodPortalTransactionFees', () => {
     expect(quote.display.podInboxFee).toBe('0.0000000000000021');
     expect(quote.display.portalFeeSymbol).toBe('ETH');
     expect(h.estimateFee).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses an explicit gasPrice override without calling eth_gasPrice', async () => {
+    const signer = makeSigner({ gasPriceWei: 9_999n });
+    const quote = await quotePodPortalTransactionFees({
+      runner: signer as never,
+      chainId: 11155111,
+      portalAddress: PORTAL,
+      pubTok: { symbol: 'ETH', name: 'Ether', icon: '', decimals: 18, isPrivate: false, isNative: true },
+      amount: '0',
+      direction: 'to-private',
+      gasPrice: 123_456n,
+    });
+
+    expect(quote.gasPrice).toBe(123_456n);
+    expect(quote.l1ExecutionGasWei).toBe(400_000n * 123_456n);
+    expect(signer.provider.send).not.toHaveBeenCalled();
+  });
+
+  it('quotes withdraw fees with the same gasPrice snapshot', async () => {
+    const quote = await quotePodPortalTransactionFees({
+      runner: makeSigner() as never,
+      chainId: 11155111,
+      portalAddress: PORTAL,
+      pubTok: { symbol: 'ETH', name: 'Ether', icon: '', decimals: 18, isPrivate: false, isNative: false },
+      amount: '0.000000000000000001',
+      direction: 'to-public',
+    });
+
+    expect(quote.portalFeeWei).toBe(250n);
+    expect(quote.gasPrice).toBe(2_200_000_000n);
+    expect(h.estimateWithdrawFees).toHaveBeenCalled();
+  });
+
+  it('buffers very low eth_gasPrice values from the provider', async () => {
+    const quote = await quotePodPortalTransactionFees({
+      runner: makeSigner({ gasPriceWei: 1n }) as never,
+      chainId: 11155111,
+      portalAddress: PORTAL,
+      pubTok: { symbol: 'ETH', name: 'Ether', icon: '', decimals: 18, isPrivate: false, isNative: true },
+      amount: '1',
+      direction: 'to-private',
+    });
+
+    expect(quote.gasPrice).toBe(1n);
+    expect(quote.l1ExecutionGasWei).toBe(400_000n);
   });
 });
