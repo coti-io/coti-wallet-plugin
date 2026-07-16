@@ -1064,6 +1064,33 @@ describe('usePrivacyBridge - handleApprove', () => {
     ).rejects.toThrow('approve reverted');
   });
 
+  it('rejects when a public approval reverts on-chain (status 0)', async () => {
+    sib.getPublicTokensForChain.mockReturnValue(ercPublicCfg('WETH'));
+    eth.approve.mockResolvedValue({ hash: TX_HASH });
+    eth.waitForTransaction.mockResolvedValue({ status: 0, hash: TX_HASH });
+    const props = makeProps({ direction: 'to-private' });
+    const { result } = renderHook(() => usePrivacyBridge(props));
+    await expect(
+      act(async () => {
+        await result.current.handleApprove();
+      }),
+    ).rejects.toThrow('Approval transaction failed');
+  });
+
+  it('rejects when a private approval reverts on-chain (status 0)', async () => {
+    sib.getPublicTokensForChain.mockReturnValue(ercPublicCfg('WETH'));
+    sib.getPrivateTokensForChain.mockReturnValue(ercPrivateCfg('WETH'));
+    routeRequest();
+    eth.waitForTransaction.mockResolvedValue({ status: 0, hash: TX_HASH });
+    const props = makeProps({ direction: 'to-public', amount: '1' });
+    const { result } = renderHook(() => usePrivacyBridge(props));
+    await expect(
+      act(async () => {
+        await result.current.handleApprove();
+      }),
+    ).rejects.toThrow('Approval transaction failed');
+  });
+
   it('signs an encrypted private approval (to-public, 128-bit path)', async () => {
     sib.getPublicTokensForChain.mockReturnValue(ercPublicCfg('WETH'));
     sib.getPrivateTokensForChain.mockReturnValue(ercPrivateCfg('WETH'));

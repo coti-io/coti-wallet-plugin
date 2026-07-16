@@ -527,9 +527,14 @@ export const usePrivacyBridgeAllowance = ({
                 });
 
                 logger.log('🔐 [Approve] Tx submitted, waiting for confirmation', { txHash: shortHash(rawTxHash) });
-                await waitForTransactionResilient(currentChainId, rawTxHash, {
+                const receipt = await waitForTransactionResilient(currentChainId, rawTxHash, {
                     primary: provider,
                 });
+                if (!receipt || receipt.status !== 1) {
+                    const failed = new Error('Approval transaction failed') as Error & { txHash?: string };
+                    failed.txHash = typeof rawTxHash === 'string' ? rawTxHash : receipt?.hash;
+                    throw failed;
+                }
                 logger.log('🔐 [Approve] Tx confirmed, refreshing allowance...');
 
                 setIsApproving(false);
@@ -552,9 +557,14 @@ export const usePrivacyBridgeAllowance = ({
                 message: 'Waiting for allowance confirmation...'
             });
 
-            await waitForTransactionResilient(currentChainId, tx.hash, {
+            const receipt = await waitForTransactionResilient(currentChainId, tx.hash, {
                 primary: provider,
             });
+            if (!receipt || receipt.status !== 1) {
+                const failed = new Error('Approval transaction failed') as Error & { txHash?: string };
+                failed.txHash = tx.hash || receipt?.hash;
+                throw failed;
+            }
 
             // Refresh allowance
             await checkAllowance();
