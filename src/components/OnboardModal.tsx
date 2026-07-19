@@ -18,6 +18,10 @@ import {
 
 export type { OnboardModalPage, OnboardModalWarnings };
 
+/** End-user explainer for the onboard flow (opens from the intro (i) control). */
+export const ONBOARD_DOCS_URL =
+  'https://docs.coti.io/coti-documentation/build-on-coti/core-concepts/what-is-onboarding';
+
 /**
  * Props for the OnboardModal component.
  */
@@ -140,6 +144,25 @@ const defaultStyles = {
     lineHeight: 1.6,
     marginBottom: '16px',
     maxWidth: '90%',
+  },
+  infoLink: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '16px',
+    height: '16px',
+    marginLeft: '6px',
+    verticalAlign: 'middle',
+    position: 'relative' as const,
+    top: '-1px',
+    borderRadius: '50%',
+    border: '1px solid rgba(255, 255, 255, 0.35)',
+    color: 'rgba(255, 255, 255, 0.55)',
+    fontSize: '10px',
+    fontWeight: 600,
+    fontStyle: 'italic' as const,
+    lineHeight: 1,
+    textDecoration: 'none',
   },
   infoBox: {
     width: '100%',
@@ -611,6 +634,7 @@ const MUTED_TEXT_KEYS: OnboardStyleKey[] = [
   'tooltipButton',
   'cancelButton',
   'stepDescription',
+  'infoLink',
 ];
 const ACCENT_TEXT_KEYS: OnboardStyleKey[] = [
   'keyInput',
@@ -685,6 +709,7 @@ const LIGHT_INTERACTIVE_SURFACE_KEYS: OnboardStyleKey[] = [
   'saveOptionSwitchTrackOff',
   'saveOptionSwitchTrackOn',
   'tooltipButton',
+  'infoLink',
 ];
 
 function isDefaultDarkSurfaceBackground(backgroundColor?: string): boolean {
@@ -813,6 +838,10 @@ function applyLightInteractiveSurfaceGaps(
       color: muted,
       backgroundColor: colorWithAlpha(foreground, 0.08),
       border: `1px solid ${colorWithAlpha(foreground, 0.2)}`,
+    },
+    infoLink: {
+      color: muted,
+      border: softBorder,
     },
   };
 
@@ -1327,7 +1356,17 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
               )}
 
               <p id="onboard-modal-description" style={styles.description}>
-                This will execute a transaction on the COTI Network to retrieve your encryption key.
+                {'Handling private data requires an encryption key -\u00A0a\u00A0COTI Network transaction retrieves it.'}
+                <a
+                  href={ONBOARD_DOCS_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Learn more about onboarding"
+                  title="Learn more about onboarding"
+                  style={styles.infoLink}
+                >
+                  i
+                </a>
               </p>
 
               {renderPageWarning('intro')}
