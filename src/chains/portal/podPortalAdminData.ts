@@ -46,8 +46,9 @@ async function fetchPortalRow(
     maxWithdrawAmount: "N/A",
     accumulatedFees: "0",
     nativeCotiFee: "0",
-    // No readable pause flag on the portal (pausing goes through a controller)
+    // No readable pause / deposit-enable flags on the portal
     isPaused: false,
+    isDepositEnabled: true,
     isLoading: false,
   };
 

@@ -11,6 +11,7 @@ const h = vi.hoisted(() => ({
   contractMethods: {
     accumulatedCotiFees: vi.fn(),
     paused: vi.fn(),
+    isDepositEnabled: vi.fn(),
     minDepositAmount: vi.fn(),
     maxDepositAmount: vi.fn(),
     minWithdrawAmount: vi.fn(),
@@ -44,6 +45,7 @@ vi.mock('ethers', async (importOriginal) => {
   class Contract {
     accumulatedCotiFees = h.contractMethods.accumulatedCotiFees;
     paused = h.contractMethods.paused;
+    isDepositEnabled = h.contractMethods.isDepositEnabled;
     minDepositAmount = h.contractMethods.minDepositAmount;
     maxDepositAmount = h.contractMethods.maxDepositAmount;
     minWithdrawAmount = h.contractMethods.minWithdrawAmount;
@@ -81,6 +83,7 @@ describe('useBridgeData (error-path coverage)', () => {
     h.formatEther.mockReturnValue('0');
     h.contractMethods.accumulatedCotiFees.mockResolvedValue(0n);
     h.contractMethods.paused.mockResolvedValue(false);
+    h.contractMethods.isDepositEnabled.mockResolvedValue(true);
     h.contractMethods.minDepositAmount.mockResolvedValue(0n);
     h.contractMethods.maxDepositAmount.mockResolvedValue(0n);
     h.contractMethods.minWithdrawAmount.mockResolvedValue(0n);
