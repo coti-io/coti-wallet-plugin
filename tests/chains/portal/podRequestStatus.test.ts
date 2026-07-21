@@ -47,8 +47,8 @@ vi.mock('../../../src/chains/portal/podSdkConfig', () => ({
   getPodSdkConfig: vi.fn(() => ({
     encryptionNetwork: 'testnet',
     chains: [
-      { chainId: 11155111, inboxAddress: '0xAb625bE229F603f6BBF964474AFf6d5487e364De', rpcUrl: 'https://sepolia.test' },
-      { chainId: 7082400, inboxAddress: '0xAb625bE229F603f6BBF964474AFf6d5487e364De', rpcUrl: 'https://coti.test' },
+      { chainId: 11155111, inboxAddress: '0x3b8B70819f27e0438cBcE7f31894f799da52648F', rpcUrl: 'https://sepolia.test' },
+      { chainId: 7082400, inboxAddress: '0x3b8B70819f27e0438cBcE7f31894f799da52648F', rpcUrl: 'https://coti.test' },
     ],
   })),
 }));

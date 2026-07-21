@@ -12,11 +12,13 @@ const MTT = "0x328e70e1c52662cd5f19f824fcb8b463d77a6686";
 const USDC = "0x5425890298aed601595a70AB815c96711a31Bc65";
 const WAVAX = "0xd00ae08403B9bbb9124bB305C09058E32C39A48c";
 
-/** Deployed PoD portal pairs from pod-mpc-lib deployConfig.json (Fuji). */
-const P_AVAX = "0xe7956aDaC668b563Dc77eD29C5E7A4Ef5edFB3FB";
-const P_USDC = "0x4C8dD09336BB7A219bef9448914a9E4621cE3645";
-const PORTAL_AVAX = "0x25E7a1BddF4b9696F19A726Cb2Ce550467527e90";
-const PORTAL_USDC = "0x956D8994a56F65d2fF1F9b09565857a09374D852";
+/** Deployed PoD portal pairs from pod-ecosystem-integration deployConfig.json (Fuji). */
+const P_AVAX = "0x0c58954d91392794A50F610dF8c84228D63BE9D4";
+const P_USDC = "0xe2235E064a3CEB5F1765c3b095855549d3c8A8a4";
+const P_MTT = "0xFC6283a9000d7D5Cf8A058A04A9ED90265Af1634";
+const PORTAL_AVAX = "0x20e7239cd78BDf2E8f34c52947e54fE68D7b536F";
+const PORTAL_USDC = "0x090D2dc8C38275939b9381Ff2aa53012Ff412E34";
+const PORTAL_MTT = "0xf4100d21eB4B1a66aDde58A01D1E32356F268b3F";
 
 export const avalancheFujiChain: ChainConfig = {
   id: AVALANCHE_FUJI_CHAIN_ID,
@@ -25,7 +27,7 @@ export const avalancheFujiChain: ChainConfig = {
   rpcUrl: AVALANCHE_FUJI_RPC_URL,
   rpcFallbackUrls: [AVALANCHE_FUJI_RPC_FALLBACK_URL],
   explorerBaseUrl: "https://testnet.snowscan.xyz",
-  priceOracleAddress: "0xb06340c020274ef5d92f664070966402a4d27712",
+  priceOracleAddress: "0xf2283ca93a6747c547a961c50d0393d549c57268",
   unlockStrategy: "manual-aes-key",
   portalStrategy: "pod-privacy-portal",
   podFeeEstimation: {
@@ -42,10 +44,10 @@ export const avalancheFujiChain: ChainConfig = {
     MTT,
     USDC,
     WAVAX,
-    "p.MTT": "0x8F34570CEAD49273D5DA8A0E25e728eCC28af267",
+    "p.MTT": P_MTT,
     "p.USDC": P_USDC,
     "p.AVAX": P_AVAX,
-    PrivacyPortalMTT: "0x64D99D761aC68D1a495B4f7E5bE7277586EDFE78",
+    PrivacyPortalMTT: PORTAL_MTT,
     PrivacyPortalUSDC: PORTAL_USDC,
     PrivacyPortalAVAX: PORTAL_AVAX,
   },

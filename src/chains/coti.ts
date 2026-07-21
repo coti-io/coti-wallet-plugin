@@ -30,6 +30,8 @@ export const cotiTestnetChain: ChainConfig = {
   explorerBaseUrl: "https://testnet.cotiscan.io",
   unlockStrategy: "snap",
   portalStrategy: "coti-bridge",
+  // PoD price oracle from pod-ecosystem-integration deployConfig.json (COTI testnet).
+  priceOracleAddress: "0xb471e172876ba9bb24a43528779ea31e0b0bda2f",
   addresses: {
     PrivateCoti: "0xF3FC0A3285a6C297682390b1Db76c3AF130FEb93",
     PrivacyBridgeCotiNative: "0xabB1FC50ebD491c74CE7dfE3bD350bce10f89F2E",
