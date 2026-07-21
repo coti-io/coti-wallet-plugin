@@ -32,10 +32,10 @@ const PAUSED_FAIL_CLOSED: PauseFlags = { depositsPaused: true, withdrawalsPaused
 
 /**
  * Reads the pause flags a portal's `pauseController` reports (in practice the
- * PrivacyPortalFactory, so the flags are chain-wide). Mirrors the portal's own
- * `_pauseFlag` semantics: zero/code-less controller means unpaused; a controller
- * that has code but fails to answer blocks operations (fail-closed), so it is
- * reported as fully paused.
+ * PrivacyPortalFactory, so the flags are chain-wide). No controller (zero
+ * address) or a code-less one means unpaused; a controller that has code but
+ * fails to answer means the pause state exists but couldn't be observed, so
+ * it fails closed and is reported as fully paused.
  */
 async function fetchControllerPauseFlags(
   provider: ethers.JsonRpcProvider,
@@ -62,10 +62,16 @@ async function fetchControllerPauseFlags(
 }
 
 /**
- * Pause flags for one portal, via its `pauseController()`. A portal that does
- * not expose the getter has no pause mechanism (ethers reports the empty call
- * result as BAD_DATA) — genuinely unpaused. Any other failure means the pause
- * state exists but could not be observed, which fails closed.
+ * Pause flags for one portal, via its `pauseController()`. Every currently
+ * deployed portal exposes this getter (they share one EIP-1167 implementation,
+ * verified on-chain — see POD_PORTAL_ADMIN_ABI), so this is a defensive
+ * fallback for a portal built from a different implementation that omits it.
+ * A contract with no matching function and no fallback reverts with no
+ * decodable reason, which ethers surfaces as BAD_DATA (not CALL_EXCEPTION,
+ * which means the call reverted for a reason other than "unimplemented") —
+ * genuinely no pause mechanism, so treated as unpaused. Any other failure
+ * (RPC error, timeout, a CALL_EXCEPTION, ...) means the pause state exists
+ * but could not be observed, which fails closed.
  */
 async function fetchPortalPauseFlags(
   portal: ethers.Contract,
@@ -74,7 +80,7 @@ async function fetchPortalPauseFlags(
   try {
     return await resolvePauseFlags(await portal.pauseController());
   } catch (err) {
-    return (err as { code?: string })?.code === "BAD_DATA" ? UNPAUSED : PAUSED_FAIL_CLOSED;
+    return ethers.isError(err, "BAD_DATA") ? UNPAUSED : PAUSED_FAIL_CLOSED;
   }
 }
 
