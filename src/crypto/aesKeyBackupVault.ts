@@ -45,10 +45,12 @@ const base64ToBytes = (value: string) =>
 const toArrayBuffer = (bytes: Uint8Array): ArrayBuffer =>
   bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 
-const getDomain = (chainId: number): TypedDataDomain => ({
+/** EIP-712 domain without chainId — wallets reject typed-data when domain.chainId
+ *  differs from the active network, and backup restore/save often runs off COTI.
+ *  Chain binding stays in the message, HKDF info, and AES-GCM AAD. */
+const getDomain = (): TypedDataDomain => ({
   name: BACKUP_DOMAIN_NAME,
   version: BACKUP_DOMAIN_VERSION,
-  chainId,
   salt: BACKUP_DOMAIN_SALT,
 });
 
@@ -99,7 +101,7 @@ const deriveCryptoKey = async (
 };
 
 const signBackupContext = (signer: AesBackupSigner, context: AesBackupVaultContext) =>
-  signer.signTypedData(getDomain(context.chainId), BACKUP_TYPES, getMessage(context));
+  signer.signTypedData(getDomain(), BACKUP_TYPES, getMessage(context));
 
 const gcmParams = (iv: Uint8Array, context: AesBackupVaultContext): AesGcmParams => ({
   name: 'AES-GCM',
