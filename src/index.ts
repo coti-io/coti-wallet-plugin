@@ -211,6 +211,17 @@ export type { NetworkGuardProps } from './components/NetworkGuard';
 // Re-export from RainbowKit for consuming apps
 export { useConnectModal } from '@rainbow-me/rainbowkit';
 
+export {
+  encryptAesKeyBackup,
+  decryptAesKeyBackup,
+  backupFromChainTuple,
+  OUTDATED_AES_BACKUP_ERROR,
+} from './crypto/aesKeyBackupVault';
+export type {
+  AesBackupSigner,
+  AesBackupVaultContext,
+} from './crypto/aesKeyBackupVault';
+
 // Utilities
 export { isMultipleWalletsError, MULTIPLE_WALLETS_ERROR_SUBSTRING } from './utils/walletErrors';
 export { formatTokenBalanceDisplay, truncateDecimalValue, formatBalanceWithNotation, addThousandsSeparators } from './lib/utils';

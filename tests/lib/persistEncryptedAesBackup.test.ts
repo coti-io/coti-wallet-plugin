@@ -44,6 +44,7 @@ describe('persistEncryptedAesBackup', () => {
     vi.clearAllMocks();
     ethersState.getSigner.mockResolvedValue(makeSigner());
     configureCotiPlugin({
+      verifyBackupDeterminism: true,
       onboardingServices: { mode: 'disabled' },
     });
   });
@@ -95,9 +96,77 @@ describe('persistEncryptedAesBackup', () => {
       expect.objectContaining({
         address: ADDR,
         chainId: CHAIN_ID,
-        backup: expect.objectContaining({ version: 1 }),
+        backup: expect.objectContaining({ version: 2, kdf: 'hkdf-sha256' }),
       }),
     );
+    expect(result).toEqual({ status: 'saved' });
+  });
+
+  it('does not save when the wallet signature is not deterministic', async () => {
+    const saveEncryptedAesBackup = vi.fn().mockResolvedValue(undefined);
+    configureCotiPlugin({
+      verifyBackupDeterminism: true,
+      onboardingServices: {
+        mode: 'custom',
+        saveEncryptedAesBackup,
+      },
+    });
+
+    const sigs = ['0x' + 'ab'.repeat(65), '0x' + 'cd'.repeat(65)];
+    let i = 0;
+    ethersState.getSigner.mockResolvedValue({
+      signTypedData: vi.fn().mockImplementation(async () => {
+        const value = sigs[Math.min(i, sigs.length - 1)];
+        i += 1;
+        return value;
+      }),
+    });
+
+    const connector = {
+      getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }),
+    };
+
+    const result = await persistEncryptedAesBackup({
+      aesKey: VALID_KEY,
+      address: ADDR,
+      chainId: CHAIN_ID,
+      connector: connector as never,
+    });
+
+    expect(saveEncryptedAesBackup).not.toHaveBeenCalled();
+    expect(result.status).toBe('failed');
+    if (result.status === 'failed') {
+      expect(result.message).toContain('not deterministic');
+    }
+  });
+
+  it('skips the second signature when verifyBackupDeterminism is false', async () => {
+    const saveEncryptedAesBackup = vi.fn().mockResolvedValue(undefined);
+    configureCotiPlugin({
+      verifyBackupDeterminism: false,
+      onboardingServices: {
+        mode: 'custom',
+        saveEncryptedAesBackup,
+      },
+    });
+
+    const signTypedData = vi.fn().mockResolvedValue('0x' + 'ab'.repeat(65));
+    ethersState.getSigner.mockResolvedValue({ signTypedData });
+
+    const connector = {
+      getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }),
+    };
+
+    const result = await persistEncryptedAesBackup({
+      aesKey: VALID_KEY,
+      address: ADDR,
+      chainId: CHAIN_ID,
+      connector: connector as never,
+    });
+
+    // encryptAesKeyBackup signs once; no second decrypt signature when flag is off
+    expect(signTypedData).toHaveBeenCalledTimes(1);
+    expect(saveEncryptedAesBackup).toHaveBeenCalled();
     expect(result).toEqual({ status: 'saved' });
   });
 

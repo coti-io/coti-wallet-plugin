@@ -16,7 +16,6 @@ import { useExampleTheme } from './ExampleThemeContext';
 
 const COTI_TESTNET_CHAIN_ID = 7082400;
 
-const AES_BACKUP_API_URL = import.meta.env.VITE_AES_BACKUP_API_URL?.replace(/\/$/, '');
 const ONBOARDING_GRANT_ENABLED = import.meta.env.VITE_ONBOARDING_GRANT_ENABLED !== 'false';
 const GRANT_API_URL_TESTNET = import.meta.env.VITE_GRANT_API_URL_TESTNET?.replace(/\/$/, '');
 const GRANT_API_URL_MAINNET = import.meta.env.VITE_GRANT_API_URL_MAINNET?.replace(/\/$/, '');
@@ -26,17 +25,8 @@ const ONBOARDING_GRANT_MIN_BALANCE_COTI =
 const backupKey = (address: string, chainId: number) =>
   `coti-example:aes-backup:${chainId}:${address.toLowerCase()}`;
 
-const backupApiUrl = (address: string, chainId: number) =>
-  `${AES_BACKUP_API_URL}/aes-backups/${chainId}/${address.toLowerCase()}`;
-
 const fetchEncryptedAesBackup = async (address: string, chainId: number) => {
   const raw = window.localStorage.getItem(backupKey(address, chainId));
-  if (AES_BACKUP_API_URL) {
-    const response = await fetch(backupApiUrl(address, chainId));
-    if (response.status === 404) return raw ? JSON.parse(raw) as EncryptedAesBackup : null;
-    if (!response.ok) throw new Error(`Backup restore failed: ${response.status}`);
-    return response.json() as Promise<EncryptedAesBackup>;
-  }
   return raw ? JSON.parse(raw) as EncryptedAesBackup : null;
 };
 
@@ -44,16 +34,8 @@ const saveEncryptedAesBackup = async (
   address: string,
   chainId: number,
   backup: EncryptedAesBackup,
-  action: 'save' | 'replace' = 'save',
+  _action: 'save' | 'replace' = 'save',
 ) => {
-  if (AES_BACKUP_API_URL) {
-    const response = await fetch(backupApiUrl(address, chainId), {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(backup),
-    });
-    if (!response.ok) throw new Error(`Backup ${action} failed: ${response.status}`);
-  }
   window.localStorage.setItem(backupKey(address, chainId), JSON.stringify(backup));
 };
 

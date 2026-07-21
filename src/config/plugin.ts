@@ -11,13 +11,20 @@ export const DEFAULT_ONBOARDING_GRANT_MIN_BALANCE_WEI = '200000000000000000';
 export type AesKeyChainId = typeof COTI_TESTNET_CHAIN_ID | typeof COTI_MAINNET_CHAIN_ID;
 
 export interface EncryptedAesBackup {
-  version: 1;
+  version: 2;
   address: string;
   chainId: number;
   signatureKind: 'eip712';
+  /** Key-derivation used to wrap the AES key from the EIP-712 signature. */
+  kdf: 'hkdf-sha256';
   iv: string;
   ciphertext: string;
   createdAt: string;
+  /**
+   * Optional AES-key generation / rotation epoch.
+   * Reserved for future on-chain rotation; not required by AesKeyBackupVault v2.
+   */
+  keyEpoch?: number;
 }
 
 export interface GrantResult {
@@ -121,6 +128,13 @@ export interface CotiPluginConfig {
    * The Snap manifest's allowedOrigins must also include these domains — see PL-3.
    */
   additionalSnapAesWriteOrigins?: string[];
+  /**
+   * When true (default), saving an encrypted AES backup requests a second wallet
+   * signature and confirms the blob decrypts before persisting. Catches wallets
+   * that produce nondeterministic ECDSA signatures (which would make restores fail).
+   * Costs one extra sign prompt at backup creation; restore stays one prompt.
+   */
+  verifyBackupDeterminism?: boolean;
 }
 
 let _config: CotiPluginConfig = {
@@ -137,6 +151,7 @@ let _config: CotiPluginConfig = {
   onboardingGrantPollIntervalMs: 2000,
   onboardingGrantTimeoutMs: 60000,
   additionalSnapAesWriteOrigins: [],
+  verifyBackupDeterminism: false,
 };
 
 /** Whether native COTI grants are enabled. Default: true. */
