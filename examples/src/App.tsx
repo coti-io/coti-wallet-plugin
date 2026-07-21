@@ -39,6 +39,10 @@ const saveEncryptedAesBackup = async (
   window.localStorage.setItem(backupKey(address, chainId), JSON.stringify(backup));
 };
 
+const deleteEncryptedAesBackup = async (address: string, chainId: number) => {
+  window.localStorage.removeItem(backupKey(address, chainId));
+};
+
 const LOCAL_SNAP_ID = import.meta.env.VITE_SNAP_ID?.trim();
 const LOCAL_SNAP_VERSION = import.meta.env.VITE_SNAP_VERSION?.trim();
 const SNAP_ENABLED = import.meta.env.VITE_COTI_SNAP_ENABLED !== 'false';
@@ -69,6 +73,8 @@ configureCotiPlugin({
       saveEncryptedAesBackup(address, chainId, backup, 'save'),
     replaceEncryptedAesBackup: async ({ address, chainId, backup }) =>
       saveEncryptedAesBackup(address, chainId, backup, 'replace'),
+    deleteEncryptedAesBackup: async ({ address, chainId }) =>
+      deleteEncryptedAesBackup(address, chainId),
   },
 });
 

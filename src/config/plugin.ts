@@ -52,6 +52,11 @@ export interface OnboardingServices {
   fetchEncryptedAesBackup?: (request: OnboardingServiceRequest) => Promise<EncryptedAesBackup | null>;
   saveEncryptedAesBackup?: (request: SaveEncryptedAesBackupRequest) => Promise<void>;
   replaceEncryptedAesBackup?: (request: SaveEncryptedAesBackupRequest) => Promise<void>;
+  /**
+   * Remove a stored encrypted backup (e.g. after an outdated v1 blob is rejected).
+   * Best-effort; unlock/onboarding continues even if delete fails.
+   */
+  deleteEncryptedAesBackup?: (request: OnboardingServiceRequest) => Promise<void>;
 }
 
 /**
