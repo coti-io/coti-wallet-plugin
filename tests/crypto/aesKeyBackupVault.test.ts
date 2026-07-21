@@ -47,6 +47,30 @@ describe('aesKeyBackupVault', () => {
     ).resolves.toBe(aesKey);
   });
 
+  it('omits chainId from the EIP-712 domain (message still binds chain)', async () => {
+    const backupSigner = signer();
+    await encryptAesKeyBackup('a'.repeat(32), backupSigner, {
+      address: ADDRESS,
+      chainId: CHAIN_ID,
+    });
+
+    expect(backupSigner.signTypedData).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'COTI AES Backup',
+        version: '2',
+      }),
+      expect.any(Object),
+      expect.objectContaining({
+        address: ADDRESS,
+        chainId: CHAIN_ID,
+        version: 2,
+      }),
+    );
+    const domain = vi.mocked(backupSigner.signTypedData).mock.calls[0][0];
+    expect(domain).not.toHaveProperty('chainId');
+    expect(domain).toHaveProperty('salt');
+  });
+
   it('rejects backups for a different address', async () => {
     const backup = await encryptAesKeyBackup('c'.repeat(32), signer(), {
       address: ADDRESS,
