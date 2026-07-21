@@ -176,15 +176,33 @@ describe('aesKeyBackupVault', () => {
     expect(backup.createdAt).toBe(new Date(1_700_000_000 * 1000).toISOString());
   });
 
+  it('accepts ethers v6 bigint version and updatedAt from contract reads', () => {
+    const iv = ethers.randomBytes(12);
+    const ciphertext = ethers.randomBytes(48);
+    const backup = backupFromChainTuple({
+      address: ADDRESS,
+      chainId: CHAIN_ID,
+      version: 2n,
+      iv,
+      ciphertext,
+      updatedAt: 1_700_000_000n,
+      keyEpoch: 1n,
+    });
+
+    expect(backup.version).toBe(2);
+    expect(backup.keyEpoch).toBe(1);
+    expect(backup.createdAt).toBe(new Date(1_700_000_000 * 1000).toISOString());
+  });
+
   it('rejects on-chain tuples with unsupported version', () => {
     expect(() =>
       backupFromChainTuple({
         address: ADDRESS,
         chainId: CHAIN_ID,
-        version: 1,
+        version: 1n,
         iv: ethers.randomBytes(12),
         ciphertext: ethers.randomBytes(48),
-        updatedAt: 1,
+        updatedAt: 1n,
       }),
     ).toThrow(OUTDATED_AES_BACKUP_ERROR);
   });
