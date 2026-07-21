@@ -58,10 +58,11 @@ export async function persistEncryptedAesBackup(params: {
 
     const backup = await encryptAesKeyBackup(params.aesKey, signer, backupContext);
 
-    // Second signature: confirms the wallet produces deterministic ECDSA for this
-    // typed-data message. Without this, a randomized signer would save a blob that
-    // can never be restored. Default on; set verifyBackupDeterminism: false to skip.
-    if (config.verifyBackupDeterminism !== false) {
+    // Optional second signature: confirms the wallet produces deterministic ECDSA
+    // for this typed-data message. Off by default (verifyBackupDeterminism: false);
+    // set verifyBackupDeterminism: true to enable. Without it, a randomized signer
+    // can persist a blob that can never be restored.
+    if (config.verifyBackupDeterminism === true) {
       try {
         await decryptAesKeyBackup(backup, signer, backupContext);
       } catch (determinismError) {

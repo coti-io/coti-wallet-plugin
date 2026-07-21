@@ -129,10 +129,11 @@ export interface CotiPluginConfig {
    */
   additionalSnapAesWriteOrigins?: string[];
   /**
-   * When true (default), saving an encrypted AES backup requests a second wallet
-   * signature and confirms the blob decrypts before persisting. Catches wallets
-   * that produce nondeterministic ECDSA signatures (which would make restores fail).
+   * When true, saving an encrypted AES backup requests a second wallet signature
+   * and confirms the blob decrypts before persisting. Catches wallets that produce
+   * nondeterministic ECDSA signatures (which would make restores fail).
    * Costs one extra sign prompt at backup creation; restore stays one prompt.
+   * Default: false. Enable with `configureCotiPlugin({ verifyBackupDeterminism: true })`.
    */
   verifyBackupDeterminism?: boolean;
 }
