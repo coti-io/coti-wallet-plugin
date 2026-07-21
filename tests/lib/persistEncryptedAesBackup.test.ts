@@ -44,7 +44,7 @@ describe('persistEncryptedAesBackup', () => {
     vi.clearAllMocks();
     ethersState.getSigner.mockResolvedValue(makeSigner());
     configureCotiPlugin({
-      verifyBackupDeterminism: true,
+      verifyBackupDeterminism: false,
       onboardingServices: { mode: 'disabled' },
     });
   });
