@@ -22,7 +22,7 @@ describe('WalletSignPrompt', () => {
     );
 
     expect(screen.getByText(/encrypt your private COTI AES key backup/i)).toBeInTheDocument();
-    expect(screen.getByText(/only approve on the official COTI app/i)).toBeInTheDocument();
+    expect(screen.getByText(/only approve in apps you trust that use the COTI wallet plugin/i)).toBeInTheDocument();
   });
 
   it('uses the shared light-theme surface fills', () => {

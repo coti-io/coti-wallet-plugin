@@ -54,7 +54,7 @@ const getDomain = (chainId: number): TypedDataDomain => ({
 
 const getMessage = ({ address, chainId }: AesBackupVaultContext) => ({
   purpose:
-    'WARNING: signing derives the key that DECRYPTS your private COTI AES key backup. Only sign on the official COTI app.',
+    'WARNING: signing derives the key that DECRYPTS your private COTI AES key backup. Only sign in apps you trust that use the COTI wallet plugin.',
   address,
   chainId,
   version: BACKUP_FORMAT_VERSION,
