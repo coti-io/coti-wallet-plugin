@@ -35,6 +35,21 @@ describe('OnboardModal', () => {
     expect(screen.getByText('Onboard User')).toBeInTheDocument();
     expect(screen.getByText('Onboard')).toBeInTheDocument();
     expect(screen.getByText('Save Locally')).toBeInTheDocument();
+    const description = document.getElementById('onboard-modal-description');
+    expect(description?.textContent).toContain(
+      'Handling private data requires an encryption key -\u00A0a\u00A0COTI Network transaction retrieves it.',
+    );
+    const docsLink = screen.getByRole('link', { name: 'Learn more about onboarding' });
+    expect(description).toContainElement(docsLink);
+    expect(docsLink).toHaveAttribute(
+      'href',
+      'https://docs.coti.io/coti-documentation/build-on-coti/core-concepts/what-is-onboarding',
+    );
+    expect(docsLink).toHaveAttribute('target', '_blank');
+    expect(docsLink).toHaveStyle({
+      color: 'rgba(255, 255, 255, 0.55)',
+      borderColor: 'rgba(255, 255, 255, 0.35)',
+    });
     const backupDetails = screen.getByLabelText('How local save works');
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
     fireEvent.mouseEnter(backupDetails);
@@ -346,6 +361,12 @@ describe('OnboardModal', () => {
     });
 
     expect(screen.getByText('Cancel')).toHaveStyle({ color: 'rgb(15, 23, 42)' });
+
+    const docsLink = screen.getByRole('link', { name: 'Learn more about onboarding' });
+    expect(docsLink).toHaveStyle({
+      color: 'rgb(100, 116, 139)',
+      borderColor: 'rgba(15, 23, 42, 0.16)',
+    });
 
     fireEvent.click(screen.getByLabelText('Input AES key'));
     expect(screen.getByLabelText('Manual AES key')).toHaveStyle({

@@ -26,6 +26,8 @@ export interface BridgeData extends BridgeFees {
   /** PoD portals pause deposits and withdrawals independently (factory-level flags). */
   depositsPaused?: boolean;
   withdrawalsPaused?: boolean;
+  /** COTI bridges only — false means deposits revert with DepositDisabled; withdraws still work. */
+  isDepositEnabled: boolean;
   tokenDecimals: number;
   /** Symbol the fee values are denominated in (native coin on PoD chains; COTI otherwise). */
   feeTokenSymbol?: string;
@@ -104,10 +106,11 @@ export const useBridgeData = (chainId: number) => {
                     .balanceOf(bridgeAddress).catch(() => '0')
                 : Promise.resolve('0');
 
-            const [fees, accCotiFees, paused, balance, minDeposit, maxDeposit, minWithdraw, maxWithdraw] = await Promise.all([
+            const [fees, accCotiFees, paused, depositEnabled, balance, minDeposit, maxDeposit, minWithdraw, maxWithdraw] = await Promise.all([
               fetchBridgeFees(bridgeAddress, isNative, provider),
               contract.accumulatedCotiFees().catch(() => '0'),
               contract.paused().catch(() => false),
+              contract.isDepositEnabled().catch(() => true),
               balancePromise,
               contract.minDepositAmount().catch(() => '0'),
               contract.maxDepositAmount().catch(() => '0'),
@@ -136,6 +139,7 @@ export const useBridgeData = (chainId: number) => {
               nativeCotiFee: '0',
               bridgeBalance: ethers.formatUnits(balance, token.decimals),
               isPaused: paused,
+              isDepositEnabled: depositEnabled,
               tokenDecimals: token.decimals,
               isLoading: false,
               error: null,
@@ -164,6 +168,7 @@ export const useBridgeData = (chainId: number) => {
               nativeCotiFee: 'Error',
               bridgeBalance: 'Error',
               isPaused: false,
+              isDepositEnabled: true,
               tokenDecimals: token.decimals,
               isLoading: false,
               error: err instanceof Error ? err.message : 'Unknown error',

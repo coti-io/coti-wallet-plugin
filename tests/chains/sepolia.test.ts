@@ -6,6 +6,7 @@ const h = vi.hoisted(() => ({
   balanceOf: vi.fn(),
   getBalance: vi.fn(),
   getBlockNumber: vi.fn(),
+  pauseController: vi.fn(),
 }));
 
 vi.mock('ethers', async (importOriginal) => {
@@ -15,6 +16,7 @@ vi.mock('ethers', async (importOriginal) => {
     getFeeConfig = (...a: unknown[]) => h.getFeeConfig(this.address, ...a);
     accumulatedPortalFees = () => h.accumulatedPortalFees(this.address);
     balanceOf = (...a: unknown[]) => h.balanceOf(this.address, ...a);
+    pauseController = () => h.pauseController(this.address);
   }
   class MockProvider {
     constructor(public url: string) {}
@@ -50,6 +52,7 @@ describe('fetchPodBridgeData', () => {
     h.accumulatedPortalFees.mockResolvedValue(4n * 10n ** 13n);
     h.balanceOf.mockResolvedValue(5n * 10n ** 18n);
     h.getBalance.mockResolvedValue(7n * 10n ** 18n);
+    h.pauseController.mockResolvedValue('0x0000000000000000000000000000000000000000');
   });
 
   it('shapes live portal reads into BridgeData rows', async () => {

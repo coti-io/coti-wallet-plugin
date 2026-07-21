@@ -121,6 +121,7 @@ async function fetchPortalRow(
     accumulatedFees: "0",
     nativeCotiFee: "0",
     isPaused: false,
+    isDepositEnabled: true,
     isLoading: false,
   };
 
