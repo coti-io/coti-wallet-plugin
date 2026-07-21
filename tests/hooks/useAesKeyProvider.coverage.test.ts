@@ -59,7 +59,7 @@ function makeSigner(aesKey: string | null | undefined, opts: { generateThrows?: 
     getUserOnboardInfo: vi.fn().mockReturnValue(
       aesKey === undefined ? undefined : { aesKey },
     ),
-    signTypedData: vi.fn().mockResolvedValue('0xbackup-signature'),
+    signTypedData: vi.fn().mockResolvedValue('0x' + 'ab'.repeat(65)),
   };
 }
 
@@ -549,7 +549,7 @@ describe('useAesKeyProvider (full branch coverage)', () => {
 
       expect(key).toBe(VALID_KEY);
       expect(signer.generateOrRecoverAes).toHaveBeenCalled();
-      expect(result.current.onboardingWarnings.intro).toContain('Encrypted backup could not be restored');
+      expect(result.current.onboardingWarnings.intro).toContain('outdated format');
     });
 
     it('calls grant and waits for balance when native COTI is below threshold', async () => {

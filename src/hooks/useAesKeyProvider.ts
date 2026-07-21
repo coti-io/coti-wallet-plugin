@@ -13,7 +13,7 @@ import {
   resolveGrantNativeCoti,
   type EncryptedAesBackup,
 } from '../config/plugin';
-import { decryptAesKeyBackup } from '../crypto/aesKeyBackupVault';
+import { decryptAesKeyBackup, OUTDATED_AES_BACKUP_ERROR } from '../crypto/aesKeyBackupVault';
 import { normalizeAesKey } from '../crypto/aesKey';
 import { muteChainUpdates, unmuteChainUpdates, isChainUpdatesMuted } from '../lib/chainMute';
 import { canPersistAesKeyToSnap } from '../lib/snapOrigins';
@@ -490,9 +490,10 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
               : 'Encrypted AES backup could not be restored.';
             logger.warn('⚠️ AES backup restore failed, falling back to contract onboarding:', restoreError);
             restoreBackupFailed = true;
-            setOnboardingWarnings({
-              intro: `Encrypted backup could not be restored. Continuing with onboarding. ${message}`,
-            });
+            const intro = message === OUTDATED_AES_BACKUP_ERROR
+              ? 'Your encrypted backup uses an outdated format. Continuing with onboarding to create a new backup.'
+              : `Encrypted backup could not be restored. Continuing with onboarding. ${message}`;
+            setOnboardingWarnings({ intro });
           }
         }
 

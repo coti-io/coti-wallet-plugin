@@ -1,7 +1,7 @@
 import { BrowserProvider, JsonRpcSigner } from '@coti-io/coti-ethers';
 import type { Connector } from 'wagmi';
 import { getPluginConfig } from '../config/plugin';
-import { encryptAesKeyBackup } from '../crypto/aesKeyBackupVault';
+import { decryptAesKeyBackup, encryptAesKeyBackup } from '../crypto/aesKeyBackupVault';
 import { logger } from './logger';
 import { isOnboardingServicesEnabled } from './onboardingServices';
 import { isUserRejection } from './walletErrors';
@@ -25,7 +25,8 @@ export async function persistEncryptedAesBackup(params: {
   preferReplace?: boolean;
   onBeforeSign?: () => void;
 }): Promise<PersistEncryptedAesBackupResult> {
-  const services = getPluginConfig().onboardingServices;
+  const config = getPluginConfig();
+  const services = config.onboardingServices;
   if (
     !isOnboardingServicesEnabled()
     || (!services?.saveEncryptedAesBackup && !services?.replaceEncryptedAesBackup)
@@ -56,6 +57,27 @@ export async function persistEncryptedAesBackup(params: {
     params.onBeforeSign?.();
 
     const backup = await encryptAesKeyBackup(params.aesKey, signer, backupContext);
+
+    // Second signature: confirms the wallet produces deterministic ECDSA for this
+    // typed-data message. Without this, a randomized signer would save a blob that
+    // can never be restored. Default on; set verifyBackupDeterminism: false to skip.
+    if (config.verifyBackupDeterminism !== false) {
+      try {
+        await decryptAesKeyBackup(backup, signer, backupContext);
+      } catch (determinismError) {
+        if (isUserRejection(determinismError)) {
+          return { status: 'cancelled' };
+        }
+        const detail = determinismError instanceof Error
+          ? determinismError.message
+          : 'signature was not reproducible';
+        return {
+          status: 'failed',
+          message:
+            `Wallet signature is not deterministic; encrypted backup was not saved. ${detail}`,
+        };
+      }
+    }
 
     let existingBackup = null;
     if (!params.preferReplace && services.fetchEncryptedAesBackup) {

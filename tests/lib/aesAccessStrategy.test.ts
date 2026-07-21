@@ -252,10 +252,11 @@ describe('resolveAesAccessStrategy', () => {
 describe('resolveRestoreAesAccessStrategy', () => {
   it('returns local mode with prefetched backup without probing Snap', async () => {
     const backup = {
-      version: 1 as const,
+      version: 2 as const,
       address: '0xabc',
       chainId: COTI_TESTNET_CHAIN_ID,
       signatureKind: 'eip712' as const,
+      kdf: 'hkdf-sha256' as const,
       iv: 'aXY=',
       ciphertext: 'Y2lwaGVydGV4dA==',
       createdAt: '2026-01-01T00:00:00.000Z',
@@ -283,10 +284,11 @@ describe('resolveRestoreAesAccessStrategy', () => {
 describe('buildUnlockPlanFromStrategy prefetched backup', () => {
   it('passes encrypted backup blob into restore-only unlock options', () => {
     const backup = {
-      version: 1 as const,
+      version: 2 as const,
       address: '0xabc',
       chainId: COTI_TESTNET_CHAIN_ID,
       signatureKind: 'eip712' as const,
+      kdf: 'hkdf-sha256' as const,
       iv: 'aXY=',
       ciphertext: 'Y2lwaGVydGV4dA==',
       createdAt: '2026-01-01T00:00:00.000Z',
