@@ -210,7 +210,7 @@ export function WagmiRainbowKitProvider({
   );
 
   return (
-    <WagmiProvider config={config} reconnectOnMount={false}>
+    <WagmiProvider config={config} reconnectOnMount>
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider
           initialChain={initialChain}

@@ -1,6 +1,7 @@
 import { createConnector } from 'wagmi';
 import { injected, walletConnect } from 'wagmi/connectors';
 import type { Wallet } from '@rainbow-me/rainbowkit';
+import { isUnsupportedRpcMethodError } from '../utils/walletErrors';
 
 function isMobileBrowser(): boolean {
   if (typeof navigator === 'undefined') return false;
@@ -44,6 +45,54 @@ const dispatchConnectFailure = (walletId: string, error: unknown): void => {
 
 const ZERION_ICON_URL =
   'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2028%2028%22%3E%3Cpath%20fill%3D%22%232962EF%22%20d%3D%22M0%200h28v28H0z%22%2F%3E%3Cpath%20fill%3D%22%23fff%22%20d%3D%22M6.073%207c-.48%200-.665.593-.262.841l10.073%206.074a.577.577%200%200%200%20.758-.139l4.43-5.814c.3-.404-.004-.962-.525-.962H6.073ZM21.904%2021c.48%200%20.67-.596.267-.844l-10.075-6.073a.569.569%200%200%200-.751.146l-4.437%205.813c-.301.404.012.958.534.958h14.462Z%22%2F%3E%3C%2Fsvg%3E';
+
+type Eip1193RequestArgs = { method: string; params?: unknown };
+
+type ZerionProvider = {
+  request: (args: Eip1193RequestArgs) => Promise<unknown>;
+  __cotiRevokeSafe?: ZerionProvider;
+};
+
+/**
+ * Zerion rejects `wallet_revokePermissions` with -32601. Wagmi's injected
+ * connector calls that method on disconnect; swallow the unsupported-method
+ * error so disconnect completes cleanly.
+ */
+function wrapZerionProvider(provider: ZerionProvider): ZerionProvider {
+  if (provider.__cotiRevokeSafe) return provider.__cotiRevokeSafe;
+
+  const wrapped: ZerionProvider = new Proxy(provider, {
+    get(target, prop, receiver) {
+      if (prop === 'request') {
+        return async (args: Eip1193RequestArgs) => {
+          try {
+            return await target.request(args);
+          } catch (error) {
+            if (
+              args?.method === 'wallet_revokePermissions' &&
+              isUnsupportedRpcMethodError(error)
+            ) {
+              return null;
+            }
+            throw error;
+          }
+        };
+      }
+      const value = Reflect.get(target, prop, receiver);
+      return typeof value === 'function' ? (value as (...a: unknown[]) => unknown).bind(target) : value;
+    },
+  });
+
+  provider.__cotiRevokeSafe = wrapped;
+  return wrapped;
+}
+
+function getZerionInjectedProvider(): ZerionProvider | undefined {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const provider = (window as any).zerionWallet as ZerionProvider | undefined;
+  if (!provider?.request) return undefined;
+  return wrapZerionProvider(provider);
+}
 
 /**
  * RainbowKit wallet factory for Zerion that works on both desktop (injected via
@@ -153,16 +202,27 @@ export const mobileZerionWallet = ({ projectId }: { projectId: string }): Wallet
               }) as unknown as typeof wcConnector.connect,
             };
           })
-        : createConnector((config) => ({
-            ...injected({
+        : createConnector((config) => {
+            // wagmi injected#disconnect calls wallet_revokePermissions (EIP-2255).
+            // Zerion does not implement it and rejects with -32601.
+            const base = injected({
               target: {
                 id: 'zerion',
                 name: 'Zerion',
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                provider: (window as any).zerionWallet,
+                provider: getZerionInjectedProvider,
               },
-            })(config),
-            ...walletDetails,
-          })),
+            })(config);
+            return {
+              ...base,
+              ...walletDetails,
+              disconnect: (async (...args: Parameters<typeof base.disconnect>) => {
+                try {
+                  await base.disconnect(...args);
+                } catch (error) {
+                  if (!isUnsupportedRpcMethodError(error)) throw error;
+                }
+              }) as typeof base.disconnect,
+            };
+          }),
   };
 };

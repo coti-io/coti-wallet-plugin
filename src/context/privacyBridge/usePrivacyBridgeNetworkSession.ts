@@ -185,9 +185,8 @@ export const usePrivacyBridgeNetworkSession = ({
   } = useMetamask({
     onNetworkChanged: async () => {
       // wagmi/RainbowKit already reacts to chain changes (wagmiChainId updates
-      // and usePrivacyBridgeWagmiSync resyncs account state). A full page reload
-      // here would drop the wagmi connection (reconnectOnMount: false), forcing
-      // the user to reconnect after every network switch.
+      // and usePrivacyBridgeWagmiSync resyncs account state). Prefer that soft
+      // path over a full page reload on every network switch.
       if (wagmiSyncRef.current || wagmiConnected || disconnectingRef.current) {
         logger.log('Ignoring MetaMask chainChanged — wagmi is managing connection');
         return;

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   isMultipleWalletsError,
+  isUnsupportedRpcMethodError,
   MULTIPLE_WALLETS_ERROR_SUBSTRING,
 } from '../../src/utils/walletErrors';
 
@@ -40,6 +41,39 @@ describe('Wallet Error Detection (README: Security)', () => {
     it('returns true when substring is embedded in longer message', () => {
       const msg = `Unhandled rejection: ${MULTIPLE_WALLETS_ERROR_SUBSTRING} blah blah`;
       expect(isMultipleWalletsError(msg)).toBe(true);
+    });
+  });
+
+  describe('isUnsupportedRpcMethodError', () => {
+    it('detects Zerion wallet_revokePermissions rejection object', () => {
+      expect(
+        isUnsupportedRpcMethodError({
+          code: -32601,
+          message: 'the method wallet_revokePermissions does not exist/is not available',
+        }),
+      ).toBe(true);
+    });
+
+    it('detects -32601 method-not-found without naming revokePermissions', () => {
+      expect(
+        isUnsupportedRpcMethodError({
+          code: -32601,
+          message: 'the method foo does not exist/is not available',
+        }),
+      ).toBe(true);
+    });
+
+    it('detects Error instances mentioning wallet_revokePermissions', () => {
+      expect(
+        isUnsupportedRpcMethodError(
+          new Error('the method wallet_revokePermissions does not exist/is not available'),
+        ),
+      ).toBe(true);
+    });
+
+    it('returns false for unrelated errors', () => {
+      expect(isUnsupportedRpcMethodError(new Error('network failed'))).toBe(false);
+      expect(isUnsupportedRpcMethodError({ code: 4001, message: 'user rejected' })).toBe(false);
     });
   });
 });
