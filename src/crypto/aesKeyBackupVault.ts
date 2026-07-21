@@ -112,18 +112,25 @@ const gcmParams = (iv: Uint8Array, context: AesBackupVaultContext): AesGcmParams
 /**
  * Maps an on-chain AesKeyBackupVault.getBackup() tuple into EncryptedAesBackup.
  * address and chainId must come from restore context (contract does not store them).
+ * Accepts number | bigint for ethers v6 Result fields (Solidity ints decode as bigint).
  */
 export function backupFromChainTuple(params: {
   address: string;
   chainId: number;
-  version: number;
+  version: number | bigint;
   iv: string | Uint8Array;
   ciphertext: string | Uint8Array;
-  updatedAt: number;
-  keyEpoch?: number;
+  updatedAt: number | bigint;
+  keyEpoch?: number | bigint;
 }): EncryptedAesBackup {
-  if (params.version !== BACKUP_FORMAT_VERSION) {
+  const version = Number(params.version);
+  if (!Number.isInteger(version) || version !== BACKUP_FORMAT_VERSION) {
     throw new Error(OUTDATED_AES_BACKUP_ERROR);
+  }
+
+  const updatedAtSec = Number(params.updatedAt);
+  if (!Number.isFinite(updatedAtSec)) {
+    throw new Error('Invalid AES backup updatedAt.');
   }
 
   const ivBytes = typeof params.iv === 'string' ? ethers.getBytes(params.iv) : params.iv;
@@ -140,8 +147,8 @@ export function backupFromChainTuple(params: {
     kdf: 'hkdf-sha256',
     iv: bytesToBase64(ivBytes),
     ciphertext: bytesToBase64(ciphertextBytes),
-    createdAt: new Date(params.updatedAt * 1000).toISOString(),
-    ...(params.keyEpoch !== undefined ? { keyEpoch: params.keyEpoch } : {}),
+    createdAt: new Date(updatedAtSec * 1000).toISOString(),
+    ...(params.keyEpoch !== undefined ? { keyEpoch: Number(params.keyEpoch) } : {}),
   };
 }
 
