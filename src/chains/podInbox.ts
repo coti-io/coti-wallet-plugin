@@ -3,7 +3,7 @@
  * Single source of truth for {@link getPodSdkConfig}, {@link getPodInboxAddress}, and
  * {@link PodContract} fee estimation via `@coti-io/pod-sdk`.
  */
-export const POD_INBOX_ADDRESS = "0xAb625bE229F603f6BBF964474AFf6d5487e364De";
+export const POD_INBOX_ADDRESS = "0x3b8B70819f27e0438cBcE7f31894f799da52648F";
 
 /**
  * Default callback payload size (bytes) for inbox `estimateFee` when a chain config

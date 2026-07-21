@@ -11,11 +11,13 @@ const WETH = "0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9";
 const USDC = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238";
 const MTT = "0xd3f5c63f4D87D2235b295FbA83351d31d0eD1BeE";
 
-/** Deployed PoD portal pairs from pod-mpc-lib deployConfig.json (Sepolia). */
-const P_ETH = "0x28f6CFc45c3D4C13E6BAB034cb05278Db496b9d6";
-const P_USDC = "0xc727D2Ab43bF0d4cab75FD5C046BA38899ca988a";
-const PORTAL_ETH = "0xa4efc209144565126c034dfD23208f040748923f";
-const PORTAL_USDC = "0xDc0b0e5681C17A8449Baf5aBB130d7664Bb56d5a";
+/** Deployed PoD portal pairs from pod-ecosystem-integration deployConfig.json (Sepolia). */
+const P_ETH = "0xD586736543F7666d1adbF862B769Ba838a9a3deD";
+const P_USDC = "0xc04Cb7256E849C34877D801A77f9165BaC209c06";
+const P_MTT = "0x1566ADA98695D39b2D5A8e1359d7Af9D567c74ab";
+const PORTAL_ETH = "0x7666F6576956530E2D56CDB548b71e62286d1d18";
+const PORTAL_USDC = "0x79679CE36664c3b1360501B2c7ea6bbee65a2717";
+const PORTAL_MTT = "0x621E744eF059262Fd531a0f345d38Ce31d92D105";
 
 export const sepoliaChain: ChainConfig = {
   id: SEPOLIA_CHAIN_ID,
@@ -36,15 +38,15 @@ export const sepoliaChain: ChainConfig = {
       forwardDataSize: 512n,
     },
   },
-  priceOracleAddress: "0x7eecdceec31d285aee99c7960b405f63593903d1",
+  priceOracleAddress: "0x3281160888138e786c3eb0f4f4cc51453d8dfeff",
   addresses: {
     MTT,
     WETH,
     USDC,
-    "p.MTT": "0x46f9f46971f6bEc21Fe5d42909Ef99D1D2af43c4",
+    "p.MTT": P_MTT,
     "p.USDC": P_USDC,
     "p.ETH": P_ETH,
-    PrivacyPortalMTT: "0xaCD7fE838354Dd72147d9c387558477D7d4D6514",
+    PrivacyPortalMTT: PORTAL_MTT,
     PrivacyPortalUSDC: PORTAL_USDC,
     PrivacyPortalETH: PORTAL_ETH,
   },
