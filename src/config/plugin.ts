@@ -20,11 +20,6 @@ export interface EncryptedAesBackup {
   iv: string;
   ciphertext: string;
   createdAt: string;
-  /**
-   * Optional AES-key generation / rotation epoch.
-   * Reserved for future on-chain rotation; not required by AesKeyBackupVault v2.
-   */
-  keyEpoch?: number;
 }
 
 export interface GrantResult {
@@ -46,6 +41,11 @@ export interface OnboardingServices {
   /**
    * Disabled: no grant/backup features. Custom: use provided callbacks.
    * Official is reserved for stable COTI-hosted APIs.
+   *
+   * Remote storage must authenticate fetch/save/replace/delete with a challenge
+   * distinct from the AES backup wrap signature — see
+   * https://docs.coti.io/coti-documentation/build-on-coti/tools/coti-wallet-plugin/aes-backup-remote-storage
+   * Do not reuse the wrap EIP-712 signature as an API bearer token.
    */
   mode?: 'disabled' | 'custom' | 'official';
   grantNativeCoti?: (request: OnboardingServiceRequest) => Promise<GrantResult>;
@@ -134,13 +134,13 @@ export interface CotiPluginConfig {
    */
   additionalSnapAesWriteOrigins?: string[];
   /**
-   * When true, saving an encrypted AES backup requests a second wallet signature
-   * and confirms the blob decrypts before persisting. Catches wallets that produce
-   * nondeterministic ECDSA signatures (which would make restores fail).
-   * Costs one extra sign prompt at backup creation; restore stays one prompt.
-   * Default: false. Enable with `configureCotiPlugin({ verifyBackupDeterminism: true })`.
+   * **Unsafe escape hatch.** When true, skips the second-signature restore test
+   * before persisting an encrypted AES backup. A nondeterministic wallet can then
+   * save a blob that can never be restored. Default: false (determinism check on).
+   * Prefer leaving this unset — see
+   * https://docs.coti.io/coti-documentation/build-on-coti/tools/coti-wallet-plugin/aes-backup-security
    */
-  verifyBackupDeterminism?: boolean;
+  unsafeSkipBackupDeterminismCheck?: boolean;
 }
 
 let _config: CotiPluginConfig = {
@@ -157,7 +157,7 @@ let _config: CotiPluginConfig = {
   onboardingGrantPollIntervalMs: 2000,
   onboardingGrantTimeoutMs: 60000,
   additionalSnapAesWriteOrigins: [],
-  verifyBackupDeterminism: false,
+  unsafeSkipBackupDeterminismCheck: false,
 };
 
 /** Whether native COTI grants are enabled. Default: true. */

@@ -1,5 +1,6 @@
 import { ethers, type TypedDataDomain, type TypedDataField } from 'ethers';
 import type { EncryptedAesBackup } from '../config/plugin';
+import { CotiErrorCode, CotiPluginError } from '../errors';
 import { validateAesKey } from './aesKey';
 
 export interface AesBackupSigner {
@@ -18,6 +19,17 @@ export interface AesBackupVaultContext {
 /** Thrown / matched when a v1 (or otherwise unsupported) backup is presented. */
 export const OUTDATED_AES_BACKUP_ERROR =
   'Outdated AES backup format. Please re-onboard to create a new backup.';
+
+/**
+ * Stable code for wallets that cannot reproduce the backup-wrapping signature.
+ * Prefer matching `CotiErrorCode.AES_BACKUP_WALLET_NOT_SUPPORTED` on thrown errors.
+ */
+export const AES_BACKUP_WALLET_NOT_SUPPORTED =
+  CotiErrorCode.AES_BACKUP_WALLET_NOT_SUPPORTED;
+
+/** User-facing EIP-712 purpose / UI warning for backup wrap signatures. */
+export const AES_BACKUP_SIGNING_WARNING =
+  'This signature unlocks your encrypted COTI privacy key backup. Only sign from an official or explicitly trusted COTI application.';
 
 const BACKUP_PROTOCOL = 'coti-aes-backup';
 const BACKUP_FORMAT_VERSION = 2 as const;
@@ -42,8 +54,12 @@ const bytesToBase64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes))
 const base64ToBytes = (value: string) =>
   Uint8Array.from(atob(value), char => char.charCodeAt(0));
 
-const toArrayBuffer = (bytes: Uint8Array): ArrayBuffer =>
-  bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+/** Copy into a standalone Uint8Array (SubtleCrypto BufferSource-safe across realms). */
+const toBufferSource = (bytes: Uint8Array): BufferSource => {
+  const copy = new Uint8Array(new ArrayBuffer(bytes.byteLength));
+  copy.set(bytes);
+  return copy;
+};
 
 /** EIP-712 domain without chainId — wallets reject typed-data when domain.chainId
  *  differs from the active network, and backup restore/save often runs off COTI.
@@ -55,8 +71,7 @@ const getDomain = (): TypedDataDomain => ({
 });
 
 const getMessage = ({ address, chainId }: AesBackupVaultContext) => ({
-  purpose:
-    'WARNING: signing derives the key that DECRYPTS your private COTI AES key backup. Only sign in apps you trust that use the COTI wallet plugin.',
+  purpose: AES_BACKUP_SIGNING_WARNING,
   address,
   chainId,
   version: BACKUP_FORMAT_VERSION,
@@ -80,7 +95,7 @@ const deriveCryptoKey = async (
   const signatureBytes = ethers.getBytes(signature);
   const baseKey = await crypto.subtle.importKey(
     'raw',
-    toArrayBuffer(signatureBytes),
+    toBufferSource(signatureBytes),
     'HKDF',
     false,
     ['deriveKey'],
@@ -90,8 +105,8 @@ const deriveCryptoKey = async (
     {
       name: 'HKDF',
       hash: 'SHA-256',
-      salt: toArrayBuffer(HKDF_SALT),
-      info: toArrayBuffer(buildHkdfInfo(context)),
+      salt: toBufferSource(HKDF_SALT),
+      info: toBufferSource(buildHkdfInfo(context)),
     },
     baseKey,
     { name: 'AES-GCM', length: 256 },
@@ -105,14 +120,17 @@ const signBackupContext = (signer: AesBackupSigner, context: AesBackupVaultConte
 
 const gcmParams = (iv: Uint8Array, context: AesBackupVaultContext): AesGcmParams => ({
   name: 'AES-GCM',
-  iv: toArrayBuffer(iv),
-  additionalData: toArrayBuffer(buildAdditionalData(context)),
+  iv: toBufferSource(iv),
+  additionalData: toBufferSource(buildAdditionalData(context)),
 });
 
 /**
  * Maps an on-chain AesKeyBackupVault.getBackup() tuple into EncryptedAesBackup.
  * address and chainId must come from restore context (contract does not store them).
  * Accepts number | bigint for ethers v6 Result fields (Solidity ints decode as bigint).
+ *
+ * Note: optional on-chain `keyEpoch` fields are intentionally ignored for v2.
+ * Cryptographically binding key epochs is reserved for a future backup format version.
  */
 export function backupFromChainTuple(params: {
   address: string;
@@ -121,16 +139,21 @@ export function backupFromChainTuple(params: {
   iv: string | Uint8Array;
   ciphertext: string | Uint8Array;
   updatedAt: number | bigint;
-  keyEpoch?: number | bigint;
 }): EncryptedAesBackup {
   const version = Number(params.version);
   if (!Number.isInteger(version) || version !== BACKUP_FORMAT_VERSION) {
-    throw new Error(OUTDATED_AES_BACKUP_ERROR);
+    throw new CotiPluginError(
+      CotiErrorCode.AES_BACKUP_OUTDATED,
+      OUTDATED_AES_BACKUP_ERROR,
+    );
   }
 
   const updatedAtSec = Number(params.updatedAt);
   if (!Number.isFinite(updatedAtSec)) {
-    throw new Error('Invalid AES backup updatedAt.');
+    throw new CotiPluginError(
+      CotiErrorCode.AES_BACKUP_CRYPTO_VALIDATION_FAILED,
+      'Invalid AES backup updatedAt.',
+    );
   }
 
   const ivBytes = typeof params.iv === 'string' ? ethers.getBytes(params.iv) : params.iv;
@@ -148,7 +171,6 @@ export function backupFromChainTuple(params: {
     iv: bytesToBase64(ivBytes),
     ciphertext: bytesToBase64(ciphertextBytes),
     createdAt: new Date(updatedAtSec * 1000).toISOString(),
-    ...(params.keyEpoch !== undefined ? { keyEpoch: Number(params.keyEpoch) } : {}),
   };
 }
 
@@ -174,7 +196,10 @@ export const encryptAesKeyBackup = async (
   );
   const roundTripKey = validateAesKey(new TextDecoder().decode(roundTrip));
   if (roundTripKey !== normalizedKey) {
-    throw new Error('AES backup self-test failed: round-trip key mismatch.');
+    throw new CotiPluginError(
+      CotiErrorCode.AES_BACKUP_CRYPTO_VALIDATION_FAILED,
+      'AES backup self-test failed: round-trip key mismatch.',
+    );
   }
 
   return {
@@ -199,15 +224,24 @@ export const decryptAesKeyBackup = async (
     || backup.signatureKind !== 'eip712'
     || backup.kdf !== 'hkdf-sha256'
   ) {
-    throw new Error(OUTDATED_AES_BACKUP_ERROR);
+    throw new CotiPluginError(
+      CotiErrorCode.AES_BACKUP_OUTDATED,
+      OUTDATED_AES_BACKUP_ERROR,
+    );
   }
 
   if (backup.address.toLowerCase() !== context.address.toLowerCase()) {
-    throw new Error('AES backup address does not match connected wallet.');
+    throw new CotiPluginError(
+      CotiErrorCode.AES_BACKUP_CRYPTO_VALIDATION_FAILED,
+      'AES backup address does not match connected wallet.',
+    );
   }
 
   if (backup.chainId !== context.chainId) {
-    throw new Error('AES backup network does not match current COTI network.');
+    throw new CotiPluginError(
+      CotiErrorCode.AES_BACKUP_CRYPTO_VALIDATION_FAILED,
+      'AES backup network does not match current COTI network.',
+    );
   }
 
   const signature = await signBackupContext(signer, context);

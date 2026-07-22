@@ -1,8 +1,21 @@
 import '@testing-library/jest-dom';
+import { webcrypto } from 'node:crypto';
 import { vi } from 'vitest';
 
 vi.stubEnv('VITE_WALLETCONNECT_PROJECT_ID', 'vitest-walletconnect-project-id');
 
+// jsdom's SubtleCrypto rejects some BufferSources that Node accepts; use Node's
+// Web Crypto implementation for deterministic AES backup / HKDF tests.
+Object.defineProperty(globalThis, 'crypto', {
+  value: webcrypto,
+  configurable: true,
+});
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'crypto', {
+    value: webcrypto,
+    configurable: true,
+  });
+}
 // Mock window.ethereum globally
 const mockEthereum = {
   request: vi.fn(),

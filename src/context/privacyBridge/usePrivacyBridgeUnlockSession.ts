@@ -3,7 +3,7 @@ import { useAccount } from 'wagmi';
 import { getPluginConfig } from '../../config/plugin';
 import { logger } from '../../lib/logger';
 import { resolveConnectedProvider } from '../../lib/ethereum';
-import { CotiPluginError, CotiErrorCode } from '../../errors';
+import { CotiErrorCode, CotiPluginError } from '../../errors';
 import { clearAesKeyValidatedForUnlock, getValidatedAesKeyForUnlock } from '../../crypto/aesKeyValidation';
 import {
   getInitialPrivateTokens,
@@ -147,10 +147,15 @@ export const usePrivacyBridgeUnlockSession = ({
       if (backupResult.status === 'failed') {
         logger.warn(
           'Manual AES unlock succeeded but encrypted backup save failed:',
+          backupResult.code,
           backupResult.message,
         );
+        const unsupported =
+          backupResult.code === CotiErrorCode.AES_BACKUP_WALLET_NOT_SUPPORTED;
         return {
-          backupWarning: `Encrypted backup was not saved. ${backupResult.message}`,
+          backupWarning: unsupported
+            ? `This wallet cannot save a recoverable encrypted backup. ${backupResult.message}`
+            : `Encrypted backup was not saved. ${backupResult.message}`,
         };
       } else if (backupResult.status === 'cancelled') {
         logger.warn('Manual AES unlock succeeded but encrypted backup save was cancelled.');

@@ -755,10 +755,15 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           if (backupResult.status === 'failed') {
             logger.warn(
               '⚠️ AES key retrieved but encrypted backup save failed:',
+              backupResult.code,
               backupResult.message,
             );
+            const unsupported =
+              backupResult.code === CotiErrorCode.AES_BACKUP_WALLET_NOT_SUPPORTED;
             setOnboardingWarnings({
-              success: `Onboarding succeeded, but encrypted backup was not saved. ${backupResult.message}`,
+              success: unsupported
+                ? `Onboarding succeeded, but this wallet cannot save a recoverable encrypted backup. ${backupResult.message}`
+                : `Onboarding succeeded, but encrypted backup was not saved. ${backupResult.message}`,
             });
           } else if (backupResult.status === 'cancelled') {
             logger.warn('⚠️ AES key retrieved but encrypted backup save was cancelled');
