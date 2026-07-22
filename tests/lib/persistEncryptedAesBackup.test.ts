@@ -201,13 +201,16 @@ describe('persistEncryptedAesBackup', () => {
       getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }),
     };
 
+    const onBeforeSign = vi.fn();
     const result = await persistEncryptedAesBackup({
       aesKey: VALID_KEY,
       address: ADDR,
       chainId: CHAIN_ID,
       connector: connector as never,
+      onBeforeSign,
     });
 
+    expect(onBeforeSign).toHaveBeenCalledTimes(1);
     expect(signTypedData).toHaveBeenCalledTimes(1);
     expect(saveEncryptedAesBackup).toHaveBeenCalled();
     expect(result).toEqual({ status: 'saved' });

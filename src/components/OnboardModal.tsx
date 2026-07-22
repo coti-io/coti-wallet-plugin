@@ -1240,13 +1240,22 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
       || step === 'saving-backup'
     ) {
       return (
-        <div style={styles.calloutBox}>
+        <div style={styles.calloutBox} data-testid="finalizing-callout">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00E5FF" strokeWidth="2">
             <circle cx="12" cy="12" r="10" />
             <polyline points="20 6 9 17 4 12" />
           </svg>
           <p style={styles.calloutText}>
-            <strong>Finalizing:</strong> Securing your AES key and refreshing private balances.
+            {step === 'saving-backup' ? (
+              <>
+                <strong>Finalizing:</strong> Securing your privacy key backup. Your wallet may ask for
+                up to two signatures — one to encrypt the backup, one to verify restore works.
+              </>
+            ) : (
+              <>
+                <strong>Finalizing:</strong> Securing your AES key and refreshing private balances.
+              </>
+            )}
           </p>
         </div>
       );
