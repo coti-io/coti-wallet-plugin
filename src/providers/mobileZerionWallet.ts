@@ -2,6 +2,7 @@ import { createConnector } from 'wagmi';
 import { injected, walletConnect } from 'wagmi/connectors';
 import type { Wallet } from '@rainbow-me/rainbowkit';
 import { isUnsupportedRpcMethodError } from '../utils/walletErrors';
+import { asInjectedTarget } from './injectedTarget';
 
 function isMobileBrowser(): boolean {
   if (typeof navigator === 'undefined') return false;
@@ -206,11 +207,11 @@ export const mobileZerionWallet = ({ projectId }: { projectId: string }): Wallet
             // wagmi injected#disconnect calls wallet_revokePermissions (EIP-2255).
             // Zerion does not implement it and rejects with -32601.
             const base = injected({
-              target: {
+              target: asInjectedTarget({
                 id: 'zerion',
                 name: 'Zerion',
                 provider: getZerionInjectedProvider,
-              },
+              }),
             })(config);
             return {
               ...base,
