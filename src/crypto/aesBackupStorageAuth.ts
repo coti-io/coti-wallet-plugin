@@ -2,6 +2,10 @@ import { ethers, type TypedDataDomain, type TypedDataField } from 'ethers';
 import { CotiErrorCode, CotiPluginError } from '../errors';
 
 /**
+ * @deprecated Remote AES backup is deprecated. Prefer localStorage via
+ * `onboardingServices` callbacks. This module is retained for compatibility
+ * only and should not be used for new integrations.
+ *
  * Separate EIP-712 authentication for remote AES backup storage APIs.
  *
  * IMPORTANT: Never reuse the backup-wrapping signature (or its EIP-712 domain)

@@ -25,13 +25,13 @@ const ONBOARDING_GRANT_MIN_BALANCE_COTI =
 const backupKey = (address: string, chainId: number) =>
   `coti-example:aes-backup:${chainId}:${address.toLowerCase()}`;
 
-/** Development / same-device convenience storage only — not a production backup backend. */
+/** Development / same-device localStorage backup — supported encrypted-backup path. */
 const fetchEncryptedAesBackup = async (address: string, chainId: number) => {
   const raw = window.localStorage.getItem(backupKey(address, chainId));
   return raw ? JSON.parse(raw) as EncryptedAesBackup : null;
 };
 
-/** Development / same-device convenience storage only — not a production backup backend. */
+/** Development / same-device localStorage backup — supported encrypted-backup path. */
 const saveEncryptedAesBackup = async (
   address: string,
   chainId: number,
@@ -41,7 +41,7 @@ const saveEncryptedAesBackup = async (
   window.localStorage.setItem(backupKey(address, chainId), JSON.stringify(backup));
 };
 
-/** Development / same-device convenience storage only — not a production backup backend. */
+/** Development / same-device localStorage backup — supported encrypted-backup path. */
 const deleteEncryptedAesBackup = async (address: string, chainId: number) => {
   window.localStorage.removeItem(backupKey(address, chainId));
 };

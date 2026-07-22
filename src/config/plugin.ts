@@ -42,10 +42,9 @@ export interface OnboardingServices {
    * Disabled: no grant/backup features. Custom: use provided callbacks.
    * Official is reserved for stable COTI-hosted APIs.
    *
-   * Remote storage must authenticate fetch/save/replace/delete with a challenge
-   * distinct from the AES backup wrap signature — see
-   * https://docs.coti.io/coti-documentation/build-on-coti/tools/coti-wallet-plugin/aes-backup-remote-storage
-   * Do not reuse the wrap EIP-712 signature as an API bearer token.
+   * Encrypted AES backup persistence should use browser localStorage via the
+   * fetch/save/replace/delete callbacks. Remote AES backup is deprecated and
+   * should not be used for new integrations.
    */
   mode?: 'disabled' | 'custom' | 'official';
   grantNativeCoti?: (request: OnboardingServiceRequest) => Promise<GrantResult>;
