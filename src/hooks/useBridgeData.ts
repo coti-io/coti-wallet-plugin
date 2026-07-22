@@ -23,6 +23,9 @@ export interface BridgeData extends BridgeFees {
   nativeCotiFee: string;
   bridgeBalance: string;
   isPaused: boolean;
+  /** PoD portals pause deposits and withdrawals independently (factory-level flags). */
+  depositsPaused?: boolean;
+  withdrawalsPaused?: boolean;
   /** COTI bridges only — false means deposits revert with DepositDisabled; withdraws still work. */
   isDepositEnabled: boolean;
   tokenDecimals: number;

@@ -49,6 +49,8 @@ export const sepoliaChain: ChainConfig = {
     PrivacyPortalMTT: PORTAL_MTT,
     PrivacyPortalUSDC: PORTAL_USDC,
     PrivacyPortalETH: PORTAL_ETH,
+    // PrivacyPortalFactory — pauseController of all portals above (verified on-chain 2026-07-16).
+    PrivacyPortalFactory: "0xE26A0dB663a9D546AB4dFd02d8B4305E3DF9cE73",
   },
   tokens: [
     {
