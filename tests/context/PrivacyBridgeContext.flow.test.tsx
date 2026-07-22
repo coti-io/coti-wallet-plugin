@@ -560,7 +560,8 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
       expect(latest!.walletAddress).toBe('');
     });
 
-    it('preserves session key record on wagmi disconnect by default', async () => {
+    it('preserves session key record on wagmi disconnect when opting out', async () => {
+      configureCotiPlugin({ clearSessionKeyOnWagmiDisconnect: false });
       await connectWagmi();
       await act(async () => {
         h.balanceUpdater.params?.setSessionAesKey('h'.repeat(32), WALLET_A);
@@ -576,7 +577,7 @@ describe('PrivacyBridgeContext (flow coverage)', () => {
       expect(latest!.sessionAesKey).toBe('h'.repeat(32));
     });
 
-    it('clears session key and snap cache on wagmi disconnect when configured', async () => {
+    it('clears session key and snap cache on wagmi disconnect by default', async () => {
       configureCotiPlugin({ clearSessionKeyOnWagmiDisconnect: true });
       await connectWagmi();
       await act(async () => {

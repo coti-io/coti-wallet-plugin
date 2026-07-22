@@ -93,8 +93,9 @@ export interface CotiPluginConfig {
   debug?: boolean;
   /**
    * When true, clears the in-memory session AES key (and Snap cache) on implicit
-   * wagmi/RainbowKit disconnect. Default false preserves the key so reconnecting
-   * the same wallet can skip Snap re-fetch; use true for stricter shared-browser security.
+   * wagmi/RainbowKit disconnect. Default true for shared-browser safety (matches
+   * lock). Set false to preserve the key so reconnecting the same wallet can
+   * skip Snap re-fetch / restore.
    */
   clearSessionKeyOnWagmiDisconnect?: boolean;
   /**
@@ -147,7 +148,7 @@ let _config: CotiPluginConfig = {
   snapEnabled: true,
   defaultNetworkId: undefined,
   debug: false,
-  clearSessionKeyOnWagmiDisconnect: false,
+  clearSessionKeyOnWagmiDisconnect: true,
   waitForBalanceRefreshAfterTransfer: false,
   onboardingServices: { mode: 'disabled' },
   onboardingGrantEnabled: true,
