@@ -25,7 +25,7 @@ describe('WalletSignPrompt', () => {
     expect(screen.getByText(/may prompt up to twice/i)).toBeInTheDocument();
     expect(screen.getByText(/once to encrypt, once to verify restore/i)).toBeInTheDocument();
     expect(
-      screen.getByText(/Only sign from an official or explicitly trusted COTI application/i),
+      screen.getByText(/Only sign from an official or trusted COTI app/i),
     ).toBeInTheDocument();
   });
 

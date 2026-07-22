@@ -18,12 +18,14 @@ export interface WalletSignPromptProps {
   purpose?: WalletSignPromptPurpose;
 }
 
-function getPurposeDescription(purpose: WalletSignPromptPurpose, walletName: string): string {
+const TRUST_LINE = 'Only sign from an official or trusted COTI app.';
+
+function getPurposeBody(purpose: WalletSignPromptPurpose, walletName: string): string {
   if (purpose === 'save-backup') {
-    return `Approve the signature(s) in ${walletName} to encrypt your COTI privacy key backup. Your wallet may prompt up to twice — once to encrypt, once to verify restore works. Only sign from an official or explicitly trusted COTI application.`;
+    return `Approve the signature(s) in ${walletName} to encrypt your COTI privacy key backup. Your wallet may prompt up to twice — once to encrypt, once to verify restore works.`;
   }
 
-  return `Approve the signature in ${walletName} to decrypt your encrypted COTI privacy key backup and unlock private balances. This signature unlocks your encrypted COTI privacy key backup. Only sign from an official or explicitly trusted COTI application.`;
+  return `Approve the signature in ${walletName} to decrypt your COTI privacy key backup and unlock private data.`;
 }
 
 export const WalletSignPrompt: React.FC<WalletSignPromptProps> = ({
@@ -61,8 +63,13 @@ export const WalletSignPrompt: React.FC<WalletSignPromptProps> = ({
             </h2>
           </div>
 
-          <p id="wallet-sign-prompt-description" style={styles.description}>
-            {getPurposeDescription(purpose, walletName)}
+          <p
+            id="wallet-sign-prompt-description"
+            style={{ ...styles.description, width: '100%', textAlign: 'left' }}
+          >
+            {getPurposeBody(purpose, walletName)}
+            <br />
+            {TRUST_LINE}
           </p>
 
           <div style={styles.calloutBox}>
