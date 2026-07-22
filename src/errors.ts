@@ -37,6 +37,19 @@ export enum CotiErrorCode {
   /** Onboarding process did not complete or key retrieval failed. */
   ONBOARDING_INCOMPLETE = 'ONBOARDING_INCOMPLETE',
 
+  // ─── AES backup (signature-derived wrap) ───────────────────────────────
+  /**
+   * Wallet did not reproduce an identical EIP-712 signature for the backup
+   * wrap — nondeterministic / unsupported signer. Backup was not persisted.
+   */
+  AES_BACKUP_WALLET_NOT_SUPPORTED = 'AES_BACKUP_WALLET_NOT_SUPPORTED',
+  /** Backup encrypt/decrypt self-test or cryptographic validation failed. */
+  AES_BACKUP_CRYPTO_VALIDATION_FAILED = 'AES_BACKUP_CRYPTO_VALIDATION_FAILED',
+  /** Host backup storage service (fetch/save/replace/delete) failed. */
+  AES_BACKUP_STORAGE_FAILED = 'AES_BACKUP_STORAGE_FAILED',
+  /** Presented backup uses an unsupported / outdated format (e.g. v1). */
+  AES_BACKUP_OUTDATED = 'AES_BACKUP_OUTDATED',
+
   // ─── Network ───────────────────────────────────────────────────────────
   /** Connected to an unsupported chain ID. */
   UNSUPPORTED_NETWORK = 'UNSUPPORTED_NETWORK',

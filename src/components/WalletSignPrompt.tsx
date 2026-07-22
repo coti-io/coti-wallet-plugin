@@ -20,10 +20,10 @@ export interface WalletSignPromptProps {
 
 function getPurposeDescription(purpose: WalletSignPromptPurpose, walletName: string): string {
   if (purpose === 'save-backup') {
-    return `Approve the signature in ${walletName} to encrypt your private COTI AES key backup. This signature unlocks that backup — only approve in apps you trust that use the COTI wallet plugin.`;
+    return `Approve the signature in ${walletName} to encrypt your COTI privacy key backup. This signature unlocks your encrypted COTI privacy key backup. Only sign from an official or explicitly trusted COTI application.`;
   }
 
-  return `Approve the signature in ${walletName} to decrypt your encrypted COTI AES key backup and unlock private balances. This signature unlocks that backup — only approve in apps you trust that use the COTI wallet plugin.`;
+  return `Approve the signature in ${walletName} to decrypt your encrypted COTI privacy key backup and unlock private balances. This signature unlocks your encrypted COTI privacy key backup. Only sign from an official or explicitly trusted COTI application.`;
 }
 
 export const WalletSignPrompt: React.FC<WalletSignPromptProps> = ({

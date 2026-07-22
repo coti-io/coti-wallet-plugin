@@ -21,8 +21,10 @@ describe('WalletSignPrompt', () => {
       <WalletSignPrompt isOpen walletType="metamask" purpose="save-backup" />,
     );
 
-    expect(screen.getByText(/encrypt your private COTI AES key backup/i)).toBeInTheDocument();
-    expect(screen.getByText(/only approve in apps you trust that use the COTI wallet plugin/i)).toBeInTheDocument();
+    expect(screen.getByText(/encrypt your COTI privacy key backup/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Only sign from an official or explicitly trusted COTI application/i),
+    ).toBeInTheDocument();
   });
 
   it('uses the shared light-theme surface fills', () => {

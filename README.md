@@ -15,6 +15,8 @@ Full documentation lives in the [COTI documentation](https://docs.coti.io/coti-d
 | Configuration | [Configuration](https://docs.coti.io/coti-documentation/build-on-coti/tools/coti-wallet-plugin/configuration) |
 | API reference | [API Reference](https://docs.coti.io/coti-documentation/build-on-coti/tools/coti-wallet-plugin/api-reference) |
 | AES key onboarding | [AES Key Onboarding](https://docs.coti.io/coti-documentation/build-on-coti/tools/coti-wallet-plugin/aes-key-onboarding) |
+| AES backup security | [AES Backup Security](https://docs.coti.io/coti-documentation/build-on-coti/tools/coti-wallet-plugin/aes-backup-security) |
+| Secure remote AES backup storage | [Secure Remote AES Backup Storage](https://docs.coti.io/coti-documentation/build-on-coti/tools/coti-wallet-plugin/aes-backup-remote-storage) |
 | Onboard modal theming | [Onboard Modal Theming](https://docs.coti.io/coti-documentation/build-on-coti/tools/coti-wallet-plugin/onboard-modal-theme) |
 | Example app | [Example App](https://docs.coti.io/coti-documentation/build-on-coti/tools/coti-wallet-plugin/example-app) |
 
