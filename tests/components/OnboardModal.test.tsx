@@ -128,6 +128,24 @@ describe('OnboardModal', () => {
     );
 
     expect(screen.getByText(/Finalizing/i)).toBeInTheDocument();
+    expect(screen.getByTestId('finalizing-callout')).toHaveTextContent(
+      /Securing your AES key and refreshing private balances/i,
+    );
+
+    rerender(
+      <OnboardModal
+        {...defaultProps}
+        isLoading={true}
+        currentStep="saving-backup"
+      />,
+    );
+
+    expect(screen.getByTestId('finalizing-callout')).toHaveTextContent(
+      /up to two signatures/i,
+    );
+    expect(screen.getByTestId('finalizing-callout')).toHaveTextContent(
+      /one to verify restore works/i,
+    );
   });
 
   it('shows error screen with message and retry button', () => {
