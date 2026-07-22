@@ -143,7 +143,7 @@ const defaultStyles = {
     fontSize: '13px',
     lineHeight: 1.6,
     marginBottom: '16px',
-    maxWidth: '90%',
+    maxWidth: '100%',
   },
   infoLink: {
     display: 'inline-flex',
