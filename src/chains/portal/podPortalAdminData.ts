@@ -39,14 +39,12 @@ async function fetchPortalRow(
     privateTokenIcon: privateToken?.icon || "",
     tokenDecimals: token.decimals,
     feeTokenSymbol: nativeSymbol,
-    // PoD portals have no deposit/withdraw limits
     minDepositAmount: "N/A",
     maxDepositAmount: "N/A",
     minWithdrawAmount: "N/A",
     maxWithdrawAmount: "N/A",
     accumulatedFees: "0",
     nativeCotiFee: "0",
-    // No readable pause / deposit-enable flags on the portal
     isPaused: false,
     isDepositEnabled: true,
     isLoading: false,
@@ -54,17 +52,27 @@ async function fetchPortalRow(
 
   try {
     const portal = new ethers.Contract(portalAddress, POD_PORTAL_ADMIN_ABI, provider);
-    const [depCfg, wdCfg, accFees, balance] = await Promise.all([
-      portal.getFeeConfig(true),
-      portal.getFeeConfig(false),
-      portal.accumulatedPortalFees().catch(() => 0n),
-      token.isNative
-        ? provider.getBalance(portalAddress)
-        : token.addressKey && config.addresses[token.addressKey]
+    const [depCfg, wdCfg, accFees, balance, paused, depositEnabled, minDep, maxDep, minWd, maxWd] =
+      await Promise.all([
+        portal.getFeeConfig(true),
+        portal.getFeeConfig(false),
+        portal.accumulatedPortalFees().catch(() => 0n),
+        // Native-wrapped portals (ETH/AVAX) hold WETH/WAVAX collateral, not native coin.
+        token.addressKey && config.addresses[token.addressKey]
           ? new ethers.Contract(config.addresses[token.addressKey], ERC20_BALANCE_ABI, provider)
               .balanceOf(portalAddress).catch(() => 0n)
-          : Promise.resolve(0n),
-    ]);
+          : token.isNative
+            ? provider.getBalance(portalAddress)
+            : Promise.resolve(0n),
+        portal.paused().catch(() => false),
+        portal.isDepositEnabled().catch(() => true),
+        portal.minDepositAmount().catch(() => null),
+        portal.maxDepositAmount().catch(() => null),
+        portal.minWithdrawAmount().catch(() => null),
+        portal.maxWithdrawAmount().catch(() => null),
+      ]);
+    const formatLimit = (value: bigint | null) =>
+      value == null ? "N/A" : ethers.formatUnits(value, token.decimals);
     return {
       ...base,
       depositFixedFee: formatFee(depCfg[0]),
@@ -75,6 +83,12 @@ async function fetchPortalRow(
       withdrawMaxFee: formatFee(wdCfg[2]),
       accumulatedCotiFees: ethers.formatEther(accFees),
       bridgeBalance: ethers.formatUnits(balance, token.decimals),
+      isPaused: Boolean(paused),
+      isDepositEnabled: Boolean(depositEnabled),
+      minDepositAmount: formatLimit(minDep),
+      maxDepositAmount: formatLimit(maxDep),
+      minWithdrawAmount: formatLimit(minWd),
+      maxWithdrawAmount: formatLimit(maxWd),
       error: null,
     };
   } catch (err) {

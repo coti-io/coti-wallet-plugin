@@ -76,26 +76,54 @@ export const PRIVACY_PORTAL_ABI = [
 ] as const;
 
 /**
- * Owner/admin surface of the PoD PrivacyPortal contracts (EIP-1167 proxies;
- * all portals on a chain share one implementation). Recovered via bytecode
- * selector analysis and live eth_calls — the portal source is not published
- * and the contracts are unverified on explorers.
+ * Admin/operator surface of PoD PrivacyPortal instances (EIP-1167 proxies).
+ * Access is enforced via the PrivacyPortalFactory (`onlyFactoryAdmin` /
+ * `onlyFactoryOperator`) — portals have no Ownable.
  *
- * Assumptions pending on-chain confirmation:
- * - getFeeConfig(true) is the DEPOSIT config (both configs are currently
- *   identical on every deployed portal, so polarity is unverified);
- * - fixedFee/maxFee are denominated in native wei (ETH on Sepolia, AVAX on
- *   Fuji); percentageBps shares COTI's FEE_DIVISOR = 1e6 scale.
- * - maxFee == type(uint128).max is the deployed "no cap" sentinel.
+ * Fee assumptions:
+ * - getFeeConfig(true) is the DEPOSIT config;
+ * - fixedFee/maxFee are native wei (ETH on Sepolia, AVAX on Fuji);
+ * - percentageBps uses FEE_DIVISOR = 1e6;
+ * - maxFee == type(uint128).max is the "no max fee cap" sentinel.
  */
 export const POD_PORTAL_ADMIN_ABI = [
-  "function owner() view returns (address)",
   "function setDepositFee(uint256 fixedFee, uint256 percentageBps, uint256 maxFee)",
   "function setWithdrawFee(uint256 fixedFee, uint256 percentageBps, uint256 maxFee)",
   "function getFeeConfig(bool isDeposit) view returns (uint256 fixedFee, uint256 percentageBps, uint256 maxFee)",
   "function accumulatedPortalFees() view returns (uint256)",
   "function estimateDepositFees(uint256 amount) view returns (uint256 portalFee,bool usedDynamicPricing,uint256 mintTotalFee,uint256 mintCallbackFee)",
   "function estimateWithdrawFees(uint256 amount) view returns (uint256 portalFee,bool usedDynamicPricing,uint256 transferTotalFee,uint256 transferCallbackFee)",
+  "function pause()",
+  "function unpause()",
+  "function paused() view returns (bool)",
+  "function setLimits(uint256 minDeposit, uint256 maxDeposit, uint256 minWithdraw, uint256 maxWithdraw)",
+  "function minDepositAmount() view returns (uint256)",
+  "function maxDepositAmount() view returns (uint256)",
+  "function minWithdrawAmount() view returns (uint256)",
+  "function maxWithdrawAmount() view returns (uint256)",
+  "function setIsDepositEnabled(bool enabled)",
+  "function isDepositEnabled() view returns (bool)",
+  "function withdrawPortalFees(uint256 amount)",
+  "function rescueNative(uint256 amount)",
+  "function rescueERC20(address token, uint256 amount)",
+] as const;
+
+/**
+ * PrivacyPortalFactory — factory-wide admin/operator roles apply to all
+ * portals created by this factory (isAdmin / isOperator).
+ */
+export const POD_PORTAL_FACTORY_ABI = [
+  "function isAdmin(address account) view returns (bool)",
+  "function isOperator(address account) view returns (bool)",
+  "function DEFAULT_ADMIN_ROLE() view returns (bytes32)",
+  "function OPERATOR_ROLE() view returns (bytes32)",
+  "function hasRole(bytes32 role, address account) view returns (bool)",
+  "function grantRole(bytes32 role, address account)",
+  "function revokeRole(bytes32 role, address account)",
+  "function feeRecipient() view returns (address)",
+  "function rescueRecipient() view returns (address)",
+  "event RoleGranted(bytes32 indexed role, address indexed account, address indexed sender)",
+  "event RoleRevoked(bytes32 indexed role, address indexed account, address indexed sender)",
 ] as const;
 
 export const POD_PTOKEN_ABI = [
