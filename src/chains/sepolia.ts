@@ -18,6 +18,7 @@ const P_MTT = "0x1566ADA98695D39b2D5A8e1359d7Af9D567c74ab";
 const PORTAL_ETH = "0x7666F6576956530E2D56CDB548b71e62286d1d18";
 const PORTAL_USDC = "0x79679CE36664c3b1360501B2c7ea6bbee65a2717";
 const PORTAL_MTT = "0x621E744eF059262Fd531a0f345d38Ce31d92D105";
+const PRIVACY_PORTAL_FACTORY = "0x0117d640ce96805739cf5f82683b0dd9532541ee";
 
 export const sepoliaChain: ChainConfig = {
   id: SEPOLIA_CHAIN_ID,
@@ -49,6 +50,7 @@ export const sepoliaChain: ChainConfig = {
     PrivacyPortalMTT: PORTAL_MTT,
     PrivacyPortalUSDC: PORTAL_USDC,
     PrivacyPortalETH: PORTAL_ETH,
+    PrivacyPortalFactory: PRIVACY_PORTAL_FACTORY,
   },
   tokens: [
     {

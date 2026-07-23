@@ -19,6 +19,7 @@ const P_MTT = "0xFC6283a9000d7D5Cf8A058A04A9ED90265Af1634";
 const PORTAL_AVAX = "0x20e7239cd78BDf2E8f34c52947e54fE68D7b536F";
 const PORTAL_USDC = "0x090D2dc8C38275939b9381Ff2aa53012Ff412E34";
 const PORTAL_MTT = "0xf4100d21eB4B1a66aDde58A01D1E32356F268b3F";
+const PRIVACY_PORTAL_FACTORY = "0xf3cf653e1baee7b4e4001067780dee38991b1cbd";
 
 export const avalancheFujiChain: ChainConfig = {
   id: AVALANCHE_FUJI_CHAIN_ID,
@@ -50,6 +51,7 @@ export const avalancheFujiChain: ChainConfig = {
     PrivacyPortalMTT: PORTAL_MTT,
     PrivacyPortalUSDC: PORTAL_USDC,
     PrivacyPortalAVAX: PORTAL_AVAX,
+    PrivacyPortalFactory: PRIVACY_PORTAL_FACTORY,
   },
   tokens: [
     {
