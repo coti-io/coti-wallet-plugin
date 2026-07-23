@@ -1,27 +1,49 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  AES_BACKUP_SIGNING_WARNING,
+  AES_BACKUP_WALLET_NOT_SUPPORTED,
+  backupFromChainTuple,
   decryptAesKeyBackup,
   encryptAesKeyBackup,
+  OUTDATED_AES_BACKUP_ERROR,
   type AesBackupSigner,
 } from '../../src/crypto/aesKeyBackupVault';
+import type { EncryptedAesBackup } from '../../src/config/plugin';
+import { CotiErrorCode, isCotiPluginError } from '../../src/errors';
+import { ethers } from 'ethers';
 
 const ADDRESS = '0x1234567890abcdef1234567890abcdef12345678';
 const CHAIN_ID = 7082400;
+const VALID_SIG = '0x' + 'ab'.repeat(65);
+const OTHER_SIG = '0x' + 'cd'.repeat(65);
+/** Same r||s bytes as VALID_SIG but with recovery id flipped — different serialization. */
+const ALTERED_SERIALIZATION_SIG = '0x' + 'ab'.repeat(64) + 'cd';
 
-function signer(signature = '0xabc'): AesBackupSigner {
+function signer(signature: string | string[] = VALID_SIG): AesBackupSigner {
+  const values = Array.isArray(signature) ? signature : [signature];
+  let i = 0;
   return {
-    signTypedData: vi.fn().mockResolvedValue(signature),
+    signTypedData: vi.fn().mockImplementation(async () => {
+      const value = values[Math.min(i, values.length - 1)];
+      i += 1;
+      return value;
+    }),
   };
 }
 
 describe('aesKeyBackupVault', () => {
-  it('encrypts and decrypts a 32-char AES key', async () => {
+  it('encrypts and decrypts a 32-char AES key (v2 HKDF + AAD)', async () => {
     const aesKey = 'a'.repeat(32);
     const backupSigner = signer();
     const backup = await encryptAesKeyBackup(aesKey, backupSigner, {
       address: ADDRESS,
       chainId: CHAIN_ID,
     });
+
+    expect(backup.version).toBe(2);
+    expect(backup.kdf).toBe('hkdf-sha256');
+    expect(backup.signatureKind).toBe('eip712');
+    expect(backup).not.toHaveProperty('keyEpoch');
 
     await expect(
       decryptAesKeyBackup(backup, backupSigner, {
@@ -31,20 +53,29 @@ describe('aesKeyBackupVault', () => {
     ).resolves.toBe(aesKey);
   });
 
-  it('encrypts and decrypts a 32-char AES key', async () => {
-    const aesKey = 'b'.repeat(32);
+  it('uses the sensitive unlock warning in the EIP-712 purpose', async () => {
     const backupSigner = signer();
-    const backup = await encryptAesKeyBackup(aesKey, backupSigner, {
+    await encryptAesKeyBackup('a'.repeat(32), backupSigner, {
       address: ADDRESS,
       chainId: CHAIN_ID,
     });
 
-    await expect(
-      decryptAesKeyBackup(backup, backupSigner, {
+    expect(backupSigner.signTypedData).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'COTI AES Backup',
+        version: '2',
+      }),
+      expect.any(Object),
+      expect.objectContaining({
+        purpose: AES_BACKUP_SIGNING_WARNING,
         address: ADDRESS,
         chainId: CHAIN_ID,
+        version: 2,
       }),
-    ).resolves.toBe(aesKey);
+    );
+    const domain = vi.mocked(backupSigner.signTypedData).mock.calls[0][0];
+    expect(domain).not.toHaveProperty('chainId');
+    expect(domain).toHaveProperty('salt');
   });
 
   it('rejects backups for a different address', async () => {
@@ -74,5 +105,171 @@ describe('aesKeyBackupVault', () => {
       }),
     ).rejects.toThrow('network does not match');
   });
-});
 
+  it('rejects outdated v1 backups with AES_BACKUP_OUTDATED', async () => {
+    const v1Backup = {
+      version: 1,
+      address: ADDRESS,
+      chainId: CHAIN_ID,
+      signatureKind: 'eip712',
+      iv: btoa('0123456789ab'),
+      ciphertext: btoa('not-a-real-ciphertext'),
+      createdAt: new Date().toISOString(),
+    } as unknown as EncryptedAesBackup;
+
+    await expect(
+      decryptAesKeyBackup(v1Backup, signer(), {
+        address: ADDRESS,
+        chainId: CHAIN_ID,
+      }),
+    ).rejects.toSatisfy((error: unknown) => (
+      isCotiPluginError(error)
+      && error.code === CotiErrorCode.AES_BACKUP_OUTDATED
+      && error.message === OUTDATED_AES_BACKUP_ERROR
+    ));
+  });
+
+  it('fails decryption when AAD-bound metadata is tampered', async () => {
+    const aesKey = 'e'.repeat(32);
+    const backupSigner = signer();
+    const backup = await encryptAesKeyBackup(aesKey, backupSigner, {
+      address: ADDRESS,
+      chainId: CHAIN_ID,
+    });
+
+    const tampered: EncryptedAesBackup = {
+      ...backup,
+      address: '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd',
+    };
+
+    await expect(
+      decryptAesKeyBackup(tampered, backupSigner, {
+        address: '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd',
+        chainId: CHAIN_ID,
+      }),
+    ).rejects.toThrow();
+  });
+
+  it('fails when signatures are nondeterministic across requests', async () => {
+    const aesKey = 'f'.repeat(32);
+    const backupSigner = signer([VALID_SIG, OTHER_SIG]);
+    const backup = await encryptAesKeyBackup(aesKey, backupSigner, {
+      address: ADDRESS,
+      chainId: CHAIN_ID,
+    });
+
+    await expect(
+      decryptAesKeyBackup(backup, backupSigner, {
+        address: ADDRESS,
+        chainId: CHAIN_ID,
+      }),
+    ).rejects.toThrow();
+  });
+
+  it('fails when signature serialization changes between encrypt and restore', async () => {
+    const aesKey = '1'.repeat(32);
+    const backupSigner = signer([VALID_SIG, ALTERED_SERIALIZATION_SIG]);
+    const backup = await encryptAesKeyBackup(aesKey, backupSigner, {
+      address: ADDRESS,
+      chainId: CHAIN_ID,
+    });
+
+    await expect(
+      decryptAesKeyBackup(backup, backupSigner, {
+        address: ADDRESS,
+        chainId: CHAIN_ID,
+      }),
+    ).rejects.toThrow();
+  });
+
+  it('restores after a simulated page reload with a fresh reproducible signer', async () => {
+    const aesKey = '2'.repeat(32);
+    const createSigner = await encryptAesKeyBackup(aesKey, signer(VALID_SIG), {
+      address: ADDRESS,
+      chainId: CHAIN_ID,
+    });
+
+    // "Reload": new signer instance, same address, same deterministic signature bytes.
+    const restoreSigner = signer(VALID_SIG);
+    await expect(
+      decryptAesKeyBackup(createSigner, restoreSigner, {
+        address: ADDRESS,
+        chainId: CHAIN_ID,
+      }),
+    ).resolves.toBe(aesKey);
+  });
+
+  it('restores using a different signer implementation for the same address', async () => {
+    const aesKey = '3'.repeat(32);
+    const backup = await encryptAesKeyBackup(aesKey, signer(VALID_SIG), {
+      address: ADDRESS,
+      chainId: CHAIN_ID,
+    });
+
+    const alternateImplementation: AesBackupSigner = {
+      signTypedData: async () => VALID_SIG,
+    };
+
+    await expect(
+      decryptAesKeyBackup(backup, alternateImplementation, {
+        address: ADDRESS,
+        chainId: CHAIN_ID,
+      }),
+    ).resolves.toBe(aesKey);
+  });
+
+  it('exports AES_BACKUP_WALLET_NOT_SUPPORTED as a stable code string', () => {
+    expect(AES_BACKUP_WALLET_NOT_SUPPORTED).toBe('AES_BACKUP_WALLET_NOT_SUPPORTED');
+    expect(AES_BACKUP_WALLET_NOT_SUPPORTED).toBe(CotiErrorCode.AES_BACKUP_WALLET_NOT_SUPPORTED);
+  });
+
+  it('maps an on-chain getBackup tuple into EncryptedAesBackup without keyEpoch', () => {
+    const iv = ethers.randomBytes(12);
+    const ciphertext = ethers.randomBytes(48);
+    const backup = backupFromChainTuple({
+      address: ADDRESS,
+      chainId: CHAIN_ID,
+      version: 2,
+      iv,
+      ciphertext,
+      updatedAt: 1_700_000_000,
+    });
+
+    expect(backup.version).toBe(2);
+    expect(backup.kdf).toBe('hkdf-sha256');
+    expect(backup.address).toBe(ADDRESS.toLowerCase());
+    expect(backup.chainId).toBe(CHAIN_ID);
+    expect(backup).not.toHaveProperty('keyEpoch');
+    expect(backup.createdAt).toBe(new Date(1_700_000_000 * 1000).toISOString());
+  });
+
+  it('accepts ethers v6 bigint version and updatedAt from contract reads', () => {
+    const iv = ethers.randomBytes(12);
+    const ciphertext = ethers.randomBytes(48);
+    const backup = backupFromChainTuple({
+      address: ADDRESS,
+      chainId: CHAIN_ID,
+      version: 2n,
+      iv,
+      ciphertext,
+      updatedAt: 1_700_000_000n,
+    });
+
+    expect(backup.version).toBe(2);
+    expect(backup).not.toHaveProperty('keyEpoch');
+    expect(backup.createdAt).toBe(new Date(1_700_000_000 * 1000).toISOString());
+  });
+
+  it('rejects on-chain tuples with unsupported version', () => {
+    expect(() =>
+      backupFromChainTuple({
+        address: ADDRESS,
+        chainId: CHAIN_ID,
+        version: 1n,
+        iv: ethers.randomBytes(12),
+        ciphertext: ethers.randomBytes(48),
+        updatedAt: 1n,
+      }),
+    ).toThrow(OUTDATED_AES_BACKUP_ERROR);
+  });
+});

@@ -59,7 +59,7 @@ function makeSigner(aesKey: string | null | undefined, opts: { generateThrows?: 
     getUserOnboardInfo: vi.fn().mockReturnValue(
       aesKey === undefined ? undefined : { aesKey },
     ),
-    signTypedData: vi.fn().mockResolvedValue('0xbackup-signature'),
+    signTypedData: vi.fn().mockResolvedValue('0x' + 'ab'.repeat(65)),
   };
 }
 
@@ -525,6 +525,7 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       ethersState.signer = signer;
       wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
       wagmiState.chainId = COTI_TESTNET;
+      const deleteEncryptedAesBackup = vi.fn().mockResolvedValue(undefined);
       configureCotiPlugin({
         onboardingServices: {
           mode: 'custom',
@@ -537,6 +538,7 @@ describe('useAesKeyProvider (full branch coverage)', () => {
             ciphertext: 'bad',
             createdAt: new Date().toISOString(),
           }),
+          deleteEncryptedAesBackup,
         },
       });
 
@@ -549,7 +551,45 @@ describe('useAesKeyProvider (full branch coverage)', () => {
 
       expect(key).toBe(VALID_KEY);
       expect(signer.generateOrRecoverAes).toHaveBeenCalled();
-      expect(result.current.onboardingWarnings.intro).toContain('Encrypted backup could not be restored');
+      expect(result.current.onboardingWarnings.intro).toContain('outdated format');
+      expect(deleteEncryptedAesBackup).toHaveBeenCalledWith({
+        address: ADDR,
+        chainId: COTI_TESTNET,
+      });
+    });
+
+    it('continues onboarding when clearing an outdated backup fails', async () => {
+      const signer = makeSigner(VALID_KEY);
+      ethersState.signer = signer;
+      wagmiState.connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
+      wagmiState.chainId = COTI_TESTNET;
+      const deleteEncryptedAesBackup = vi.fn().mockRejectedValue(new Error('storage locked'));
+      configureCotiPlugin({
+        onboardingServices: {
+          mode: 'custom',
+          fetchEncryptedAesBackup: vi.fn().mockResolvedValue({
+            version: 1,
+            address: ADDR,
+            chainId: COTI_TESTNET,
+            signatureKind: 'eip712',
+            iv: 'bad',
+            ciphertext: 'bad',
+            createdAt: new Date().toISOString(),
+          }),
+          deleteEncryptedAesBackup,
+        },
+      });
+
+      const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'rabby' })));
+
+      let key: string | null = null;
+      await act(async () => {
+        key = await result.current.getAesKey(ADDR);
+      });
+
+      expect(key).toBe(VALID_KEY);
+      expect(deleteEncryptedAesBackup).toHaveBeenCalled();
+      expect(result.current.onboardingWarnings.intro).toContain('outdated format');
     });
 
     it('calls grant and waits for balance when native COTI is below threshold', async () => {

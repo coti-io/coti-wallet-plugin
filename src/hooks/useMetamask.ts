@@ -231,8 +231,7 @@ export const useMetamask = ({
                     return;
                 }
                 // Prefer a soft resync via the callback instead of a full page reload.
-                // A hard reload drops wagmi/RainbowKit connections (reconnectOnMount: false),
-                // which forced users to reconnect after every network switch. Only fall back
+                // A hard reload is disruptive even with reconnectOnMount; only fall back
                 // to a reload when no handler is wired (legacy injected-only integrations).
                 if (onNetworkChanged) {
                     void onNetworkChanged();

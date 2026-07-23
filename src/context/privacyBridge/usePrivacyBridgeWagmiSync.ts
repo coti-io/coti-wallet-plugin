@@ -74,6 +74,8 @@ export const usePrivacyBridgeWagmiSync = ({
       if (getPluginConfig().clearSessionKeyOnWagmiDisconnect) {
         setSessionAesKey(null);
         clearSnapCache();
+        if (walletAddress) clearAesKeyValidatedForUnlock(walletAddress);
+        if (wagmiAddress) clearAesKeyValidatedForUnlock(wagmiAddress);
       }
       setArePrivateBalancesHidden(true);
     }

@@ -13,7 +13,7 @@ import {
   resolveGrantNativeCoti,
   type EncryptedAesBackup,
 } from '../config/plugin';
-import { decryptAesKeyBackup } from '../crypto/aesKeyBackupVault';
+import { decryptAesKeyBackup, OUTDATED_AES_BACKUP_ERROR } from '../crypto/aesKeyBackupVault';
 import { normalizeAesKey } from '../crypto/aesKey';
 import { muteChainUpdates, unmuteChainUpdates, isChainUpdatesMuted } from '../lib/chainMute';
 import { canPersistAesKeyToSnap } from '../lib/snapOrigins';
@@ -490,9 +490,22 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
               : 'Encrypted AES backup could not be restored.';
             logger.warn('⚠️ AES backup restore failed, falling back to contract onboarding:', restoreError);
             restoreBackupFailed = true;
-            setOnboardingWarnings({
-              intro: `Encrypted backup could not be restored. Continuing with onboarding. ${message}`,
-            });
+
+            // Drop unusable format blobs so restore-first unlock does not keep
+            // preferring a dead v1 backup over Snap / fresh onboarding.
+            if (message === OUTDATED_AES_BACKUP_ERROR && services?.deleteEncryptedAesBackup) {
+              try {
+                await services.deleteEncryptedAesBackup(backupContext);
+                logger.log('🗑️ Cleared outdated encrypted AES backup');
+              } catch (deleteError) {
+                logger.warn('⚠️ Failed to clear outdated AES backup:', deleteError);
+              }
+            }
+
+            const intro = message === OUTDATED_AES_BACKUP_ERROR
+              ? 'Your encrypted backup uses an outdated format. Continuing with onboarding to create a new backup.'
+              : `Encrypted backup could not be restored. Continuing with onboarding. ${message}`;
+            setOnboardingWarnings({ intro });
           }
         }
 
@@ -742,10 +755,15 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           if (backupResult.status === 'failed') {
             logger.warn(
               '⚠️ AES key retrieved but encrypted backup save failed:',
+              backupResult.code,
               backupResult.message,
             );
+            const unsupported =
+              backupResult.code === CotiErrorCode.AES_BACKUP_WALLET_NOT_SUPPORTED;
             setOnboardingWarnings({
-              success: `Onboarding succeeded, but encrypted backup was not saved. ${backupResult.message}`,
+              success: unsupported
+                ? `Onboarding succeeded, but this wallet cannot save a recoverable encrypted backup. ${backupResult.message}`
+                : `Onboarding succeeded, but encrypted backup was not saved. ${backupResult.message}`,
             });
           } else if (backupResult.status === 'cancelled') {
             logger.warn('⚠️ AES key retrieved but encrypted backup save was cancelled');

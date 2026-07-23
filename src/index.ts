@@ -211,8 +211,42 @@ export type { NetworkGuardProps } from './components/NetworkGuard';
 // Re-export from RainbowKit for consuming apps
 export { useConnectModal } from '@rainbow-me/rainbowkit';
 
+export {
+  encryptAesKeyBackup,
+  decryptAesKeyBackup,
+  backupFromChainTuple,
+  OUTDATED_AES_BACKUP_ERROR,
+  AES_BACKUP_WALLET_NOT_SUPPORTED,
+  AES_BACKUP_SIGNING_WARNING,
+} from './crypto/aesKeyBackupVault';
+export type {
+  AesBackupSigner,
+  AesBackupVaultContext,
+} from './crypto/aesKeyBackupVault';
+
+export {
+  AES_BACKUP_STORAGE_AUTH_DOMAIN_NAME,
+  AES_BACKUP_STORAGE_AUTH_DOMAIN_VERSION,
+  AES_BACKUP_STORAGE_AUTH_DOMAIN_SALT,
+  getAesBackupStorageAuthDomain,
+  buildAesBackupStorageAuthMessage,
+  buildAesBackupStorageAuthTypedData,
+  signAesBackupStorageAuthChallenge,
+  assertAesBackupStorageAuthChallengeFresh,
+} from './crypto/aesBackupStorageAuth';
+export type {
+  AesBackupStorageOperation,
+  AesBackupStorageAuthChallenge,
+  AesBackupStorageAuthSigner,
+} from './crypto/aesBackupStorageAuth';
+
+export type {
+  PersistEncryptedAesBackupResult,
+  AesBackupPersistFailureCode,
+} from './lib/persistEncryptedAesBackup';
+
 // Utilities
-export { isMultipleWalletsError, MULTIPLE_WALLETS_ERROR_SUBSTRING } from './utils/walletErrors';
+export { isMultipleWalletsError, isUnsupportedRpcMethodError, MULTIPLE_WALLETS_ERROR_SUBSTRING } from './utils/walletErrors';
 export { formatTokenBalanceDisplay, truncateDecimalValue, formatBalanceWithNotation, addThousandsSeparators } from './lib/utils';
 export {
   getEthereumProvider,

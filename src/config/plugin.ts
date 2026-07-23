@@ -11,10 +11,12 @@ export const DEFAULT_ONBOARDING_GRANT_MIN_BALANCE_WEI = '200000000000000000';
 export type AesKeyChainId = typeof COTI_TESTNET_CHAIN_ID | typeof COTI_MAINNET_CHAIN_ID;
 
 export interface EncryptedAesBackup {
-  version: 1;
+  version: 2;
   address: string;
   chainId: number;
   signatureKind: 'eip712';
+  /** Key-derivation used to wrap the AES key from the EIP-712 signature. */
+  kdf: 'hkdf-sha256';
   iv: string;
   ciphertext: string;
   createdAt: string;
@@ -39,12 +41,21 @@ export interface OnboardingServices {
   /**
    * Disabled: no grant/backup features. Custom: use provided callbacks.
    * Official is reserved for stable COTI-hosted APIs.
+   *
+   * Encrypted AES backup persistence should use browser localStorage via the
+   * fetch/save/replace/delete callbacks. Remote AES backup is deprecated and
+   * should not be used for new integrations.
    */
   mode?: 'disabled' | 'custom' | 'official';
   grantNativeCoti?: (request: OnboardingServiceRequest) => Promise<GrantResult>;
   fetchEncryptedAesBackup?: (request: OnboardingServiceRequest) => Promise<EncryptedAesBackup | null>;
   saveEncryptedAesBackup?: (request: SaveEncryptedAesBackupRequest) => Promise<void>;
   replaceEncryptedAesBackup?: (request: SaveEncryptedAesBackupRequest) => Promise<void>;
+  /**
+   * Remove a stored encrypted backup (e.g. after an outdated v1 blob is rejected).
+   * Best-effort; unlock/onboarding continues even if delete fails.
+   */
+  deleteEncryptedAesBackup?: (request: OnboardingServiceRequest) => Promise<void>;
 }
 
 /**
@@ -82,8 +93,9 @@ export interface CotiPluginConfig {
   debug?: boolean;
   /**
    * When true, clears the in-memory session AES key (and Snap cache) on implicit
-   * wagmi/RainbowKit disconnect. Default false preserves the key so reconnecting
-   * the same wallet can skip Snap re-fetch; use true for stricter shared-browser security.
+   * wagmi/RainbowKit disconnect. Default true for shared-browser safety (matches
+   * lock). Set false to preserve the key so reconnecting the same wallet can
+   * skip Snap re-fetch / restore.
    */
   clearSessionKeyOnWagmiDisconnect?: boolean;
   /**
@@ -121,6 +133,14 @@ export interface CotiPluginConfig {
    * The Snap manifest's allowedOrigins must also include these domains — see PL-3.
    */
   additionalSnapAesWriteOrigins?: string[];
+  /**
+   * **Unsafe escape hatch.** When true, skips the second-signature restore test
+   * before persisting an encrypted AES backup. A nondeterministic wallet can then
+   * save a blob that can never be restored. Default: false (determinism check on).
+   * Prefer leaving this unset — see
+   * https://docs.coti.io/coti-documentation/build-on-coti/tools/coti-wallet-plugin/aes-backup-security
+   */
+  unsafeSkipBackupDeterminismCheck?: boolean;
 }
 
 let _config: CotiPluginConfig = {
@@ -128,7 +148,7 @@ let _config: CotiPluginConfig = {
   snapEnabled: true,
   defaultNetworkId: undefined,
   debug: false,
-  clearSessionKeyOnWagmiDisconnect: false,
+  clearSessionKeyOnWagmiDisconnect: true,
   waitForBalanceRefreshAfterTransfer: false,
   onboardingServices: { mode: 'disabled' },
   onboardingGrantEnabled: true,
@@ -137,6 +157,7 @@ let _config: CotiPluginConfig = {
   onboardingGrantPollIntervalMs: 2000,
   onboardingGrantTimeoutMs: 60000,
   additionalSnapAesWriteOrigins: [],
+  unsafeSkipBackupDeterminismCheck: false,
 };
 
 /** Whether native COTI grants are enabled. Default: true. */

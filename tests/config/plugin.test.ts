@@ -20,7 +20,7 @@ describe('Plugin Configuration (README: Basic Setup)', () => {
       snapEnabled: true,
       defaultNetworkId: undefined,
       aesKeyChainId: undefined,
-      clearSessionKeyOnWagmiDisconnect: false,
+      clearSessionKeyOnWagmiDisconnect: true,
       waitForBalanceRefreshAfterTransfer: false,
       onboardingGrantEnabled: true,
       grantApiUrlTestnet: DEFAULT_GRANT_API_URL_TESTNET,
@@ -107,13 +107,13 @@ describe('Plugin Configuration (README: Basic Setup)', () => {
     expect(typeof config.snapId).toBe('string');
   });
 
-  it('defaults clearSessionKeyOnWagmiDisconnect to false', () => {
-    expect(getPluginConfig().clearSessionKeyOnWagmiDisconnect).toBe(false);
+  it('defaults clearSessionKeyOnWagmiDisconnect to true', () => {
+    expect(getPluginConfig().clearSessionKeyOnWagmiDisconnect).toBe(true);
   });
 
-  it('allows enabling clearSessionKeyOnWagmiDisconnect', () => {
-    configureCotiPlugin({ clearSessionKeyOnWagmiDisconnect: true });
-    expect(getPluginConfig().clearSessionKeyOnWagmiDisconnect).toBe(true);
+  it('allows disabling clearSessionKeyOnWagmiDisconnect', () => {
+    configureCotiPlugin({ clearSessionKeyOnWagmiDisconnect: false });
+    expect(getPluginConfig().clearSessionKeyOnWagmiDisconnect).toBe(false);
   });
 
   it('defaults waitForBalanceRefreshAfterTransfer to false', () => {

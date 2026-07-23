@@ -16,12 +16,17 @@ describe('WalletSignPrompt', () => {
     expect(screen.queryByTestId('wallet-sign-prompt')).not.toBeInTheDocument();
   });
 
-  it('renders save-backup copy when requested', () => {
+  it('renders save-backup copy mentioning up to two signatures', () => {
     render(
       <WalletSignPrompt isOpen walletType="metamask" purpose="save-backup" />,
     );
 
-    expect(screen.getByText(/encrypt and save your AES key backup/i)).toBeInTheDocument();
+    expect(screen.getByText(/encrypt your COTI privacy key backup/i)).toBeInTheDocument();
+    expect(screen.getByText(/may prompt up to twice/i)).toBeInTheDocument();
+    expect(screen.getByText(/once to encrypt, once to verify restore/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Only sign from an official or trusted COTI app/i),
+    ).toBeInTheDocument();
   });
 
   it('uses the shared light-theme surface fills', () => {
