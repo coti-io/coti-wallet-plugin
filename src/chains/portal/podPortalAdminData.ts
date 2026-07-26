@@ -52,18 +52,23 @@ async function fetchPortalRow(
 
   try {
     const portal = new ethers.Contract(portalAddress, POD_PORTAL_ADMIN_ABI, provider);
+    // Do not swallow collateral balance failures as 0 — a failed balanceOf/getBalance
+    // must fail the row so admins never see a false empty collateral reading.
+    const collateralBalancePromise =
+      token.addressKey && config.addresses[token.addressKey]
+        ? new ethers.Contract(config.addresses[token.addressKey], ERC20_BALANCE_ABI, provider)
+            .balanceOf(portalAddress)
+        : token.isNative
+          ? provider.getBalance(portalAddress)
+          : Promise.resolve(0n);
+
     const [depCfg, wdCfg, accFees, balance, paused, depositEnabled, minDep, maxDep, minWd, maxWd] =
       await Promise.all([
         portal.getFeeConfig(true),
         portal.getFeeConfig(false),
         portal.accumulatedPortalFees().catch(() => 0n),
         // Native-wrapped portals (ETH/AVAX) hold WETH/WAVAX collateral, not native coin.
-        token.addressKey && config.addresses[token.addressKey]
-          ? new ethers.Contract(config.addresses[token.addressKey], ERC20_BALANCE_ABI, provider)
-              .balanceOf(portalAddress).catch(() => 0n)
-          : token.isNative
-            ? provider.getBalance(portalAddress)
-            : Promise.resolve(0n),
+        collateralBalancePromise,
         portal.paused().catch(() => false),
         portal.isDepositEnabled().catch(() => true),
         portal.minDepositAmount().catch(() => null),
@@ -71,8 +76,13 @@ async function fetchPortalRow(
         portal.minWithdrawAmount().catch(() => null),
         portal.maxWithdrawAmount().catch(() => null),
       ]);
-    const formatLimit = (value: bigint | null) =>
-      value == null ? "N/A" : ethers.formatUnits(value, token.decimals);
+    // Max limits use the same no-cap sentinel family as fee maxFee (uint128.max+).
+    // Map those to "0" (COTI / admin-UI convention for "no cap"), not a huge decimal.
+    const formatLimit = (value: bigint | null, isMax = false): string => {
+      if (value == null) return "N/A";
+      if (isMax && value >= POD_NO_MAX_FEE_SENTINEL) return "0";
+      return ethers.formatUnits(value, token.decimals);
+    };
     return {
       ...base,
       depositFixedFee: formatFee(depCfg[0]),
@@ -86,9 +96,9 @@ async function fetchPortalRow(
       isPaused: Boolean(paused),
       isDepositEnabled: Boolean(depositEnabled),
       minDepositAmount: formatLimit(minDep),
-      maxDepositAmount: formatLimit(maxDep),
+      maxDepositAmount: formatLimit(maxDep, true),
       minWithdrawAmount: formatLimit(minWd),
-      maxWithdrawAmount: formatLimit(maxWd),
+      maxWithdrawAmount: formatLimit(maxWd, true),
       error: null,
     };
   } catch (err) {

@@ -6,6 +6,12 @@ const h = vi.hoisted(() => ({
   balanceOf: vi.fn(),
   getBalance: vi.fn(),
   getBlockNumber: vi.fn(),
+  paused: vi.fn(),
+  isDepositEnabled: vi.fn(),
+  minDepositAmount: vi.fn(),
+  maxDepositAmount: vi.fn(),
+  minWithdrawAmount: vi.fn(),
+  maxWithdrawAmount: vi.fn(),
 }));
 
 vi.mock('ethers', async (importOriginal) => {
@@ -15,6 +21,12 @@ vi.mock('ethers', async (importOriginal) => {
     getFeeConfig = (...a: unknown[]) => h.getFeeConfig(this.address, ...a);
     accumulatedPortalFees = () => h.accumulatedPortalFees(this.address);
     balanceOf = (...a: unknown[]) => h.balanceOf(this.address, ...a);
+    paused = () => h.paused(this.address);
+    isDepositEnabled = () => h.isDepositEnabled(this.address);
+    minDepositAmount = () => h.minDepositAmount(this.address);
+    maxDepositAmount = () => h.maxDepositAmount(this.address);
+    minWithdrawAmount = () => h.minWithdrawAmount(this.address);
+    maxWithdrawAmount = () => h.maxWithdrawAmount(this.address);
   }
   class MockProvider {
     constructor(public url: string) {}
@@ -32,6 +44,7 @@ import { COTI_TESTNET_CHAIN_ID } from '../../src/chains/coti';
 import { fetchPodBridgeData } from '../../src/chains/portal/podPortalAdminData';
 
 const U128_MAX = (1n << 128n) - 1n;
+const U256_MAX = (1n << 256n) - 1n;
 
 describe('chains/sepolia', () => {
   it('exposes the Sepolia chain ID', () => {
@@ -50,6 +63,12 @@ describe('fetchPodBridgeData', () => {
     h.accumulatedPortalFees.mockResolvedValue(4n * 10n ** 13n);
     h.balanceOf.mockResolvedValue(5n * 10n ** 18n);
     h.getBalance.mockResolvedValue(7n * 10n ** 18n);
+    h.paused.mockResolvedValue(false);
+    h.isDepositEnabled.mockResolvedValue(true);
+    h.minDepositAmount.mockResolvedValue(10n ** 18n); // 1 token
+    h.maxDepositAmount.mockResolvedValue(U128_MAX); // no cap sentinel
+    h.minWithdrawAmount.mockResolvedValue(2n * 10n ** 18n); // 2 tokens
+    h.maxWithdrawAmount.mockResolvedValue(U256_MAX); // no cap sentinel
   });
 
   it('shapes live portal reads into BridgeData rows', async () => {
@@ -66,17 +85,22 @@ describe('fetchPodBridgeData', () => {
     expect(mtt.withdrawFixedFee).toBe('0.00002');
     expect(mtt.withdrawPercentageBps).toBe('300');
     expect(mtt.withdrawMaxFee).toBe('0'); // uint128.max sentinel → no cap
-    expect(mtt.minDepositAmount).toBe('N/A');
+    expect(mtt.minDepositAmount).toBe('1.0');
+    expect(mtt.maxDepositAmount).toBe('0'); // uint128.max sentinel → no cap
+    expect(mtt.minWithdrawAmount).toBe('2.0');
+    expect(mtt.maxWithdrawAmount).toBe('0'); // uint256.max sentinel → no cap
     expect(mtt.feeTokenSymbol).toBe('ETH');
     expect(mtt.accumulatedCotiFees).toBe('0.00004');
     expect(mtt.bridgeBalance).toBe('5.0');
     expect(mtt.isPaused).toBe(false);
+    expect(mtt.isDepositEnabled).toBe(true);
     expect(mtt.error).toBeNull();
 
-    // Native ETH row reads the portal's native balance, not an ERC-20 balance
+    // Native ETH portal holds WETH collateral — read WETH balanceOf, not native getBalance.
     const eth = rows.find(r => r.publicToken === 'ETH')!;
     expect(eth.bridgeAddress).toBe(sepoliaChain.addresses.PrivacyPortalETH);
-    expect(eth.bridgeBalance).toBe('7.0');
+    expect(eth.bridgeBalance).toBe('5.0');
+    expect(h.getBalance).not.toHaveBeenCalled();
   });
 
   it('returns error rows when a portal read fails', async () => {
@@ -85,6 +109,14 @@ describe('fetchPodBridgeData', () => {
     expect(rows).toHaveLength(3);
     expect(rows[0].depositFixedFee).toBe('Error');
     expect(rows[0].error).toBe('Failed to fetch portal data');
+  });
+
+  it('returns error rows when collateral balanceOf fails', async () => {
+    h.balanceOf.mockRejectedValue(new Error('rpc down'));
+    const rows = await fetchPodBridgeData(SEPOLIA_CHAIN_ID);
+    expect(rows).toHaveLength(3);
+    expect(rows.every(r => r.error === 'Failed to fetch portal data')).toBe(true);
+    expect(rows.every(r => r.bridgeBalance === '0')).toBe(true);
   });
 
   it('returns an empty list for non-PoD chains', async () => {
