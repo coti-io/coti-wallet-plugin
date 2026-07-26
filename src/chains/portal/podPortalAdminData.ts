@@ -78,6 +78,7 @@ async function fetchPortalRow(
       ]);
     // Max limits use the same no-cap sentinel family as fee maxFee (uint128.max+).
     // Map those to "0" (COTI / admin-UI convention for "no cap"), not a huge decimal.
+    // Keep raw decimals here — UI layers use formatAmountLimitDisplay for labels.
     const formatLimit = (value: bigint | null, isMax = false): string => {
       if (value == null) return "N/A";
       if (isMax && value >= POD_NO_MAX_FEE_SENTINEL) return "0";
