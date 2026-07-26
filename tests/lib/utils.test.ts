@@ -5,6 +5,10 @@ import {
   addThousandsSeparators,
   formatBalanceWithNotation,
   expandExponentialNumber,
+  formatPlainDecimal,
+  formatAmountLimitDisplay,
+  isDustAmount,
+  DUST_AMOUNT_THRESHOLD,
 } from '../../src/lib/utils';
 
 describe('Formatting Utilities (README: formatTokenBalanceDisplay)', () => {
@@ -78,11 +82,16 @@ describe('Formatting Utilities (README: formatTokenBalanceDisplay)', () => {
 
   describe('expandExponentialNumber', () => {
     it('expands positive exponent', () => {
-      expect(expandExponentialNumber('1.5e3')).toBe('1500.');
+      expect(expandExponentialNumber('1.5e3')).toBe('1500');
     });
 
     it('expands negative exponent', () => {
       expect(expandExponentialNumber('1.5e-3')).toBe('0.0015');
+    });
+
+    it('preserves leading minus for negative scientific values', () => {
+      expect(expandExponentialNumber('-1e-18')).toBe('-0.000000000000000001');
+      expect(expandExponentialNumber('-1.5e-3')).toBe('-0.0015');
     });
 
     it('returns unchanged for non-exponential', () => {
@@ -91,6 +100,31 @@ describe('Formatting Utilities (README: formatTokenBalanceDisplay)', () => {
 
     it('handles zero exponent', () => {
       expect(expandExponentialNumber('1.5e0')).toBe('1.5');
+    });
+  });
+
+  describe('formatPlainDecimal / formatAmountLimitDisplay', () => {
+    it('expands 1e-18 to a plain decimal', () => {
+      expect(formatPlainDecimal('1e-18')).toBe('0.000000000000000001');
+      expect(formatPlainDecimal(1e-18)).toBe('0.000000000000000001');
+    });
+
+    it('maps dust mins to an em dash for UI labels', () => {
+      expect(formatAmountLimitDisplay('0.000000000000000001')).toBe('—');
+      expect(formatAmountLimitDisplay('1e-18')).toBe('—');
+      expect(isDustAmount('1e-18')).toBe(true);
+      expect(isDustAmount(DUST_AMOUNT_THRESHOLD)).toBe(false);
+    });
+
+    it('maps non-finite huge max sentinels to uncapped 0', () => {
+      expect(formatAmountLimitDisplay('1e+50')).toBe('0');
+      expect(formatAmountLimitDisplay('340282366920938463463.374607431768211455')).toBe('0');
+    });
+
+    it('keeps zero and normal mins readable', () => {
+      expect(formatAmountLimitDisplay('0')).toBe('0');
+      expect(formatAmountLimitDisplay('0.01')).toBe('0.01');
+      expect(formatAmountLimitDisplay('1.2300')).toBe('1.23');
     });
   });
 
@@ -139,6 +173,11 @@ describe('Formatting Utilities (README: formatTokenBalanceDisplay)', () => {
 
     it('handles negative values', () => {
       expect(formatBalanceWithNotation('-1500000000')).toBe('-1.5B');
+    });
+
+    it('never renders scientific notation for dust balances', () => {
+      expect(formatBalanceWithNotation('1e-18')).toBe('0.000000000000000001');
+      expect(formatBalanceWithNotation(1e-18)).toBe('0.000000000000000001');
     });
   });
 });

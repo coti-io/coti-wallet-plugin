@@ -14,23 +14,72 @@ export const TOKEN_BALANCE_DISPLAY_DECIMALS: Record<string, number> = {
 };
 
 export function expandExponentialNumber(numStr: string): string {
-  const eString = numStr.toLowerCase();
-  if (!eString.includes('e')) return numStr;
+  const eString = numStr.toLowerCase().trim();
+  if (!eString.includes("e")) return numStr;
 
-  const [base, exp] = eString.split('e');
+  const negative = eString.startsWith("-");
+  const unsigned = negative || eString.startsWith("+") ? eString.slice(1) : eString;
+  const [base, exp] = unsigned.split("e");
+  if (base == null || exp == null || base === "") return numStr;
+
   const expNum = parseInt(exp, 10);
+  if (!Number.isFinite(expNum)) return numStr;
 
-  let [intPart, decPart = ''] = base.split('.');
-  if (expNum === 0) return `${intPart}.${decPart}`;
+  let [intPart, decPart = ""] = base.split(".");
+  if (intPart.startsWith("+")) intPart = intPart.slice(1);
 
-  if (expNum > 0) {
-    decPart = decPart.padEnd(expNum, '0');
-    return `${intPart}${decPart.slice(0, expNum)}.${decPart.slice(expNum)}`;
+  let expanded: string;
+  if (expNum === 0) {
+    expanded = decPart ? `${intPart}.${decPart}` : intPart;
+  } else if (expNum > 0) {
+    decPart = decPart.padEnd(expNum, "0");
+    expanded = `${intPart}${decPart.slice(0, expNum)}.${decPart.slice(expNum)}`;
   } else {
     const absExp = Math.abs(expNum);
-    intPart = intPart.padStart(absExp + 1, '0');
-    return `${intPart.slice(0, -absExp)}.${intPart.slice(-absExp)}${decPart}`;
+    intPart = intPart.padStart(absExp + 1, "0");
+    expanded = `${intPart.slice(0, -absExp)}.${intPart.slice(-absExp)}${decPart}`;
   }
+
+  if (expanded.endsWith(".")) expanded = expanded.slice(0, -1);
+  return negative ? `-${expanded}` : expanded;
+}
+
+/** Expand JS scientific notation (e.g. 1e-18 → 0.000…001). */
+export function formatPlainDecimal(value: string | number): string {
+  return expandExponentialNumber(String(value));
+}
+
+/**
+ * Dust floors from on-chain 1-wei style limits. Below this, treat as unset for UI.
+ * (~a few wei on 18-decimal tokens; still far below any meaningful USDC atomic unit).
+ */
+export const DUST_AMOUNT_THRESHOLD = 1e-15;
+
+export function isDustAmount(value: string | number | null | undefined): boolean {
+  if (value == null || value === "") return false;
+  const n = typeof value === "number" ? value : parseFloat(formatPlainDecimal(value));
+  return Number.isFinite(n) && n > 0 && n < DUST_AMOUNT_THRESHOLD;
+}
+
+/**
+ * Human label for portal/bridge min/max amount limits.
+ * - N/A / Error preserved
+ * - 0 kept (admin "no cap" convention for max)
+ * - dust mins shown as "—" instead of 1e-18 / 0.000…001
+ * - absurdly large / non-finite max sentinels → "0" (uncapped)
+ * - otherwise plain decimal (never scientific notation)
+ */
+export function formatAmountLimitDisplay(value?: string | null): string {
+  if (value == null || value === "") return "N/A";
+  if (value === "N/A" || value === "Error") return value;
+  const plain = formatPlainDecimal(value);
+  const n = parseFloat(plain);
+  // Non-finite or impossibly large (uint128.max-style) ⇒ uncapped.
+  if (!Number.isFinite(n) || n >= 1e15) return "0";
+  if (n === 0) return "0";
+  if (n > 0 && n < DUST_AMOUNT_THRESHOLD) return "—";
+  if (!plain.includes(".")) return plain;
+  return plain.replace(/(\.\d*?[1-9])0+$/u, "$1").replace(/\.0+$/u, "");
 }
 
 export function truncateDecimalValue(value: string | number, decimals: number): string {
@@ -65,16 +114,17 @@ export function addThousandsSeparators(value: string | number): string {
 }
 
 export function formatBalanceWithNotation(value: string | number): string {
-  const numValue = parseFloat(String(value));
+  const plain = formatPlainDecimal(value);
+  const numValue = parseFloat(plain);
 
   if (numValue === 0 || Math.abs(numValue) < 1) {
-    return addThousandsSeparators(value);
+    return addThousandsSeparators(plain);
   }
 
-  const hasDecimals = String(value).includes('.') && parseFloat(String(value)) % 1 !== 0;
+  const hasDecimals = plain.includes('.') && numValue % 1 !== 0;
 
   if (hasDecimals) {
-    return addThousandsSeparators(value);
+    return addThousandsSeparators(plain);
   }
 
   const absValue = Math.abs(numValue);
@@ -97,5 +147,5 @@ export function formatBalanceWithNotation(value: string | number): string {
     return `${sign}${formatted}M`;
   }
 
-  return addThousandsSeparators(value);
+  return addThousandsSeparators(plain);
 }

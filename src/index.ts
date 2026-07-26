@@ -248,7 +248,7 @@ export type {
 
 // Utilities
 export { isMultipleWalletsError, isUnsupportedRpcMethodError, MULTIPLE_WALLETS_ERROR_SUBSTRING } from './utils/walletErrors';
-export { formatTokenBalanceDisplay, truncateDecimalValue, formatBalanceWithNotation, addThousandsSeparators } from './lib/utils';
+export { formatTokenBalanceDisplay, truncateDecimalValue, formatBalanceWithNotation, addThousandsSeparators, expandExponentialNumber, formatPlainDecimal, formatAmountLimitDisplay, isDustAmount, DUST_AMOUNT_THRESHOLD } from './lib/utils';
 export {
   getEthereumProvider,
   getEip6963MetaMaskProvider,
