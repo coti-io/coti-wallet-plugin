@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { configureCotiPlugin } from '../../src/config/plugin';
 import {
   isTransientRpcError,
+  isRateLimitedRpcError,
   resolveRpcUrlsForChain,
   withRpcFallback,
   waitForTransactionResilient,
@@ -27,6 +28,10 @@ describe('isTransientRpcError', () => {
 
   it('detects nested httpStatus 429', () => {
     expect(isTransientRpcError({ code: 'UNKNOWN_ERROR', data: { httpStatus: 429 } })).toBe(true);
+  });
+
+  it('detects ethers exhausted retry limit as rate-limit', () => {
+    expect(isRateLimitedRpcError(new Error('exceeded maximum retry limit'))).toBe(true);
   });
 
   it('detects nested JSON-RPC -32005', () => {
@@ -71,6 +76,30 @@ describe('withRpcFallback', () => {
     const result = await withRpcFallback(SEPOLIA_CHAIN_ID, fn);
     expect(result).toBe('ok');
     expect(fn).toHaveBeenCalledTimes(2);
+  });
+
+  it('falls back across Fuji RPCs then reports rate-limit even if fallback succeeds', async () => {
+    const rateLimit = new Error('Too Many Requests');
+    const fn = vi.fn()
+      .mockRejectedValueOnce(rateLimit)
+      .mockResolvedValueOnce('ok');
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+
+    const result = await withRpcFallback(AVALANCHE_FUJI_CHAIN_ID, fn);
+    expect(result).toBe('ok');
+    expect(fn).toHaveBeenCalledTimes(2);
+    expect(dispatchSpy).toHaveBeenCalled();
+    dispatchSpy.mockRestore();
+  });
+
+  it('raises Fuji rate-limit after every RPC fails', async () => {
+    const rateLimit = new Error('Too Many Requests');
+    const fn = vi.fn().mockRejectedValue(rateLimit);
+
+    await expect(withRpcFallback(AVALANCHE_FUJI_CHAIN_ID, fn)).rejects.toMatchObject({
+      code: 'RPC_RATE_LIMITED',
+    });
+    expect(fn.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 });
 

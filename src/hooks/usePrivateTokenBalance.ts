@@ -1,9 +1,10 @@
 import { useCallback } from 'react';
 import { ethers } from 'ethers';
 import { decryptCtUint64, decryptCtUint256 } from '../crypto/decryption';
-import { withRpcFallback } from '../lib/rpcProvider';
+import { isRateLimitedRpcError, withRpcFallback } from '../lib/rpcProvider';
 import { getPluginConfig } from '../config/plugin';
-import { CotiPluginError, CotiErrorCode } from '../errors';
+import { AVALANCHE_FUJI_CHAIN_ID } from '../chains/avalancheFuji';
+import { CotiPluginError, CotiErrorCode, createRpcRateLimitedError } from '../errors';
 import { logger } from '../lib/logger';
 import type { CtUint256 } from '../types/ciphertext';
 import { isZeroCtUint256 } from '../types/ciphertext';
@@ -147,6 +148,14 @@ export const usePrivateTokenBalance = () => {
         } catch (error: unknown) {
             if (error instanceof CotiPluginError) {
                 throw error;
+            }
+
+            // withRpcFallback already reports Fuji rate-limit after all RPCs fail.
+            // Re-throw here so callers don't treat exhausted rate limits as "0.00".
+            if (isRateLimitedRpcError(error)) {
+                throw createRpcRateLimitedError(
+                    _readChainId === AVALANCHE_FUJI_CHAIN_ID ? 'Avalanche Fuji' : 'The network',
+                );
             }
 
             const message = error instanceof Error
