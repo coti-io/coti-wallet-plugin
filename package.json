@@ -38,7 +38,8 @@
     "prepublishOnly": "npm run clean && npm run typecheck && npm test -- --run && npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:stress": "vitest run --config vitest.stress.config.ts"
   },
   "keywords": [
     "coti",

@@ -10,18 +10,24 @@ const AVALANCHE_FUJI_PUBLICNODE_RPC_URL =
 const AVALANCHE_FUJI_AVALANCHE_API_RPC_URL =
   "https://api.avax-test.network/ext/bc/C/rpc";
 const AVALANCHE_FUJI_DRPC_RPC_URL = "https://avalanche-fuji.drpc.org";
-const AVALANCHE_FUJI_ANKR_RPC_URL = "https://rpc.ankr.com/avalanche_fuji";
+const AVALANCHE_FUJI_TENDERLY_RPC_URL = "https://avalanche-fuji.gateway.tenderly.co";
 
 /**
  * Prefer public RPCs first; QuikNode last (often returns HTTP 429). Depth matters
  * as much as order: `withRpcFallback` parks whichever endpoint rate-limits and
  * starts the next read on a healthy one, so extra endpoints are extra headroom.
+ *
+ * Health here is genuinely volatile — `tests/stress/liveEndpoints.stress.ts`
+ * caught publicnode returning 503 and drpc returning 400 in one window, with
+ * both healthy minutes later. Re-run that suite before editing this list;
+ * `rpc.ankr.com/avalanche_fuji` was dropped because it no longer answers
+ * keyless requests at all.
  */
 const AVALANCHE_FUJI_RPC_URL = AVALANCHE_FUJI_PUBLICNODE_RPC_URL;
 const AVALANCHE_FUJI_RPC_FALLBACK_URLS = [
   AVALANCHE_FUJI_AVALANCHE_API_RPC_URL,
   AVALANCHE_FUJI_DRPC_RPC_URL,
-  AVALANCHE_FUJI_ANKR_RPC_URL,
+  AVALANCHE_FUJI_TENDERLY_RPC_URL,
   AVALANCHE_FUJI_QUIKNODE_RPC_URL,
 ];
 

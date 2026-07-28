@@ -68,6 +68,25 @@ const httpStatusLooksRateLimited = (httpStatus: unknown): boolean => {
   return /\b429\b/.test(text) || /too many requests/i.test(text);
 };
 
+/**
+ * Socket-level failures, which mean the endpoint is unreachable rather than
+ * misbehaving. These have to count as transient: a dead endpoint in the list is
+ * precisely when rotating to the next one must happen. ECONNREFUSED in
+ * particular was previously classified as fatal, so a single unreachable
+ * endpoint failed the whole read instead of failing over.
+ */
+const CONNECTION_ERROR_CODES = [
+  "ECONNREFUSED",
+  "ECONNRESET",
+  "ECONNABORTED",
+  "ETIMEDOUT",
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "EHOSTUNREACH",
+  "ENETUNREACH",
+  "EPIPE",
+];
+
 /** True for rate limits, timeouts, and other errors worth retrying on the next RPC URL. */
 export const isTransientRpcError = (error: unknown): boolean => {
   const text = collectErrorText(error);
@@ -76,15 +95,15 @@ export const isTransientRpcError = (error: unknown): boolean => {
     lower.includes("too many requests")
     || lower.includes("rate limit")
     || text.includes("-32005")
-    || text.includes("ECONNRESET")
-    || text.includes("ETIMEDOUT")
     || lower.includes("timeout")
+    || lower.includes("socket hang up")
     || text.includes("503")
     || text.includes("502")
     || text.includes("403")
     || text.includes("429")
     || lower.includes("forbidden")
     || lower.includes("exceeded maximum retry limit")
+    || CONNECTION_ERROR_CODES.some(code => text.includes(code))
   ) {
     return true;
   }
@@ -96,6 +115,7 @@ export const isTransientRpcError = (error: unknown): boolean => {
       || code === "NETWORK_ERROR"
       || code === -32005
       || code === "-32005"
+      || (typeof code === "string" && CONNECTION_ERROR_CODES.includes(code))
     ) {
       return true;
     }

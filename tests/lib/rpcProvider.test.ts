@@ -43,6 +43,30 @@ describe('isTransientRpcError', () => {
   it('returns false for contract reverts', () => {
     expect(isTransientRpcError(new Error('execution reverted'))).toBe(false);
   });
+
+  // An unreachable endpoint is exactly when failover has to happen. ECONNREFUSED
+  // used to classify as fatal, so one dead endpoint failed the whole read
+  // instead of rotating — caught by tests/stress/fallbackResilience.stress.ts.
+  it.each([
+    'ECONNREFUSED',
+    'ECONNRESET',
+    'ENOTFOUND',
+    'EAI_AGAIN',
+    'EHOSTUNREACH',
+    'ENETUNREACH',
+    'ETIMEDOUT',
+  ])('treats socket-level %s as transient', code => {
+    expect(isTransientRpcError(Object.assign(new Error(`connect ${code} 127.0.0.1:1`), { code })))
+      .toBe(true);
+  });
+
+  it('treats a dropped socket as transient', () => {
+    expect(isTransientRpcError(new Error('socket hang up'))).toBe(true);
+  });
+
+  it('still rejects a revert that merely mentions a port number', () => {
+    expect(isTransientRpcError(new Error('execution reverted: invalid recipient'))).toBe(false);
+  });
 });
 
 describe('resolveRpcUrlsForChain', () => {
