@@ -1,31 +1,31 @@
 import { ethers } from "ethers";
 import { getPluginConfig } from "../config/plugin";
+import { AVALANCHE_FUJI_CHAIN_ID } from "../chains/avalancheFuji";
 import { COTI_TESTNET_CHAIN_ID } from "../chains/coti";
 import { getRpcUrlsForChain } from "../chains/rpcUrls";
 import { SEPOLIA_CHAIN_ID } from "../chains/sepolia";
+import { createRpcRateLimitedError, reportPluginError } from "../errors";
 import { logger } from "./logger";
-
-/** Plugin override first, then chain primary + configured fallbacks (deduped). */
-export const resolveRpcUrlsForChain = (chainId?: number | string | null): string[] => {
-  const base = getRpcUrlsForChain(chainId);
-  const numericId = chainId == null ? undefined : Number(chainId);
-  if (numericId == null || !Number.isFinite(numericId)) return base;
-
-  const plugin = getPluginConfig();
-  let override: string | undefined;
-  if (numericId === SEPOLIA_CHAIN_ID && plugin.sepoliaRpcUrl) {
-    override = plugin.sepoliaRpcUrl;
-  } else if (numericId === COTI_TESTNET_CHAIN_ID && plugin.cotiTestnetRpcUrl) {
-    override = plugin.cotiTestnetRpcUrl;
-  }
-  if (!override) return base;
-  return [...new Set([override, ...base])];
-};
 
 const collectErrorText = (error: unknown): string => {
   if (!error) return "";
   if (typeof error === "string") return error;
-  if (error instanceof Error) return error.message;
+  if (error instanceof Error) {
+    const e = error as Error & {
+      shortMessage?: string;
+      info?: unknown;
+      error?: unknown;
+      data?: unknown;
+      code?: unknown;
+    };
+    const parts = [e.message, e.shortMessage, String(e.code ?? "")];
+    try {
+      parts.push(JSON.stringify({ info: e.info, error: e.error, data: e.data }));
+    } catch {
+      // ignore
+    }
+    return parts.filter(Boolean).join(" ");
+  }
   try {
     return JSON.stringify(error);
   } catch {
@@ -48,8 +48,24 @@ const readNestedHttpStatus = (error: object): unknown => {
     data?: { httpStatus?: unknown };
     error?: { data?: { httpStatus?: unknown } };
     info?: { responseStatus?: unknown };
+    responseStatus?: unknown;
+    status?: unknown;
+    statusCode?: unknown;
   };
-  return e.data?.httpStatus ?? e.error?.data?.httpStatus ?? e.info?.responseStatus;
+  return (
+    e.data?.httpStatus
+    ?? e.error?.data?.httpStatus
+    ?? e.info?.responseStatus
+    ?? e.responseStatus
+    ?? e.status
+    ?? e.statusCode
+  );
+};
+
+const httpStatusLooksRateLimited = (httpStatus: unknown): boolean => {
+  if (httpStatus === 429 || httpStatus === "429") return true;
+  const text = String(httpStatus ?? "");
+  return /\b429\b/.test(text) || /too many requests/i.test(text);
 };
 
 /** True for rate limits, timeouts, and other errors worth retrying on the next RPC URL. */
@@ -65,7 +81,10 @@ export const isTransientRpcError = (error: unknown): boolean => {
     || lower.includes("timeout")
     || text.includes("503")
     || text.includes("502")
+    || text.includes("403")
     || text.includes("429")
+    || lower.includes("forbidden")
+    || lower.includes("exceeded maximum retry limit")
   ) {
     return true;
   }
@@ -80,16 +99,82 @@ export const isTransientRpcError = (error: unknown): boolean => {
     ) {
       return true;
     }
-    const httpStatus = readNestedHttpStatus(error);
-    if (httpStatus === 429 || httpStatus === "429") {
+    if (httpStatusLooksRateLimited(readNestedHttpStatus(error))) {
       return true;
     }
   }
   return false;
 };
 
-export const createJsonRpcProvider = (url: string, chainId: number) =>
-  new ethers.JsonRpcProvider(url, chainId);
+/** True only for RPC rate-limit responses (429 / -32005), not general timeouts. */
+export const isRateLimitedRpcError = (error: unknown): boolean => {
+  const text = collectErrorText(error);
+  const lower = text.toLowerCase();
+  if (
+    lower.includes("too many requests")
+    || lower.includes("rate limit")
+    || lower.includes("rate limited")
+    || text.includes("-32005")
+    || /\b429\b/.test(text)
+    // ethers escalates exhausted 429 retries to this message (status may be 599)
+    || lower.includes("exceeded maximum retry limit")
+  ) {
+    return true;
+  }
+  if (error && typeof error === "object") {
+    const code = readNestedRpcCode(error);
+    if (code === -32005 || code === "-32005") {
+      return true;
+    }
+    if (httpStatusLooksRateLimited(readNestedHttpStatus(error))) {
+      return true;
+    }
+  }
+  return false;
+};
+
+/** After Fuji primary is rate-limited, prefer fallback URLs for subsequent reads. */
+let fujiPreferFallbackRpc = false;
+
+export const markFujiPrimaryRateLimited = (): void => {
+  fujiPreferFallbackRpc = true;
+};
+
+/** Plugin override first, then chain primary + configured fallbacks (deduped). */
+export const resolveRpcUrlsForChain = (chainId?: number | string | null): string[] => {
+  const base = getRpcUrlsForChain(chainId);
+  const numericId = chainId == null ? undefined : Number(chainId);
+  if (numericId == null || !Number.isFinite(numericId)) return base;
+
+  const plugin = getPluginConfig();
+  let override: string | undefined;
+  if (numericId === SEPOLIA_CHAIN_ID && plugin.sepoliaRpcUrl) {
+    override = plugin.sepoliaRpcUrl;
+  } else if (numericId === COTI_TESTNET_CHAIN_ID && plugin.cotiTestnetRpcUrl) {
+    override = plugin.cotiTestnetRpcUrl;
+  }
+  let urls = !override ? base : [...new Set([override, ...base])];
+
+  if (numericId === AVALANCHE_FUJI_CHAIN_ID && fujiPreferFallbackRpc && urls.length > 1) {
+    urls = [urls[1], urls[0], ...urls.slice(2)];
+  }
+  return urls;
+};
+
+/**
+ * Builds a JsonRpcProvider. On Fuji, fail fast on HTTP 429 so callers can move
+ * to the next RPC URL instead of ethers retrying QuikNode up to 12 times while
+ * balances stay stuck at the initial "0".
+ */
+export const createJsonRpcProvider = (url: string, chainId: number) => {
+  if (chainId === AVALANCHE_FUJI_CHAIN_ID) {
+    const request = new ethers.FetchRequest(url);
+    request.setThrottleParams({ maxAttempts: 2 });
+    request.retryFunc = async (_req, response) => response.statusCode !== 429;
+    return new ethers.JsonRpcProvider(request, chainId);
+  }
+  return new ethers.JsonRpcProvider(url, chainId);
+};
 
 const isWaitTimeoutError = (error: unknown): boolean => {
   const text = collectErrorText(error).toLowerCase();
@@ -256,16 +341,38 @@ export const withRpcFallback = async <T>(
 ): Promise<T> => {
   const urls = resolveRpcUrlsForChain(chainId);
   let lastError: unknown;
+  let sawRateLimit = false;
+
   for (const url of urls) {
     const provider = createJsonRpcProvider(url, chainId);
     try {
-      return await fn(provider);
+      const result = await fn(provider);
+      // Report only after the full primary→fallback cycle when a prior URL was rate-limited.
+      if (chainId === AVALANCHE_FUJI_CHAIN_ID && sawRateLimit) {
+        markFujiPrimaryRateLimited();
+        reportPluginError(createRpcRateLimitedError("Avalanche Fuji"));
+      }
+      return result;
     } catch (error) {
       lastError = error;
+      if (isRateLimitedRpcError(error)) {
+        sawRateLimit = true;
+        markFujiPrimaryRateLimited();
+      }
       if (!isTransientRpcError(error)) throw error;
       logger.warn(`[rpc] ${url} request failed for chain ${chainId}, trying fallback`);
     }
   }
+
+  // Fuji: surface rate-limit UI only when a rate-limit was actually observed
+  // (not for unrelated transient failures like plain timeouts).
+  if (chainId === AVALANCHE_FUJI_CHAIN_ID && (sawRateLimit || isRateLimitedRpcError(lastError))) {
+    markFujiPrimaryRateLimited();
+    const rateLimited = createRpcRateLimitedError("Avalanche Fuji");
+    reportPluginError(rateLimited);
+    throw rateLimited;
+  }
+
   throw lastError instanceof Error
     ? lastError
     : new Error(`All RPC endpoints failed for chain ${chainId}`);

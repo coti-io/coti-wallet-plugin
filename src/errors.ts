@@ -55,6 +55,8 @@ export enum CotiErrorCode {
   UNSUPPORTED_NETWORK = 'UNSUPPORTED_NETWORK',
   /** WalletConnect Cloud project ID was not configured. */
   WALLETCONNECT_PROJECT_ID_MISSING = 'WALLETCONNECT_PROJECT_ID_MISSING',
+  /** Public RPC rate-limited (HTTP 429 / -32005). User should reload. */
+  RPC_RATE_LIMITED = 'RPC_RATE_LIMITED',
 
   // ─── Bridge / Transaction ──────────────────────────────────────────────
   /** Insufficient token balance for the requested operation. */
@@ -132,5 +134,32 @@ export function isCotiPluginError(error: unknown): error is CotiPluginError {
  * Type guard to check if an unknown error has a specific COTI error code.
  */
 export function hasCotiErrorCode(error: unknown, code: CotiErrorCode): boolean {
-  return isCotiPluginError(error) && error.code === code;
+  if (isCotiPluginError(error) && error.code === code) return true;
+  // Duck-type across bundled copies where `instanceof` can fail.
+  return !!(
+    error
+    && typeof error === 'object'
+    && (error as { code?: unknown }).code === code
+  );
+}
+
+/** Window event name — Privacy Portal GlobalErrorHandler listens for this. */
+export const PLUGIN_ERROR_EVENT = 'coti-wallet-plugin:error';
+
+/** User-facing error when a public RPC returns HTTP 429 / -32005. */
+export function createRpcRateLimitedError(chainName = 'The network'): CotiPluginError {
+  return new CotiPluginError(
+    CotiErrorCode.RPC_RATE_LIMITED,
+    `${chainName} RPC is rate limited. Please reload the page and try again.`,
+  );
+}
+
+/** Notify the host app so fire-and-forget balance refreshes still show UI. */
+export function reportPluginError(error: unknown): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.dispatchEvent(new CustomEvent(PLUGIN_ERROR_EVENT, { detail: error }));
+  } catch {
+    // ignore
+  }
 }

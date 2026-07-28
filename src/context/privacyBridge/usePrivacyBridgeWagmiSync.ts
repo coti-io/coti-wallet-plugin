@@ -6,9 +6,21 @@ import { logger } from '../../lib/logger';
 import { truncateAddress } from '../../lib/format';
 import { clearAesKeyValidatedForUnlock } from '../../crypto/aesKeyValidation';
 import { getInitialPrivateTokens } from '../../hooks/usePrivacyBridge';
+import { reportPluginError, hasCotiErrorCode, CotiErrorCode } from '../../errors';
+import { isRateLimitedRpcError } from '../../lib/rpcProvider';
 import type { PrivacyBridgeAccountSync } from './usePrivacyBridgeAccountSync';
 import type { PrivacyBridgeNetworkSession } from './usePrivacyBridgeNetworkSession';
 import type { PrivacyBridgeSessionCore } from './sessionShared';
+
+const reportBalanceRefreshFailure = (context: string, err: unknown) => {
+  logger.error(context, err);
+  if (
+    hasCotiErrorCode(err, CotiErrorCode.RPC_RATE_LIMITED)
+    || isRateLimitedRpcError(err)
+  ) {
+    reportPluginError(err);
+  }
+};
 
 interface UsePrivacyBridgeWagmiSyncOptions {
   core: PrivacyBridgeSessionCore;
@@ -54,7 +66,9 @@ export const usePrivacyBridgeWagmiSync = ({
         chainId: wagmiChainId,
       });
       wagmiSyncRef.current = true;
-      updateAccountState(wagmiAddress, false, true, undefined, wagmiChainId);
+      void updateAccountState(wagmiAddress, false, true, undefined, wagmiChainId).catch(err => {
+        reportBalanceRefreshFailure('Wagmi connect balance refresh failed', err);
+      });
 
       const isMetaMask = mapConnectorIdToWalletType(wagmiConnector?.id) === 'metamask';
       if (isMetaMask) {
@@ -88,7 +102,9 @@ export const usePrivacyBridgeWagmiSync = ({
       clearSnapCache();
       setArePrivateBalancesHidden(true);
       setPrivateTokens(getInitialPrivateTokens(wagmiChainId));
-      updateAccountState(wagmiAddress, false, false, undefined, wagmiChainId);
+      void updateAccountState(wagmiAddress, false, false, undefined, wagmiChainId).catch(err => {
+        reportBalanceRefreshFailure('Wagmi account-switch balance refresh failed', err);
+      });
     }
   }, [
     wagmiConnected,
@@ -145,14 +161,18 @@ export const usePrivacyBridgeWagmiSync = ({
             to: wagmiChainId,
           });
           prevWagmiChainIdRef.current = wagmiChainId;
-          updateAccountState(wagmiAddress, true, true, core.sessionAesKey, wagmiChainId);
+          void updateAccountState(wagmiAddress, true, true, core.sessionAesKey, wagmiChainId).catch(err => {
+            reportBalanceRefreshFailure('Wagmi chain-change balance refresh failed', err);
+          });
           return;
         }
         logger.log('RainbowKit chain changed', {
           from: prevWagmiChainIdRef.current,
           to: wagmiChainId,
         });
-        updateAccountState(wagmiAddress, false, true, undefined, wagmiChainId);
+        void updateAccountState(wagmiAddress, false, true, undefined, wagmiChainId).catch(err => {
+          reportBalanceRefreshFailure('Wagmi chain-change balance refresh failed', err);
+        });
       }
       prevWagmiChainIdRef.current = wagmiChainId;
     }

@@ -41,6 +41,26 @@ vi.mock('../../src/lib/rpcProvider', () => ({
     getBalance: h.getBalance,
     getNetwork: h.getNetwork,
   })),
+  createJsonRpcProvider: vi.fn((_url: string, _chainId: number) => ({
+    getBalance: h.getBalance,
+    getNetwork: h.getNetwork,
+    send: vi.fn(),
+  })),
+  resolveRpcUrlsForChain: vi.fn(() => ['http://rpc-test.example']),
+  withRpcFallback: vi.fn(async (_chainId: number, fn: (provider: unknown) => Promise<unknown>) =>
+    fn({
+      getBalance: h.getBalance,
+      getNetwork: h.getNetwork,
+    })),
+  isTransientRpcError: vi.fn(() => true),
+  markFujiPrimaryRateLimited: vi.fn(),
+  isRateLimitedRpcError: (error: unknown) => {
+    const msg = `${(error as { message?: string })?.message ?? error ?? ''}`.toLowerCase();
+    return msg.includes('rate limit')
+      || msg.includes('too many requests')
+      || msg.includes('429')
+      || msg.includes('-32005');
+  },
 }));
 
 // Inject a synthetic chain (KEYLESS_CHAIN) whose private token list contains a

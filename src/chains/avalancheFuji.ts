@@ -2,10 +2,20 @@ import type { ChainConfig } from "./types";
 
 export const AVALANCHE_FUJI_CHAIN_ID = 43113;
 
-const AVALANCHE_FUJI_RPC_URL =
+/** Rate-limited under load — keep last in the fallback list for reads. */
+const AVALANCHE_FUJI_QUIKNODE_RPC_URL =
   "https://twilight-small-rain.avalanche-testnet.quiknode.pro/ad1393483c2713058688a4e0fb47a308f29dd52d/ext/bc/C/rpc/";
-const AVALANCHE_FUJI_RPC_FALLBACK_URL =
+const AVALANCHE_FUJI_PUBLICNODE_RPC_URL =
   "https://avalanche-fuji-c-chain-rpc.publicnode.com";
+const AVALANCHE_FUJI_AVALANCHE_API_RPC_URL =
+  "https://api.avax-test.network/ext/bc/C/rpc";
+
+/** Prefer public RPCs first; QuikNode last (often returns HTTP 429). */
+const AVALANCHE_FUJI_RPC_URL = AVALANCHE_FUJI_PUBLICNODE_RPC_URL;
+const AVALANCHE_FUJI_RPC_FALLBACK_URLS = [
+  AVALANCHE_FUJI_AVALANCHE_API_RPC_URL,
+  AVALANCHE_FUJI_QUIKNODE_RPC_URL,
+];
 
 /** Underlying ERC-20s from PrivacyPortalConfig.json (Avalanche Fuji). */
 const MTT = "0x328e70e1c52662cd5f19f824fcb8b463d77a6686";
@@ -26,7 +36,7 @@ export const avalancheFujiChain: ChainConfig = {
   hexId: "0xa869",
   name: "Avalanche Fuji",
   rpcUrl: AVALANCHE_FUJI_RPC_URL,
-  rpcFallbackUrls: [AVALANCHE_FUJI_RPC_FALLBACK_URL],
+  rpcFallbackUrls: AVALANCHE_FUJI_RPC_FALLBACK_URLS,
   explorerBaseUrl: "https://testnet.snowscan.xyz",
   priceOracleAddress: "0x95ce33378c88734f3d86b51a4c6dc588722995fd",
   unlockStrategy: "manual-aes-key",
@@ -119,7 +129,7 @@ export const avalancheFujiChain: ChainConfig = {
   walletNetwork: {
     chainId: "0xa869",
     chainName: "Avalanche Fuji Testnet",
-    rpcUrls: [AVALANCHE_FUJI_RPC_URL, AVALANCHE_FUJI_RPC_FALLBACK_URL],
+    rpcUrls: [AVALANCHE_FUJI_RPC_URL, ...AVALANCHE_FUJI_RPC_FALLBACK_URLS],
     nativeCurrency: { name: "Avalanche", symbol: "AVAX", decimals: 18 },
     blockExplorerUrls: ["https://testnet.snowscan.xyz"],
   },

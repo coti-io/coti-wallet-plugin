@@ -20,7 +20,7 @@ export { logger, setDebugLogging } from './lib/logger';
 export type { Logger } from './lib/logger';
 
 // Errors
-export { CotiPluginError, CotiErrorCode, isCotiPluginError, hasCotiErrorCode } from './errors';
+export { CotiPluginError, CotiErrorCode, isCotiPluginError, hasCotiErrorCode, createRpcRateLimitedError, reportPluginError, PLUGIN_ERROR_EVENT } from './errors';
 
 // Chain definitions (viem + RPC — derived from CHAIN_CONFIGS)
 export {
@@ -249,6 +249,7 @@ export type {
 // Utilities
 export { isMultipleWalletsError, isUnsupportedRpcMethodError, MULTIPLE_WALLETS_ERROR_SUBSTRING } from './utils/walletErrors';
 export { formatTokenBalanceDisplay, truncateDecimalValue, formatBalanceWithNotation, addThousandsSeparators, expandExponentialNumber, formatPlainDecimal, formatAmountLimitDisplay, isDustAmount, DUST_AMOUNT_THRESHOLD } from './lib/utils';
+export { isTransientRpcError, isRateLimitedRpcError } from './lib/rpcProvider';
 export {
   getEthereumProvider,
   getEip6963MetaMaskProvider,

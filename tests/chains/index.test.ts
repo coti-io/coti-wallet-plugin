@@ -130,7 +130,7 @@ describe('chains/index', () => {
       ]);
       expect(getRpcUrlsForChain(AVALANCHE_FUJI_CHAIN_ID)).toEqual([
         CHAIN_CONFIGS[AVALANCHE_FUJI_CHAIN_ID].rpcUrl,
-        AVALANCHE_FUJI_RPC_FALLBACK,
+        ...(CHAIN_CONFIGS[AVALANCHE_FUJI_CHAIN_ID].rpcFallbackUrls ?? []),
       ]);
     });
 
