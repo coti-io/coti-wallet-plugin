@@ -150,9 +150,9 @@ describe('quotePodTransferFees', () => {
       gasPrice: undefined,
     });
 
-    expect(quote.gasPrice).toBe(2200n);
+    expect(quote.gasPrice).toBe(2_000_000_000n);
     expect(signer.provider.send).toHaveBeenCalledWith('eth_gasPrice', []);
-    expect(quote.l1ExecutionGasWei).toBe(POD_TRANSFER_L1_EXECUTION_GAS_FALLBACK * 2200n);
+    expect(quote.l1ExecutionGasWei).toBe(POD_TRANSFER_L1_EXECUTION_GAS_FALLBACK * 2_000_000_000n);
   });
 
   it('uses an explicit gasPrice override for very large values', async () => {
