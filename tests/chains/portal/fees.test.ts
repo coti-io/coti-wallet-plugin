@@ -80,7 +80,7 @@ describe('quotePodPortalTransactionFees', () => {
     expect(quote.podInboxFeeWei).toBe(2100n);
     expect(quote.podCallbackFeeWei).toBe(500n);
     expect(quote.gasPrice).toBe(2_200_000_000n); // 10% buffer on 2 gwei
-    expect(quote.l1ExecutionGasWei).toBe(400_000n * 2_200_000_000n);
+    expect(quote.l1ExecutionGasWei).toBe(520_000n * 2_200_000_000n); // 400k × 130% buffer
     expect(quote.display.portalFee).toBe('0.0000000000000001');
     expect(quote.display.podInboxFee).toBe('0.0000000000000021');
     expect(quote.display.portalFeeSymbol).toBe('ETH');
@@ -100,7 +100,7 @@ describe('quotePodPortalTransactionFees', () => {
     });
 
     expect(quote.gasPrice).toBe(123_456n);
-    expect(quote.l1ExecutionGasWei).toBe(400_000n * 123_456n);
+    expect(quote.l1ExecutionGasWei).toBe(520_000n * 123_456n); // 400k × 130% buffer
     expect(signer.provider.send).not.toHaveBeenCalled();
   });
 
@@ -119,7 +119,7 @@ describe('quotePodPortalTransactionFees', () => {
     expect(h.estimateWithdrawFees).toHaveBeenCalled();
   });
 
-  it('buffers very low eth_gasPrice values from the provider', async () => {
+  it('floors very low eth_gasPrice values to the inbox DEFAULT_GAS_PRICE', async () => {
     const quote = await quotePodPortalTransactionFees({
       runner: makeSigner({ gasPriceWei: 1n }) as never,
       chainId: 11155111,
@@ -129,7 +129,7 @@ describe('quotePodPortalTransactionFees', () => {
       direction: 'to-private',
     });
 
-    expect(quote.gasPrice).toBe(1n);
-    expect(quote.l1ExecutionGasWei).toBe(400_000n);
+    expect(quote.gasPrice).toBe(2_000_000_000n);
+    expect(quote.l1ExecutionGasWei).toBe(520_000n * 2_000_000_000n);
   });
 });

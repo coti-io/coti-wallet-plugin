@@ -217,10 +217,10 @@ describe('getPodSdkConfig', () => {
 });
 
 describe('getSepoliaGasPrice', () => {
-  it('reads eth_gasPrice and applies the 10% pod-sdk buffer', async () => {
+  it('reads eth_gasPrice and applies the 10% pod-sdk buffer, floored at 2 gwei', async () => {
     const provider = makeProvider();
     const price = await getSepoliaGasPrice(provider as never);
-    expect(price).toBe(1_100_000_000n);
+    expect(price).toBe(2_000_000_000n); // 1 gwei × 1.1 < floor → 2 gwei
     expect(provider.send).toHaveBeenCalledWith('eth_gasPrice', []);
   });
 });
@@ -231,7 +231,7 @@ describe('quotePortalFeeOnly', () => {
     const quote = await quotePortalFeeOnly(signer as never, PORTAL, 1000n, 'to-private');
     expect(quote.portalFee).toBe(100n);
     expect(quote.usedDynamicPricing).toBe(false);
-    expect(quote.gasPrice).toBe(1_100_000_000n);
+    expect(quote.gasPrice).toBe(2_000_000_000n);
   });
 
   it('returns portal fee from estimateWithdrawFees', async () => {
@@ -239,7 +239,7 @@ describe('quotePortalFeeOnly', () => {
     const quote = await quotePortalFeeOnly(signer as never, PORTAL, 1000n, 'to-public');
     expect(quote.portalFee).toBe(100n);
     expect(quote.usedDynamicPricing).toBe(false);
-    expect(quote.gasPrice).toBe(1_100_000_000n);
+    expect(quote.gasPrice).toBe(2_000_000_000n);
   });
 
   it('treats a runner without a .provider as the provider itself and honors an explicit gasPrice', async () => {

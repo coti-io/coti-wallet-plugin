@@ -38,10 +38,12 @@ vi.mock('@coti-io/pod-sdk', () => ({
 import {
   buildPodMethodArgs,
   buildPodPortalTxGasOverrides,
+  bufferPodEstimatedGasLimit,
   formatPodFeeDisplay,
   formatPortalFeeDisplay,
   getPodGasPrice,
   POD_GAS_PRICE_BUFFER_BPS,
+  POD_MIN_TX_GAS_PRICE_WEI,
   quotePortalFeeOnly,
   resolvePodFeeEstimationConfig,
   resolvePodPortalMethod,
@@ -101,17 +103,22 @@ describe('getPodGasPrice / resolvePodTxGasPrice', () => {
     expect(provider.send).toHaveBeenCalledWith('eth_gasPrice', []);
   });
 
-  it('applies the 10% buffer with integer rounding', async () => {
-    const provider = makeProvider({ gasPriceWei: 999n });
+  it('applies the 10% buffer with integer rounding above the floor', async () => {
+    const provider = makeProvider({ gasPriceWei: 3_000_000_000n });
     const buffered = await resolvePodTxGasPrice(provider as never);
-    expect(buffered).toBe((999n * POD_GAS_PRICE_BUFFER_BPS) / 1000n);
-    expect(buffered).toBe(1098n);
+    expect(buffered).toBe((3_000_000_000n * POD_GAS_PRICE_BUFFER_BPS) / 1000n);
+    expect(buffered).toBe(3_300_000_000n);
   });
 
-  it('handles very low and very high gas prices', async () => {
+  it('floors near-zero gas prices to the inbox DEFAULT_GAS_PRICE (2 gwei)', async () => {
     const low = makeProvider({ gasPriceWei: 1n });
-    await expect(resolvePodTxGasPrice(low as never)).resolves.toBe(1n);
+    await expect(resolvePodTxGasPrice(low as never)).resolves.toBe(POD_MIN_TX_GAS_PRICE_WEI);
 
+    const fujiLike = makeProvider({ gasPriceWei: 151n });
+    await expect(resolvePodTxGasPrice(fujiLike as never)).resolves.toBe(POD_MIN_TX_GAS_PRICE_WEI);
+  });
+
+  it('handles very high gas prices without flooring', async () => {
     const highWei = 1_000_000_000_000n; // 1000 gwei
     const high = makeProvider({ gasPriceWei: highWei });
     await expect(resolvePodTxGasPrice(high as never)).resolves.toBe(
@@ -124,6 +131,22 @@ describe('getPodGasPrice / resolvePodTxGasPrice', () => {
       sendError: new Error('RPC error: method not found'),
     });
     await expect(getPodGasPrice(provider as never)).rejects.toThrow('method not found');
+  });
+});
+
+describe('bufferPodEstimatedGasLimit', () => {
+  it('applies the 30% buffer', () => {
+    expect(bufferPodEstimatedGasLimit(1_000_000n, 2_000_000n)).toBe(1_300_000n);
+  });
+
+  it('falls back when the buffered estimate exceeds the block gas limit', () => {
+    // Reproduces Avalanche Coreth returning (balance-value)/gasPrice as eth_estimateGas.
+    const bogus = 12_648_062_346_510_004n;
+    expect(bufferPodEstimatedGasLimit(bogus, 2_000_000n, 30_029_300n)).toBe(2_000_000n);
+  });
+
+  it('keeps the buffered estimate when it fits in the block', () => {
+    expect(bufferPodEstimatedGasLimit(925_056n, 2_000_000n, 30_029_300n)).toBe(1_202_572n);
   });
 });
 
@@ -177,10 +200,16 @@ describe('quotePortalFeeOnly', () => {
   });
 
   it('resolves gas price from the runner provider when omitted', async () => {
+    const signer = makeSigner({ gasPriceWei: 3_000_000_000n });
+    const quote = await quotePortalFeeOnly(signer as never, PORTAL, 1n, 'to-private');
+    expect(quote.gasPrice).toBe(3_300_000_000n);
+    expect(signer.provider.send).toHaveBeenCalledWith('eth_gasPrice', []);
+  });
+
+  it('floors resolved gas price when the spot price is near zero', async () => {
     const signer = makeSigner({ gasPriceWei: 1_000n });
     const quote = await quotePortalFeeOnly(signer as never, PORTAL, 1n, 'to-private');
-    expect(quote.gasPrice).toBe(1100n);
-    expect(signer.provider.send).toHaveBeenCalledWith('eth_gasPrice', []);
+    expect(quote.gasPrice).toBe(POD_MIN_TX_GAS_PRICE_WEI);
   });
 
   it('works when the runner is the provider itself', async () => {
@@ -313,7 +342,7 @@ describe('buildPodMethodArgs', () => {
 });
 
 describe('estimatePodExecutionGasWei', () => {
-  it('returns gasLimit × gasPrice for deposits', async () => {
+  it('returns buffered gasLimit × gasPrice for deposits', async () => {
     const cost = await estimatePodExecutionGasWei({
       chainId: 11155111,
       portalAddress: PORTAL,
@@ -325,11 +354,20 @@ describe('estimatePodExecutionGasWei', () => {
       gasPrice: 1_000_000_000n,
       podFee: { totalFee: 2100n, remoteFee: 1600n, callBackFee: 500n },
     });
-    expect(cost).toBe(500_000_000_000_000n);
+    // 500_000 estimated × 130% buffer × 1 gwei
+    expect(cost).toBe(650_000_000_000_000n);
     // Simulation must fund the PoD fee on top of the portal fee or it reverts.
-    const [, , , cbFee, overrides] = h.estimateGas.mock.calls[0] as [unknown, unknown, unknown, bigint, { value: bigint }];
+    // gasPrice must NOT be passed — Avalanche Coreth mis-estimates when it is near-zero.
+    const [, , , cbFee, overrides] = h.estimateGas.mock.calls[0] as [
+      unknown,
+      unknown,
+      unknown,
+      bigint,
+      { value: bigint; gasPrice?: bigint },
+    ];
     expect(cbFee).toBe(500n);
     expect(overrides.value).toBe(100n + 2100n);
+    expect(overrides.gasPrice).toBeUndefined();
   });
 
   it('simulates withdraws with transferFee equal to the full PoD fee', async () => {
@@ -357,7 +395,8 @@ describe('estimatePodExecutionGasWei', () => {
     const call = h.estimateGas.mock.calls[0] as unknown[];
     expect(call[3]).toBe(2100n); // transferFee = remote + callback
     expect(call[4]).toBe(500n); // transferCallbackFee
-    expect((call[9] as { value: bigint }).value).toBe(200n + 2100n);
+    expect((call[9] as { value: bigint; gasPrice?: bigint }).value).toBe(200n + 2100n);
+    expect((call[9] as { gasPrice?: bigint }).gasPrice).toBeUndefined();
   });
 
   it('falls back to configured gas limit when estimation reverts', async () => {

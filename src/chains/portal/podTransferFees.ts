@@ -15,6 +15,7 @@ import { getPodSdkConfig } from "./podSdkConfig";
 import { POD_DEFAULT_CALLBACK_DATA_SIZE, POD_INBOX_ADDRESS } from "../podInbox";
 import {
   buildPodPortalTxGasOverrides,
+  bufferPodEstimatedGasLimit,
   formatPodFeeDisplay,
   resolvePodTxGasPrice,
 } from "./podPortalFees";
@@ -219,12 +220,17 @@ export const sendPodTransferMethod = async (params: {
       const rpcUrl = getRpcUrlForChain(params.chainId);
       const rpcProvider = new ethers.JsonRpcProvider(rpcUrl);
       const pToken = new ethers.Contract(params.pTokenAddress, POD_PTOKEN_ABI, rpcProvider);
+      // Omit gasPrice — see bufferPodEstimatedGasLimit.
       const estimated = await pToken.getFunction(POD_TRANSFER_METHOD).estimateGas(...vals, {
         from: userAddress,
         value: fee.totalFee,
-        gasPrice: params.gasPrice,
       });
-      overrides.gasLimit = (estimated * 130n) / 100n;
+      const block = await rpcProvider.getBlock("latest");
+      overrides.gasLimit = bufferPodEstimatedGasLimit(
+        estimated,
+        fallbackTransferGasLimit(params.chainId),
+        block?.gasLimit,
+      );
     } catch {
       overrides.gasLimit = fallbackTransferGasLimit(params.chainId);
     }

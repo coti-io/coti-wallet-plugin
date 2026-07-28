@@ -41,6 +41,17 @@ const resolveFeeRunnerProvider = (runner: ethers.ContractRunner): ethers.Provide
 /** 10% headroom applied to spot gas price for both estimate and send. */
 export const POD_GAS_PRICE_BUFFER_BPS = 1100n;
 
+/**
+ * Floor for PoD tx gas price (wei). Matches InboxFeeManager `DEFAULT_GAS_PRICE`
+ * (2 gwei). Fuji/Sepolia `eth_gasPrice` can crater to ~100 wei; quoting and
+ * pinning below the inbox default under-budgets callback/remote legs and also
+ * triggers Avalanche Coreth `eth_estimateGas` returning `(balance-value)/gasPrice`.
+ */
+export const POD_MIN_TX_GAS_PRICE_WEI = 2_000_000_000n;
+
+/** Buffer applied on top of `eth_estimateGas` for PoD portal / pToken sends. */
+export const POD_GAS_ESTIMATE_BUFFER_PERCENT = 130n;
+
 /** Spot chain gas price via `eth_gasPrice`. */
 export const getPodGasPrice = async (
   provider: ethers.BrowserProvider | ethers.JsonRpcProvider | ethers.Provider,
@@ -53,7 +64,7 @@ export const getPodGasPrice = async (
 /**
  * Gas price for PoD inbox fee estimation and tx send.
  * Uses `eth_gasPrice` only (with a 10% buffer) so estimate and `tx.gasprice`
- * stay aligned per pod-sdk inbox rules.
+ * stay aligned per pod-sdk inbox rules, floored at {@link POD_MIN_TX_GAS_PRICE_WEI}.
  *
  * Avoids `provider.getFeeData()` — ethers maps that to
  * `eth_maxPriorityFeePerGas`, which MetaMask rejects (-32601) on the injected
@@ -63,7 +74,30 @@ export const resolvePodTxGasPrice = async (
   provider: ethers.BrowserProvider | ethers.JsonRpcProvider | ethers.Provider,
 ): Promise<bigint> => {
   const base = await getPodGasPrice(provider);
-  return (base * POD_GAS_PRICE_BUFFER_BPS) / 1000n;
+  const buffered = (base * POD_GAS_PRICE_BUFFER_BPS) / 1000n;
+  return buffered > POD_MIN_TX_GAS_PRICE_WEI ? buffered : POD_MIN_TX_GAS_PRICE_WEI;
+};
+
+/**
+ * Apply the standard buffer and reject estimates that cannot fit in a block.
+ *
+ * Do **not** pass `gasPrice` into `eth_estimateGas` on Avalanche: with near-zero
+ * fee markets Coreth has returned fundable-gas ceilings (`(balance-value)/gasPrice`)
+ * that exceed the block gas limit and fail at `eth_sendRawTransaction`.
+ */
+export const bufferPodEstimatedGasLimit = (
+  estimated: bigint,
+  fallback: bigint,
+  blockGasLimit?: bigint | null,
+): bigint => {
+  const buffered = (estimated * POD_GAS_ESTIMATE_BUFFER_PERCENT) / 100n;
+  if (blockGasLimit != null && blockGasLimit > 0n && buffered > blockGasLimit) {
+    logger.warn(
+      `PoD gas estimate ${buffered.toString()} exceeds block gas limit ${blockGasLimit.toString()}; using fallback ${fallback.toString()}`,
+    );
+    return fallback;
+  }
+  return buffered;
 };
 
 /** @deprecated Use {@link resolvePodTxGasPrice}. */
@@ -231,6 +265,17 @@ const fallbackExecutionGasLimit = (
   return direction === "to-private" ? limits.deposit.forwardGasLimit : limits.withdraw.forwardGasLimit;
 };
 
+const readBlockGasLimit = async (
+  provider: ethers.Provider,
+): Promise<bigint | undefined> => {
+  try {
+    const block = await provider.getBlock("latest");
+    return block?.gasLimit;
+  } catch {
+    return undefined;
+  }
+};
+
 /** L1 execution gas cost (gasLimit × gasPrice) for the portal tx, aligned with executor simulation. */
 export const estimatePodExecutionGasWei = async (params: {
   chainId: number;
@@ -249,20 +294,23 @@ export const estimatePodExecutionGasWei = async (params: {
     const rpcUrl = getRpcUrlForChain(params.chainId);
     const rpcProvider = new ethers.JsonRpcProvider(rpcUrl);
     const portal = new ethers.Contract(params.portalAddress, PRIVACY_PORTAL_ABI, rpcProvider);
+    const blockGasLimit = await readBlockGasLimit(rpcProvider);
 
     if (params.direction === "to-private") {
       const method = resolvePodPortalMethod("to-private", params.isNativeDeposit);
       // The portal requires msg.value to cover the PoD fee on top of portalFee
       // (and the deposit amount for native), otherwise the simulation reverts.
+      // Omit gasPrice — see {@link bufferPodEstimatedGasLimit}.
       const nativeAmount = params.isNativeDeposit ? params.amountWei : 0n;
       const simulationValue = nativeAmount + params.portalFee + params.podFee.totalFee;
-      const gasLimit = await portal[method].estimateGas(
+      const estimated = await portal[method].estimateGas(
         params.wallet,
         params.amountWei,
         params.portalFee,
         params.podFee.callBackFee,
-        { from: params.wallet, value: simulationValue, gasPrice: params.gasPrice },
+        { from: params.wallet, value: simulationValue },
       );
+      const gasLimit = bufferPodEstimatedGasLimit(estimated, fallbackLimit, blockGasLimit);
       return gasLimit * params.gasPrice;
     }
 
@@ -275,7 +323,7 @@ export const estimatePodExecutionGasWei = async (params: {
     const s = permit?.s ?? ethers.ZeroHash;
     // The contract requires transferFee == msg.value - portalFee, and the
     // transfer fee is the full PoD fee (remote + callback).
-    const gasLimit = await portal.requestWithdrawWithPermit.estimateGas(
+    const estimated = await portal.requestWithdrawWithPermit.estimateGas(
       params.wallet,
       params.amountWei,
       params.portalFee,
@@ -288,9 +336,9 @@ export const estimatePodExecutionGasWei = async (params: {
       {
         from: params.wallet,
         value: params.portalFee + params.podFee.totalFee,
-        gasPrice: params.gasPrice,
       },
     );
+    const gasLimit = bufferPodEstimatedGasLimit(estimated, fallbackLimit, blockGasLimit);
     return gasLimit * params.gasPrice;
   } catch {
     return fallbackLimit * params.gasPrice;
