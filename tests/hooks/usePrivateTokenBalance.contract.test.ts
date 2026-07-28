@@ -19,6 +19,7 @@ const h = vi.hoisted(() => ({
 vi.mock('../../src/lib/rpcProvider', () => ({
   withRpcFallback: vi.fn((_chainId: number, fn: (provider: unknown) => Promise<unknown>) =>
     fn({ provider: { call: h.providerCall } })),
+  isRateLimitedRpcError: vi.fn(() => false),
 }));
 
 vi.mock('ethers', () => {

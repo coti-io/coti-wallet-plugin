@@ -98,12 +98,15 @@ function walletInfo(overrides: Partial<WalletTypeInfo> = {}): WalletTypeInfo {
 
 const mobileState = vi.hoisted(() => ({
   isMetaMaskMobileBrowser: vi.fn(() => false),
+  mobileHttpJsonRpc: vi.fn().mockResolvedValue('0x6c1b60'),
 }));
 vi.mock('../../src/lib/metaMaskMobile', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
     isMetaMaskMobileBrowser: () => mobileState.isMetaMaskMobileBrowser(),
+    // Avoid real HTTP during MetaMask Mobile onboarding (eth_chainId probe).
+    mobileHttpJsonRpc: (...args: unknown[]) => mobileState.mobileHttpJsonRpc(...args),
   };
 });
 
@@ -118,6 +121,7 @@ describe('useAesKeyProvider (full branch coverage)', () => {
     ethersState.getSigner.mockResolvedValue(makeSigner(VALID_KEY));
     ethersState.getBalance.mockResolvedValue(1n);
     mobileState.isMetaMaskMobileBrowser.mockReturnValue(false);
+    mobileState.mobileHttpJsonRpc.mockResolvedValue('0x6c1b60');
     configureCotiPlugin({
       // Keep grant off for generic coverage paths; grant cases enable it explicitly.
       onboardingGrantEnabled: false,
