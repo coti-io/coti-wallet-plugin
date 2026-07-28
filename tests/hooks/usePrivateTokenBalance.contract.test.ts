@@ -19,6 +19,15 @@ const h = vi.hoisted(() => ({
 vi.mock('../../src/lib/rpcProvider', () => ({
   withRpcFallback: vi.fn((_chainId: number, fn: (provider: unknown) => Promise<unknown>) =>
     fn({ provider: { call: h.providerCall } })),
+  // The hook re-classifies failures before deciding whether to surface a decrypt
+  // error, so the mock has to provide this too.
+  isRateLimitedRpcError: (error: unknown) => {
+    const msg = `${(error as { message?: string })?.message ?? error ?? ''}`.toLowerCase();
+    return msg.includes('rate limit')
+      || msg.includes('too many requests')
+      || msg.includes('429')
+      || msg.includes('-32005');
+  },
 }));
 
 vi.mock('ethers', () => {

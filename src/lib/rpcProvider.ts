@@ -133,11 +133,127 @@ export const isRateLimitedRpcError = (error: unknown): boolean => {
   return false;
 };
 
-/** After Fuji primary is rate-limited, prefer fallback URLs for subsequent reads. */
-let fujiPreferFallbackRpc = false;
+const providerCache = new Map<string, ethers.JsonRpcProvider>();
 
+/**
+ * Providers are memoized per (chainId, url). ethers batches concurrent requests
+ * and caches responses per provider *instance*, so building a fresh provider for
+ * every read — as this module used to — sent each balance call as its own HTTP
+ * request. Reusing the instance lets a parallel balance refresh collapse into a
+ * single batched POST over one keep-alive connection.
+ */
+export const createJsonRpcProvider = (url: string, chainId: number) => {
+  const key = `${chainId}:${url}`;
+  const cached = providerCache.get(key);
+  if (cached) return cached;
+
+  // ethers retries HTTP 429 inside FetchRequest before surfacing anything to us
+  // (default 12 attempts, and its first backoff slot computes to 0ms). Left alone
+  // it grinds on a throttled endpoint while balances stay stuck at "0", and hides
+  // the failure from the cooldown tracking below. Fail fast on 429 and let
+  // withRpcFallback own backoff and rotation. Applied to every chain, not just
+  // Fuji — the ethers default is a liability wherever an endpoint throttles.
+  //
+  // This only covers endpoints returning a real 429 status; QuikNode reports rate
+  // limits in-band as a JSON-RPC -32005 body with HTTP 200, which never reaches
+  // this path and is classified by isRateLimitedRpcError instead.
+  const connection = new ethers.FetchRequest(url);
+  connection.setThrottleParams({ slotInterval: 500, maxAttempts: 2 });
+  connection.retryFunc = async (_req, response) => response.statusCode !== 429;
+
+  const provider = new ethers.JsonRpcProvider(connection, chainId, {
+    // Without this ethers issues an eth_chainId before *every* request, doubling
+    // request volume. Safe here because the chain id is always passed explicitly.
+    staticNetwork: true,
+    // Well under the default 100: our largest refresh is a handful of calls, and
+    // public endpoints are likelier to reject oversized batches.
+    batchMaxCount: 10,
+  });
+  providerCache.set(key, provider);
+  return provider;
+};
+
+/** Endpoints parked after a rate limit, keyed by URL -> cooldown expiry (ms). */
+const rpcCooldownUntil = new Map<string, number>();
+
+/** How long a rate-limited endpoint is deprioritized before it is tried first again. */
+const RPC_COOLDOWN_MS = 30_000;
+
+const markRpcUnhealthy = (url: string, retryAfterMs?: number): void => {
+  rpcCooldownUntil.set(url, Date.now() + Math.max(retryAfterMs ?? 0, RPC_COOLDOWN_MS));
+};
+
+const markRpcHealthy = (url: string): void => {
+  rpcCooldownUntil.delete(url);
+};
+
+/**
+ * Configured order, except endpoints still in cooldown sink to the back (soonest
+ * to recover first). They are deprioritized rather than dropped, so a chain whose
+ * endpoints have all rate-limited stays usable.
+ */
+const orderRpcUrlsByHealth = (urls: string[]): string[] => {
+  const now = Date.now();
+  const healthy: string[] = [];
+  const cooling: string[] = [];
+  for (const url of urls) {
+    const until = rpcCooldownUntil.get(url) ?? 0;
+    if (until <= now) {
+      rpcCooldownUntil.delete(url);
+      healthy.push(url);
+    } else {
+      cooling.push(url);
+    }
+  }
+  cooling.sort((a, b) => (rpcCooldownUntil.get(a) ?? 0) - (rpcCooldownUntil.get(b) ?? 0));
+  return [...healthy, ...cooling];
+};
+
+/**
+ * Parks the configured Fuji primary in the shared cooldown map. This supersedes
+ * the original one-way preference latch: the cooldown expires, so a recovered
+ * primary is used again instead of being demoted for the rest of the session.
+ */
 export const markFujiPrimaryRateLimited = (): void => {
-  fujiPreferFallbackRpc = true;
+  const [primary] = getRpcUrlsForChain(AVALANCHE_FUJI_CHAIN_ID);
+  if (primary) markRpcUnhealthy(primary);
+};
+
+/** `Retry-After` is either seconds or an HTTP date; ethers surfaces headers under a few shapes. */
+const readRetryAfterMs = (error: unknown): number | undefined => {
+  if (!error || typeof error !== "object") return undefined;
+  const e = error as {
+    info?: { responseHeaders?: Record<string, string> };
+    response?: { headers?: Record<string, string> };
+    headers?: Record<string, string>;
+  };
+  const headers = e.info?.responseHeaders ?? e.response?.headers ?? e.headers;
+  const raw = headers?.["retry-after"] ?? headers?.["Retry-After"];
+  if (!raw) return undefined;
+
+  const seconds = Number(raw);
+  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1_000);
+  const date = Date.parse(raw);
+  return Number.isFinite(date) ? Math.max(0, date - Date.now()) : undefined;
+};
+
+const RPC_RETRY_BASE_DELAY_MS = 250;
+const RPC_RETRY_MAX_DELAY_MS = 4_000;
+
+/**
+ * Full-jitter exponential backoff. The jitter matters: a balance refresh fires
+ * several reads at once, and retrying them in lockstep just reproduces the burst
+ * that triggered the rate limit.
+ */
+const backoffDelayMs = (attempt: number): number => {
+  const ceiling = Math.min(RPC_RETRY_BASE_DELAY_MS * 2 ** attempt, RPC_RETRY_MAX_DELAY_MS);
+  return Math.floor(ceiling / 2 + Math.random() * (ceiling / 2));
+};
+
+/** Test hook: drops memoized providers and endpoint cooldowns. */
+export const resetRpcProviderState = (): void => {
+  providerCache.clear();
+  rpcCooldownUntil.clear();
 };
 
 /** Plugin override first, then chain primary + configured fallbacks (deduped). */
@@ -153,27 +269,9 @@ export const resolveRpcUrlsForChain = (chainId?: number | string | null): string
   } else if (numericId === COTI_TESTNET_CHAIN_ID && plugin.cotiTestnetRpcUrl) {
     override = plugin.cotiTestnetRpcUrl;
   }
-  let urls = !override ? base : [...new Set([override, ...base])];
-
-  if (numericId === AVALANCHE_FUJI_CHAIN_ID && fujiPreferFallbackRpc && urls.length > 1) {
-    urls = [urls[1], urls[0], ...urls.slice(2)];
-  }
-  return urls;
-};
-
-/**
- * Builds a JsonRpcProvider. On Fuji, fail fast on HTTP 429 so callers can move
- * to the next RPC URL instead of ethers retrying QuikNode up to 12 times while
- * balances stay stuck at the initial "0".
- */
-export const createJsonRpcProvider = (url: string, chainId: number) => {
-  if (chainId === AVALANCHE_FUJI_CHAIN_ID) {
-    const request = new ethers.FetchRequest(url);
-    request.setThrottleParams({ maxAttempts: 2 });
-    request.retryFunc = async (_req, response) => response.statusCode !== 429;
-    return new ethers.JsonRpcProvider(request, chainId);
-  }
-  return new ethers.JsonRpcProvider(url, chainId);
+  // Health-based reordering lives in orderRpcUrlsByHealth so this stays a pure
+  // view of configuration.
+  return !override ? base : [...new Set([override, ...base])];
 };
 
 const isWaitTimeoutError = (error: unknown): boolean => {
@@ -289,7 +387,8 @@ async function getTransactionReceiptAcrossRpcs(
   txHash: string,
   createProvider: (url: string, chainId: number) => ethers.JsonRpcProvider = createJsonRpcProvider,
 ): Promise<ethers.TransactionReceipt | null> {
-  const urls = resolveRpcUrlsForChain(chainId);
+  // No per-URL retry here: the caller already backs off between polling rounds.
+  const urls = orderRpcUrlsByHealth(resolveRpcUrlsForChain(chainId));
   let lastError: unknown;
   let sawNotFound = false;
 
@@ -297,11 +396,13 @@ async function getTransactionReceiptAcrossRpcs(
     const provider = createProvider(url, chainId);
     try {
       const receipt = await provider.getTransactionReceipt(txHash);
+      markRpcHealthy(url);
       if (receipt) return receipt;
       sawNotFound = true;
     } catch (error) {
       lastError = error;
       if (!isTransientRpcError(error)) throw error;
+      markRpcUnhealthy(url, readRetryAfterMs(error));
       logger.warn(`[rpc] ${url} getTransactionReceipt failed for chain ${chainId}, trying fallback`);
     }
   }
@@ -312,20 +413,31 @@ async function getTransactionReceiptAcrossRpcs(
     : new Error(`All RPC endpoints failed reading receipt for ${txHash} on chain ${chainId}`);
 }
 
-/** Picks the first RPC endpoint that responds to `getNetwork()`. */
+/**
+ * Picks the first RPC endpoint that answers a live request.
+ *
+ * The probe is `getBlockNumber()` rather than `getNetwork()`: providers are now
+ * built with `staticNetwork`, so `getNetwork()` resolves from config without
+ * touching the network and would report every endpoint as healthy.
+ *
+ * Prefer {@link withRpcFallback} where possible — it fails over per request,
+ * whereas the provider returned here is pinned to whichever endpoint answered.
+ */
 export const createResilientJsonRpcProvider = async (
   chainId: number,
 ): Promise<ethers.JsonRpcProvider> => {
-  const urls = resolveRpcUrlsForChain(chainId);
+  const urls = orderRpcUrlsByHealth(resolveRpcUrlsForChain(chainId));
   let lastError: unknown;
   for (const url of urls) {
     const provider = createJsonRpcProvider(url, chainId);
     try {
-      await provider.getNetwork();
+      await provider.getBlockNumber();
+      markRpcHealthy(url);
       return provider;
     } catch (error) {
       lastError = error;
       if (!isTransientRpcError(error)) throw error;
+      markRpcUnhealthy(url, readRetryAfterMs(error));
       logger.warn(`[rpc] ${url} unavailable for chain ${chainId}, trying fallback`);
     }
   }
@@ -334,33 +446,58 @@ export const createResilientJsonRpcProvider = async (
     : new Error(`No RPC available for chain ${chainId}`);
 };
 
-/** Runs `fn` against each configured RPC until one succeeds or all fail. */
+export type RpcFallbackOptions = {
+  /** Extra attempts against the same endpoint before rotating. Default 1. */
+  retriesPerUrl?: number;
+  /** Optional provider factory (tests / custom RPC clients). */
+  createProvider?: (url: string, chainId: number) => ethers.JsonRpcProvider;
+};
+
+/**
+ * Runs `fn` against each configured RPC until one succeeds or all fail.
+ *
+ * Transient failures retry on the same endpoint with jittered backoff (honoring
+ * `Retry-After` when present) before rotating, since a rate limit is usually a
+ * momentary burst rather than a dead node. Endpoints that rate-limit are parked
+ * so the next call starts on a healthy one. Non-transient errors — reverts, bad
+ * params — rethrow immediately rather than being retried against every endpoint.
+ */
 export const withRpcFallback = async <T>(
   chainId: number,
   fn: (provider: ethers.JsonRpcProvider) => Promise<T>,
+  options: RpcFallbackOptions = {},
 ): Promise<T> => {
-  const urls = resolveRpcUrlsForChain(chainId);
+  const { retriesPerUrl = 1, createProvider = createJsonRpcProvider } = options;
+  const urls = orderRpcUrlsByHealth(resolveRpcUrlsForChain(chainId));
   let lastError: unknown;
   let sawRateLimit = false;
 
   for (const url of urls) {
-    const provider = createJsonRpcProvider(url, chainId);
-    try {
-      const result = await fn(provider);
-      // Report only after the full primary→fallback cycle when a prior URL was rate-limited.
-      if (chainId === AVALANCHE_FUJI_CHAIN_ID && sawRateLimit) {
-        markFujiPrimaryRateLimited();
-        reportPluginError(createRpcRateLimitedError("Avalanche Fuji"));
+    for (let attempt = 0; attempt <= retriesPerUrl; attempt++) {
+      try {
+        const result = await fn(createProvider(url, chainId));
+        markRpcHealthy(url);
+        // Report only after the full cycle, when an earlier endpoint was rate-limited.
+        if (chainId === AVALANCHE_FUJI_CHAIN_ID && sawRateLimit) {
+          reportPluginError(createRpcRateLimitedError("Avalanche Fuji"));
+        }
+        return result;
+      } catch (error) {
+        lastError = error;
+        if (isRateLimitedRpcError(error)) sawRateLimit = true;
+        if (!isTransientRpcError(error)) throw error;
+
+        // Parks this specific endpoint, which is more precise than demoting
+        // whichever URL happens to be configured as the primary.
+        const retryAfterMs = readRetryAfterMs(error);
+        markRpcUnhealthy(url, retryAfterMs);
+
+        if (attempt < retriesPerUrl) {
+          await sleep(retryAfterMs ?? backoffDelayMs(attempt));
+          continue;
+        }
+        logger.warn(`[rpc] ${url} request failed for chain ${chainId}, trying fallback`);
       }
-      return result;
-    } catch (error) {
-      lastError = error;
-      if (isRateLimitedRpcError(error)) {
-        sawRateLimit = true;
-        markFujiPrimaryRateLimited();
-      }
-      if (!isTransientRpcError(error)) throw error;
-      logger.warn(`[rpc] ${url} request failed for chain ${chainId}, trying fallback`);
     }
   }
 

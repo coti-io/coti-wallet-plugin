@@ -3,12 +3,8 @@ import { ethers } from 'ethers';
 import { CONTRACT_ADDRESSES, ERC20_ABI, getPublicTokensForChain, getPrivateTokensForChain } from '../contracts/config';
 import { AVALANCHE_FUJI_CHAIN_ID } from '../chains/avalancheFuji';
 import {
-    createJsonRpcProvider,
-    createResilientJsonRpcProvider,
     isRateLimitedRpcError,
     isTransientRpcError,
-    markFujiPrimaryRateLimited,
-    resolveRpcUrlsForChain,
     withRpcFallback,
 } from '../lib/rpcProvider';
 import type { Token } from './usePrivacyBridge';
@@ -33,47 +29,6 @@ const raiseFujiRateLimited = (): never => {
     const err = createRpcRateLimitedError('Avalanche Fuji');
     reportPluginError(err);
     throw err;
-};
-
-/**
- * Fuji balance reads try each configured RPC (ethers retries per URL first).
- * After the full primary→fallback cycle, if any URL was rate-limited, surface
- * the reload dialog (even when a later fallback recovered).
- */
-const createFujiBalanceReadProvider = async (): Promise<ethers.JsonRpcProvider> => {
-    const urls = resolveRpcUrlsForChain(AVALANCHE_FUJI_CHAIN_ID);
-    let lastError: unknown;
-    let sawRateLimit = false;
-
-    for (const url of urls) {
-        const provider = createJsonRpcProvider(url, AVALANCHE_FUJI_CHAIN_ID);
-        try {
-            await provider.getNetwork();
-            if (sawRateLimit) {
-                markFujiPrimaryRateLimited();
-                reportPluginError(createRpcRateLimitedError('Avalanche Fuji'));
-            }
-            return provider;
-        } catch (error) {
-            lastError = error;
-            if (isRateLimitedRpcError(error)) {
-                sawRateLimit = true;
-                markFujiPrimaryRateLimited();
-            }
-            if (!isTransientRpcError(error)) {
-                throw error;
-            }
-            logger.warn(`[rpc] Fuji balance RPC ${url} unavailable, trying next`);
-        }
-    }
-
-    if (sawRateLimit) {
-        raiseFujiRateLimited();
-    }
-
-    throw lastError instanceof Error
-        ? lastError
-        : new Error('No Fuji RPC available for balance reads');
 };
 
 interface UseBalanceUpdaterProps {
@@ -200,79 +155,55 @@ export const useBalanceUpdater = ({
                     logger.warn(`No contract addresses configured for chain ${currentChainId}`);
                     return false;
                 }
-
-                let readProvider: ethers.Provider;
-                try {
-                    if (hasChainOverride && currentChainId === AVALANCHE_FUJI_CHAIN_ID) {
-                        readProvider = await createFujiBalanceReadProvider();
-                    } else if (hasChainOverride) {
-                        readProvider = await createResilientJsonRpcProvider(currentChainId);
-                    } else {
-                        readProvider = browserProvider!;
-                    }
-                } catch (error) {
-                    // createFujiBalanceReadProvider already reports after all RPCs fail.
-                    throw error;
-                }
-
-                const useFujiRpcFallback =
-                    hasChainOverride && currentChainId === AVALANCHE_FUJI_CHAIN_ID;
-
                 // ─── Public Balances (dynamic) ──────────────────────────────────
                 if (!deferPublicBalances) {
                 const publicTokenConfigs = getPublicTokensForChain(currentChainId);
 
-                let nativeBalance: string;
-                try {
-                    const nativeBalanceWei = useFujiRpcFallback
-                        ? await withRpcFallback(currentChainId, (provider) => provider.getBalance(account))
-                        : await readProvider.getBalance(account);
-                    nativeBalance = ethers.formatEther(nativeBalanceWei);
-                } catch (error) {
-                    throw error;
-                }
+                // Reads share one runner so ethers batches the native + ERC-20 calls
+                // into a single request rather than one round trip per token. The
+                // Fuji fix serialized these instead, which lowered burst concurrency
+                // at the cost of extra round trips; batching removes the burst
+                // without paying that cost.
+                const readPublicBalances = async (
+                    runner: ethers.JsonRpcProvider | ethers.BrowserProvider,
+                ): Promise<string[]> => {
+                    // Fetch native balance (used for tokens without addressKey, e.g. COTI)
+                    const nativeBalanceWei = await runner.getBalance(account);
+                    const nativeBalance = ethers.formatEther(nativeBalanceWei);
 
-                // Fetch ERC20 public balances. On Fuji, serialize + never mask RPC
-                // failures as "0" (that hid rate-limits from the UI).
-                const publicBalances: string[] = [];
-                for (const token of publicTokenConfigs) {
-                    if (!token.addressKey || token.isNative) {
-                        publicBalances.push(nativeBalance);
-                        continue;
-                    }
-                    const tokenAddress = addresses?.[token.addressKey];
-                    if (!tokenAddress) {
-                        publicBalances.push('0');
-                        continue;
-                    }
-                    try {
-                        const bal = useFujiRpcFallback
-                            ? await withRpcFallback(currentChainId, async (provider) => {
-                                const contract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
-                                return contract.balanceOf(account);
-                            })
-                            : await new ethers.Contract(tokenAddress, ERC20_ABI, readProvider).balanceOf(account);
-                        publicBalances.push(ethers.formatUnits(bal, token.decimals));
-                    } catch (error) {
-                        // Never mask Fuji RPC failures as a real "0" balance.
-                        if (useFujiRpcFallback) {
+                    // Fetch all ERC20 public balances in parallel
+                    return await Promise.all(publicTokenConfigs.map(async token => {
+                        // Native token — show chain coin balance (wrapped address is only for the portal contract).
+                        if (!token.addressKey || token.isNative) {
+                            return nativeBalance;
+                        }
+                        const tokenAddress = addresses?.[token.addressKey];
+                        if (!tokenAddress) return '0';
+                        try {
+                            const contract = new ethers.Contract(tokenAddress, ERC20_ABI, runner);
+                            const bal = await contract.balanceOf(account);
+                            return ethers.formatUnits(bal, token.decimals);
+                        } catch (error) {
+                            // Never mask an RPC failure as a real "0" balance — that is
+                            // what hid rate limits from the UI. Bubble it so
+                            // withRpcFallback can retry on another endpoint.
                             if (
                                 hasCotiErrorCode(error, CotiErrorCode.RPC_RATE_LIMITED)
-                                || isRateLimitedRpcError(error)
+                                || isTransientRpcError(error)
                             ) {
-                                raiseFujiRateLimited();
+                                throw error;
                             }
-                            throw error;
+                            return '0';
                         }
-                        if (
-                            hasCotiErrorCode(error, CotiErrorCode.RPC_RATE_LIMITED)
-                            || isRateLimitedRpcError(error)
-                        ) {
-                            raiseFujiRateLimited();
-                        }
-                        publicBalances.push('0');
-                    }
-                }
+                    }));
+                };
+
+                // Wallet-provided chain: read through the wallet. Chain override: no
+                // wallet to read from, so go through the fallback pool, which owns
+                // rotation and the rate-limit reporting.
+                const publicBalances = hasChainOverride
+                    ? await withRpcFallback(currentChainId, readPublicBalances)
+                    : await readPublicBalances(browserProvider!);
 
                 if (isStale()) return false;
 

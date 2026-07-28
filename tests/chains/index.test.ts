@@ -128,10 +128,14 @@ describe('chains/index', () => {
         SEPOLIA_RPC,
         SEPOLIA_RPC_FALLBACK,
       ]);
+      const fuji = CHAIN_CONFIGS[AVALANCHE_FUJI_CHAIN_ID];
       expect(getRpcUrlsForChain(AVALANCHE_FUJI_CHAIN_ID)).toEqual([
-        CHAIN_CONFIGS[AVALANCHE_FUJI_CHAIN_ID].rpcUrl,
-        ...(CHAIN_CONFIGS[AVALANCHE_FUJI_CHAIN_ID].rpcFallbackUrls ?? []),
+        fuji.rpcUrl,
+        ...(fuji.rpcFallbackUrls ?? []),
       ]);
+      expect(getRpcUrlsForChain(AVALANCHE_FUJI_CHAIN_ID)[1]).toBe(AVALANCHE_FUJI_RPC_FALLBACK);
+      // Fuji carries several public fallbacks so balance reads survive a rate limit.
+      expect(fuji.rpcFallbackUrls?.length).toBeGreaterThan(1);
     });
 
     it('getRpcUrlsForChain falls back to testnet rpc', () => {

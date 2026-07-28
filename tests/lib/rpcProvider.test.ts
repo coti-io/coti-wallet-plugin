@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { configureCotiPlugin } from '../../src/config/plugin';
 import {
+  createJsonRpcProvider,
   isTransientRpcError,
   isRateLimitedRpcError,
+  resetRpcProviderState,
   resolveRpcUrlsForChain,
   withRpcFallback,
   waitForTransactionResilient,
@@ -66,11 +68,41 @@ describe('resolveRpcUrlsForChain', () => {
   });
 });
 
+describe('createJsonRpcProvider', () => {
+  beforeEach(() => {
+    resetRpcProviderState();
+  });
+
+  it('memoizes one provider per chain and url so ethers can batch concurrent calls', () => {
+    const first = createJsonRpcProvider(SEPOLIA_RPC, SEPOLIA_CHAIN_ID);
+    expect(createJsonRpcProvider(SEPOLIA_RPC, SEPOLIA_CHAIN_ID)).toBe(first);
+    expect(createJsonRpcProvider(SEPOLIA_RPC_FALLBACK, SEPOLIA_CHAIN_ID)).not.toBe(first);
+    expect(createJsonRpcProvider(SEPOLIA_RPC, AVALANCHE_FUJI_CHAIN_ID)).not.toBe(first);
+  });
+
+  it('resolves the network from config instead of sending eth_chainId', async () => {
+    // Unroutable endpoint: this can only resolve because staticNetwork is enabled.
+    const provider = createJsonRpcProvider('http://127.0.0.1:1/rpc', SEPOLIA_CHAIN_ID);
+    await expect(provider.getNetwork()).resolves.toMatchObject({
+      chainId: BigInt(SEPOLIA_CHAIN_ID),
+    });
+  });
+});
+
 describe('withRpcFallback', () => {
+  const rateLimit = () => new Error('Request is being rate limited.');
+  /** Tags each provider with its URL so tests can assert rotation order. */
+  const taggedProvider = (url: string) => ({ url }) as any;
+  const fujiUrls = () => resolveRpcUrlsForChain(AVALANCHE_FUJI_CHAIN_ID);
+
+  beforeEach(() => {
+    resetRpcProviderState();
+    configureCotiPlugin({ sepoliaRpcUrl: undefined, cotiTestnetRpcUrl: undefined });
+  });
+
   it('retries on transient RPC errors', async () => {
-    const rateLimit = new Error('Too Many Requests');
     const fn = vi.fn()
-      .mockRejectedValueOnce(rateLimit)
+      .mockRejectedValueOnce(new Error('Too Many Requests'))
       .mockResolvedValueOnce('ok');
 
     const result = await withRpcFallback(SEPOLIA_CHAIN_ID, fn);
@@ -78,10 +110,81 @@ describe('withRpcFallback', () => {
     expect(fn).toHaveBeenCalledTimes(2);
   });
 
+  it('retries the same endpoint before rotating to the next', async () => {
+    const seen: string[] = [];
+    const fn = vi.fn(async (provider: any) => {
+      seen.push(provider.url);
+      if (seen.length < 3) throw rateLimit();
+      return 'ok';
+    });
+
+    const result = await withRpcFallback(AVALANCHE_FUJI_CHAIN_ID, fn, {
+      retriesPerUrl: 1,
+      createProvider: taggedProvider,
+    });
+
+    const urls = fujiUrls();
+    expect(result).toBe('ok');
+    expect(seen).toEqual([urls[0], urls[0], urls[1]]);
+  });
+
+  it('deprioritizes a rate-limited endpoint on the next call', async () => {
+    const urls = fujiUrls();
+
+    await withRpcFallback(
+      AVALANCHE_FUJI_CHAIN_ID,
+      async (provider: any) => {
+        if (provider.url === urls[0]) throw rateLimit();
+        return 'ok';
+      },
+      { retriesPerUrl: 0, createProvider: taggedProvider },
+    );
+
+    const seen: string[] = [];
+    await withRpcFallback(
+      AVALANCHE_FUJI_CHAIN_ID,
+      async (provider: any) => {
+        seen.push(provider.url);
+        return 'ok';
+      },
+      { retriesPerUrl: 0, createProvider: taggedProvider },
+    );
+
+    // The parked primary is skipped; the read starts on a healthy endpoint.
+    expect(seen).toEqual([urls[1]]);
+  });
+
+  it('rethrows non-transient errors without trying other endpoints', async () => {
+    const fn = vi.fn(async () => {
+      throw new Error('execution reverted');
+    });
+
+    await expect(
+      withRpcFallback(AVALANCHE_FUJI_CHAIN_ID, fn, {
+        retriesPerUrl: 2,
+        createProvider: taggedProvider,
+      }),
+    ).rejects.toThrow('execution reverted');
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives up once every endpoint is exhausted', async () => {
+    const fn = vi.fn(async () => {
+      throw rateLimit();
+    });
+
+    await expect(
+      withRpcFallback(AVALANCHE_FUJI_CHAIN_ID, fn, {
+        retriesPerUrl: 0,
+        createProvider: taggedProvider,
+      }),
+    ).rejects.toThrow('rate limited');
+    expect(fn).toHaveBeenCalledTimes(fujiUrls().length);
+  });
+
   it('falls back across Fuji RPCs then reports rate-limit even if fallback succeeds', async () => {
-    const rateLimit = new Error('Too Many Requests');
     const fn = vi.fn()
-      .mockRejectedValueOnce(rateLimit)
+      .mockRejectedValueOnce(rateLimit())
       .mockResolvedValueOnce('ok');
     const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
 
@@ -93,12 +196,11 @@ describe('withRpcFallback', () => {
   });
 
   it('raises Fuji rate-limit after every RPC fails', async () => {
-    const rateLimit = new Error('Too Many Requests');
-    const fn = vi.fn().mockRejectedValue(rateLimit);
+    const fn = vi.fn().mockRejectedValue(rateLimit());
 
-    await expect(withRpcFallback(AVALANCHE_FUJI_CHAIN_ID, fn)).rejects.toMatchObject({
-      code: 'RPC_RATE_LIMITED',
-    });
+    await expect(
+      withRpcFallback(AVALANCHE_FUJI_CHAIN_ID, fn, { retriesPerUrl: 0 }),
+    ).rejects.toMatchObject({ code: 'RPC_RATE_LIMITED' });
     expect(fn.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 });

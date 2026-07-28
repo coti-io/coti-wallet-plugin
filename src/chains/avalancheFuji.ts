@@ -9,11 +9,19 @@ const AVALANCHE_FUJI_PUBLICNODE_RPC_URL =
   "https://avalanche-fuji-c-chain-rpc.publicnode.com";
 const AVALANCHE_FUJI_AVALANCHE_API_RPC_URL =
   "https://api.avax-test.network/ext/bc/C/rpc";
+const AVALANCHE_FUJI_DRPC_RPC_URL = "https://avalanche-fuji.drpc.org";
+const AVALANCHE_FUJI_ANKR_RPC_URL = "https://rpc.ankr.com/avalanche_fuji";
 
-/** Prefer public RPCs first; QuikNode last (often returns HTTP 429). */
+/**
+ * Prefer public RPCs first; QuikNode last (often returns HTTP 429). Depth matters
+ * as much as order: `withRpcFallback` parks whichever endpoint rate-limits and
+ * starts the next read on a healthy one, so extra endpoints are extra headroom.
+ */
 const AVALANCHE_FUJI_RPC_URL = AVALANCHE_FUJI_PUBLICNODE_RPC_URL;
 const AVALANCHE_FUJI_RPC_FALLBACK_URLS = [
   AVALANCHE_FUJI_AVALANCHE_API_RPC_URL,
+  AVALANCHE_FUJI_DRPC_RPC_URL,
+  AVALANCHE_FUJI_ANKR_RPC_URL,
   AVALANCHE_FUJI_QUIKNODE_RPC_URL,
 ];
 

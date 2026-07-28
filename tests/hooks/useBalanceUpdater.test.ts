@@ -53,8 +53,17 @@ vi.mock('../../src/lib/rpcProvider', () => ({
       getBalance: h.getBalance,
       getNetwork: h.getNetwork,
     })),
-  isTransientRpcError: vi.fn(() => true),
   markFujiPrimaryRateLimited: vi.fn(),
+  // Realistic classifiers: the hook only degrades a balance to "0" for genuine
+  // call failures, so a blanket `true` would mask that distinction.
+  isTransientRpcError: (error: unknown) => {
+    const msg = `${(error as { message?: string })?.message ?? error ?? ''}`.toLowerCase();
+    return msg.includes('rate limit')
+      || msg.includes('too many requests')
+      || msg.includes('429')
+      || msg.includes('-32005')
+      || msg.includes('timeout');
+  },
   isRateLimitedRpcError: (error: unknown) => {
     const msg = `${(error as { message?: string })?.message ?? error ?? ''}`.toLowerCase();
     return msg.includes('rate limit')

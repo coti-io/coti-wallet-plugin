@@ -1,9 +1,13 @@
 import { ethers } from "ethers";
 import { getChainConfig } from "./index";
 import { AVALANCHE_FUJI_CHAIN_ID } from "./avalancheFuji";
-import { getRpcUrlsForChain } from "./rpcUrls";
-import { createRpcRateLimitedError, reportPluginError } from "../errors";
-import { createJsonRpcProvider, isRateLimitedRpcError } from "../lib/rpcProvider";
+import {
+  CotiErrorCode,
+  createRpcRateLimitedError,
+  hasCotiErrorCode,
+  reportPluginError,
+} from "../errors";
+import { isRateLimitedRpcError, withRpcFallback } from "../lib/rpcProvider";
 import { logger } from "../lib/logger";
 
 /**
@@ -56,41 +60,39 @@ export async function fetchPodOracleTokenUsdPrice(
     return null;
   }
 
-  const rpcUrls = provider ? [] : getRpcUrlsForChain(chainId);
-  const providers = provider
-    ? [provider]
-    : rpcUrls.map(url => createJsonRpcProvider(url, chainId));
-
-  let lastError: unknown;
-  let sawRateLimit = false;
-  for (const rpcProvider of providers) {
-    try {
-      const oracle = new ethers.Contract(oracleAddress, POD_PRICE_ORACLE_ABI, rpcProvider);
-      const raw: bigint = await oracle.getLivePrice(tokenAddress);
-      if (raw === 0n) {
-        logger.warn(`PoD price oracle has no live feed for ${symbol} on chain ${chainId}`);
-        return null;
-      }
-      // After trying prior RPCs, surface Fuji rate-limit even if a fallback recovered.
-      if (chainId === AVALANCHE_FUJI_CHAIN_ID && sawRateLimit) {
-        reportPluginError(createRpcRateLimitedError("Avalanche Fuji"));
-      }
-      return Number(ethers.formatEther(raw));
-    } catch (err) {
-      lastError = err;
-      if (isRateLimitedRpcError(err)) {
-        sawRateLimit = true;
-      }
+  const readLivePrice = async (runner: ethers.ContractRunner): Promise<number | null> => {
+    const oracle = new ethers.Contract(oracleAddress, POD_PRICE_ORACLE_ABI, runner);
+    const raw: bigint = await oracle.getLivePrice(tokenAddress);
+    if (raw === 0n) {
+      logger.warn(`PoD price oracle has no live feed for ${symbol} on chain ${chainId}`);
+      return null;
     }
-  }
+    return Number(ethers.formatEther(raw));
+  };
 
-  if (chainId === AVALANCHE_FUJI_CHAIN_ID && sawRateLimit) {
-    const rateLimited = createRpcRateLimitedError("Avalanche Fuji");
-    reportPluginError(rateLimited);
-    throw rateLimited;
-  }
+  try {
+    // Previously this built a provider per configured URL up front. withRpcFallback
+    // reuses the memoized providers, rotates only on failure, and owns the Fuji
+    // rate-limit reporting for the fallback path.
+    return provider
+      ? await readLivePrice(provider)
+      : await withRpcFallback(chainId, readLivePrice);
+  } catch (err) {
+    // withRpcFallback already reported this one; re-raise so a rate limit is not
+    // degraded into a silent null price.
+    if (hasCotiErrorCode(err, CotiErrorCode.RPC_RATE_LIMITED)) throw err;
 
-  const message = lastError instanceof Error ? lastError.message : String(lastError);
-  logger.error(`Error fetching PoD oracle USD price for ${symbol} on chain ${chainId}: ${message}`);
-  return null;
+    // Caller-supplied provider: no withRpcFallback to report on our behalf.
+    if (isRateLimitedRpcError(err)) {
+      const rateLimited = createRpcRateLimitedError(
+        chainId === AVALANCHE_FUJI_CHAIN_ID ? "Avalanche Fuji" : "The network",
+      );
+      reportPluginError(rateLimited);
+      throw rateLimited;
+    }
+
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error(`Error fetching PoD oracle USD price for ${symbol} on chain ${chainId}: ${message}`);
+    return null;
+  }
 }
