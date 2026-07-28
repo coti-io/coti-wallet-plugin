@@ -2,6 +2,7 @@ import { createConnector } from 'wagmi';
 import { injected, walletConnect } from 'wagmi/connectors';
 import type { Wallet } from '@rainbow-me/rainbowkit';
 import { asInjectedTarget } from './injectedTarget';
+import { getMetaMaskDappDeepLink } from '../lib/metaMaskMobile';
 
 function isMobileBrowser(): boolean {
   if (typeof navigator === 'undefined') return false;
@@ -29,10 +30,17 @@ function isMetaMaskMobileInAppBrowser(): boolean {
 
 /**
  * RainbowKit wallet factory for MetaMask that works on both desktop (injected) and
- * mobile (WalletConnect deep link), ensuring it is always visible in the mobile
+ * mobile (dApp deep link), ensuring it is always visible in the mobile
  * Recommended list even when the browser extension is not present.
  *
- * Mobile deep link: https://metamask.app.link/wc?uri=<encoded-wc-uri>
+ * Mobile deep link: https://link.metamask.io/dapp/<host><path>
+ *
+ * The mobile tap reopens this page in MetaMask's in-app browser rather than
+ * pairing over WalletConnect, because the plugin's Snap calls
+ * (`wallet_invokeSnap`) only work against an injected provider. RainbowKit still
+ * needs the WalletConnect connector on this path: it resolves `mobile.getUri`
+ * from the connector's `display_uri` event, so the pairing URI is generated and
+ * then discarded in favour of the dApp link.
  */
 export const mobileMetaMaskWallet = ({ projectId }: { projectId: string }): Wallet => {
   const mobile = isMobileBrowser();
@@ -55,8 +63,9 @@ export const mobileMetaMaskWallet = ({ projectId }: { projectId: string }): Wall
       browserExtension: 'https://metamask.io/download/',
     },
     mobile: {
+      // The WalletConnect URI is intentionally ignored — see factory docblock.
       getUri: shouldUseWalletConnect
-        ? (uri: string) => `https://metamask.app.link/wc?uri=${encodeURIComponent(uri)}`
+        ? () => getMetaMaskDappDeepLink()
         : undefined,
     },
     qrCode: shouldUseWalletConnect

@@ -41,6 +41,24 @@ export const MOBILE_WALLET_RPC_METHODS = new Set([
   'wallet_addEthereumChain',
 ]);
 
+/** MetaMask universal-link prefix that opens a dApp in the in-app browser. */
+export const METAMASK_DAPP_DEEPLINK_BASE = 'https://link.metamask.io/dapp/';
+
+/**
+ * Deep link that reopens the current page inside MetaMask Mobile's in-app
+ * browser, where `window.ethereum` is injected and Snaps are available
+ * (WalletConnect sessions cannot call `wallet_invokeSnap`).
+ *
+ * The URL is taken from `window.location` minus the protocol, so a page served
+ * from `https://dev.privacyportal.app/` yields
+ * `https://link.metamask.io/dapp/dev.privacyportal.app/`.
+ */
+export function getMetaMaskDappDeepLink(): string {
+  if (typeof window === 'undefined') return METAMASK_DAPP_DEEPLINK_BASE;
+  const { host, pathname, search, hash } = window.location;
+  return `${METAMASK_DAPP_DEEPLINK_BASE}${host}${pathname}${search}${hash}`;
+}
+
 /** Detect MetaMask Mobile's embedded dApp browser. */
 export function isMetaMaskMobileBrowser(): boolean {
   if (typeof navigator === 'undefined') return false;
