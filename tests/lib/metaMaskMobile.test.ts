@@ -2,7 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   clearMetaMaskMobileRpcCache,
   formatOnboardingError,
+  getMetaMaskDappDeepLink,
   getMetaMaskMobileEthAccountsDelayMs,
+  METAMASK_DAPP_DEEPLINK_BASE,
   guardedEthAccounts,
   guardedEthChainId,
   guardedEthGetBalance,
@@ -196,6 +198,35 @@ describe('metaMaskMobile', () => {
   it('returns a fallback message when the error text is empty', () => {
     const message = formatOnboardingError(new Error('   '));
     expect(message).toContain('Onboarding failed');
+  });
+
+  it('builds the MetaMask dApp deep link from the current location', () => {
+    vi.stubGlobal('window', {
+      location: { host: 'dev.privacyportal.app', pathname: '/', search: '', hash: '' },
+    });
+
+    expect(getMetaMaskDappDeepLink()).toBe('https://link.metamask.io/dapp/dev.privacyportal.app/');
+  });
+
+  it('preserves path, query and hash in the dApp deep link', () => {
+    vi.stubGlobal('window', {
+      location: {
+        host: 'dev.privacyportal.app',
+        pathname: '/bridge',
+        search: '?token=usdc',
+        hash: '#deposit',
+      },
+    });
+
+    expect(getMetaMaskDappDeepLink()).toBe(
+      'https://link.metamask.io/dapp/dev.privacyportal.app/bridge?token=usdc#deposit',
+    );
+  });
+
+  it('falls back to the bare deep link base without a window (SSR)', () => {
+    vi.stubGlobal('window', undefined);
+
+    expect(getMetaMaskDappDeepLink()).toBe(METAMASK_DAPP_DEEPLINK_BASE);
   });
 
   it('collects onboarding debug trace lines', () => {
