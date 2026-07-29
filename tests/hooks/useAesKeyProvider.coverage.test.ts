@@ -105,6 +105,10 @@ vi.mock('../../src/lib/metaMaskMobile', async (importOriginal) => {
   return {
     ...actual,
     isMetaMaskMobileBrowser: () => mobileState.isMetaMaskMobileBrowser(),
+    // Must be mocked alongside isMetaMaskMobileBrowser: the real implementation
+    // closes over the module-internal detector, not the mocked export.
+    shouldUseMetaMaskMobileRelay: (walletType: string | undefined) =>
+      walletType === 'metamask' && mobileState.isMetaMaskMobileBrowser(),
     // Avoid real HTTP during MetaMask Mobile onboarding (eth_chainId probe).
     mobileHttpJsonRpc: (...args: unknown[]) => mobileState.mobileHttpJsonRpc(...args),
   };
@@ -924,6 +928,93 @@ describe('useAesKeyProvider (full branch coverage)', () => {
         key = await result.current.getAesKey(ADDR);
       });
       expect(key).toBe(VALID_KEY);
+    });
+  });
+
+  // ─── Non-MetaMask wallet inside a MetaMask-looking mobile browser ─────────
+
+  describe('non-MetaMask wallet on a mobile browser reporting isMetaMask', () => {
+    const originalUA = navigator.userAgent;
+
+    beforeEach(() => {
+      // A real mobile UA, so resolveMetaMaskMobileWalletProvider runs its own
+      // detection rather than the module mock's — this is the code under test.
+      Object.defineProperty(navigator, 'userAgent', {
+        configurable: true,
+        value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) MetaMaskMobile',
+      });
+      mobileState.isMetaMaskMobileBrowser.mockReturnValue(true);
+    });
+
+    afterEach(() => {
+      Object.defineProperty(navigator, 'userAgent', {
+        configurable: true,
+        value: originalUA,
+      });
+      delete (window as unknown as { ethereum?: unknown }).ethereum;
+    });
+
+    it('keeps signing on the connector provider instead of inpage window.ethereum', async () => {
+      // Regression: Zerion on mobile connects over WalletConnect, but the mobile
+      // MetaMask detector was also true (Zerion sets window.ethereum.isMetaMask),
+      // so onboarding swapped in window.ethereum — a provider that never
+      // authorized the account — and every wallet RPC failed with 4100.
+      const inpageRequest = vi.fn().mockRejectedValue(
+        Object.assign(
+          new Error('The requested account and/or method has not been authorized by the user.'),
+          { code: 4100 },
+        ),
+      );
+      (window as unknown as { ethereum?: unknown }).ethereum = {
+        request: inpageRequest,
+        isMetaMask: true,
+      };
+
+      const connectorRequest = vi.fn().mockResolvedValue(undefined);
+      wagmiState.connector = {
+        getProvider: vi.fn().mockResolvedValue({ request: connectorRequest }),
+      };
+      wagmiState.chainId = SEPOLIA;
+      ethersState.signer = makeSigner(VALID_KEY);
+
+      const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'zerion' })));
+
+      let key: string | null = null;
+      await act(async () => {
+        key = await result.current.getAesKey(ADDR);
+      });
+
+      expect(key).toBe(VALID_KEY);
+      expect(inpageRequest).not.toHaveBeenCalled();
+      expect(connectorRequest).toHaveBeenCalledWith(
+        expect.objectContaining({ method: 'wallet_switchEthereumChain' }),
+      );
+    });
+
+    it('still swaps in the inpage provider for a real MetaMask connection', async () => {
+      const inpageRequest = vi.fn().mockResolvedValue(undefined);
+      (window as unknown as { ethereum?: unknown }).ethereum = {
+        request: inpageRequest,
+        isMetaMask: true,
+      };
+
+      const connectorRequest = vi.fn().mockResolvedValue(undefined);
+      wagmiState.connector = {
+        getProvider: vi.fn().mockResolvedValue({ request: connectorRequest }),
+      };
+      wagmiState.chainId = SEPOLIA;
+      ethersState.signer = makeSigner(VALID_KEY);
+
+      const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'metamask' })));
+
+      await act(async () => {
+        await result.current.getAesKey(ADDR);
+      });
+
+      expect(inpageRequest).toHaveBeenCalledWith(
+        expect.objectContaining({ method: 'wallet_switchEthereumChain' }),
+      );
+      expect(connectorRequest).not.toHaveBeenCalled();
     });
   });
 

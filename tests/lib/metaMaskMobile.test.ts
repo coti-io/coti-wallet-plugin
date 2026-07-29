@@ -12,6 +12,7 @@ import {
   isMetaMaskMobileBrowser,
   OnboardingDebugTrace,
   resolveMetaMaskMobileWalletProvider,
+  shouldUseMetaMaskMobileRelay,
 } from '../../src/lib/metaMaskMobile';
 
 describe('metaMaskMobile', () => {
@@ -176,7 +177,49 @@ describe('metaMaskMobile', () => {
       ethereum: nativeProvider,
     });
 
-    expect(resolveMetaMaskMobileWalletProvider(connectorProvider)).toBe(nativeProvider);
+    expect(resolveMetaMaskMobileWalletProvider(connectorProvider, 'metamask')).toBe(nativeProvider);
+  });
+
+  it('keeps the connector provider for a non-MetaMask wallet in a MetaMask Mobile browser', () => {
+    // A dapp opened in MetaMask Mobile's browser can still connect Zerion over
+    // WalletConnect. Swapping in window.ethereum there points signing at a
+    // provider that never authorized the account (EIP-1193 4100).
+    Object.defineProperty(navigator, 'userAgent', {
+      configurable: true,
+      value: 'MetaMaskMobile',
+    });
+    const connectorProvider = { request: vi.fn() };
+    vi.stubGlobal('window', {
+      ethereum: { request: vi.fn(), isMetaMask: true },
+    });
+
+    expect(resolveMetaMaskMobileWalletProvider(connectorProvider, 'zerion')).toBe(connectorProvider);
+    expect(shouldUseMetaMaskMobileRelay('zerion')).toBe(false);
+  });
+
+  it('does not treat an isMetaMask-spoofing mobile wallet as the MetaMask relay', () => {
+    // Zerion, Rabby and Phantom all set isMetaMask for compatibility, so the
+    // browser check alone is true while the connected wallet is not MetaMask.
+    Object.defineProperty(navigator, 'userAgent', {
+      configurable: true,
+      value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Safari/605.1',
+    });
+    vi.stubGlobal('window', {
+      ethereum: { request: vi.fn(), isMetaMask: true },
+    });
+
+    expect(isMetaMaskMobileBrowser()).toBe(true);
+    expect(shouldUseMetaMaskMobileRelay('zerion')).toBe(false);
+    expect(shouldUseMetaMaskMobileRelay('metamask')).toBe(true);
+    expect(shouldUseMetaMaskMobileRelay(undefined)).toBe(false);
+  });
+
+  it('never uses the relay on desktop, even for MetaMask', () => {
+    Object.defineProperty(navigator, 'userAgent', {
+      configurable: true,
+      value: 'Mozilla/5.0 Macintosh Chrome/120.0',
+    });
+    expect(shouldUseMetaMaskMobileRelay('metamask')).toBe(false);
   });
 
   it('formats eth_chainId coalescer stack overflow errors for users', () => {

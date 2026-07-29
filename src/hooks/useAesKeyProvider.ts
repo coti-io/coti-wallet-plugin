@@ -33,6 +33,7 @@ import {
   MOBILE_READ_ONLY_RPC_METHODS,
   OnboardingDebugTrace,
   resolveMetaMaskMobileWalletProvider,
+  shouldUseMetaMaskMobileRelay,
 } from '../lib/metaMaskMobile';
 
 /**
@@ -169,11 +170,16 @@ type Eip1193ProviderLike = { request: (args: Eip1193RequestPayload) => Promise<u
 /**
  * Wraps the wallet provider's `request` to log RPC calls and advance the UI
  * between the message-signature and on-chain onboarding transaction steps.
+ *
+ * `useMobileRelay` enables the MetaMask Mobile relay workarounds (HTTP-routed
+ * reads, serialized wallet calls). Pass it only for a MetaMask connection —
+ * see `shouldUseMetaMaskMobileRelay`.
  */
 function instrumentWalletProvider(
   walletProvider: Eip1193ProviderLike,
   emitStep: (step: OnboardingStep) => void,
   trace: OnboardingDebugTrace,
+  useMobileRelay: boolean,
   readOnlyRpcChainId?: number,
   walletRejectionRef?: { current: boolean },
 ): () => void {
@@ -201,7 +207,7 @@ function instrumentWalletProvider(
     }
 
     try {
-      if (isMetaMaskMobileBrowser()) {
+      if (useMobileRelay) {
         if (MOBILE_READ_ONLY_RPC_METHODS.has(method)) {
           const readOnlyProvider = readOnlyRpcUrl
             ? {
@@ -326,16 +332,22 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
       }
       let restoreBackupFailed = false;
 
+      // MetaMask Mobile's relay workarounds must never be applied to another
+      // wallet's session — the inpage-provider swap alone breaks signing there.
+      const useMobileRelay = shouldUseMetaMaskMobileRelay(walletTypeInfo.walletType);
+
       const trace = debugTraceRef.current;
-      trace.push('start', `wallet=${walletTypeInfo.walletType} mobile=${isMetaMaskMobileBrowser()}`);
+      trace.push(
+        'start',
+        `wallet=${walletTypeInfo.walletType} mobile=${isMetaMaskMobileBrowser()} mmRelay=${useMobileRelay}`,
+      );
 
       if (onboardingInFlightRef.current) {
         trace.push('route', 'onboarding already in flight - joining');
         return onboardingInFlightRef.current;
       }
 
-      const skipSnapOnMetaMaskMobile =
-        walletTypeInfo.walletType === 'metamask' && isMetaMaskMobileBrowser();
+      const skipSnapOnMetaMaskMobile = useMobileRelay;
 
       if (forceContractOnboarding) {
         logger.log('ℹ️ Forcing AccountOnboard contract path (skipping Snap read)');
@@ -407,13 +419,14 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
         const connectorProvider = await connector.getProvider() as Eip1193ProviderLike | null;
         const walletProvider = resolveMetaMaskMobileWalletProvider(
           connectorProvider as Parameters<typeof resolveMetaMaskMobileWalletProvider>[0],
+          walletTypeInfo.walletType,
         ) as Eip1193ProviderLike;
-        if (isMetaMaskMobileBrowser()) {
-          trace.push(
-            'provider',
-            walletProvider === connectorProvider ? 'wagmi-connector' : 'native-injected',
-          );
-        }
+        // Always traced: a provider swap silently redirects every signature
+        // prompt, so which one won must be visible for any wallet.
+        trace.push(
+          'provider',
+          walletProvider === connectorProvider ? 'wagmi-connector' : 'native-injected',
+        );
         if (!walletProvider?.request) {
           reportOnboardingFailure('Could not get provider from wallet connector.');
           return null;
@@ -434,7 +447,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
               : options.prefetchedEncryptedBackup;
             if (backup) {
               const provider = new BrowserProvider(walletProvider);
-              const signer = isMetaMaskMobileBrowser()
+              const signer = useMobileRelay
                 ? new JsonRpcSigner(provider, address)
                 : await provider.getSigner(address);
               emitStep('signing-backup');
@@ -569,6 +582,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           walletProvider,
           emitStep,
           trace,
+          useMobileRelay,
           targetCotiChainId,
           walletRejectionRef,
         );
@@ -587,7 +601,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
           throw signerError;
         }
 
-        if (isMetaMaskMobileBrowser()) {
+        if (useMobileRelay) {
           clearMetaMaskMobileRpcCache();
           const rpcUrl = getRpcUrlForChainId(targetCotiChainId);
           await guardedEthChainId({
@@ -787,6 +801,7 @@ export function useAesKeyProvider(walletTypeInfo: WalletTypeInfo): AesKeyProvide
             const connectorProvider = await connector.getProvider() as Eip1193ProviderLike | null;
             const wp = resolveMetaMaskMobileWalletProvider(
               connectorProvider as Parameters<typeof resolveMetaMaskMobileWalletProvider>[0],
+              walletTypeInfo.walletType,
             ) as Eip1193ProviderLike;
             await wp?.request?.({
               method: 'wallet_switchEthereumChain',

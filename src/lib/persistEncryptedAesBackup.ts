@@ -12,9 +12,10 @@ import { isOnboardingServicesEnabled } from './onboardingServices';
 import { isUserRejection } from './walletErrors';
 import type { EIP1193Provider } from './ethereum';
 import {
-  isMetaMaskMobileBrowser,
   resolveMetaMaskMobileWalletProvider,
+  shouldUseMetaMaskMobileRelay,
 } from './metaMaskMobile';
+import { mapConnectorIdToWalletType } from '../hooks/useWalletType';
 
 export type AesBackupPersistFailureCode =
   | typeof CotiErrorCode.AES_BACKUP_WALLET_NOT_SUPPORTED
@@ -59,9 +60,16 @@ export async function persistEncryptedAesBackup(params: {
   };
 
   try {
+    // Derived from the connector rather than taken as a parameter so both call
+    // sites stay correct: the MetaMask Mobile inpage-provider swap below must not
+    // apply to any other wallet's session.
+    const walletType = mapConnectorIdToWalletType(params.connector.id);
+    const useMobileRelay = shouldUseMetaMaskMobileRelay(walletType);
+
     const connectorProvider = await params.connector.getProvider() as EIP1193Provider | null;
     const walletProvider = resolveMetaMaskMobileWalletProvider(
       connectorProvider as Parameters<typeof resolveMetaMaskMobileWalletProvider>[0],
+      walletType,
     ) as EIP1193Provider;
 
     if (!walletProvider?.request) {
@@ -72,7 +80,7 @@ export async function persistEncryptedAesBackup(params: {
     }
 
     const provider = new BrowserProvider(walletProvider);
-    const signer = isMetaMaskMobileBrowser()
+    const signer = useMobileRelay
       ? new JsonRpcSigner(provider, params.address)
       : await provider.getSigner(params.address);
 
