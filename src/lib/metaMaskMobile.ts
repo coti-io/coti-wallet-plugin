@@ -10,6 +10,7 @@
 import { logger } from './logger';
 import { getPluginConfig } from '../config/plugin';
 import { getEthereumProvider, getMetaMaskProvider, type EIP1193Provider } from './ethereum';
+import type { WalletType } from '../hooks/useWalletType';
 
 type RequestFn = (args: { method: string; params?: unknown[] }) => Promise<unknown>;
 type WalletProviderLike = {
@@ -59,7 +60,13 @@ export function getMetaMaskDappDeepLink(): string {
   return `${METAMASK_DAPP_DEEPLINK_BASE}${host}${pathname}${search}${hash}`;
 }
 
-/** Detect MetaMask Mobile's embedded dApp browser. */
+/**
+ * Detect MetaMask Mobile's embedded dApp browser.
+ *
+ * This answers "which browser am I in?", never "which wallet is connected?".
+ * Gate the relay workarounds in this module on
+ * {@link shouldUseMetaMaskMobileRelay} instead.
+ */
 export function isMetaMaskMobileBrowser(): boolean {
   if (typeof navigator === 'undefined') return false;
   const ua = navigator.userAgent;
@@ -73,15 +80,37 @@ export function isMetaMaskMobileBrowser(): boolean {
 }
 
 /**
+ * True when this module's MetaMask Mobile relay workarounds apply: the page runs
+ * in a MetaMask Mobile webview AND the connected wallet is actually MetaMask.
+ *
+ * Both halves are required. `isMetaMaskMobileBrowser()` alone keys off the
+ * mobile UA plus `window.ethereum.isMetaMask` — a flag Zerion, Rabby and Phantom
+ * also set for compatibility — and it stays true when the user connects a
+ * non-MetaMask wallet over WalletConnect from inside MetaMask Mobile's browser.
+ * Applying the workarounds in either case, above all swapping the connector
+ * provider for inpage `window.ethereum`, points signing at a provider that never
+ * authorized the account: every wallet RPC then fails with EIP-1193 code 4100
+ * ("The requested account and/or method has not been authorized by the user").
+ */
+export function shouldUseMetaMaskMobileRelay(walletType: WalletType | undefined): boolean {
+  return walletType === 'metamask' && isMetaMaskMobileBrowser();
+}
+
+/**
  * On MetaMask Mobile in-app browser, wagmi's MetaMask connector can return the
  * SDK relay provider. `personal_sign` through that relay hangs without opening
  * the native sign sheet, so wallet-interactive onboarding must use inpage
  * `window.ethereum`.
+ *
+ * `walletType` is required: the inpage substitution is only correct when the
+ * connected wallet IS MetaMask. For every other wallet the connector's own
+ * provider holds the authorized session and must be returned untouched.
  */
 export function resolveMetaMaskMobileWalletProvider(
   connectorProvider: WalletProviderLike | null | undefined,
+  walletType: WalletType | undefined,
 ): WalletProviderLike {
-  if (isMetaMaskMobileBrowser()) {
+  if (shouldUseMetaMaskMobileRelay(walletType)) {
     const native = getMetaMaskProvider() ?? getEthereumProvider();
     if (native) {
       return native as EIP1193Provider;
