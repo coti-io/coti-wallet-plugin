@@ -58,34 +58,33 @@ type ZerionProvider = {
  * Zerion rejects `wallet_revokePermissions` with -32601. Wagmi's injected
  * connector calls that method on disconnect; swallow the unsupported-method
  * error so disconnect completes cleanly.
+ *
+ * Implemented as an in-place `request` wrap (not a Proxy). A Proxy whose
+ * `request` getter forwarded to `target.request` recursed when onboarding
+ * instrumentation later assigned `provider.request = instrumented` — the
+ * getter's wrapper and the instrumented function called each other until
+ * `Maximum call stack size exceeded` on `eth_chainId`.
  */
-function wrapZerionProvider(provider: ZerionProvider): ZerionProvider {
+export function wrapZerionProvider(provider: ZerionProvider): ZerionProvider {
   if (provider.__cotiRevokeSafe) return provider.__cotiRevokeSafe;
 
-  const wrapped: ZerionProvider = new Proxy(provider, {
-    get(target, prop, receiver) {
-      if (prop === 'request') {
-        return async (args: Eip1193RequestArgs) => {
-          try {
-            return await target.request(args);
-          } catch (error) {
-            if (
-              args?.method === 'wallet_revokePermissions' &&
-              isUnsupportedRpcMethodError(error)
-            ) {
-              return null;
-            }
-            throw error;
-          }
-        };
+  const underlyingRequest = provider.request.bind(provider);
+  provider.request = async (args: Eip1193RequestArgs) => {
+    try {
+      return await underlyingRequest(args);
+    } catch (error) {
+      if (
+        args?.method === 'wallet_revokePermissions' &&
+        isUnsupportedRpcMethodError(error)
+      ) {
+        return null;
       }
-      const value = Reflect.get(target, prop, receiver);
-      return typeof value === 'function' ? (value as (...a: unknown[]) => unknown).bind(target) : value;
-    },
-  });
+      throw error;
+    }
+  };
 
-  provider.__cotiRevokeSafe = wrapped;
-  return wrapped;
+  provider.__cotiRevokeSafe = provider;
+  return provider;
 }
 
 function getZerionInjectedProvider(): ZerionProvider | undefined {
