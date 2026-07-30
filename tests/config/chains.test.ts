@@ -91,7 +91,7 @@ describe('Chain Definitions (README: Supported Networks)', () => {
 
     it('returns Sepolia primary RPC for Sepolia chain ID', () => {
       expect(getRpcUrlForChainId(11155111)).toBe(
-        'https://sepolia.infura.io/v3/ed65559ebd384beabfee7a97c266d6bf',
+        'https://damp-greatest-ensemble.ethereum-sepolia.quiknode.pro/181816e3606c96014a5cfbac3eedb823d79dde08/',
       );
     });
 

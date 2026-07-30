@@ -1,6 +1,5 @@
 import { ethers } from "ethers";
-import { getChainConfig } from "./index";
-import { AVALANCHE_FUJI_CHAIN_ID } from "./avalancheFuji";
+import { getChainConfig, getNetworkNameForChain } from "./index";
 import { getRpcUrlsForChain } from "./rpcUrls";
 import { createRpcRateLimitedError, reportPluginError } from "../errors";
 import { createJsonRpcProvider, isRateLimitedRpcError } from "../lib/rpcProvider";
@@ -71,9 +70,9 @@ export async function fetchPodOracleTokenUsdPrice(
         logger.warn(`PoD price oracle has no live feed for ${symbol} on chain ${chainId}`);
         return null;
       }
-      // After trying prior RPCs, surface Fuji rate-limit even if a fallback recovered.
-      if (chainId === AVALANCHE_FUJI_CHAIN_ID && sawRateLimit) {
-        reportPluginError(createRpcRateLimitedError("Avalanche Fuji"));
+      // After trying prior RPCs, surface rate-limit even if a fallback recovered.
+      if (sawRateLimit) {
+        reportPluginError(createRpcRateLimitedError(getNetworkNameForChain(chainId)));
       }
       return Number(ethers.formatEther(raw));
     } catch (err) {
@@ -84,8 +83,8 @@ export async function fetchPodOracleTokenUsdPrice(
     }
   }
 
-  if (chainId === AVALANCHE_FUJI_CHAIN_ID && sawRateLimit) {
-    const rateLimited = createRpcRateLimitedError("Avalanche Fuji");
+  if (sawRateLimit) {
+    const rateLimited = createRpcRateLimitedError(getNetworkNameForChain(chainId));
     reportPluginError(rateLimited);
     throw rateLimited;
   }

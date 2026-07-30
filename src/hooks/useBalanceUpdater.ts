@@ -7,7 +7,7 @@ import {
     createResilientJsonRpcProvider,
     isRateLimitedRpcError,
     isTransientRpcError,
-    markFujiPrimaryRateLimited,
+    markPrimaryRateLimited,
     resolveRpcUrlsForChain,
     withRpcFallback,
 } from '../lib/rpcProvider';
@@ -50,7 +50,7 @@ const createFujiBalanceReadProvider = async (): Promise<ethers.JsonRpcProvider> 
         try {
             await provider.getNetwork();
             if (sawRateLimit) {
-                markFujiPrimaryRateLimited();
+                markPrimaryRateLimited(AVALANCHE_FUJI_CHAIN_ID);
                 reportPluginError(createRpcRateLimitedError('Avalanche Fuji'));
             }
             return provider;
@@ -58,7 +58,7 @@ const createFujiBalanceReadProvider = async (): Promise<ethers.JsonRpcProvider> 
             lastError = error;
             if (isRateLimitedRpcError(error)) {
                 sawRateLimit = true;
-                markFujiPrimaryRateLimited();
+                markPrimaryRateLimited(AVALANCHE_FUJI_CHAIN_ID);
             }
             if (!isTransientRpcError(error)) {
                 throw error;
