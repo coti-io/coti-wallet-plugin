@@ -700,4 +700,46 @@ describe('useBalanceUpdater', () => {
     expect(callOrder).not.toContain('public-balance');
     expect(callOrder).not.toContain('check-network');
   });
+
+  describe('private balance read concurrency', () => {
+    // Sepolia's primary RPC is a shared, easily-rate-limited Infura key. Reading
+    // all private tokens in parallel meant every read that failed over landed on
+    // the same fallback URL simultaneously, which could burst-exhaust it too.
+    function trackingFetchPrivateBalance() {
+      let inFlight = 0;
+      let maxInFlight = 0;
+      const fn = vi.fn().mockImplementation(async () => {
+        inFlight += 1;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await new Promise(resolve => setTimeout(resolve, 5));
+        inFlight -= 1;
+        return '1';
+      });
+      return { fn, getMaxInFlight: () => maxInFlight };
+    }
+
+    it('serializes private balance reads on Sepolia (never more than one in flight)', async () => {
+      const { fn, getMaxInFlight } = trackingFetchPrivateBalance();
+      const props = makeProps({ sessionAesKey: 'a'.repeat(32), fetchPrivateBalance: fn });
+      const { result } = renderHook(() => useBalanceUpdater(props));
+
+      const ok = await result.current.updateAccountState(ACCOUNT, false, true, undefined, SEPOLIA);
+
+      expect(ok).toBe(true);
+      expect(fn.mock.calls.length).toBeGreaterThan(1);
+      expect(getMaxInFlight()).toBe(1);
+    });
+
+    it('still reads private balances in parallel on other chains', async () => {
+      const { fn, getMaxInFlight } = trackingFetchPrivateBalance();
+      const props = makeProps({ sessionAesKey: 'a'.repeat(32), fetchPrivateBalance: fn });
+      const { result } = renderHook(() => useBalanceUpdater(props));
+
+      const ok = await result.current.updateAccountState(ACCOUNT, false, true, undefined, COTI_TESTNET);
+
+      expect(ok).toBe(true);
+      expect(fn.mock.calls.length).toBeGreaterThan(1);
+      expect(getMaxInFlight()).toBeGreaterThan(1);
+    });
+  });
 });

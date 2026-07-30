@@ -2,6 +2,7 @@ import { useCallback, useRef } from 'react';
 import { ethers } from 'ethers';
 import { CONTRACT_ADDRESSES, ERC20_ABI, getPublicTokensForChain, getPrivateTokensForChain } from '../contracts/config';
 import { AVALANCHE_FUJI_CHAIN_ID } from '../chains/avalancheFuji';
+import { SEPOLIA_CHAIN_ID } from '../chains/sepolia';
 import {
     createJsonRpcProvider,
     createResilientJsonRpcProvider,
@@ -352,7 +353,7 @@ export const useBalanceUpdater = ({
                         if (aesKey || allowSnapOperations || hasPlainPrivateTokens) {
                             logger.log('🔄 Fetching private balances...');
 
-                            const privateFetches = await Promise.all(privateTokenConfigs.map(async token => {
+                            const fetchOnePrivateToken = async (token: typeof privateTokenConfigs[number]) => {
                                 const tokenAddress = token.addressKey ? addresses[token.addressKey] : undefined;
                                 if (!tokenAddress) {
                                     return { symbol: token.symbol, value: '0', isMismatch: false };
@@ -401,7 +402,21 @@ export const useBalanceUpdater = ({
                                     }
                                     throw e;
                                 }
-                            }));
+                            };
+
+                            // Sepolia's primary RPC is a shared, easily-rate-limited Infura key.
+                            // Reading all private tokens in parallel meant every read that failed
+                            // over landed on the same fallback URL simultaneously, which could
+                            // burst-exhaust it too. Serialize so only one read is ever in flight.
+                            const privateFetches = currentChainId === SEPOLIA_CHAIN_ID
+                                ? await (async () => {
+                                    const results: Awaited<ReturnType<typeof fetchOnePrivateToken>>[] = [];
+                                    for (const token of privateTokenConfigs) {
+                                        results.push(await fetchOnePrivateToken(token));
+                                    }
+                                    return results;
+                                })()
+                                : await Promise.all(privateTokenConfigs.map(fetchOnePrivateToken));
 
                             if (isStale()) return false;
 
