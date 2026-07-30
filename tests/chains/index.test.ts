@@ -126,8 +126,9 @@ describe('chains/index', () => {
     it('getRpcUrlsForChain returns primary and fallback RPCs when configured', () => {
       expect(getRpcUrlsForChain(SEPOLIA_CHAIN_ID)).toEqual([
         SEPOLIA_RPC,
-        SEPOLIA_RPC_FALLBACK,
+        ...(CHAIN_CONFIGS[SEPOLIA_CHAIN_ID].rpcFallbackUrls ?? []),
       ]);
+      expect(SEPOLIA_RPC_FALLBACK).toBe(CHAIN_CONFIGS[SEPOLIA_CHAIN_ID].rpcFallbackUrls?.[0]);
       expect(getRpcUrlsForChain(AVALANCHE_FUJI_CHAIN_ID)).toEqual([
         CHAIN_CONFIGS[AVALANCHE_FUJI_CHAIN_ID].rpcUrl,
         ...(CHAIN_CONFIGS[AVALANCHE_FUJI_CHAIN_ID].rpcFallbackUrls ?? []),

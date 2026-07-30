@@ -2,9 +2,27 @@ import type { ChainConfig } from "./types";
 
 export const SEPOLIA_CHAIN_ID = 11155111;
 
+/** Shared free-tier key — rate-limited under load, same failure mode as Fuji's QuikNode. */
 const SEPOLIA_RPC_URL =
   "https://sepolia.infura.io/v3/ed65559ebd384beabfee7a97c266d6bf";
-const SEPOLIA_RPC_FALLBACK_URL = "https://ethereum-sepolia-rpc.publicnode.com";
+const SEPOLIA_PUBLICNODE_RPC_URL = "https://ethereum-sepolia-rpc.publicnode.com";
+const SEPOLIA_DRPC_RPC_URL = "https://sepolia.drpc.org";
+const SEPOLIA_1RPC_RPC_URL = "https://1rpc.io/sepolia";
+const SEPOLIA_TENDERLY_RPC_URL = "https://gateway.tenderly.co/public/sepolia";
+
+/**
+ * Only 2 endpoints (Infura + a single public fallback) meant that when Infura
+ * rate-limited a balance refresh, every read failing over simultaneously could
+ * also exhaust the one fallback in the same burst — the refresh had nowhere
+ * left to go. Mirrors Fuji's 3-deep fallback list for the same reason.
+ */
+const SEPOLIA_RPC_FALLBACK_URL = SEPOLIA_PUBLICNODE_RPC_URL;
+const SEPOLIA_RPC_FALLBACK_URLS = [
+  SEPOLIA_PUBLICNODE_RPC_URL,
+  SEPOLIA_DRPC_RPC_URL,
+  SEPOLIA_1RPC_RPC_URL,
+  SEPOLIA_TENDERLY_RPC_URL,
+];
 
 /** Underlying ERC-20s from PrivacyPortalConfig.json (Sepolia). */
 const WETH = "0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9";
@@ -25,7 +43,7 @@ export const sepoliaChain: ChainConfig = {
   hexId: "0xaa36a7",
   name: "Sepolia",
   rpcUrl: SEPOLIA_RPC_URL,
-  rpcFallbackUrls: [SEPOLIA_RPC_FALLBACK_URL],
+  rpcFallbackUrls: SEPOLIA_RPC_FALLBACK_URLS,
   explorerBaseUrl: "https://eth-sepolia.blockscout.com",
   unlockStrategy: "manual-aes-key",
   portalStrategy: "pod-privacy-portal",

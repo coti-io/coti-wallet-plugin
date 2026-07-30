@@ -140,6 +140,13 @@ export const markFujiPrimaryRateLimited = (): void => {
   fujiPreferFallbackRpc = true;
 };
 
+/** After Sepolia primary (shared Infura key) is rate-limited, prefer fallback URLs. */
+let sepoliaPreferFallbackRpc = false;
+
+export const markSepoliaPrimaryRateLimited = (): void => {
+  sepoliaPreferFallbackRpc = true;
+};
+
 /** Plugin override first, then chain primary + configured fallbacks (deduped). */
 export const resolveRpcUrlsForChain = (chainId?: number | string | null): string[] => {
   const base = getRpcUrlsForChain(chainId);
@@ -158,16 +165,23 @@ export const resolveRpcUrlsForChain = (chainId?: number | string | null): string
   if (numericId === AVALANCHE_FUJI_CHAIN_ID && fujiPreferFallbackRpc && urls.length > 1) {
     urls = [urls[1], urls[0], ...urls.slice(2)];
   }
+  if (numericId === SEPOLIA_CHAIN_ID && sepoliaPreferFallbackRpc && urls.length > 1) {
+    urls = [urls[1], urls[0], ...urls.slice(2)];
+  }
   return urls;
 };
 
 /**
- * Builds a JsonRpcProvider. On Fuji, fail fast on HTTP 429 so callers can move
- * to the next RPC URL instead of ethers retrying QuikNode up to 12 times while
- * balances stay stuck at the initial "0".
+ * Chains whose primary RPC is a shared/rate-limited endpoint (Fuji's QuikNode,
+ * Sepolia's shared Infura key). On these, fail fast on HTTP 429 so callers can
+ * move to the next RPC URL instead of ethers retrying up to 12 times per URL
+ * — that default retry can leave `getNetwork()` unresolved long enough that
+ * balances never load rather than falling back.
  */
+const RATE_LIMIT_FAILFAST_CHAIN_IDS = new Set<number>([AVALANCHE_FUJI_CHAIN_ID, SEPOLIA_CHAIN_ID]);
+
 export const createJsonRpcProvider = (url: string, chainId: number) => {
-  if (chainId === AVALANCHE_FUJI_CHAIN_ID) {
+  if (RATE_LIMIT_FAILFAST_CHAIN_IDS.has(chainId)) {
     const request = new ethers.FetchRequest(url);
     request.setThrottleParams({ maxAttempts: 2 });
     request.retryFunc = async (_req, response) => response.statusCode !== 429;
@@ -334,6 +348,18 @@ export const createResilientJsonRpcProvider = async (
     : new Error(`No RPC available for chain ${chainId}`);
 };
 
+/** Display name + rate-limit marker for chains with fail-fast fallback (see {@link RATE_LIMIT_FAILFAST_CHAIN_IDS}). */
+const rateLimitChainName = (chainId: number): string | undefined => {
+  if (chainId === AVALANCHE_FUJI_CHAIN_ID) return "Avalanche Fuji";
+  if (chainId === SEPOLIA_CHAIN_ID) return "Sepolia";
+  return undefined;
+};
+
+const markPrimaryRateLimited = (chainId: number): void => {
+  if (chainId === AVALANCHE_FUJI_CHAIN_ID) markFujiPrimaryRateLimited();
+  else if (chainId === SEPOLIA_CHAIN_ID) markSepoliaPrimaryRateLimited();
+};
+
 /** Runs `fn` against each configured RPC until one succeeds or all fail. */
 export const withRpcFallback = async <T>(
   chainId: number,
@@ -342,33 +368,34 @@ export const withRpcFallback = async <T>(
   const urls = resolveRpcUrlsForChain(chainId);
   let lastError: unknown;
   let sawRateLimit = false;
+  const chainName = rateLimitChainName(chainId);
 
   for (const url of urls) {
     const provider = createJsonRpcProvider(url, chainId);
     try {
       const result = await fn(provider);
       // Report only after the full primary→fallback cycle when a prior URL was rate-limited.
-      if (chainId === AVALANCHE_FUJI_CHAIN_ID && sawRateLimit) {
-        markFujiPrimaryRateLimited();
-        reportPluginError(createRpcRateLimitedError("Avalanche Fuji"));
+      if (chainName && sawRateLimit) {
+        markPrimaryRateLimited(chainId);
+        reportPluginError(createRpcRateLimitedError(chainName));
       }
       return result;
     } catch (error) {
       lastError = error;
       if (isRateLimitedRpcError(error)) {
         sawRateLimit = true;
-        markFujiPrimaryRateLimited();
+        markPrimaryRateLimited(chainId);
       }
       if (!isTransientRpcError(error)) throw error;
       logger.warn(`[rpc] ${url} request failed for chain ${chainId}, trying fallback`);
     }
   }
 
-  // Fuji: surface rate-limit UI only when a rate-limit was actually observed
+  // Surface rate-limit UI only when a rate-limit was actually observed
   // (not for unrelated transient failures like plain timeouts).
-  if (chainId === AVALANCHE_FUJI_CHAIN_ID && (sawRateLimit || isRateLimitedRpcError(lastError))) {
-    markFujiPrimaryRateLimited();
-    const rateLimited = createRpcRateLimitedError("Avalanche Fuji");
+  if (chainName && (sawRateLimit || isRateLimitedRpcError(lastError))) {
+    markPrimaryRateLimited(chainId);
+    const rateLimited = createRpcRateLimitedError(chainName);
     reportPluginError(rateLimited);
     throw rateLimited;
   }

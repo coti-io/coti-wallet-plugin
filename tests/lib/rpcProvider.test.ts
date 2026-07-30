@@ -8,7 +8,8 @@ import {
   waitForTransactionResilient,
 } from '../../src/lib/rpcProvider';
 import { SEPOLIA_CHAIN_ID } from '../../src/chains/sepolia';
-import { SEPOLIA_RPC, SEPOLIA_RPC_FALLBACK } from '../../src/chains/viemChains';
+import { SEPOLIA_RPC } from '../../src/chains/viemChains';
+import { CHAIN_CONFIGS } from '../../src/chains';
 import { AVALANCHE_FUJI_CHAIN_ID } from '../../src/chains/avalancheFuji';
 
 describe('isTransientRpcError', () => {
@@ -48,11 +49,16 @@ describe('resolveRpcUrlsForChain', () => {
     configureCotiPlugin({ sepoliaRpcUrl: undefined, cotiTestnetRpcUrl: undefined });
   });
 
+  const sepoliaFallbacks = CHAIN_CONFIGS[SEPOLIA_CHAIN_ID].rpcFallbackUrls ?? [];
+
   it('returns primary and fallback URLs for Sepolia', () => {
     expect(resolveRpcUrlsForChain(SEPOLIA_CHAIN_ID)).toEqual([
       SEPOLIA_RPC,
-      SEPOLIA_RPC_FALLBACK,
+      ...sepoliaFallbacks,
     ]);
+    // More than one fallback: a burst that exhausts the primary and the first
+    // fallback together (the original bug) still has somewhere left to go.
+    expect(sepoliaFallbacks.length).toBeGreaterThan(1);
   });
 
   it('prepends plugin override without duplicates', () => {
@@ -61,7 +67,7 @@ describe('resolveRpcUrlsForChain', () => {
     expect(resolveRpcUrlsForChain(SEPOLIA_CHAIN_ID)).toEqual([
       custom,
       SEPOLIA_RPC,
-      SEPOLIA_RPC_FALLBACK,
+      ...sepoliaFallbacks,
     ]);
   });
 });
@@ -98,6 +104,34 @@ describe('withRpcFallback', () => {
 
     await expect(withRpcFallback(AVALANCHE_FUJI_CHAIN_ID, fn)).rejects.toMatchObject({
       code: 'RPC_RATE_LIMITED',
+    });
+    expect(fn.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  // Sepolia's primary is a shared Infura key; when it gets rate-limited, balance
+  // reads must fail over to the public fallback instead of hanging on ethers'
+  // default per-URL retry (that hang was why CombinedTokenCards never loaded).
+  it('falls back across Sepolia RPCs then reports rate-limit even if fallback succeeds', async () => {
+    const rateLimit = new Error('Too Many Requests');
+    const fn = vi.fn()
+      .mockRejectedValueOnce(rateLimit)
+      .mockResolvedValueOnce('ok');
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+
+    const result = await withRpcFallback(SEPOLIA_CHAIN_ID, fn);
+    expect(result).toBe('ok');
+    expect(fn).toHaveBeenCalledTimes(2);
+    expect(dispatchSpy).toHaveBeenCalled();
+    dispatchSpy.mockRestore();
+  });
+
+  it('raises Sepolia rate-limit after every RPC fails', async () => {
+    const rateLimit = new Error('Too Many Requests');
+    const fn = vi.fn().mockRejectedValue(rateLimit);
+
+    await expect(withRpcFallback(SEPOLIA_CHAIN_ID, fn)).rejects.toMatchObject({
+      code: 'RPC_RATE_LIMITED',
+      message: expect.stringContaining('Sepolia'),
     });
     expect(fn.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
