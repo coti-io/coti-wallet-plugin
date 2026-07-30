@@ -2,6 +2,7 @@ import { ethers } from "ethers";
 import { getPluginConfig } from "../config/plugin";
 import { AVALANCHE_FUJI_CHAIN_ID } from "../chains/avalancheFuji";
 import { COTI_TESTNET_CHAIN_ID } from "../chains/coti";
+import { getNetworkNameForChain } from "../chains";
 import { getRpcUrlsForChain } from "../chains/rpcUrls";
 import { SEPOLIA_CHAIN_ID } from "../chains/sepolia";
 import { createRpcRateLimitedError, reportPluginError } from "../errors";
@@ -133,12 +134,20 @@ export const isRateLimitedRpcError = (error: unknown): boolean => {
   return false;
 };
 
-/** After Fuji primary is rate-limited, prefer fallback URLs for subsequent reads. */
-let fujiPreferFallbackRpc = false;
+/** After a chain's primary is rate-limited, prefer fallback URLs for subsequent reads. */
+const preferFallbackRpcByChainId = new Set<number>();
 
-export const markFujiPrimaryRateLimited = (): void => {
-  fujiPreferFallbackRpc = true;
+export const markPrimaryRateLimited = (chainId: number): void => {
+  preferFallbackRpcByChainId.add(chainId);
 };
+
+/** @deprecated Prefer {@link markPrimaryRateLimited}. */
+export const markFujiPrimaryRateLimited = (): void => {
+  markPrimaryRateLimited(AVALANCHE_FUJI_CHAIN_ID);
+};
+
+const rateLimitedErrorForChain = (chainId: number) =>
+  createRpcRateLimitedError(getNetworkNameForChain(chainId));
 
 /** Plugin override first, then chain primary + configured fallbacks (deduped). */
 export const resolveRpcUrlsForChain = (chainId?: number | string | null): string[] => {
@@ -155,7 +164,7 @@ export const resolveRpcUrlsForChain = (chainId?: number | string | null): string
   }
   let urls = !override ? base : [...new Set([override, ...base])];
 
-  if (numericId === AVALANCHE_FUJI_CHAIN_ID && fujiPreferFallbackRpc && urls.length > 1) {
+  if (preferFallbackRpcByChainId.has(numericId) && urls.length > 1) {
     urls = [urls[1], urls[0], ...urls.slice(2)];
   }
   return urls;
@@ -348,27 +357,27 @@ export const withRpcFallback = async <T>(
     try {
       const result = await fn(provider);
       // Report only after the full primary→fallback cycle when a prior URL was rate-limited.
-      if (chainId === AVALANCHE_FUJI_CHAIN_ID && sawRateLimit) {
-        markFujiPrimaryRateLimited();
-        reportPluginError(createRpcRateLimitedError("Avalanche Fuji"));
+      if (sawRateLimit) {
+        markPrimaryRateLimited(chainId);
+        reportPluginError(rateLimitedErrorForChain(chainId));
       }
       return result;
     } catch (error) {
       lastError = error;
       if (isRateLimitedRpcError(error)) {
         sawRateLimit = true;
-        markFujiPrimaryRateLimited();
+        markPrimaryRateLimited(chainId);
       }
       if (!isTransientRpcError(error)) throw error;
       logger.warn(`[rpc] ${url} request failed for chain ${chainId}, trying fallback`);
     }
   }
 
-  // Fuji: surface rate-limit UI only when a rate-limit was actually observed
+  // Surface rate-limit UI only when a rate-limit was actually observed
   // (not for unrelated transient failures like plain timeouts).
-  if (chainId === AVALANCHE_FUJI_CHAIN_ID && (sawRateLimit || isRateLimitedRpcError(lastError))) {
-    markFujiPrimaryRateLimited();
-    const rateLimited = createRpcRateLimitedError("Avalanche Fuji");
+  if (sawRateLimit || isRateLimitedRpcError(lastError)) {
+    markPrimaryRateLimited(chainId);
+    const rateLimited = rateLimitedErrorForChain(chainId);
     reportPluginError(rateLimited);
     throw rateLimited;
   }

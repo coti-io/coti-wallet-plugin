@@ -54,6 +54,7 @@ vi.mock('../../src/lib/rpcProvider', () => ({
       getNetwork: h.getNetwork,
     })),
   isTransientRpcError: vi.fn(() => true),
+  markPrimaryRateLimited: vi.fn(),
   markFujiPrimaryRateLimited: vi.fn(),
   isRateLimitedRpcError: (error: unknown) => {
     const msg = `${(error as { message?: string })?.message ?? error ?? ''}`.toLowerCase();

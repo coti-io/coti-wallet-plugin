@@ -78,7 +78,31 @@ describe('withRpcFallback', () => {
     expect(fn).toHaveBeenCalledTimes(2);
   });
 
-  it('falls back across Fuji RPCs then reports rate-limit even if fallback succeeds', async () => {
+  it('falls back across RPCs then reports rate-limit even if fallback succeeds', async () => {
+    const rateLimit = new Error('Too Many Requests');
+    const fn = vi.fn()
+      .mockRejectedValueOnce(rateLimit)
+      .mockResolvedValueOnce('ok');
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+
+    const result = await withRpcFallback(SEPOLIA_CHAIN_ID, fn);
+    expect(result).toBe('ok');
+    expect(fn).toHaveBeenCalledTimes(2);
+    expect(dispatchSpy).toHaveBeenCalled();
+    dispatchSpy.mockRestore();
+  });
+
+  it('raises rate-limit after every RPC fails', async () => {
+    const rateLimit = new Error('Too Many Requests');
+    const fn = vi.fn().mockRejectedValue(rateLimit);
+
+    await expect(withRpcFallback(SEPOLIA_CHAIN_ID, fn)).rejects.toMatchObject({
+      code: 'RPC_RATE_LIMITED',
+    });
+    expect(fn.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('reports Fuji rate-limit on fallback success', async () => {
     const rateLimit = new Error('Too Many Requests');
     const fn = vi.fn()
       .mockRejectedValueOnce(rateLimit)
@@ -90,16 +114,6 @@ describe('withRpcFallback', () => {
     expect(fn).toHaveBeenCalledTimes(2);
     expect(dispatchSpy).toHaveBeenCalled();
     dispatchSpy.mockRestore();
-  });
-
-  it('raises Fuji rate-limit after every RPC fails', async () => {
-    const rateLimit = new Error('Too Many Requests');
-    const fn = vi.fn().mockRejectedValue(rateLimit);
-
-    await expect(withRpcFallback(AVALANCHE_FUJI_CHAIN_ID, fn)).rejects.toMatchObject({
-      code: 'RPC_RATE_LIMITED',
-    });
-    expect(fn.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 });
 

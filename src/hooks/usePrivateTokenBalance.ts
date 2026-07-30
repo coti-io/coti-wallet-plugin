@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 import { decryptCtUint64, decryptCtUint256 } from '../crypto/decryption';
 import { isRateLimitedRpcError, withRpcFallback } from '../lib/rpcProvider';
 import { getPluginConfig } from '../config/plugin';
-import { AVALANCHE_FUJI_CHAIN_ID } from '../chains/avalancheFuji';
+import { getNetworkNameForChain } from '../chains';
 import { CotiPluginError, CotiErrorCode, createRpcRateLimitedError } from '../errors';
 import { logger } from '../lib/logger';
 import type { CtUint256 } from '../types/ciphertext';
@@ -150,11 +150,11 @@ export const usePrivateTokenBalance = () => {
                 throw error;
             }
 
-            // withRpcFallback already reports Fuji rate-limit after all RPCs fail.
+            // withRpcFallback already reports rate-limit after all RPCs fail.
             // Re-throw here so callers don't treat exhausted rate limits as "0.00".
             if (isRateLimitedRpcError(error)) {
                 throw createRpcRateLimitedError(
-                    _readChainId === AVALANCHE_FUJI_CHAIN_ID ? 'Avalanche Fuji' : 'The network',
+                    getNetworkNameForChain(_readChainId),
                 );
             }
 

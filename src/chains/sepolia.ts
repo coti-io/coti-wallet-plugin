@@ -3,7 +3,7 @@ import type { ChainConfig } from "./types";
 export const SEPOLIA_CHAIN_ID = 11155111;
 
 const SEPOLIA_RPC_URL =
-  "https://sepolia.infura.io/v3/ed65559ebd384beabfee7a97c266d6bf";
+  "https://damp-greatest-ensemble.ethereum-sepolia.quiknode.pro/181816e3606c96014a5cfbac3eedb823d79dde08/";
 const SEPOLIA_RPC_FALLBACK_URL = "https://ethereum-sepolia-rpc.publicnode.com";
 
 /** Underlying ERC-20s from PrivacyPortalConfig.json (Sepolia). */
