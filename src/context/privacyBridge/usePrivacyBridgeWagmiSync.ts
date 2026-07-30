@@ -5,7 +5,7 @@ import { isChainUpdatesMuted } from '../../lib/chainMute';
 import { logger } from '../../lib/logger';
 import { truncateAddress } from '../../lib/format';
 import { clearAesKeyValidatedForUnlock } from '../../crypto/aesKeyValidation';
-import { getInitialPrivateTokens } from '../../hooks/usePrivacyBridge';
+import { getInitialPrivateTokens, getInitialPublicTokens } from '../../hooks/usePrivacyBridge';
 import { reportPluginError, hasCotiErrorCode, CotiErrorCode } from '../../errors';
 import { isRateLimitedRpcError } from '../../lib/rpcProvider';
 import type { PrivacyBridgeAccountSync } from './usePrivacyBridgeAccountSync';
@@ -45,6 +45,7 @@ export const usePrivacyBridgeWagmiSync = ({
     setSessionAesKey,
     setArePrivateBalancesHidden,
     setPrivateTokens,
+    setPublicTokens,
     checkSnapStatus,
     clearSnapCache,
     setMetamaskDetected,
@@ -153,8 +154,11 @@ export const usePrivacyBridgeWagmiSync = ({
           prevWagmiChainIdRef.current = wagmiChainId;
           return;
         }
-        // When a session AES key exists, private balances are already correct.
-        // Re-fetch with the key to avoid resetting private tokens to zero.
+        // Swap both lists to the new chain together so Index pairing never
+        // mixes Fuji publics with COTI privates (or the reverse) mid-refresh.
+        setPublicTokens(getInitialPublicTokens(wagmiChainId));
+        setPrivateTokens(getInitialPrivateTokens(wagmiChainId));
+        // When a session AES key exists, re-fetch with the key so balances refill.
         if (core.sessionAesKey) {
           logger.log('[ChainChange] sessionAesKey present — refreshing with private balances', {
             from: prevWagmiChainIdRef.current,
@@ -176,5 +180,15 @@ export const usePrivacyBridgeWagmiSync = ({
       }
       prevWagmiChainIdRef.current = wagmiChainId;
     }
-  }, [wagmiConnected, wagmiAddress, walletAddress, isConnected, wagmiChainId, updateAccountState, core.sessionAesKey]);
+  }, [
+    wagmiConnected,
+    wagmiAddress,
+    walletAddress,
+    isConnected,
+    wagmiChainId,
+    updateAccountState,
+    core.sessionAesKey,
+    setPrivateTokens,
+    setPublicTokens,
+  ]);
 };

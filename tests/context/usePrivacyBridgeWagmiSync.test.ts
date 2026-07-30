@@ -197,6 +197,8 @@ describe('usePrivacyBridgeWagmiSync — chain-change guard with sessionAesKey', 
         7082400,
       );
     });
+    expect(core.setPrivateTokens).toHaveBeenCalled();
+    expect(core.setPublicTokens).toHaveBeenCalled();
   });
 
   it('calls updateAccountState with fetchPrivate=false when sessionAesKey is null and chain changes (regression)', async () => {
@@ -225,6 +227,35 @@ describe('usePrivacyBridgeWagmiSync — chain-change guard with sessionAesKey', 
         7082400,
       );
     });
+    expect(core.setPrivateTokens).toHaveBeenCalled();
+    expect(core.setPublicTokens).toHaveBeenCalled();
+  });
+
+  it('does not rewrite token lists when chain updates are muted', async () => {
+    h.isChainUpdatesMuted.mockReturnValue(true);
+
+    const core = makeCore({ sessionAesKey: 'c'.repeat(32), walletAddress: '0xabc123' });
+    const network = makeNetwork({ wagmiChainId: 11155111 });
+    const accountSync = makeAccountSync();
+
+    const { rerender } = renderHook(
+      (props) => usePrivacyBridgeWagmiSync(props),
+      { initialProps: { core, network, accountSync } },
+    );
+
+    vi.mocked(core.setPrivateTokens).mockClear();
+    vi.mocked(core.setPublicTokens).mockClear();
+
+    h.wagmiAccount.chainId = 7082400;
+    const updatedNetwork = makeNetwork({ wagmiChainId: 7082400 });
+
+    rerender({ core, network: updatedNetwork, accountSync });
+
+    await new Promise(r => setTimeout(r, 50));
+
+    // Muted onboarding must not rewrite token lists mid-flow
+    expect(core.setPrivateTokens).not.toHaveBeenCalled();
+    expect(core.setPublicTokens).not.toHaveBeenCalled();
   });
 
   it('does NOT call updateAccountState when chain updates are muted', async () => {
