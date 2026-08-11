@@ -18,18 +18,18 @@ const AVALANCHE_FUJI_RPC_FALLBACK_URLS = [
 ];
 
 /** Underlying ERC-20s from PrivacyPortalConfig.json (Avalanche Fuji). */
-const MTT = "0x328e70e1c52662cd5f19f824fcb8b463d77a6686";
+const MTT = "0x0fd36eae65230037760054d25ec4617156950a53";
 const USDC = "0x5425890298aed601595a70AB815c96711a31Bc65";
 const WAVAX = "0xd00ae08403B9bbb9124bB305C09058E32C39A48c";
 
-/** Deployed PoD portal pairs from pod-ecosystem-integration deployConfig.json (Fuji). */
-const P_AVAX = "0x74d47cD68203066c97BA99787Fe1e0c68Ce42b04";
-const P_USDC = "0x21576D8CCE47d044C5815bd59eca1F6DA94c65A5";
-const P_MTT = "0x02f284a1968160E1d3e4bC2BA3261be49725E765";
-const PORTAL_AVAX = "0xe6932f6Ab846bf389f7ef355dd5830594623B8E5";
-const PORTAL_USDC = "0xE75373ADb4AD1A5634a10f4644822943830b18c5";
-const PORTAL_MTT = "0x758a8F9a216A95773DDf6F73004B85d59f224518";
-const PRIVACY_PORTAL_FACTORY = "0xaf9327277cb370d536d2c8a9e15a0a7ff6c42c15";
+/** Deployed PoD portal pairs from pod-ecosystem-integration deployConfig.testnet.yaml (Fuji). */
+const P_AVAX = "0x5b904faF2C7458a59D5d48E255d48A0eD6cEf539";
+const P_USDC = "0xEfD3A5121F1dBA2431F3cEfa4f0d66B43444449D";
+const P_MTT = "0x68A984197345eea57ED33dB37D6Ec6f0F0922747";
+const PORTAL_AVAX = "0xE181b3B2D76C8936B42089b250902407C32EC59e";
+const PORTAL_USDC = "0x6af371e686635aC517AA35E9560CFB8aBdD8475c";
+const PORTAL_MTT = "0xFFef82eff8643110c7eCf2627EF73d050f395D7C";
+const PRIVACY_PORTAL_FACTORY = "0xe6401d65fae91e2160d230c1e76176bb900c5466";
 
 export const avalancheFujiChain: ChainConfig = {
   id: AVALANCHE_FUJI_CHAIN_ID,
@@ -38,7 +38,7 @@ export const avalancheFujiChain: ChainConfig = {
   rpcUrl: AVALANCHE_FUJI_RPC_URL,
   rpcFallbackUrls: AVALANCHE_FUJI_RPC_FALLBACK_URLS,
   explorerBaseUrl: "https://testnet.snowscan.xyz",
-  priceOracleAddress: "0x95ce33378c88734f3d86b51a4c6dc588722995fd",
+  priceOracleAddress: "0xcc077e4211d58efe944d95f10ae0a6b6b84f5daf",
   unlockStrategy: "manual-aes-key",
   portalStrategy: "pod-privacy-portal",
   podFeeEstimation: {

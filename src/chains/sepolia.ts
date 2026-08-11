@@ -9,16 +9,16 @@ const SEPOLIA_RPC_FALLBACK_URL = "https://ethereum-sepolia-rpc.publicnode.com";
 /** Underlying ERC-20s from PrivacyPortalConfig.json (Sepolia). */
 const WETH = "0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9";
 const USDC = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238";
-const MTT = "0xd3f5c63f4D87D2235b295FbA83351d31d0eD1BeE";
+const MTT = "0xc75e882a09fb8f0939b0fa2d311fbd28ce6f9676";
 
-/** Deployed PoD portal pairs from pod-ecosystem-integration deployConfig.json (Sepolia). */
-const P_ETH = "0xd33A363459c6Ee0C4F8504E380E8D3Aa4F209116";
-const P_USDC = "0xD7B3D49F85000489708B7db5B0f1a8693Fc707f3";
-const P_MTT = "0x0510F0b32828D5fB472dE5A5bE30b370c5D1a056";
-const PORTAL_ETH = "0x2C8B9bBeC8604143863c90D02FdF626a7D5a51C5";
-const PORTAL_USDC = "0x0D02bD729698630c6f9776cDE1C8e5E00146202e";
-const PORTAL_MTT = "0x7e1fecDBC7393A7165Ae7f5F1c56baA4D12c6fc0";
-const PRIVACY_PORTAL_FACTORY = "0x11a27bdf2b2c251609d78d5c9b53b3c2d71d663c";
+/** Deployed PoD portal pairs from pod-ecosystem-integration deployConfig.testnet.yaml (Sepolia). */
+const P_ETH = "0xdB736B018B8AAE50Bc8E1239e469aD333f442e87";
+const P_USDC = "0x37333FF565bcD420F99aDd4D343dd2324c8dB2d1";
+const P_MTT = "0x03224b20Ee0AAfD6D886E61eE73719910ffFe4B5";
+const PORTAL_ETH = "0xaDDd6983d9C60E649edDcF3F5e99E2c128b32a73";
+const PORTAL_USDC = "0x910Eabe80B431eB16D5a08600c64ab7828E5C111";
+const PORTAL_MTT = "0x479b790D8240b239130ff5FB32dCD43697c8731D";
+const PRIVACY_PORTAL_FACTORY = "0x8bccf0c461b51126d117ab570c35f1ecc0025c86";
 
 export const sepoliaChain: ChainConfig = {
   id: SEPOLIA_CHAIN_ID,
@@ -39,7 +39,7 @@ export const sepoliaChain: ChainConfig = {
       forwardDataSize: 512n,
     },
   },
-  priceOracleAddress: "0x71f0deac8adb89b7f1b09b38e2531e06bcca0b03",
+  priceOracleAddress: "0x313dadd6ae1a582cfeacc04a316c203cbea13371",
   addresses: {
     MTT,
     WETH,
