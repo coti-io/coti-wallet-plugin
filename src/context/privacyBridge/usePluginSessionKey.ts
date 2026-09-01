@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { logger } from '../../lib/logger';
 
 /** Wallet-bound session AES key (prevents cross-account key bleed). */
-export const usePrivacyBridgeSessionKey = (walletAddress: string) => {
+export const usePluginSessionKey = (walletAddress: string) => {
   const [sessionKeyRecord, setSessionKeyRecord] = useState<{ wallet: string; key: string } | null>(
     null,
   );

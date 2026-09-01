@@ -83,10 +83,10 @@ vi.mock('../../src/chains', async importOriginal => {
   };
 });
 
-import { usePrivacyBridgeWagmiSync } from '../../src/context/privacyBridge/usePrivacyBridgeWagmiSync';
-import type { PrivacyBridgeSessionCore } from '../../src/context/privacyBridge/sessionShared';
+import { usePluginWagmiSync } from '../../src/context/privacyBridge/usePluginWagmiSync';
+import type { PluginSessionState } from '../../src/context/privacyBridge/sessionShared';
 
-function makeCore(overrides: Partial<PrivacyBridgeSessionCore> = {}): PrivacyBridgeSessionCore {
+function makeCore(overrides: Partial<PluginSessionState> = {}): PluginSessionState {
   return {
     modals: {} as any,
     isConnected: true,
@@ -130,7 +130,7 @@ function makeCore(overrides: Partial<PrivacyBridgeSessionCore> = {}): PrivacyBri
     hasAesKeyInSnap: vi.fn().mockResolvedValue(null),
     getAesKeyFromProvider: vi.fn().mockResolvedValue(null),
     ...overrides,
-  } as PrivacyBridgeSessionCore;
+  } as PluginSessionState;
 }
 
 function makeNetwork(overrides: Partial<any> = {}) {
@@ -167,7 +167,7 @@ function makeAccountSync(overrides: Partial<any> = {}) {
   };
 }
 
-describe('usePrivacyBridgeWagmiSync — chain-change guard with sessionAesKey', () => {
+describe('usePluginWagmiSync — chain-change guard with sessionAesKey', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     h.updateAccountState.mockResolvedValue(true);
@@ -185,7 +185,7 @@ describe('usePrivacyBridgeWagmiSync — chain-change guard with sessionAesKey', 
 
     // First render — sets prevWagmiChainIdRef to wagmiChainId
     const { rerender } = renderHook(
-      (props) => usePrivacyBridgeWagmiSync(props),
+      (props) => usePluginWagmiSync(props),
       { initialProps: { core, network, accountSync } },
     );
 
@@ -213,7 +213,7 @@ describe('usePrivacyBridgeWagmiSync — chain-change guard with sessionAesKey', 
 
     // First render — sets prevWagmiChainIdRef
     const { rerender } = renderHook(
-      (props) => usePrivacyBridgeWagmiSync(props),
+      (props) => usePluginWagmiSync(props),
       { initialProps: { core, network, accountSync } },
     );
 
@@ -242,7 +242,7 @@ describe('usePrivacyBridgeWagmiSync — chain-change guard with sessionAesKey', 
     const accountSync = makeAccountSync();
 
     const { rerender } = renderHook(
-      (props) => usePrivacyBridgeWagmiSync(props),
+      (props) => usePluginWagmiSync(props),
       { initialProps: { core, network, accountSync } },
     );
 
@@ -264,7 +264,7 @@ describe('usePrivacyBridgeWagmiSync — chain-change guard with sessionAesKey', 
   });
 });
 
-describe('usePrivacyBridgeWagmiSync — snap status on connect', () => {
+describe('usePluginWagmiSync — snap status on connect', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     h.updateAccountState.mockResolvedValue(true);
@@ -281,7 +281,7 @@ describe('usePrivacyBridgeWagmiSync — snap status on connect', () => {
     const network = makeNetwork({ wagmiConnector: { id: 'io.metamask' } });
     const accountSync = makeAccountSync();
 
-    renderHook(() => usePrivacyBridgeWagmiSync({ core, network, accountSync }));
+    renderHook(() => usePluginWagmiSync({ core, network, accountSync }));
 
     await vi.waitFor(() => {
       expect(checkSnapStatus).toHaveBeenCalledTimes(1);
@@ -295,13 +295,13 @@ describe('usePrivacyBridgeWagmiSync — snap status on connect', () => {
     const network = makeNetwork({ wagmiConnector: { id: 'coinbaseWalletSDK' } });
     const accountSync = makeAccountSync();
 
-    renderHook(() => usePrivacyBridgeWagmiSync({ core, network, accountSync }));
+    renderHook(() => usePluginWagmiSync({ core, network, accountSync }));
 
     expect(checkSnapStatus).not.toHaveBeenCalled();
   });
 });
 
-describe('usePrivacyBridgeWagmiSync — account switch', () => {
+describe('usePluginWagmiSync — account switch', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     h.updateAccountState.mockResolvedValue(true);
@@ -334,7 +334,7 @@ describe('usePrivacyBridgeWagmiSync — account switch', () => {
     });
     const accountSync = makeAccountSync();
 
-    renderHook(() => usePrivacyBridgeWagmiSync({ core, network, accountSync }));
+    renderHook(() => usePluginWagmiSync({ core, network, accountSync }));
 
     await vi.waitFor(() => {
       expect(setSessionAesKey).toHaveBeenCalledWith(null);
@@ -352,7 +352,7 @@ describe('usePrivacyBridgeWagmiSync — account switch', () => {
   });
 });
 
-describe('usePrivacyBridgeWagmiSync — autoInitTokens false', () => {
+describe('usePluginWagmiSync — autoInitTokens false', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     h.updateAccountState.mockResolvedValue(true);
@@ -375,7 +375,7 @@ describe('usePrivacyBridgeWagmiSync — autoInitTokens false', () => {
     const network = makeNetwork();
     const accountSync = makeAccountSync();
 
-    renderHook(() => usePrivacyBridgeWagmiSync({
+    renderHook(() => usePluginWagmiSync({
       core,
       network,
       accountSync,
@@ -393,7 +393,7 @@ describe('usePrivacyBridgeWagmiSync — autoInitTokens false', () => {
     const accountSync = makeAccountSync();
 
     const { rerender } = renderHook(
-      (props) => usePrivacyBridgeWagmiSync(props),
+      (props) => usePluginWagmiSync(props),
       {
         initialProps: {
           core,
@@ -436,7 +436,7 @@ describe('usePrivacyBridgeWagmiSync — autoInitTokens false', () => {
     });
     const accountSync = makeAccountSync();
 
-    renderHook(() => usePrivacyBridgeWagmiSync({
+    renderHook(() => usePluginWagmiSync({
       core,
       network,
       accountSync,

@@ -5,10 +5,10 @@ import { useNetworkEnforcer } from '../../hooks/useNetworkEnforcer';
 import { getNetworkNameForChain, getWalletNetworkConfigs } from '../../chains';
 import { logger } from '../../lib/logger';
 import { truncateAddress } from '../../lib/format';
-import type { PrivacyBridgeSessionCore, UpdateAccountStateRef } from './sessionShared';
+import type { PluginSessionState, UpdateAccountStateRef } from './sessionShared';
 
-interface UsePrivacyBridgeNetworkSessionOptions {
-  core: PrivacyBridgeSessionCore;
+interface UsePluginNetworkSessionOptions {
+  core: PluginSessionState;
   updateAccountStateRef: UpdateAccountStateRef;
 }
 
@@ -48,10 +48,10 @@ const foregroundWalletApp = (connector: { id: string; rkDetails?: { id?: string 
 };
 
 /** MetaMask + wagmi network switching and effective chain id. */
-export const usePrivacyBridgeNetworkSession = ({
+export const usePluginNetworkSession = ({
   core,
   updateAccountStateRef,
-}: UsePrivacyBridgeNetworkSessionOptions) => {
+}: UsePluginNetworkSessionOptions) => {
   const {
     isConnected,
     walletAddress,
@@ -185,7 +185,7 @@ export const usePrivacyBridgeNetworkSession = ({
   } = useMetamask({
     onNetworkChanged: async () => {
       // wagmi/RainbowKit already reacts to chain changes (wagmiChainId updates
-      // and usePrivacyBridgeWagmiSync resyncs account state). Prefer that soft
+      // and usePluginWagmiSync resyncs account state). Prefer that soft
       // path over a full page reload on every network switch.
       if (wagmiSyncRef.current || wagmiConnected || disconnectingRef.current) {
         logger.log('Ignoring MetaMask chainChanged — wagmi is managing connection');
@@ -266,4 +266,4 @@ export const usePrivacyBridgeNetworkSession = ({
   };
 };
 
-export type PrivacyBridgeNetworkSession = ReturnType<typeof usePrivacyBridgeNetworkSession>;
+export type PluginNetworkSession = ReturnType<typeof usePluginNetworkSession>;

@@ -51,10 +51,10 @@ vi.mock('../../src/crypto/aesKeyValidation', () => ({
   validateMetaMaskAesKeyOnUnlock: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { usePrivacyBridgeAccountSync } from '../../src/context/privacyBridge/usePrivacyBridgeAccountSync';
-import type { PrivacyBridgeSessionCore, UpdateAccountStateRef } from '../../src/context/privacyBridge/sessionShared';
+import { usePluginAccountSync } from '../../src/context/privacyBridge/usePluginAccountSync';
+import type { PluginSessionState, UpdateAccountStateRef } from '../../src/context/privacyBridge/sessionShared';
 
-function makeCore(overrides: Partial<PrivacyBridgeSessionCore> = {}): PrivacyBridgeSessionCore {
+function makeCore(overrides: Partial<PluginSessionState> = {}): PluginSessionState {
   return {
     modals: {} as any,
     isConnected: true,
@@ -97,7 +97,7 @@ function makeCore(overrides: Partial<PrivacyBridgeSessionCore> = {}): PrivacyBri
     hasAesKeyInSnap: vi.fn().mockResolvedValue(null),
     getAesKeyFromProvider: vi.fn().mockResolvedValue(null),
     ...overrides,
-  } as PrivacyBridgeSessionCore;
+  } as PluginSessionState;
 }
 
 function makeNetwork(overrides: Partial<any> = {}) {
@@ -127,7 +127,7 @@ function makeNetwork(overrides: Partial<any> = {}) {
   };
 }
 
-describe('usePrivacyBridgeAccountSync — sessionAesKey effect', () => {
+describe('usePluginAccountSync — sessionAesKey effect', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     configureCotiPlugin({ snapEnabled: true });
@@ -142,7 +142,7 @@ describe('usePrivacyBridgeAccountSync — sessionAesKey effect', () => {
     const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
 
     const { rerender } = renderHook(
-      (props) => usePrivacyBridgeAccountSync(props),
+      (props) => usePluginAccountSync(props),
       {
         initialProps: { core, network, updateAccountStateRef },
       },
@@ -181,7 +181,7 @@ describe('usePrivacyBridgeAccountSync — sessionAesKey effect', () => {
     const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
 
     const { rerender } = renderHook(
-      (props) => usePrivacyBridgeAccountSync(props),
+      (props) => usePluginAccountSync(props),
       {
         initialProps: { core, network, updateAccountStateRef },
       },
@@ -209,7 +209,7 @@ describe('usePrivacyBridgeAccountSync — sessionAesKey effect', () => {
     const network = makeNetwork();
     const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
 
-    renderHook(() => usePrivacyBridgeAccountSync({ core, network, updateAccountStateRef }));
+    renderHook(() => usePluginAccountSync({ core, network, updateAccountStateRef }));
 
     // The session-key effect should not fire when key is null
     expect(h.updateAccountState).not.toHaveBeenCalled();
@@ -220,7 +220,7 @@ describe('usePrivacyBridgeAccountSync — sessionAesKey effect', () => {
     const network = makeNetwork();
     const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
 
-    renderHook(() => usePrivacyBridgeAccountSync({ core, network, updateAccountStateRef }));
+    renderHook(() => usePluginAccountSync({ core, network, updateAccountStateRef }));
 
     expect(h.updateAccountState).not.toHaveBeenCalled();
   });
@@ -234,7 +234,7 @@ describe('usePrivacyBridgeAccountSync — sessionAesKey effect', () => {
     const network = makeNetwork();
     const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
 
-    renderHook(() => usePrivacyBridgeAccountSync({ core, network, updateAccountStateRef }));
+    renderHook(() => usePluginAccountSync({ core, network, updateAccountStateRef }));
 
     expect(h.updateAccountState).not.toHaveBeenCalled();
   });
@@ -248,7 +248,7 @@ describe('usePrivacyBridgeAccountSync — sessionAesKey effect', () => {
     const network = makeNetwork({ wagmiChainId: 11155111 });
     const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
 
-    renderHook(() => usePrivacyBridgeAccountSync({ core, network, updateAccountStateRef }));
+    renderHook(() => usePluginAccountSync({ core, network, updateAccountStateRef }));
 
     await vi.waitFor(() => {
       expect(h.updateAccountState).toHaveBeenCalled();
@@ -270,7 +270,7 @@ describe('usePrivacyBridgeAccountSync — sessionAesKey effect', () => {
     const network = makeNetwork();
     const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
 
-    renderHook(() => usePrivacyBridgeAccountSync({ core, network, updateAccountStateRef }));
+    renderHook(() => usePluginAccountSync({ core, network, updateAccountStateRef }));
 
     const key = await h.balanceUpdaterParams.getAESKeyFromSnap('0xabc123', {
       skipCache: true,
@@ -294,7 +294,7 @@ describe('usePrivacyBridgeAccountSync — sessionAesKey effect', () => {
     const network = makeNetwork();
     const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
 
-    renderHook(() => usePrivacyBridgeAccountSync({ core, network, updateAccountStateRef }));
+    renderHook(() => usePluginAccountSync({ core, network, updateAccountStateRef }));
 
     const key = await h.balanceUpdaterParams.getAESKeyFromSnap('0xabc123', {
       skipCache: true,
@@ -316,7 +316,7 @@ describe('usePrivacyBridgeAccountSync — sessionAesKey effect', () => {
     const network = makeNetwork();
     const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
 
-    renderHook(() => usePrivacyBridgeAccountSync({ core, network, updateAccountStateRef }));
+    renderHook(() => usePluginAccountSync({ core, network, updateAccountStateRef }));
 
     await h.balanceUpdaterParams.getAESKeyFromSnap('0xabc123', {
       forceContractOnboarding: true,
@@ -339,7 +339,7 @@ describe('usePrivacyBridgeAccountSync — sessionAesKey effect', () => {
     const network = makeNetwork();
     const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
 
-    renderHook(() => usePrivacyBridgeAccountSync({ core, network, updateAccountStateRef }));
+    renderHook(() => usePluginAccountSync({ core, network, updateAccountStateRef }));
 
     const key = await h.balanceUpdaterParams.getAESKeyFromSnap('0xabc123', {
       forceContractOnboarding: true,
@@ -354,7 +354,7 @@ describe('usePrivacyBridgeAccountSync — sessionAesKey effect', () => {
   });
 });
 
-describe('usePrivacyBridgeAccountSync — snap auto-probe', () => {
+describe('usePluginAccountSync — snap auto-probe', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     h.updateAccountState.mockResolvedValue(true);
@@ -366,7 +366,7 @@ describe('usePrivacyBridgeAccountSync — snap auto-probe', () => {
     const network = makeNetwork();
     const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
 
-    renderHook(() => usePrivacyBridgeAccountSync({ core, network, updateAccountStateRef }));
+    renderHook(() => usePluginAccountSync({ core, network, updateAccountStateRef }));
 
     await vi.waitFor(() => {
       expect(checkSnapStatus).toHaveBeenCalledTimes(1);
@@ -379,7 +379,7 @@ describe('usePrivacyBridgeAccountSync — snap auto-probe', () => {
     const network = makeNetwork();
     const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
 
-    renderHook(() => usePrivacyBridgeAccountSync({ core, network, updateAccountStateRef }));
+    renderHook(() => usePluginAccountSync({ core, network, updateAccountStateRef }));
 
     expect(checkSnapStatus).not.toHaveBeenCalled();
   });
@@ -390,13 +390,13 @@ describe('usePrivacyBridgeAccountSync — snap auto-probe', () => {
     const network = makeNetwork();
     const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
 
-    renderHook(() => usePrivacyBridgeAccountSync({ core, network, updateAccountStateRef }));
+    renderHook(() => usePluginAccountSync({ core, network, updateAccountStateRef }));
 
     expect(checkSnapStatus).not.toHaveBeenCalled();
   });
 });
 
-describe('usePrivacyBridgeAccountSync — autoInitTokens', () => {
+describe('usePluginAccountSync — autoInitTokens', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     configureCotiPlugin({ autoInitTokens: true, snapEnabled: true });
@@ -415,7 +415,7 @@ describe('usePrivacyBridgeAccountSync — autoInitTokens', () => {
     const network = makeNetwork({ currentChainId: 7082400 });
     const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
 
-    renderHook(() => usePrivacyBridgeAccountSync({ core, network, updateAccountStateRef }));
+    renderHook(() => usePluginAccountSync({ core, network, updateAccountStateRef }));
 
     expect(setPublicTokens).toHaveBeenCalled();
     expect(setPrivateTokens).toHaveBeenCalled();
@@ -432,7 +432,7 @@ describe('usePrivacyBridgeAccountSync — autoInitTokens', () => {
     const network = makeNetwork({ currentChainId: 7082400 });
     const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
 
-    renderHook(() => usePrivacyBridgeAccountSync({
+    renderHook(() => usePluginAccountSync({
       core,
       network,
       updateAccountStateRef,
@@ -449,7 +449,7 @@ describe('usePrivacyBridgeAccountSync — autoInitTokens', () => {
     const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
 
     const { rerender } = renderHook(
-      (props) => usePrivacyBridgeAccountSync(props),
+      (props) => usePluginAccountSync(props),
       {
         initialProps: {
           core,

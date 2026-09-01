@@ -3,7 +3,7 @@ import { isMultipleWalletsError } from '../../utils/walletErrors';
 import type { PrivacyBridgeModalsContextValue } from './types';
 
 /** Install and multi-wallet modal visibility (shared across connection flows). */
-export const usePrivacyBridgeModalsState = (): PrivacyBridgeModalsContextValue => {
+export const usePluginModalsState = (): PrivacyBridgeModalsContextValue => {
   const [showInstallModal, setShowInstallModal] = useState(false);
   const [showMultipleWalletsModal, setShowMultipleWalletsModal] = useState(false);
 
