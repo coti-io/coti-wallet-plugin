@@ -1,0 +1,19 @@
+---
+description: When updating docs.coti.io for this plugin, pin the npm version being documented.
+alwaysApply: true
+---
+
+# docs.coti.io version pin
+
+When writing or changing **docs.coti.io** pages for `@coti-io/coti-wallet-plugin` (integration guide, API, configuration, example app, AES onboarding, etc.):
+
+1. Read the version from this repo’s `package.json` (the release being discussed).
+2. State that version **on the page**, near the top (overview, prerequisites, or a “Applies to” line).
+3. If the page covers a **future / unreleased** API, say so and still name the target version (e.g. “unreleased; intended for 0.4.0”).
+4. Do not describe APIs as current without a version. Docs.coti.io outlives a single chat; readers must know which npm release the names and examples match.
+
+```markdown
+Applies to `@coti-io/coti-wallet-plugin@0.3.10`.
+```
+
+In-repo `README.md` may link to docs.coti.io; it does not replace pinning the version **on the docs.coti.io page itself**.
