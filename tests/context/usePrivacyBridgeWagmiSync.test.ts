@@ -13,6 +13,7 @@ const h = vi.hoisted(() => ({
     connector: undefined as any,
   },
   wagmiDisconnect: vi.fn(),
+  autoInitTokens: true,
 }));
 
 vi.mock('wagmi', () => ({
@@ -48,7 +49,12 @@ vi.mock('../../src/hooks/useNetworkEnforcer', () => ({
 }));
 
 vi.mock('../../src/config/plugin', () => ({
-  getPluginConfig: () => ({ clearSessionKeyOnWagmiDisconnect: true }),
+  getPluginConfig: () => ({
+    clearSessionKeyOnWagmiDisconnect: true,
+    autoInitTokens: h.autoInitTokens,
+  }),
+  isAutoInitTokensEnabled: (override?: boolean) =>
+    typeof override === 'boolean' ? override : h.autoInitTokens !== false,
 }));
 
 vi.mock('../../src/hooks/useWalletType', () => ({
@@ -169,6 +175,7 @@ describe('usePrivacyBridgeWagmiSync — chain-change guard with sessionAesKey', 
     h.wagmiAccount.address = '0xabc123';
     h.wagmiAccount.isConnected = true;
     h.wagmiAccount.chainId = 11155111;
+    h.autoInitTokens = true;
   });
 
   it('calls updateAccountState with fetchPrivate=true and sessionAesKey when key is set and chain changes (unmuted)', async () => {
@@ -265,6 +272,7 @@ describe('usePrivacyBridgeWagmiSync — snap status on connect', () => {
     h.wagmiAccount.isConnected = true;
     h.wagmiAccount.chainId = 11155111;
     vi.mocked(h.mapConnectorIdToWalletType).mockReturnValue('metamask');
+    h.autoInitTokens = true;
   });
 
   it('calls checkSnapStatus when RainbowKit MetaMask connects', async () => {
@@ -300,6 +308,7 @@ describe('usePrivacyBridgeWagmiSync — account switch', () => {
     h.wagmiAccount.address = '0xnew456';
     h.wagmiAccount.isConnected = true;
     h.wagmiAccount.chainId = 7082400;
+    h.autoInitTokens = true;
   });
 
   it('locks private balances and clears session key when wagmi account changes', async () => {
@@ -340,5 +349,104 @@ describe('usePrivacyBridgeWagmiSync — account switch', () => {
         7082400,
       );
     });
+  });
+});
+
+describe('usePrivacyBridgeWagmiSync — autoInitTokens false', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    h.updateAccountState.mockResolvedValue(true);
+    h.isChainUpdatesMuted.mockReturnValue(false);
+    h.autoInitTokens = false;
+    h.wagmiAccount.address = '0xabc123';
+    h.wagmiAccount.isConnected = true;
+    h.wagmiAccount.chainId = 11155111;
+    vi.mocked(h.mapConnectorIdToWalletType).mockReturnValue('unknown');
+  });
+
+  it('syncs the wallet without fetching balances on connect', () => {
+    const setWalletAddress = vi.fn();
+    const setIsConnected = vi.fn();
+    const core = makeCore({
+      isConnected: false,
+      setWalletAddress,
+      setIsConnected,
+    });
+    const network = makeNetwork();
+    const accountSync = makeAccountSync();
+
+    renderHook(() => usePrivacyBridgeWagmiSync({
+      core,
+      network,
+      accountSync,
+      autoInitTokens: false,
+    }));
+
+    expect(h.updateAccountState).not.toHaveBeenCalled();
+    expect(setWalletAddress).toHaveBeenCalledWith('0xabc123');
+    expect(setIsConnected).toHaveBeenCalledWith(true);
+  });
+
+  it('does not refresh balances on chain change', async () => {
+    const core = makeCore({ sessionAesKey: 'c'.repeat(32), walletAddress: '0xabc123' });
+    const network = makeNetwork({ wagmiChainId: 11155111 });
+    const accountSync = makeAccountSync();
+
+    const { rerender } = renderHook(
+      (props) => usePrivacyBridgeWagmiSync(props),
+      {
+        initialProps: {
+          core,
+          network,
+          accountSync,
+          autoInitTokens: false,
+        },
+      },
+    );
+
+    h.wagmiAccount.chainId = 7082400;
+    rerender({
+      core,
+      network: makeNetwork({ wagmiChainId: 7082400 }),
+      accountSync,
+      autoInitTokens: false,
+    });
+
+    await new Promise(r => setTimeout(r, 50));
+    const chainChangeCalls = h.updateAccountState.mock.calls.filter(
+      (call: unknown[]) => call[4] === 7082400,
+    );
+    expect(chainChangeCalls).toHaveLength(0);
+  });
+
+  it('does not fetch balances on account switch', async () => {
+    h.wagmiAccount.address = '0xnew456';
+    const setPrivateTokens = vi.fn();
+    const setWalletAddress = vi.fn();
+    const core = makeCore({
+      isConnected: true,
+      walletAddress: '0xabc123',
+      setPrivateTokens,
+      setWalletAddress,
+    });
+    const network = makeNetwork({
+      wagmiAddress: '0xnew456',
+      wagmiConnected: true,
+      wagmiChainId: 7082400,
+    });
+    const accountSync = makeAccountSync();
+
+    renderHook(() => usePrivacyBridgeWagmiSync({
+      core,
+      network,
+      accountSync,
+      autoInitTokens: false,
+    }));
+
+    await vi.waitFor(() => {
+      expect(setWalletAddress).toHaveBeenCalledWith('0xnew456');
+    });
+    expect(setPrivateTokens).toHaveBeenCalledWith([]);
+    expect(h.updateAccountState).not.toHaveBeenCalled();
   });
 });

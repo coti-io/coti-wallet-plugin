@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useAccount } from 'wagmi';
-import { getPluginConfig } from '../../config/plugin';
+import { getPluginConfig, isAutoInitTokensEnabled } from '../../config/plugin';
 import { logger } from '../../lib/logger';
 import { resolveConnectedProvider } from '../../lib/ethereum';
 import { CotiErrorCode, CotiPluginError } from '../../errors';
@@ -42,6 +42,7 @@ interface UsePrivacyBridgeUnlockSessionOptions {
   core: PrivacyBridgeSessionCore;
   network: PrivacyBridgeNetworkSession;
   accountSync: PrivacyBridgeAccountSync;
+  autoInitTokens?: boolean;
 }
 
 /** Snap/AES unlock, private balance refresh, and hard lock flows. */
@@ -49,6 +50,7 @@ export const usePrivacyBridgeUnlockSession = ({
   core,
   network,
   accountSync,
+  autoInitTokens: autoInitTokensProp,
 }: UsePrivacyBridgeUnlockSessionOptions) => {
   const {
     walletAddress,
@@ -73,6 +75,7 @@ export const usePrivacyBridgeUnlockSession = ({
 
   const { wagmiChainId } = network;
   const { updateAccountState, currentChainId } = accountSync;
+  const autoInitTokens = isAutoInitTokensEnabled(autoInitTokensProp);
   const walletTypeInfo = useWalletType();
   // Connector for the wallet the user selected via RainbowKit/wagmi — used to
   // resolve the EIP-1193 provider instead of window.ethereum, which is
@@ -578,7 +581,11 @@ export const usePrivacyBridgeUnlockSession = ({
     setSessionAesKey(null);
     if (walletAddress) clearAesKeyValidatedForUnlock(walletAddress);
     // Snap-stored key is left intact; unlock re-routes via Snap / backup / onboard.
-    setPrivateTokens(getInitialPrivateTokens(currentChainId));
+    if (autoInitTokens) {
+      setPrivateTokens(getInitialPrivateTokens(currentChainId));
+    } else {
+      setPrivateTokens(prev => prev.map(token => ({ ...token, balance: '0.00' })));
+    }
   };
 
   const isPrivateUnlocked = !arePrivateBalancesHidden;

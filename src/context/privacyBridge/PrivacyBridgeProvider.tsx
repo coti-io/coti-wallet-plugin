@@ -22,14 +22,20 @@ import {
 export interface PrivacyBridgeProviderProps {
   children: React.ReactNode;
   privateUnlock?: PrivateUnlockProviderOptions;
+  /**
+   * When false, skip seeding token lists and fetching balances on mount/connect.
+   * Overrides `configureCotiPlugin({ autoInitTokens })`. Default: config (true).
+   */
+  autoInitTokens?: boolean;
 }
 
 export const PrivacyBridgeProvider: React.FC<PrivacyBridgeProviderProps> = ({
   children,
   privateUnlock,
+  autoInitTokens,
 }) => {
   const modals = usePrivacyBridgeModalsState();
-  const session = usePrivacyBridgeSession({ modals });
+  const session = usePrivacyBridgeSession({ modals, autoInitTokens });
 
   const podState = usePrivacyBridgePodState({
     walletAddress: session.walletAddress,

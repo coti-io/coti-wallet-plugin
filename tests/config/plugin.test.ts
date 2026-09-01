@@ -7,6 +7,7 @@ import {
   getSnapRequestParams,
   isOnboardingGrantEnabled,
   isSnapEnabled,
+  isAutoInitTokensEnabled,
   resolveGrantNativeCoti,
 } from '../../src/config/plugin';
 import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID, SEPOLIA_CHAIN_ID } from '../../src/config/chains';
@@ -22,6 +23,7 @@ describe('Plugin Configuration (README: Basic Setup)', () => {
       aesKeyChainId: undefined,
       clearSessionKeyOnWagmiDisconnect: true,
       waitForBalanceRefreshAfterTransfer: false,
+      autoInitTokens: true,
       onboardingGrantEnabled: true,
       grantApiUrlTestnet: DEFAULT_GRANT_API_URL_TESTNET,
       grantApiUrlMainnet: undefined,
@@ -35,6 +37,8 @@ describe('Plugin Configuration (README: Basic Setup)', () => {
     expect(config.snapId).toBe('npm:@coti-io/coti-snap');
     expect(config.defaultNetworkId).toBeUndefined();
     expect(config.onboardingGrantEnabled).toBe(true);
+    expect(config.autoInitTokens).toBe(true);
+    expect(isAutoInitTokensEnabled()).toBe(true);
     expect(config.grantApiUrlTestnet).toBe(DEFAULT_GRANT_API_URL_TESTNET);
     expect(config.onboardingGrantMinBalanceWei).toBe(DEFAULT_ONBOARDING_GRANT_MIN_BALANCE_WEI);
   });
@@ -176,5 +180,18 @@ describe('Plugin Configuration (README: Basic Setup)', () => {
     configureCotiPlugin({ snapEnabled: false });
     expect(getPluginConfig().snapEnabled).toBe(false);
     expect(isSnapEnabled()).toBe(false);
+  });
+
+  it('allows disabling automatic token init', () => {
+    configureCotiPlugin({ autoInitTokens: false });
+    expect(getPluginConfig().autoInitTokens).toBe(false);
+    expect(isAutoInitTokensEnabled()).toBe(false);
+  });
+
+  it('lets a provider override win over plugin config for autoInitTokens', () => {
+    configureCotiPlugin({ autoInitTokens: false });
+    expect(isAutoInitTokensEnabled(true)).toBe(true);
+    configureCotiPlugin({ autoInitTokens: true });
+    expect(isAutoInitTokensEnabled(false)).toBe(false);
   });
 });

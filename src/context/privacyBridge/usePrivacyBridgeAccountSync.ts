@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useAccount } from 'wagmi';
-import { isSnapEnabled } from '../../config/plugin';
+import { isSnapEnabled, isAutoInitTokensEnabled } from '../../config/plugin';
 import { useBalanceUpdater } from '../../hooks/useBalanceUpdater';
 import { isChainUpdatesMuted } from '../../lib/chainMute';
 import { logger } from '../../lib/logger';
@@ -19,6 +19,7 @@ interface UsePrivacyBridgeAccountSyncOptions {
   core: PrivacyBridgeSessionCore;
   network: PrivacyBridgeNetworkSession;
   updateAccountStateRef: UpdateAccountStateRef;
+  autoInitTokens?: boolean;
 }
 
 /** Balance refresh, token list resets, and session-key-driven account updates. */
@@ -26,6 +27,7 @@ export const usePrivacyBridgeAccountSync = ({
   core,
   network,
   updateAccountStateRef,
+  autoInitTokens: autoInitTokensProp,
 }: UsePrivacyBridgeAccountSyncOptions) => {
   const {
     setWalletAddress,
@@ -50,6 +52,7 @@ export const usePrivacyBridgeAccountSync = ({
   const { checkNetwork, currentChainId, wagmiChainId } = network;
   const { chainId: connectedChainId } = useAccount();
   const walletTypeInfo = useWalletType();
+  const autoInitTokens = isAutoInitTokensEnabled(autoInitTokensProp);
 
   const validateMetaMaskAesKeyOnUnlock = useCallback(
     async (snapKey: string, accountAddress: string, chainIdOverride?: number | null) => {
@@ -140,13 +143,14 @@ export const usePrivacyBridgeAccountSync = ({
   }, [walletAddress, walletTypeInfo.walletType, hasSnap, checkSnapStatus]);
 
   useEffect(() => {
+    if (!autoInitTokens) return;
     if (isChainUpdatesMuted()) return;
 
     if (!isConnected) {
       setPublicTokens(getInitialPublicTokens(currentChainId));
       setPrivateTokens(getInitialPrivateTokens(currentChainId));
     }
-  }, [isConnected, currentChainId, setPublicTokens, setPrivateTokens]);
+  }, [autoInitTokens, isConnected, currentChainId, setPublicTokens, setPrivateTokens]);
 
   // Track the previous sessionAesKey value so we only auto-unlock when the key
   // *arrives* for the first time (null → value), not on every render where a key
@@ -158,6 +162,7 @@ export const usePrivacyBridgeAccountSync = ({
     prevSessionAesKeyRef.current = sessionAesKey;
 
     if (keyJustArrived && sessionAesKey && walletAddress && arePrivateBalancesHidden) {
+      if (!autoInitTokens) return;
       logger.log('Session AES Key arrived — refreshing private balances...');
       const chainOverride = wagmiSyncRef.current ? wagmiChainId : undefined;
       updateAccountState(walletAddress, false, true, sessionAesKey, chainOverride).then((success) => {
@@ -174,6 +179,7 @@ export const usePrivacyBridgeAccountSync = ({
     setArePrivateBalancesHidden,
     wagmiSyncRef,
     wagmiChainId,
+    autoInitTokens,
   ]);
 
   return { updateAccountState, currentChainId };

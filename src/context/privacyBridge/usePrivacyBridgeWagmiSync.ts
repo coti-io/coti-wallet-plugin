@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { getPluginConfig } from '../../config/plugin';
+import { getPluginConfig, isAutoInitTokensEnabled } from '../../config/plugin';
 import { mapConnectorIdToWalletType } from '../../hooks/useWalletType';
 import { isChainUpdatesMuted } from '../../lib/chainMute';
 import { logger } from '../../lib/logger';
@@ -26,6 +26,7 @@ interface UsePrivacyBridgeWagmiSyncOptions {
   core: PrivacyBridgeSessionCore;
   network: PrivacyBridgeNetworkSession;
   accountSync: PrivacyBridgeAccountSync;
+  autoInitTokens?: boolean;
 }
 
 /** Syncs RainbowKit/wagmi connection state into the bridge session. */
@@ -33,6 +34,7 @@ export const usePrivacyBridgeWagmiSync = ({
   core,
   network,
   accountSync,
+  autoInitTokens: autoInitTokensProp,
 }: UsePrivacyBridgeWagmiSyncOptions) => {
   const {
     isConnected,
@@ -44,6 +46,7 @@ export const usePrivacyBridgeWagmiSync = ({
     disconnectingRef,
     setSessionAesKey,
     setArePrivateBalancesHidden,
+    setPublicTokens,
     setPrivateTokens,
     checkSnapStatus,
     clearSnapCache,
@@ -58,6 +61,7 @@ export const usePrivacyBridgeWagmiSync = ({
   } = network;
 
   const { updateAccountState } = accountSync;
+  const autoInitTokens = isAutoInitTokensEnabled(autoInitTokensProp);
 
   useEffect(() => {
     if (wagmiConnected && wagmiAddress && !isConnected && !disconnectingRef.current) {
@@ -66,9 +70,14 @@ export const usePrivacyBridgeWagmiSync = ({
         chainId: wagmiChainId,
       });
       wagmiSyncRef.current = true;
-      void updateAccountState(wagmiAddress, false, true, undefined, wagmiChainId).catch(err => {
-        reportBalanceRefreshFailure('Wagmi connect balance refresh failed', err);
-      });
+      if (autoInitTokens) {
+        void updateAccountState(wagmiAddress, false, true, undefined, wagmiChainId).catch(err => {
+          reportBalanceRefreshFailure('Wagmi connect balance refresh failed', err);
+        });
+      } else {
+        setWalletAddress(wagmiAddress);
+        setIsConnected(true);
+      }
 
       const isMetaMask = mapConnectorIdToWalletType(wagmiConnector?.id) === 'metamask';
       if (isMetaMask) {
@@ -92,6 +101,10 @@ export const usePrivacyBridgeWagmiSync = ({
         if (wagmiAddress) clearAesKeyValidatedForUnlock(wagmiAddress);
       }
       setArePrivateBalancesHidden(true);
+      if (!autoInitTokens) {
+        setPublicTokens([]);
+        setPrivateTokens([]);
+      }
     }
 
     if (wagmiConnected && wagmiAddress && isConnected && wagmiAddress !== walletAddress) {
@@ -101,10 +114,15 @@ export const usePrivacyBridgeWagmiSync = ({
       setSessionAesKey(null);
       clearSnapCache();
       setArePrivateBalancesHidden(true);
-      setPrivateTokens(getInitialPrivateTokens(wagmiChainId));
-      void updateAccountState(wagmiAddress, false, false, undefined, wagmiChainId).catch(err => {
-        reportBalanceRefreshFailure('Wagmi account-switch balance refresh failed', err);
-      });
+      if (autoInitTokens) {
+        setPrivateTokens(getInitialPrivateTokens(wagmiChainId));
+        void updateAccountState(wagmiAddress, false, false, undefined, wagmiChainId).catch(err => {
+          reportBalanceRefreshFailure('Wagmi account-switch balance refresh failed', err);
+        });
+      } else {
+        setPrivateTokens([]);
+        setWalletAddress(wagmiAddress);
+      }
     }
   }, [
     wagmiConnected,
@@ -120,10 +138,12 @@ export const usePrivacyBridgeWagmiSync = ({
     setHasSnap,
     setSessionAesKey,
     setArePrivateBalancesHidden,
+    setPublicTokens,
     setPrivateTokens,
     checkSnapStatus,
     clearSnapCache,
     setMetamaskDetected,
+    autoInitTokens,
   ]);
 
   useEffect(() => {
@@ -153,6 +173,10 @@ export const usePrivacyBridgeWagmiSync = ({
           prevWagmiChainIdRef.current = wagmiChainId;
           return;
         }
+        if (!autoInitTokens) {
+          prevWagmiChainIdRef.current = wagmiChainId;
+          return;
+        }
         // When a session AES key exists, private balances are already correct.
         // Re-fetch with the key to avoid resetting private tokens to zero.
         if (core.sessionAesKey) {
@@ -176,5 +200,5 @@ export const usePrivacyBridgeWagmiSync = ({
       }
       prevWagmiChainIdRef.current = wagmiChainId;
     }
-  }, [wagmiConnected, wagmiAddress, walletAddress, isConnected, wagmiChainId, updateAccountState, core.sessionAesKey]);
+  }, [wagmiConnected, wagmiAddress, walletAddress, isConnected, wagmiChainId, updateAccountState, core.sessionAesKey, autoInitTokens]);
 };

@@ -395,3 +395,85 @@ describe('usePrivacyBridgeAccountSync — snap auto-probe', () => {
     expect(checkSnapStatus).not.toHaveBeenCalled();
   });
 });
+
+describe('usePrivacyBridgeAccountSync — autoInitTokens', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    configureCotiPlugin({ autoInitTokens: true, snapEnabled: true });
+    h.updateAccountState.mockResolvedValue(true);
+    h.isChainUpdatesMuted.mockReturnValue(false);
+  });
+
+  it('seeds token lists while disconnected when autoInitTokens is on', () => {
+    const setPublicTokens = vi.fn();
+    const setPrivateTokens = vi.fn();
+    const core = makeCore({
+      isConnected: false,
+      setPublicTokens,
+      setPrivateTokens,
+    });
+    const network = makeNetwork({ currentChainId: 7082400 });
+    const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
+
+    renderHook(() => usePrivacyBridgeAccountSync({ core, network, updateAccountStateRef }));
+
+    expect(setPublicTokens).toHaveBeenCalled();
+    expect(setPrivateTokens).toHaveBeenCalled();
+  });
+
+  it('does not seed token lists while disconnected when autoInitTokens is false', () => {
+    const setPublicTokens = vi.fn();
+    const setPrivateTokens = vi.fn();
+    const core = makeCore({
+      isConnected: false,
+      setPublicTokens,
+      setPrivateTokens,
+    });
+    const network = makeNetwork({ currentChainId: 7082400 });
+    const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
+
+    renderHook(() => usePrivacyBridgeAccountSync({
+      core,
+      network,
+      updateAccountStateRef,
+      autoInitTokens: false,
+    }));
+
+    expect(setPublicTokens).not.toHaveBeenCalled();
+    expect(setPrivateTokens).not.toHaveBeenCalled();
+  });
+
+  it('does not auto-refresh private balances on session key arrival when autoInitTokens is false', async () => {
+    const core = makeCore({ sessionAesKey: null, walletAddress: '0xabc123' });
+    const network = makeNetwork({ wagmiChainId: 11155111 });
+    const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
+
+    const { rerender } = renderHook(
+      (props) => usePrivacyBridgeAccountSync(props),
+      {
+        initialProps: {
+          core,
+          network,
+          updateAccountStateRef,
+          autoInitTokens: false,
+        },
+      },
+    );
+
+    const updatedCore = makeCore({
+      sessionAesKey: 'a'.repeat(32),
+      walletAddress: '0xabc123',
+      wagmiSyncRef: { current: true },
+    });
+
+    rerender({
+      core: updatedCore,
+      network,
+      updateAccountStateRef,
+      autoInitTokens: false,
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 30));
+    expect(h.updateAccountState).not.toHaveBeenCalled();
+  });
+});

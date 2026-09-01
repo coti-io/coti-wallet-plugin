@@ -4,6 +4,7 @@ export {
   getPluginConfig,
   getSnapRequestParams,
   isSnapEnabled,
+  isAutoInitTokensEnabled,
 } from './config/plugin';
 export type {
   CotiPluginConfig,
