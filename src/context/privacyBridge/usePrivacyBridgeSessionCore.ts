@@ -4,6 +4,7 @@ import { usePrivateTokenBalance } from '../../hooks/usePrivateTokenBalance';
 import { useWalletType } from '../../hooks/useWalletType';
 import { useAesKeyProvider } from '../../hooks/useAesKeyProvider';
 import { assertAesKeyChainId } from '../../config/plugin';
+import { isAutoInitTokensEnabled } from '../../config/plugin';
 import {
   getInitialPublicTokens,
   getInitialPrivateTokens,
@@ -15,18 +16,25 @@ import type { PrivacyBridgeSessionCore } from './sessionShared';
 
 interface UsePrivacyBridgeSessionCoreOptions {
   modals: PrivacyBridgeModalsContextValue;
+  autoInitTokens?: boolean;
 }
 
 /** Shared wallet, token, snap, and session-key state for the bridge provider. */
 export const usePrivacyBridgeSessionCore = ({
   modals,
+  autoInitTokens: autoInitTokensProp,
 }: UsePrivacyBridgeSessionCoreOptions): PrivacyBridgeSessionCore => {
+  const autoInitTokens = isAutoInitTokensEnabled(autoInitTokensProp);
   const [isConnected, setIsConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState('');
   const [hasSnap, setHasSnap] = useState(false);
   const [snapError, setSnapError] = useState<string | null>(null);
-  const [publicTokens, setPublicTokens] = useState<Token[]>(getInitialPublicTokens());
-  const [privateTokens, setPrivateTokens] = useState<Token[]>(getInitialPrivateTokens());
+  const [publicTokens, setPublicTokens] = useState<Token[]>(
+    () => (autoInitTokens ? getInitialPublicTokens() : []),
+  );
+  const [privateTokens, setPrivateTokens] = useState<Token[]>(
+    () => (autoInitTokens ? getInitialPrivateTokens() : []),
+  );
   const [showSnapMissingModal, setShowSnapMissingModal] = useState(false);
   const [showCotiWalletAesKeyModal, setShowCotiWalletAesKeyModal] = useState(false);
   const [metamaskDetected, setMetamaskDetected] = useState(false);

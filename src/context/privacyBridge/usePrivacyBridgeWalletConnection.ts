@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { logger } from '../../lib/logger';
 import { forceWagmiSessionClear } from '../../lib/wagmiDisconnect';
 import { isMultipleWalletsError } from '../../utils/walletErrors';
+import { isAutoInitTokensEnabled } from '../../config/plugin';
 import {
   getInitialPublicTokens,
   getInitialPrivateTokens,
@@ -14,6 +15,7 @@ interface UsePrivacyBridgeWalletConnectionOptions {
   core: PrivacyBridgeSessionCore;
   network: PrivacyBridgeNetworkSession;
   accountSync: PrivacyBridgeAccountSync;
+  autoInitTokens?: boolean;
 }
 
 /** MetaMask connect/disconnect flows. */
@@ -21,6 +23,7 @@ export const usePrivacyBridgeWalletConnection = ({
   core,
   network,
   accountSync,
+  autoInitTokens: autoInitTokensProp,
 }: UsePrivacyBridgeWalletConnectionOptions) => {
   const {
     modals: { setShowInstallModal, setShowMultipleWalletsModal },
@@ -48,6 +51,7 @@ export const usePrivacyBridgeWalletConnection = ({
     wagmiConfig,
   } = network;
   const { updateAccountState, currentChainId } = accountSync;
+  const autoInitTokens = isAutoInitTokensEnabled(autoInitTokensProp);
 
   const handleConnectRef = useRef<() => Promise<void>>();
 
@@ -56,7 +60,12 @@ export const usePrivacyBridgeWalletConnection = ({
     metamaskExplicitConnect.current = true;
     try {
       const connected = await connectWallet(async account => {
-        await updateAccountState(account, false, false);
+        if (autoInitTokens) {
+          await updateAccountState(account, false, false);
+        } else {
+          setWalletAddress(account);
+          setIsConnected(true);
+        }
       });
       if (connected && !wagmiSyncRef.current && !wagmiConnected) {
         setMetamaskDetected(true);
@@ -104,8 +113,13 @@ export const usePrivacyBridgeWalletConnection = ({
     setWalletAddress('');
     setHasSnap(false);
     setMetamaskDetected(false);
-    setPublicTokens(getInitialPublicTokens(currentChainId));
-    setPrivateTokens(getInitialPrivateTokens(currentChainId));
+    if (autoInitTokens) {
+      setPublicTokens(getInitialPublicTokens(currentChainId));
+      setPrivateTokens(getInitialPrivateTokens(currentChainId));
+    } else {
+      setPublicTokens([]);
+      setPrivateTokens([]);
+    }
     setSessionAesKey(null);
     setArePrivateBalancesHidden(true);
     setShowMultipleWalletsModal(false);

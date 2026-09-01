@@ -10,28 +10,43 @@ import { usePrivacyBridgeUnlockSession } from './usePrivacyBridgeUnlockSession';
 
 interface UsePrivacyBridgeSessionOptions {
   modals: PrivacyBridgeModalsContextValue;
+  autoInitTokens?: boolean;
 }
 
 /**
  * Composes wallet, network, balance sync, wagmi sync, connection, and unlock sub-hooks.
  * Return shape is unchanged for {@link PrivacyBridgeProvider} and existing API clients.
  */
-export const usePrivacyBridgeSession = ({ modals }: UsePrivacyBridgeSessionOptions) => {
-  const core = usePrivacyBridgeSessionCore({ modals });
+export const usePrivacyBridgeSession = ({
+  modals,
+  autoInitTokens,
+}: UsePrivacyBridgeSessionOptions) => {
+  const core = usePrivacyBridgeSessionCore({ modals, autoInitTokens });
   const updateAccountStateRef = useRef<UpdateAccountStateFn | null>(null);
 
   const network = usePrivacyBridgeNetworkSession({ core, updateAccountStateRef });
-  const accountSync = usePrivacyBridgeAccountSync({ core, network, updateAccountStateRef });
+  const accountSync = usePrivacyBridgeAccountSync({
+    core,
+    network,
+    updateAccountStateRef,
+    autoInitTokens,
+  });
 
-  usePrivacyBridgeWagmiSync({ core, network, accountSync });
+  usePrivacyBridgeWagmiSync({ core, network, accountSync, autoInitTokens });
 
   const { handleConnect, handleDisconnect } = usePrivacyBridgeWalletConnection({
     core,
     network,
     accountSync,
+    autoInitTokens,
   });
 
-  const unlock = usePrivacyBridgeUnlockSession({ core, network, accountSync });
+  const unlock = usePrivacyBridgeUnlockSession({
+    core,
+    network,
+    accountSync,
+    autoInitTokens,
+  });
 
   return {
     isConnected: core.isConnected,

@@ -104,6 +104,14 @@ export interface CotiPluginConfig {
    * refreshes in the background so success can show immediately.
    */
   waitForBalanceRefreshAfterTransfer?: boolean;
+  /**
+   * When true (default), the provider seeds public/private token lists on mount
+   * and fetches balances on wallet connect, account switch, and chain change.
+   * Set false for dApps that only need unlock/crypto — then call
+   * `refreshPublicBalances` / `refreshPrivateBalances` (or `unlock()`) when
+   * the UI actually needs token data.
+   */
+  autoInitTokens?: boolean;
   /** Optional onboarding service hooks for grant and encrypted AES backup flows. */
   onboardingServices?: OnboardingServices;
   /**
@@ -150,6 +158,7 @@ let _config: CotiPluginConfig = {
   debug: false,
   clearSessionKeyOnWagmiDisconnect: true,
   waitForBalanceRefreshAfterTransfer: false,
+  autoInitTokens: true,
   onboardingServices: { mode: 'disabled' },
   onboardingGrantEnabled: true,
   grantApiUrlTestnet: DEFAULT_GRANT_API_URL_TESTNET,
@@ -272,4 +281,13 @@ export function getPluginConfig(): Readonly<CotiPluginConfig> {
 /** Whether Snap usage (install, probe, AES key retrieve/save) is allowed for this app. */
 export function isSnapEnabled(): boolean {
   return getPluginConfig().snapEnabled !== false;
+}
+
+/**
+ * Whether the provider should seed token lists and fetch balances automatically.
+ * `override` is the optional `PrivacyBridgeProvider autoInitTokens` prop.
+ */
+export function isAutoInitTokensEnabled(override?: boolean): boolean {
+  if (typeof override === 'boolean') return override;
+  return getPluginConfig().autoInitTokens !== false;
 }
