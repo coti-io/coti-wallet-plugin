@@ -8,6 +8,7 @@ import {
   isOnboardingGrantEnabled,
   isSnapEnabled,
   isAutoInitTokensEnabled,
+  resolvePrivacyBridgeSurface,
   resolveGrantNativeCoti,
 } from '../../src/config/plugin';
 import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID, SEPOLIA_CHAIN_ID } from '../../src/config/chains';
@@ -23,6 +24,7 @@ describe('Plugin Configuration (README: Basic Setup)', () => {
       aesKeyChainId: undefined,
       clearSessionKeyOnWagmiDisconnect: true,
       waitForBalanceRefreshAfterTransfer: false,
+      privacyBridgeSurface: 'core',
       autoInitTokens: true,
       onboardingGrantEnabled: true,
       grantApiUrlTestnet: DEFAULT_GRANT_API_URL_TESTNET,
@@ -39,6 +41,8 @@ describe('Plugin Configuration (README: Basic Setup)', () => {
     expect(config.onboardingGrantEnabled).toBe(true);
     expect(config.autoInitTokens).toBe(true);
     expect(isAutoInitTokensEnabled()).toBe(true);
+    expect(config.privacyBridgeSurface).toBe('core');
+    expect(resolvePrivacyBridgeSurface()).toBe('core');
     expect(config.grantApiUrlTestnet).toBe(DEFAULT_GRANT_API_URL_TESTNET);
     expect(config.onboardingGrantMinBalanceWei).toBe(DEFAULT_ONBOARDING_GRANT_MIN_BALANCE_WEI);
   });
@@ -193,5 +197,12 @@ describe('Plugin Configuration (README: Basic Setup)', () => {
     expect(isAutoInitTokensEnabled(true)).toBe(true);
     configureCotiPlugin({ autoInitTokens: true });
     expect(isAutoInitTokensEnabled(false)).toBe(false);
+  });
+
+  it('resolves privacyBridgeSurface to core by default and honors overrides', () => {
+    expect(resolvePrivacyBridgeSurface()).toBe('core');
+    configureCotiPlugin({ privacyBridgeSurface: 'bridge' });
+    expect(resolvePrivacyBridgeSurface()).toBe('bridge');
+    expect(resolvePrivacyBridgeSurface('core')).toBe('core');
   });
 });

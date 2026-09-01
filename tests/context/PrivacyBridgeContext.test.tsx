@@ -170,7 +170,7 @@ function Consumer() {
 async function renderProvider() {
   await act(async () => {
     render(
-      <PrivacyBridgeProvider>
+      <PrivacyBridgeProvider surface="bridge">
         <Consumer />
       </PrivacyBridgeProvider>
     );
