@@ -95,6 +95,26 @@ describe('useBalanceUpdater', () => {
     h.formatUnits.mockReturnValue('1.0');
   });
 
+  it('does not write token catalogs when autoInitTokens is false', async () => {
+    (window as any).ethereum = { request: vi.fn() };
+    const props = makeProps({ autoInitTokens: false, sessionAesKey: 'a'.repeat(32) });
+    const { result } = renderHook(() => useBalanceUpdater(props));
+
+    const ok = await result.current.updateAccountState(
+      ACCOUNT,
+      false,
+      true,
+      'a'.repeat(32),
+      COTI_TESTNET,
+    );
+
+    expect(ok).toBe(true);
+    expect(props.setPublicTokens).not.toHaveBeenCalled();
+    expect(props.setPrivateTokens).not.toHaveBeenCalled();
+    expect(h.getBalance).not.toHaveBeenCalled();
+    expect(props.setSessionAesKey).toHaveBeenCalled();
+  });
+
   it('returns false when fetchPrivate is requested without provider or chain override', async () => {
     const original = (window as any).ethereum;
     delete (window as any).ethereum;
