@@ -1,6 +1,6 @@
 import type { Token } from './types';
 
-export interface UsePrivacyBridgeGasOptions {
+export interface UsePluginBridgeGasOptions {
   isConnected: boolean;
   walletAddress?: string;
   chainId?: number;

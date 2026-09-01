@@ -7,7 +7,7 @@ import { CotiErrorCode, CotiPluginError } from '../../errors';
 import { clearAesKeyValidatedForUnlock, getValidatedAesKeyForUnlock } from '../../crypto/aesKeyValidation';
 import {
   getInitialPrivateTokens,
-} from '../../hooks/usePrivacyBridge';
+} from '../../hooks/usePluginBridge';
 import { useWalletType } from '../../hooks/useWalletType';
 import type { PluginAccountSync } from './usePluginAccountSync';
 import type { PluginNetworkSession } from './usePluginNetworkSession';
@@ -27,7 +27,7 @@ import {
 import {
   sendPrivateTokenTransfer,
   type ExecutePrivateTokenTransferResult,
-} from '../../hooks/privacyBridge/executePrivateTokenTransfer';
+} from '../../hooks/bridge/executePrivateTokenTransfer';
 import {
   decryptPrivateCtUint256,
   encryptPrivateCtUint256,
@@ -35,7 +35,7 @@ import {
   parsePrivateAmountToWei,
   formatPrivateAmountFromWei,
   serializeCtUint256,
-} from '../../hooks/privacyBridge/privateValueCrypto';
+} from '../../hooks/bridge/privateValueCrypto';
 import type { RefreshPrivateBalancesOptions } from './types';
 
 interface UsePluginUnlockSessionOptions {

@@ -83,8 +83,8 @@ vi.mock('../../src/chains', async importOriginal => {
   };
 });
 
-import { usePluginWagmiSync } from '../../src/context/privacyBridge/usePluginWagmiSync';
-import type { PluginSessionState } from '../../src/context/privacyBridge/sessionShared';
+import { usePluginWagmiSync } from '../../src/context/plugin/usePluginWagmiSync';
+import type { PluginSessionState } from '../../src/context/plugin/sessionShared';
 
 function makeCore(overrides: Partial<PluginSessionState> = {}): PluginSessionState {
   return {

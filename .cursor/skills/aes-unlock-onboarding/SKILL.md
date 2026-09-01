@@ -14,9 +14,9 @@ description: >-
 Host apps must unlock through the provider controller — not a one-off modal or restore hack:
 
 ```tsx
-<PrivacyBridgeProvider privateUnlock={{ theme, warning }}>
+<CotiPluginProvider privateUnlock={{ theme, warning }}>
   <App />
-</PrivacyBridgeProvider>
+</CotiPluginProvider>
 ```
 
 Default surface is `core` (wallet + unlock). Token lists, swap/fees, and PoD tracking require `surface="bridge"`.

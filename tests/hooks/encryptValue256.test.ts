@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as CotiSDK from '@coti-io/coti-sdk-typescript';
-import { encryptValue256 } from '../../src/hooks/privacyBridge/encryptValue256';
+import { encryptValue256 } from '../../src/hooks/bridge/encryptValue256';
 
 const WALLET = '0x1111111111111111111111111111111111111111';
 const CONTRACT = '0x6cE8907414986E73De9e7D28d62Ea2080F8E88E1';

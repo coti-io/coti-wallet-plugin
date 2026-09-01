@@ -38,7 +38,7 @@ vi.mock('../../src/hooks/usePrivateTokenBalance', () => ({
   usePrivateTokenBalance: () => ({ fetchPrivateBalance: vi.fn() }),
 }));
 
-import { usePluginSessionState } from '../../src/context/privacyBridge/usePluginSessionState';
+import { usePluginSessionState } from '../../src/context/plugin/usePluginSessionState';
 
 describe('usePluginSessionState — checkSnapStatus', () => {
   beforeEach(() => {

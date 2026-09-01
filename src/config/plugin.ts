@@ -10,7 +10,7 @@ export const DEFAULT_ONBOARDING_GRANT_MIN_BALANCE_WEI = '200000000000000000';
 
 export type AesKeyChainId = typeof COTI_TESTNET_CHAIN_ID | typeof COTI_MAINNET_CHAIN_ID;
 
-/** Which PrivacyBridgeProvider subsystems to mount. */
+/** Which CotiPluginProvider subsystems to mount. */
 export type CotiPluginSurface = 'core' | 'bridge';
 
 export interface EncryptedAesBackup {
@@ -108,17 +108,17 @@ export interface CotiPluginConfig {
    */
   waitForBalanceRefreshAfterTransfer?: boolean;
   /**
-   * Which PrivacyBridgeProvider subsystems to mount.
+   * Which CotiPluginProvider subsystems to mount.
    * - `core` (default): wallet, network, AES unlock / encrypt / decrypt / send.
    *   Does not seed token lists, quote bridge fees, or poll PoD requests.
    * - `bridge`: full portal shell (tokens, swap/fees, PoD tracker). Token
    *   auto-init still follows {@link autoInitTokens}.
    */
-  privacyBridgeSurface?: CotiPluginSurface;
+  pluginSurface?: CotiPluginSurface;
   /**
    * When true (default), the provider seeds public/private token lists on mount
    * and fetches balances on wallet connect, account switch, and chain change.
-   * Only applies when {@link privacyBridgeSurface} is `bridge`.
+   * Only applies when {@link pluginSurface} is `bridge`.
    * Set false for hosts that opt into the bridge shell but fetch tokens later
    * via `refreshPublicBalances` / `refreshPrivateBalances` / `unlock()`.
    */
@@ -169,7 +169,7 @@ let _config: CotiPluginConfig = {
   debug: false,
   clearSessionKeyOnWagmiDisconnect: true,
   waitForBalanceRefreshAfterTransfer: false,
-  privacyBridgeSurface: 'core',
+  pluginSurface: 'core',
   autoInitTokens: true,
   onboardingServices: { mode: 'disabled' },
   onboardingGrantEnabled: true,
@@ -297,7 +297,7 @@ export function isSnapEnabled(): boolean {
 
 /**
  * Whether the provider should seed token lists and fetch balances automatically.
- * `override` is the optional `PrivacyBridgeProvider autoInitTokens` prop.
+ * `override` is the optional `CotiPluginProvider autoInitTokens` prop.
  * Token auto-init is ignored unless the resolved surface is `bridge`.
  */
 export function isAutoInitTokensEnabled(override?: boolean): boolean {
@@ -306,12 +306,12 @@ export function isAutoInitTokensEnabled(override?: boolean): boolean {
 }
 
 /**
- * Which PrivacyBridgeProvider subsystems to mount.
- * `override` is the optional `PrivacyBridgeProvider surface` prop.
+ * Which CotiPluginProvider subsystems to mount.
+ * `override` is the optional `CotiPluginProvider surface` prop.
  */
-export function resolvePrivacyBridgeSurface(
+export function resolvePluginSurface(
   override?: CotiPluginSurface,
 ): CotiPluginSurface {
   if (override === 'core' || override === 'bridge') return override;
-  return getPluginConfig().privacyBridgeSurface === 'bridge' ? 'bridge' : 'core';
+  return getPluginConfig().pluginSurface === 'bridge' ? 'bridge' : 'core';
 }

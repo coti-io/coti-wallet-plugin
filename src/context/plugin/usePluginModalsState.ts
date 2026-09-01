@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { isMultipleWalletsError } from '../../utils/walletErrors';
-import type { PrivacyBridgeModalsContextValue } from './types';
+import type { CotiModalsContextValue } from './types';
 
 /** Install and multi-wallet modal visibility (shared across connection flows). */
-export const usePluginModalsState = (): PrivacyBridgeModalsContextValue => {
+export const usePluginModalsState = (): CotiModalsContextValue => {
   const [showInstallModal, setShowInstallModal] = useState(false);
   const [showMultipleWalletsModal, setShowMultipleWalletsModal] = useState(false);
 

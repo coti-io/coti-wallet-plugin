@@ -4,7 +4,7 @@ import { type PodPortalRequest } from '../../contracts/pod';
 import { resolvePodRequestStatus } from '../../chains/portal/podRequestStatus';
 import { CHAIN_CONFIGS } from '../../chains/index';
 import { logger } from '../../lib/logger';
-import type { PrivacyBridgePodContextValue } from './types';
+import type { CotiPodContextValue } from './types';
 
 const POD_PORTAL_CHAIN_IDS = new Set(
   Object.values(CHAIN_CONFIGS)
@@ -18,16 +18,16 @@ const TERMINAL_POD_STATUSES = new Set<PodPortalRequest['status']>([
   'burn-debt',
 ]);
 
-interface UsePrivacyBridgePodOptions {
+interface UsePluginPodOptions {
   walletAddress: string;
   refreshPrivateBalances: () => Promise<boolean>;
 }
 
 /** PoD portal request persistence and polling. */
-export const usePrivacyBridgePodState = ({
+export const usePluginPodState = ({
   walletAddress,
   refreshPrivateBalances,
-}: UsePrivacyBridgePodOptions): PrivacyBridgePodContextValue & {
+}: UsePluginPodOptions): CotiPodContextValue & {
   upsertPodRequest: (request: PodPortalRequest) => void;
 } => {
   const [podRequests, setPodRequests] = useState<PodPortalRequest[]>(() => loadPodRequests(''));

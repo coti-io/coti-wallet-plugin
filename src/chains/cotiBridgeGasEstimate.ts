@@ -5,7 +5,7 @@ import { logger } from "../lib/logger";
 
 /**
  * Gas fee string for display on COTI bridge chains (not PoD portal).
- * Mirrors the estimation path in usePrivacyBridge `updateGasFee`.
+ * Mirrors the estimation path in usePluginBridge `updateGasFee`.
  */
 export async function estimateCotiBridgeGasFeeDisplay(params: {
   provider: ethers.BrowserProvider;

@@ -5,7 +5,7 @@ import { isChainUpdatesMuted } from '../../lib/chainMute';
 import { logger } from '../../lib/logger';
 import { truncateAddress } from '../../lib/format';
 import { clearAesKeyValidatedForUnlock } from '../../crypto/aesKeyValidation';
-import { getInitialPrivateTokens } from '../../hooks/usePrivacyBridge';
+import { getInitialPrivateTokens } from '../../hooks/usePluginBridge';
 import { reportPluginError, hasCotiErrorCode, CotiErrorCode } from '../../errors';
 import { isRateLimitedRpcError } from '../../lib/rpcProvider';
 import type { PluginAccountSync } from './usePluginAccountSync';

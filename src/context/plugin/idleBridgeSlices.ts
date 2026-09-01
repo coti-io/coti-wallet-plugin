@@ -1,17 +1,17 @@
 import type {
-  PrivacyBridgePodContextValue,
-  PrivacyBridgeSwapContextValue,
+  CotiPodContextValue,
+  CotiSwapContextValue,
 } from './types';
 
 const BRIDGE_SURFACE_REQUIRED =
-  'This API requires PrivacyBridgeProvider surface="bridge" (or configureCotiPlugin({ privacyBridgeSurface: "bridge" })).';
+  'This API requires CotiPluginProvider surface="bridge" (or configureCotiPlugin({ pluginSurface: "bridge" })).';
 
 const requireBridgeSurface = (): never => {
   throw new Error(BRIDGE_SURFACE_REQUIRED);
 };
 
 /** Inert swap slice for `surface="core"` — reads are empty; mutating APIs throw. */
-export const IDLE_PRIVACY_BRIDGE_SWAP: PrivacyBridgeSwapContextValue = {
+export const IDLE_COTI_SWAP: CotiSwapContextValue = {
   amount: '',
   direction: 'to-private',
   selectedTokenIndex: 0,
@@ -36,7 +36,7 @@ export const IDLE_PRIVACY_BRIDGE_SWAP: PrivacyBridgeSwapContextValue = {
 };
 
 /** Inert PoD tracker for `surface="core"` — no localStorage poll. */
-export const IDLE_PRIVACY_BRIDGE_POD: PrivacyBridgePodContextValue = {
+export const IDLE_COTI_POD: CotiPodContextValue = {
   podRequests: [],
   refreshPodRequest: async () => {},
 };

@@ -6,11 +6,11 @@ vi.mock('wagmi', () => ({
   useSwitchChain: vi.fn(() => ({ switchChain: vi.fn() })),
 }));
 
-import { getInitialPublicTokens, getInitialPrivateTokens } from '../../src/hooks/usePrivacyBridge';
+import { getInitialPublicTokens, getInitialPrivateTokens } from '../../src/hooks/usePluginBridge';
 
 const DEFAULT_CHAIN = 7082400; // COTI Testnet
 
-describe('usePrivacyBridge Token Initialization (README: Privacy Bridge)', () => {
+describe('usePluginBridge Token Initialization (README: Privacy Bridge)', () => {
   describe('getInitialPublicTokens', () => {
     it('returns an array of public tokens', () => {
       const tokens = getInitialPublicTokens(DEFAULT_CHAIN);

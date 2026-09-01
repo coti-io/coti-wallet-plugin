@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseCtUint256Json, serializeCtUint256 } from '../../src/hooks/privacyBridge/privateValueCrypto';
+import { parseCtUint256Json, serializeCtUint256 } from '../../src/hooks/bridge/privateValueCrypto';
 
 describe('privateValueCrypto', () => {
   it('serializes and parses flat ctUint256 JSON', () => {

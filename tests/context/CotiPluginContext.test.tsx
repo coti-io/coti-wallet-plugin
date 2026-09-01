@@ -124,11 +124,11 @@ vi.mock('../../src/hooks/useNetworkEnforcer', () => ({
 }));
 
 // Keep the real getInitialPublic/PrivateTokens helpers; only stub the heavy hook.
-vi.mock('../../src/hooks/usePrivacyBridge', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../src/hooks/usePrivacyBridge')>();
+vi.mock('../../src/hooks/usePluginBridge', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/hooks/usePluginBridge')>();
   return {
     ...actual,
-    usePrivacyBridge: vi.fn(() => ({
+    usePluginBridge: vi.fn(() => ({
       handleSwap: vi.fn(async () => undefined),
       isBridgingLoading: false,
       isApprovalNeeded: false,
@@ -153,32 +153,32 @@ vi.mock('../../src/chains/portal/podRequestStatus', () => ({
 }));
 
 import {
-  PrivacyBridgeProvider,
-  usePrivacyBridgeContext,
-} from '../../src/context/PrivacyBridgeContext';
+  CotiPluginProvider,
+  useCotiPluginContext,
+} from '../../src/context/CotiPluginContext';
 import { useNetworkEnforcer } from '../../src/hooks/useNetworkEnforcer';
 
-type Ctx = ReturnType<typeof usePrivacyBridgeContext>;
+type Ctx = ReturnType<typeof useCotiPluginContext>;
 const reqMock = window.ethereum!.request as unknown as ReturnType<typeof vi.fn>;
 
 let latest: Ctx | null = null;
 function Consumer() {
-  latest = usePrivacyBridgeContext();
+  latest = useCotiPluginContext();
   return null;
 }
 
 async function renderProvider() {
   await act(async () => {
     render(
-      <PrivacyBridgeProvider surface="bridge">
+      <CotiPluginProvider surface="bridge">
         <Consumer />
-      </PrivacyBridgeProvider>
+      </CotiPluginProvider>
     );
   });
   return latest as Ctx;
 }
 
-describe('PrivacyBridgeContext', () => {
+describe('CotiPluginContext', () => {
   beforeEach(() => {
     localStorage.clear();
     reqMock.mockReset();
@@ -198,7 +198,7 @@ describe('PrivacyBridgeContext', () => {
 
   it('throws when used outside the provider', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect(() => render(<Consumer />)).toThrow(/within a PrivacyBridgeProvider/);
+    expect(() => render(<Consumer />)).toThrow(/within a CotiPluginProvider/);
     spy.mockRestore();
   });
 

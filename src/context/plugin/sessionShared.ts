@@ -1,7 +1,7 @@
 import type { MutableRefObject, Dispatch, SetStateAction } from 'react';
 import type { AesKeyProviderOptions, OnboardingProgressCallback } from '../../hooks/useAesKeyProvider';
-import type { Token } from '../../hooks/usePrivacyBridge';
-import type { PrivacyBridgeModalsContextValue } from './types';
+import type { Token } from '../../hooks/usePluginBridge';
+import type { CotiModalsContextValue } from './types';
 import type { PrivateBalanceDecryptOptions } from '../../hooks/usePrivateTokenBalance';
 import type { BuildItUint256ViaSnapParams, SnapItUint256 } from '../../hooks/useSnap';
 import type { OnboardModalWarnings } from '../../lib/onboardModalWarnings';
@@ -22,7 +22,7 @@ export type UpdateAccountStateFn = (
 
 /** Wallet, Snap, and AES-session state. Runs for both `core` and `bridge` surfaces. */
 export interface PluginSessionState {
-  modals: PrivacyBridgeModalsContextValue;
+  modals: CotiModalsContextValue;
   isConnected: boolean;
   setIsConnected: Dispatch<SetStateAction<boolean>>;
   walletAddress: string;

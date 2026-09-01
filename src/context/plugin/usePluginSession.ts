@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import type { PrivacyBridgeModalsContextValue } from './types';
+import type { CotiModalsContextValue } from './types';
 import type { UpdateAccountStateFn } from './sessionShared';
 import { usePluginSessionState } from './usePluginSessionState';
 import { usePluginNetworkSession } from './usePluginNetworkSession';
@@ -9,14 +9,14 @@ import { usePluginWalletConnection } from './usePluginWalletConnection';
 import { usePluginUnlockSession } from './usePluginUnlockSession';
 
 interface UsePluginSessionOptions {
-  modals: PrivacyBridgeModalsContextValue;
+  modals: CotiModalsContextValue;
   autoInitTokens?: boolean;
 }
 
 /**
  * Composes wallet, network, balance sync, wagmi sync, connection, and unlock sub-hooks.
  * Runs for both `core` and `bridge` surfaces. Return shape is unchanged for
- * {@link PrivacyBridgeProvider} and existing API clients.
+ * {@link CotiPluginProvider} and existing API clients.
  */
 export const usePluginSession = ({
   modals,

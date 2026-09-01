@@ -24,7 +24,7 @@ export type SwapProgressStage =
   | 'transfer-complete';
 
 /** Shared inputs for the privacy bridge coordinator and sub-hooks. */
-export interface UsePrivacyBridgeProps {
+export interface UsePluginBridgeProps {
   isConnected: boolean;
   walletAddress: string;
   publicTokens: Token[];

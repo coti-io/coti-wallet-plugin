@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import { OnboardModal, type OnboardModalTheme } from '../../components/OnboardModal';
 import { WalletSignPrompt, type WalletSignPromptPurpose } from '../../components/WalletSignPrompt';
-import { usePrivacyBridgeUnlock, usePrivacyBridgeWallet } from '../privacyBridge/contexts';
+import { useCotiUnlock, useCotiWallet } from '../plugin/contexts';
 import { formatOnboardingError, isMetaMaskMobileBrowser } from '../../lib/metaMaskMobile';
 import { isUserRejection } from '../../lib/walletErrors';
 import type {
@@ -57,10 +57,10 @@ export interface PrivateUnlockController {
   lockPrivateBalances: () => void;
   onboardModal: ReactElement;
   walletSignPrompt: ReactElement;
-  sendPrivateToken: ReturnType<typeof usePrivacyBridgeUnlock>['sendPrivateToken'];
-  refreshPrivateBalances: ReturnType<typeof usePrivacyBridgeUnlock>['refreshPrivateBalances'];
-  encryptPrivateValue: ReturnType<typeof usePrivacyBridgeUnlock>['encryptPrivateValue'];
-  decryptPrivateValue: ReturnType<typeof usePrivacyBridgeUnlock>['decryptPrivateValue'];
+  sendPrivateToken: ReturnType<typeof useCotiUnlock>['sendPrivateToken'];
+  refreshPrivateBalances: ReturnType<typeof useCotiUnlock>['refreshPrivateBalances'];
+  encryptPrivateValue: ReturnType<typeof useCotiUnlock>['encryptPrivateValue'];
+  decryptPrivateValue: ReturnType<typeof useCotiUnlock>['decryptPrivateValue'];
   /** Non-blocking message shown below the unlock control after a cancelled attempt. */
   statusMessage: string | null;
 }
@@ -70,8 +70,8 @@ export function usePrivateUnlockController(
   options: PrivateUnlockControllerOptions = {},
 ): PrivateUnlockController {
   const { theme, warnings, onUnlocked, onRestoreCancelled, onOnboardingCancelled } = options;
-  const unlock = usePrivacyBridgeUnlock();
-  const wallet = usePrivacyBridgeWallet();
+  const unlock = useCotiUnlock();
+  const wallet = useCotiWallet();
   const walletTypeInfo = useWalletType();
 
   const [showOnboardModal, setShowOnboardModal] = useState(false);
