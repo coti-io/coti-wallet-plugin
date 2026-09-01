@@ -58,7 +58,7 @@ export function ExampleThemeProvider({ children }: { children: ReactNode }) {
         }}
       >
         <PrivacyBridgeProvider
-          surface="bridge"
+          surface="core"
           privateUnlock={{
             theme: onboardTheme,
             warnings: {

@@ -92,6 +92,11 @@ interface UseBalanceUpdaterProps {
     snapDecryptOptions?: PrivateBalanceDecryptOptions;
     sessionAesKey?: string | null;
     setSessionAesKey: (key: string | null, keyWallet?: string) => void;
+    /**
+     * When false, skip chain token catalogs and balance RPCs. Address/session AES
+     * updates still run (core surface / autoInitTokens off).
+     */
+    autoInitTokens?: boolean;
     /** MetaMask-only: read-only Snap key validation on explicit unlock. */
     validateMetaMaskAesKeyOnUnlock?: (
         snapKey: string,
@@ -120,6 +125,7 @@ export const useBalanceUpdater = ({
     snapDecryptOptions,
     sessionAesKey,
     setSessionAesKey,
+    autoInitTokens = true,
     validateMetaMaskAesKeyOnUnlock,
 }: UseBalanceUpdaterProps) => {
     const updateGenerationRef = useRef(0);
@@ -148,6 +154,52 @@ export const useBalanceUpdater = ({
                 && fetchPrivate
                 && !aesKeyOverride
                 && !sessionAesKey;
+
+            if (!autoInitTokens) {
+                if (!fetchPrivate) {
+                    return true;
+                }
+
+                const forceContractOnboarding = options?.forceContractOnboarding === true;
+                const effectiveSessionAesKey = forceContractOnboarding ? null : sessionAesKey;
+                let restoredAesKey: string | null = aesKeyOverride ?? effectiveSessionAesKey ?? null;
+                const needsAesKeyFetch =
+                    !aesKeyOverride
+                    && !effectiveSessionAesKey
+                    && checkSnap
+                    && !(allowSnapOperations && options?.snapSideDecrypt);
+
+                if (needsAesKeyFetch && !restoredAesKey) {
+                    const { validateOnUnlock: _validateOnUnlock, ...aesKeyOptions } = options ?? {};
+                    restoredAesKey = validateOnUnlock
+                        ? await getAESKeyFromSnap(account, { skipCache: true, ...aesKeyOptions })
+                        : options === undefined
+                            ? await getAESKeyFromSnap(account)
+                            : await getAESKeyFromSnap(account, aesKeyOptions);
+                    if (isStale()) return false;
+                    if (!restoredAesKey) return false;
+                }
+
+                if (
+                    restoredAesKey
+                    && validateOnUnlock
+                    && validateMetaMaskAesKeyOnUnlock
+                    && !options?.forceContractOnboarding
+                    && !isAesKeyValidatedForUnlock(account, restoredAesKey)
+                ) {
+                    await validateMetaMaskAesKeyOnUnlock(restoredAesKey, account, chainOverride ?? null);
+                    if (isStale()) return false;
+                    markAesKeyValidatedForUnlock(account, restoredAesKey);
+                }
+
+                if (allowSnapOperations) {
+                    setHasSnap(true);
+                }
+                if (restoredAesKey) {
+                    setSessionAesKey(restoredAesKey, account);
+                }
+                return Boolean(restoredAesKey || allowSnapOperations);
+            }
 
             const hasChainOverride = typeof chainOverride === 'number';
 
@@ -467,7 +519,7 @@ export const useBalanceUpdater = ({
             }
             return false;
         }
-    }, [setWalletAddress, setHasSnap, setIsConnected, setPublicTokens, checkNetwork, getAESKeyFromSnap, fetchPrivateBalance, canUseSnapOperations, setPrivateTokens, sessionAesKey, setSessionAesKey, validateMetaMaskAesKeyOnUnlock]);
+    }, [setWalletAddress, setHasSnap, setIsConnected, setPublicTokens, checkNetwork, getAESKeyFromSnap, fetchPrivateBalance, canUseSnapOperations, setPrivateTokens, sessionAesKey, setSessionAesKey, autoInitTokens, validateMetaMaskAesKeyOnUnlock]);
 
     return { updateAccountState };
 };

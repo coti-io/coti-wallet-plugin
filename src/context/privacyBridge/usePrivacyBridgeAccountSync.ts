@@ -122,6 +122,7 @@ export const usePrivacyBridgeAccountSync = ({
     sessionAesKey,
     setSessionAesKey,
     validateMetaMaskAesKeyOnUnlock,
+    autoInitTokens,
   });
 
   updateAccountStateRef.current = updateAccountState;
