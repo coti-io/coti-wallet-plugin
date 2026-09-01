@@ -6,7 +6,7 @@ import { isAutoInitTokensEnabled } from '../../config/plugin';
 import {
   getInitialPublicTokens,
   getInitialPrivateTokens,
-} from '../../hooks/usePrivacyBridge';
+} from '../../hooks/usePluginBridge';
 import type { PluginAccountSync } from './usePluginAccountSync';
 import type { PluginNetworkSession } from './usePluginNetworkSession';
 import type { PluginSessionState } from './sessionShared';

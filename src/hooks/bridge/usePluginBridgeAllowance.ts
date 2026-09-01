@@ -74,7 +74,7 @@ function extractOwnerCiphertextFromAllowance(
 }
 
 
-export interface UsePrivacyBridgeAllowanceOptions {
+export interface UsePluginBridgeAllowanceOptions {
   isConnected: boolean;
   walletAddress: string;
   publicTokens: Token[];
@@ -89,7 +89,7 @@ export interface UsePrivacyBridgeAllowanceOptions {
 }
 
 /** ERC20 / encrypted private token allowance checks and approvals. */
-export const usePrivacyBridgeAllowance = ({
+export const usePluginBridgeAllowance = ({
   isConnected,
   walletAddress,
   publicTokens,
@@ -100,7 +100,7 @@ export const usePrivacyBridgeAllowance = ({
   setToastState,
   sessionAesKey,
   chainId,
-}: UsePrivacyBridgeAllowanceOptions) => {
+}: UsePluginBridgeAllowanceOptions) => {
   const [allowance, setAllowance] = useState<string>('0');
   const [isApproving, setIsApproving] = useState(false);
   const [podWithdrawPermit, setPodWithdrawPermit] = useState<PodWithdrawPermit | null>(null);

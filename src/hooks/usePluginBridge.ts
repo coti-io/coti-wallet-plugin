@@ -1,19 +1,19 @@
 import { useCallback } from 'react';
 import { logger } from '../lib/logger';
-import { usePrivacyBridgeAllowance } from './privacyBridge/usePrivacyBridgeAllowance';
-import { usePrivacyBridgeExecutor } from './privacyBridge/usePrivacyBridgeExecutor';
-import { usePrivacyBridgeGas } from './privacyBridge/usePrivacyBridgeGas';
-import type { SwapProgressStage, UsePrivacyBridgeProps } from './privacyBridge/types';
+import { usePluginBridgeAllowance } from './bridge/usePluginBridgeAllowance';
+import { usePluginBridgeExecutor } from './bridge/usePluginBridgeExecutor';
+import { usePluginBridgeGas } from './bridge/usePluginBridgeGas';
+import type { SwapProgressStage, UsePluginBridgeProps } from './bridge/types';
 
-export type { Token } from './privacyBridge/tokens';
-export type { SwapProgressStage } from './privacyBridge/types';
-export { getInitialPublicTokens, getInitialPrivateTokens } from './privacyBridge/tokens';
+export type { Token } from './bridge/tokens';
+export type { SwapProgressStage } from './bridge/types';
+export { getInitialPublicTokens, getInitialPrivateTokens } from './bridge/tokens';
 
 /**
  * Coordinates allowance, execution, gas estimation, and swap entry flow.
- * Sub-hooks mirror the {@link PrivacyBridgeProvider} facade pattern.
+ * Sub-hooks mirror the {@link CotiPluginProvider} facade pattern.
  */
-export const usePrivacyBridge = ({
+export const usePluginBridge = ({
   isConnected,
   walletAddress,
   publicTokens,
@@ -35,8 +35,8 @@ export const usePrivacyBridge = ({
   upsertPodRequest,
   sessionAesKey,
   chainId,
-}: UsePrivacyBridgeProps) => {
-  const allowance = usePrivacyBridgeAllowance({
+}: UsePluginBridgeProps) => {
+  const allowance = usePluginBridgeAllowance({
     isConnected,
     walletAddress,
     publicTokens,
@@ -49,7 +49,7 @@ export const usePrivacyBridge = ({
     chainId,
   });
 
-  const { executeTransaction, isBridgingLoading } = usePrivacyBridgeExecutor({
+  const { executeTransaction, isBridgingLoading } = usePluginBridgeExecutor({
     walletAddress,
     publicTokens,
     setPublicTokens,
@@ -62,7 +62,7 @@ export const usePrivacyBridge = ({
     clearPodWithdrawPermit: allowance.clearPodWithdrawPermit,
   });
 
-  const gas = usePrivacyBridgeGas({
+  const gas = usePluginBridgeGas({
     isConnected,
     walletAddress,
     chainId,

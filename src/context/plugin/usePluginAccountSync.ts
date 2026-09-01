@@ -10,7 +10,7 @@ import { useWalletType } from '../../hooks/useWalletType';
 import {
   getInitialPublicTokens,
   getInitialPrivateTokens,
-} from '../../hooks/usePrivacyBridge';
+} from '../../hooks/usePluginBridge';
 import type { PluginNetworkSession } from './usePluginNetworkSession';
 import type { PluginSessionState, UpdateAccountStateRef } from './sessionShared';
 import type { AesKeyProviderOptions } from '../../hooks/useAesKeyProvider';

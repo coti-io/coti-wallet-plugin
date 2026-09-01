@@ -1,5 +1,5 @@
 import { createContext, useContext, useLayoutEffect, useMemo, useState, type ReactNode } from 'react';
-import { PrivacyBridgeProvider } from '@coti-io/coti-wallet-plugin';
+import { CotiPluginProvider } from '@coti-io/coti-wallet-plugin';
 import {
   buildExampleOnboardTheme,
   getExamplePageColors,
@@ -57,7 +57,7 @@ export function ExampleThemeProvider({ children }: { children: ReactNode }) {
           color: pageColors.color,
         }}
       >
-        <PrivacyBridgeProvider
+        <CotiPluginProvider
           surface="bridge"
           privateUnlock={{
             theme: onboardTheme,
@@ -68,7 +68,7 @@ export function ExampleThemeProvider({ children }: { children: ReactNode }) {
           }}
         >
           {children}
-        </PrivacyBridgeProvider>
+        </CotiPluginProvider>
       </div>
     </ExampleThemeContext.Provider>
   );

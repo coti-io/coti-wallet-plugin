@@ -5,16 +5,16 @@ import { NetworkGuard } from '../../src/components/NetworkGuard';
 
 const mockEnforceNetwork = vi.fn().mockResolvedValue(undefined);
 
-vi.mock('../../src/context/PrivacyBridgeContext', () => ({
-  usePrivacyBridgeContext: vi.fn(),
+vi.mock('../../src/context/CotiPluginContext', () => ({
+  useCotiPluginContext: vi.fn(),
 }));
 
-import { usePrivacyBridgeContext } from '../../src/context/PrivacyBridgeContext';
+import { useCotiPluginContext } from '../../src/context/CotiPluginContext';
 
-const mockUsePrivacyBridgeContext = vi.mocked(usePrivacyBridgeContext);
+const mockUseCotiPluginContext = vi.mocked(useCotiPluginContext);
 
-function mockContext(overrides: Partial<ReturnType<typeof usePrivacyBridgeContext>> = {}) {
-  mockUsePrivacyBridgeContext.mockReturnValue({
+function mockContext(overrides: Partial<ReturnType<typeof useCotiPluginContext>> = {}) {
+  mockUseCotiPluginContext.mockReturnValue({
     isConnected: true,
     isUnsupportedNetwork: false,
     isOffTargetNetwork: false,
@@ -23,7 +23,7 @@ function mockContext(overrides: Partial<ReturnType<typeof usePrivacyBridgeContex
     enforceNetwork: mockEnforceNetwork,
     networkName: 'COTI Testnet',
     ...overrides,
-  } as ReturnType<typeof usePrivacyBridgeContext>);
+  } as ReturnType<typeof useCotiPluginContext>);
 }
 
 describe('NetworkGuard', () => {

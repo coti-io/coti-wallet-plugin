@@ -11,7 +11,7 @@ import {
     resolveRpcUrlsForChain,
     withRpcFallback,
 } from '../lib/rpcProvider';
-import type { Token } from './usePrivacyBridge';
+import type { Token } from './usePluginBridge';
 import type { AesKeyProviderOptions } from './useAesKeyProvider';
 import type { PrivateBalanceDecryptOptions } from './usePrivateTokenBalance';
 import { formatTokenBalanceDisplay } from '../lib/utils';
@@ -23,7 +23,7 @@ import {
     reportPluginError,
 } from '../errors';
 import { logger } from '../lib/logger';
-import type { UpdateAccountStateOptions } from '../context/privacyBridge/sessionShared';
+import type { UpdateAccountStateOptions } from '../context/plugin/sessionShared';
 import {
     isAesKeyValidatedForUnlock,
     markAesKeyValidatedForUnlock,

@@ -21,9 +21,9 @@ description: >-
 | Task | Use |
 | --- | --- |
 | Decrypt ctUint64 / ctUint256 balances | `src/crypto/decryption.ts` → `decryptCtUint64`, `decryptCtUint256` |
-| Encrypt amount → ctUint256 | `src/hooks/privacyBridge/privateValueCrypto.ts` → `encryptPrivateCtUint256` |
+| Encrypt amount → ctUint256 | `src/hooks/bridge/privateValueCrypto.ts` → `encryptPrivateCtUint256` |
 | Decrypt ctUint256 → formatted amount | `decryptPrivateCtUint256` in the same file |
-| Signed itUint256 for txs | `src/hooks/privacyBridge/encryptValue256.ts` → `encryptValue256` |
+| Signed itUint256 for txs | `src/hooks/bridge/encryptValue256.ts` → `encryptValue256` |
 | Normalize AES key hex | `src/crypto/aesKey.ts` → `normalizeAesKey` / `normalizeAesKeyHex` |
 
 3. **Direct SDK** (`@coti-io/coti-sdk-typescript`) only when no wrapper fits.
@@ -90,7 +90,7 @@ if (wei === null) {
 **Encrypt amount (library):**
 
 ```ts
-import { encryptPrivateCtUint256 } from '../hooks/privacyBridge/privateValueCrypto';
+import { encryptPrivateCtUint256 } from '../hooks/bridge/privateValueCrypto';
 
 const ct = encryptPrivateCtUint256({
   amount: '1.5',
@@ -102,7 +102,7 @@ const ct = encryptPrivateCtUint256({
 **Signed input for a contract call:**
 
 ```ts
-import { encryptValue256 } from '../hooks/privacyBridge/encryptValue256';
+import { encryptValue256 } from '../hooks/bridge/encryptValue256';
 
 const { ciphertext, signature } = await encryptValue256(
   amountWei,

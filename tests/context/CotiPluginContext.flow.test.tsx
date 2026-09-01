@@ -179,11 +179,11 @@ vi.mock('../../src/hooks/useNetworkEnforcer', () => ({
   })),
 }));
 
-vi.mock('../../src/hooks/usePrivacyBridge', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../src/hooks/usePrivacyBridge')>();
+vi.mock('../../src/hooks/usePluginBridge', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/hooks/usePluginBridge')>();
   return {
     ...actual,
-    usePrivacyBridge: vi.fn((params: { upsertPodRequest?: (r: PodPortalRequest) => void }) => {
+    usePluginBridge: vi.fn((params: { upsertPodRequest?: (r: PodPortalRequest) => void }) => {
       h.privacyBridge.upsertPodRequest = params.upsertPodRequest ?? null;
       return {
         handleSwap: vi.fn(async () => undefined),
@@ -210,16 +210,16 @@ vi.mock('../../src/chains/portal/podRequestStatus', () => ({
   resolvePodRequestStatus: (...args: unknown[]) => h.resolvePodStatus(...(args as [])),
 }));
 
-vi.mock('../../src/hooks/privacyBridge/executePrivateTokenTransfer', () => ({
+vi.mock('../../src/hooks/bridge/executePrivateTokenTransfer', () => ({
   sendPrivateTokenTransfer: (...args: unknown[]) => h.sendPrivateTokenTransfer(...(args as [])),
 }));
 
 import {
-  PrivacyBridgeProvider,
-  usePrivacyBridgeContext,
-} from '../../src/context/PrivacyBridgeContext';
+  CotiPluginProvider,
+  useCotiPluginContext,
+} from '../../src/context/CotiPluginContext';
 
-type Ctx = ReturnType<typeof usePrivacyBridgeContext>;
+type Ctx = ReturnType<typeof useCotiPluginContext>;
 const reqMock = window.ethereum!.request as unknown as ReturnType<typeof vi.fn>;
 
 const WALLET_A = '0x1111111111111111111111111111111111111111';
@@ -227,16 +227,16 @@ const WALLET_B = '0x2222222222222222222222222222222222222222';
 
 let latest: Ctx | null = null;
 function Consumer() {
-  latest = usePrivacyBridgeContext();
+  latest = useCotiPluginContext();
   return null;
 }
 
 async function renderProvider() {
   await act(async () => {
     render(
-      <PrivacyBridgeProvider surface="bridge">
+      <CotiPluginProvider surface="bridge">
         <Consumer />
-      </PrivacyBridgeProvider>,
+      </CotiPluginProvider>,
     );
   });
   return latest as Ctx;
@@ -276,7 +276,7 @@ function makePodRequest(overrides: Partial<PodPortalRequest> = {}): PodPortalReq
   };
 }
 
-describe('PrivacyBridgeContext (flow coverage)', () => {
+describe('CotiPluginContext (flow coverage)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     configureCotiPlugin({

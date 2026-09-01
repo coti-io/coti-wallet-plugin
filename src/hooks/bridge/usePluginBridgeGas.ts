@@ -2,12 +2,12 @@ import { useMemo } from 'react';
 import { getChainConfig } from '../../chains';
 import { useCotiBridgeFees } from './useCotiBridgeFees';
 import { usePodPortalFees } from './usePodPortalFees';
-import type { UsePrivacyBridgeGasOptions } from './usePrivacyBridgeGas.types';
+import type { UsePluginBridgeGasOptions } from './usePluginBridgeGas.types';
 
-export type { UsePrivacyBridgeGasOptions } from './usePrivacyBridgeGas.types';
+export type { UsePluginBridgeGasOptions } from './usePluginBridgeGas.types';
 
 /** Routes fee estimation to COTI bridge or PoD portal hooks by chain strategy. */
-export const usePrivacyBridgeGas = (options: UsePrivacyBridgeGasOptions) => {
+export const usePluginBridgeGas = (options: UsePluginBridgeGasOptions) => {
   const isPodChain = getChainConfig(options.chainId)?.portalStrategy === 'pod-privacy-portal';
   const podFees = usePodPortalFees(options);
   const cotiFees = useCotiBridgeFees(options);

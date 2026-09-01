@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { usePrivacyBridgeContext } from '../context/PrivacyBridgeContext';
+import { useCotiPluginContext } from '../context/CotiPluginContext';
 
 export interface NetworkGuardProps {
   /** App content to render behind the guard when the wallet needs a network switch */
@@ -84,16 +84,16 @@ const styles = {
 
 /**
  * Blocks the UI when the connected wallet is unsupported or off the configured target network.
- * Uses {@link usePrivacyBridgeContext} fields wired from {@link useNetworkEnforcer}.
+ * Uses {@link useCotiPluginContext} fields wired from {@link useNetworkEnforcer}.
  *
- * Place inside {@link PrivacyBridgeProvider}:
+ * Place inside {@link CotiPluginProvider}:
  *
  * ```tsx
- * <PrivacyBridgeProvider>
+ * <CotiPluginProvider>
  *   <NetworkGuard>
  *     <App />
  *   </NetworkGuard>
- * </PrivacyBridgeProvider>
+ * </CotiPluginProvider>
  * ```
  */
 export const NetworkGuard: React.FC<NetworkGuardProps> = ({ children }) => {
@@ -104,7 +104,7 @@ export const NetworkGuard: React.FC<NetworkGuardProps> = ({ children }) => {
     networkMismatchWarning,
     enforceNetwork,
     networkName,
-  } = usePrivacyBridgeContext();
+  } = useCotiPluginContext();
   const [isSwitching, setIsSwitching] = useState(false);
   const needsNetworkSwitch = isUnsupportedNetwork || isOffTargetNetwork;
 

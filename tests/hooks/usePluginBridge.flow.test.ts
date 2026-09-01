@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 
 /**
- * Full behavioural coverage for usePrivacyBridge. `ethers` keeps its real pure
+ * Full behavioural coverage for usePluginBridge. `ethers` keeps its real pure
  * helpers (parseUnits, formatUnits, parseEther, formatEther, MaxUint256, id,
  * Interface, getBytes, solidityPacked) but swaps BrowserProvider / JsonRpcProvider
  * / Contract for controllable stubs. All sibling modules are mocked so the hook's
@@ -197,7 +197,7 @@ vi.mock('../../src/contracts/config', () => ({
 }));
 
 import { ethers } from 'ethers';
-import { usePrivacyBridge, type Token } from '../../src/hooks/usePrivacyBridge';
+import { usePluginBridge, type Token } from '../../src/hooks/usePluginBridge';
 import { decryptCtUint256 } from '../../src/crypto/decryption';
 import { logger } from '../../src/lib/logger';
 import { useAccount } from 'wagmi';
@@ -416,10 +416,10 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe('usePrivacyBridge - checkAllowance', () => {
+describe('usePluginBridge - checkAllowance', () => {
   it('returns early when not connected', async () => {
     const props = makeProps({ isConnected: false });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.checkAllowance();
     });
@@ -431,7 +431,7 @@ describe('usePrivacyBridge - checkAllowance', () => {
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '0', isPrivate: false }],
       direction: 'to-private',
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.checkAllowance();
     });
@@ -450,7 +450,7 @@ describe('usePrivacyBridge - checkAllowance', () => {
       }],
       direction: 'to-public',
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.checkAllowance();
     });
@@ -463,7 +463,7 @@ describe('usePrivacyBridge - checkAllowance', () => {
     ]);
     eth.allowance.mockResolvedValue(5n * 10n ** 18n);
     const props = makeProps({ direction: 'to-private' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.checkAllowance();
     });
@@ -473,7 +473,7 @@ describe('usePrivacyBridge - checkAllowance', () => {
   it('resolves WETH via the symbol fallback when no config entry exists', async () => {
     eth.allowance.mockResolvedValue(2n * 10n ** 18n);
     const props = makeProps({ direction: 'to-private' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.checkAllowance();
     });
@@ -492,7 +492,7 @@ describe('usePrivacyBridge - checkAllowance', () => {
       sessionAesKey: 'b'.repeat(32),
       publicTokens: [{ symbol: 'WETH', name: 'WETH', balance: '0', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.checkAllowance();
     });
@@ -503,7 +503,7 @@ describe('usePrivacyBridge - checkAllowance', () => {
     eth.allowance.mockResolvedValue({ ownerCiphertext: { ciphertextHigh: 1n, ciphertextLow: 2n } });
     vi.mocked(decryptCtUint256).mockReturnValue(null);
     const props = makeProps({ direction: 'to-public' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.checkAllowance();
     });
@@ -540,7 +540,7 @@ describe('usePrivacyBridge - checkAllowance', () => {
     eth.allowance.mockResolvedValue(ethersStyleAllowance);
     vi.mocked(decryptCtUint256).mockReturnValue(3n * 10n ** 18n);
     const props = makeProps({ direction: 'to-public' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.checkAllowance();
     });
@@ -550,7 +550,7 @@ describe('usePrivacyBridge - checkAllowance', () => {
   it('returns 0 for an uninitialized private allowance ciphertext', async () => {
     eth.allowance.mockResolvedValue({ ownerCiphertext: { ciphertextHigh: 0n, ciphertextLow: 0n } });
     const props = makeProps({ direction: 'to-public' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.checkAllowance();
     });
@@ -560,7 +560,7 @@ describe('usePrivacyBridge - checkAllowance', () => {
   it('falls back to 0 when the private allowance read throws', async () => {
     eth.allowance.mockRejectedValue(new Error('rpc fail'));
     const props = makeProps({ direction: 'to-public' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.checkAllowance();
     });
@@ -575,7 +575,7 @@ describe('usePrivacyBridge - checkAllowance', () => {
       direction: 'to-private',
       publicTokens: [{ symbol: 'NOADDR', name: 'No Address', balance: '0', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.checkAllowance();
     });
@@ -584,13 +584,13 @@ describe('usePrivacyBridge - checkAllowance', () => {
   });
 });
 
-describe('usePrivacyBridge - isApprovalNeeded', () => {
+describe('usePluginBridge - isApprovalNeeded', () => {
   it('is false for native COTI deposit', () => {
     const props = makeProps({
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '0', isPrivate: false }],
       direction: 'to-private',
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     expect(result.current.isApprovalNeeded).toBe(false);
   });
 
@@ -605,13 +605,13 @@ describe('usePrivacyBridge - isApprovalNeeded', () => {
       }],
       direction: 'to-public',
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     expect(result.current.isApprovalNeeded).toBe(true);
   });
 
   it('compares amount against allowance for ERC20 tokens', () => {
     const props = makeProps({ direction: 'to-private', amount: '100' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     expect(result.current.isApprovalNeeded).toBe(true);
   });
 
@@ -627,7 +627,7 @@ describe('usePrivacyBridge - isApprovalNeeded', () => {
       direction: 'to-public',
       amount: 'not-a-number',
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     expect(result.current.isApprovalNeeded).toBe(true);
   });
 });
@@ -678,7 +678,7 @@ const ercPrivateCfg = (symbol: string, decimals = 18) => [
   { symbol: 'p.' + symbol, isPrivate: true, addressKey: 'p.' + symbol, decimals },
 ];
 
-describe('usePrivacyBridge - executeTransaction (COTI bridge)', () => {
+describe('usePluginBridge - executeTransaction (COTI bridge)', () => {
   it('executes an ERC20 deposit and updates balances on success', async () => {
     sib.getPublicTokensForChain.mockReturnValue(ercPublicCfg('WETH'));
     sib.getPrivateTokensForChain.mockReturnValue(ercPrivateCfg('WETH'));
@@ -688,7 +688,7 @@ describe('usePrivacyBridge - executeTransaction (COTI bridge)', () => {
     eth.waitForTransaction.mockResolvedValue({ status: 1 });
     const onProgress = vi.fn();
     const props = makeProps();
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
 
     await act(async () => {
       await result.current.executeTransaction('1', 'to-private', 0, onProgress);
@@ -712,7 +712,7 @@ describe('usePrivacyBridge - executeTransaction (COTI bridge)', () => {
     const refreshPrivateBalances = vi.fn().mockRejectedValue(refreshError);
     const loggerError = vi.spyOn(logger, 'error').mockImplementation(() => undefined);
     const props = makeProps({ refreshPrivateBalances });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
 
     await act(async () => {
       await result.current.executeTransaction('1', 'to-private', 0);
@@ -733,7 +733,7 @@ describe('usePrivacyBridge - executeTransaction (COTI bridge)', () => {
     eth.allowance.mockResolvedValue(10n ** 24n);
     routeRequest();
     const props = makeProps();
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(
       act(async () => {
         await result.current.executeTransaction('1', 'to-private', 0);
@@ -747,7 +747,7 @@ describe('usePrivacyBridge - executeTransaction (COTI bridge)', () => {
     eth.allowance.mockResolvedValue(0n);
     routeRequest();
     const props = makeProps();
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(
       act(async () => {
         await result.current.executeTransaction('1', 'to-private', 0);
@@ -766,7 +766,7 @@ describe('usePrivacyBridge - executeTransaction (COTI bridge)', () => {
       return '0x0';
     });
     const props = makeProps();
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.executeTransaction('1', 'to-private', 0);
     });
@@ -783,7 +783,7 @@ describe('usePrivacyBridge - executeTransaction (COTI bridge)', () => {
     const props = makeProps({
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.executeTransaction('1', 'to-private', 0);
     });
@@ -802,7 +802,7 @@ describe('usePrivacyBridge - executeTransaction (COTI bridge)', () => {
     const props = makeProps({
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.executeTransaction('1', 'to-private', 0);
     });
@@ -815,7 +815,7 @@ describe('usePrivacyBridge - executeTransaction (COTI bridge)', () => {
     routeRequest();
     eth.waitForTransaction.mockResolvedValue({ status: 1 });
     const props = makeProps({ direction: 'to-public' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.executeTransaction('1', 'to-public', 0);
     });
@@ -836,7 +836,7 @@ describe('usePrivacyBridge - executeTransaction (COTI bridge)', () => {
       direction: 'to-public',
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.executeTransaction('1', 'to-public', 0);
     });
@@ -847,7 +847,7 @@ describe('usePrivacyBridge - executeTransaction (COTI bridge)', () => {
     const original = (window as { ethereum?: unknown }).ethereum;
     delete (window as { ethereum?: unknown }).ethereum;
     const props = makeProps();
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(
       act(async () => {
         await result.current.executeTransaction('1', 'to-private', 0);
@@ -859,7 +859,7 @@ describe('usePrivacyBridge - executeTransaction (COTI bridge)', () => {
   it('throws "Unsupported network" for an unknown chain', async () => {
     eth.getNetwork.mockResolvedValue({ chainId: 999n });
     const props = makeProps();
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(
       act(async () => {
         await result.current.executeTransaction('1', 'to-private', 0);
@@ -868,7 +868,7 @@ describe('usePrivacyBridge - executeTransaction (COTI bridge)', () => {
   });
 });
 
-describe('usePrivacyBridge - executeTransaction (PoD portal)', () => {
+describe('usePluginBridge - executeTransaction (PoD portal)', () => {
   beforeEach(() => {
     eth.getNetwork.mockResolvedValue({ chainId: 11155111n });
     sib.getChainConfig.mockReturnValue({ portalStrategy: 'pod-privacy-portal' });
@@ -889,7 +889,7 @@ describe('usePrivacyBridge - executeTransaction (PoD portal)', () => {
     const props = makeProps({
       publicTokens: [{ symbol: 'MTT', name: 'MTT', balance: '5', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.executeTransaction('1', 'to-private', 0, onProgress);
     });
@@ -913,7 +913,7 @@ describe('usePrivacyBridge - executeTransaction (PoD portal)', () => {
       direction: 'to-public',
       publicTokens: [{ symbol: 'MTT', name: 'MTT', balance: '5', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.executeTransaction('1', 'to-public', 0);
     });
@@ -927,7 +927,7 @@ describe('usePrivacyBridge - executeTransaction (PoD portal)', () => {
     const props = makeProps({
       publicTokens: [{ symbol: 'WETH', name: 'WETH', balance: '5', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(
       act(async () => {
         await result.current.executeTransaction('1', 'to-private', 0);
@@ -945,7 +945,7 @@ describe('usePrivacyBridge - executeTransaction (PoD portal)', () => {
     const props = makeProps({
       publicTokens: [{ symbol: 'MTT', name: 'MTT', balance: '5', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(
       act(async () => {
         await result.current.executeTransaction('1', 'to-private', 0);
@@ -954,7 +954,7 @@ describe('usePrivacyBridge - executeTransaction (PoD portal)', () => {
   });
 });
 
-describe('usePrivacyBridge - executeTransaction error decoding', () => {
+describe('usePluginBridge - executeTransaction error decoding', () => {
   it('maps a CALL_EXCEPTION with a known errorName to a friendly message', async () => {
     sib.getPublicTokensForChain.mockReturnValue([
       { symbol: 'COTI', isPrivate: false, bridgeAddressKey: 'PrivacyBridgeCotiNative', decimals: 18 },
@@ -969,7 +969,7 @@ describe('usePrivacyBridge - executeTransaction error decoding', () => {
     const props = makeProps({
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(
       act(async () => {
         await result.current.executeTransaction('1', 'to-private', 0);
@@ -990,7 +990,7 @@ describe('usePrivacyBridge - executeTransaction error decoding', () => {
     const props = makeProps({
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(
       act(async () => {
         await result.current.executeTransaction('1', 'to-private', 0);
@@ -1011,7 +1011,7 @@ describe('usePrivacyBridge - executeTransaction error decoding', () => {
     const props = makeProps({
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(
       act(async () => {
         await result.current.executeTransaction('1', 'to-private', 0);
@@ -1029,7 +1029,7 @@ describe('usePrivacyBridge - executeTransaction error decoding', () => {
     const props = makeProps({
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(
       act(async () => {
         await result.current.executeTransaction('1', 'to-private', 0);
@@ -1056,7 +1056,7 @@ describe('usePrivacyBridge - executeTransaction error decoding', () => {
     const props = makeProps({
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(
       act(async () => {
         await result.current.executeTransaction('1', 'to-private', 0);
@@ -1065,10 +1065,10 @@ describe('usePrivacyBridge - executeTransaction error decoding', () => {
   });
 });
 
-describe('usePrivacyBridge - handleApprove', () => {
+describe('usePluginBridge - handleApprove', () => {
   it('returns early when not connected', async () => {
     const props = makeProps({ isConnected: false });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.handleApprove();
     });
@@ -1080,7 +1080,7 @@ describe('usePrivacyBridge - handleApprove', () => {
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '0', isPrivate: false }],
       direction: 'to-private',
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.handleApprove();
     });
@@ -1092,7 +1092,7 @@ describe('usePrivacyBridge - handleApprove', () => {
     eth.approve.mockResolvedValue({ hash: TX_HASH });
     eth.allowance.mockResolvedValue(10n ** 18n);
     const props = makeProps({ direction: 'to-private' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.handleApprove();
     });
@@ -1103,7 +1103,7 @@ describe('usePrivacyBridge - handleApprove', () => {
     sib.getPublicTokensForChain.mockReturnValue(ercPublicCfg('WETH'));
     eth.approve.mockResolvedValue({ hash: TX_HASH });
     const props = makeProps({ direction: 'to-private', amount: '' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.handleApprove();
     });
@@ -1114,7 +1114,7 @@ describe('usePrivacyBridge - handleApprove', () => {
     sib.getPublicTokensForChain.mockReturnValue(ercPublicCfg('WETH'));
     eth.approve.mockRejectedValue(new Error('approve reverted'));
     const props = makeProps({ direction: 'to-private' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(
       act(async () => {
         await result.current.handleApprove();
@@ -1127,7 +1127,7 @@ describe('usePrivacyBridge - handleApprove', () => {
     eth.approve.mockResolvedValue({ hash: TX_HASH });
     eth.waitForTransaction.mockResolvedValue({ status: 0, hash: TX_HASH });
     const props = makeProps({ direction: 'to-private' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(
       act(async () => {
         await result.current.handleApprove();
@@ -1144,7 +1144,7 @@ describe('usePrivacyBridge - handleApprove', () => {
     routeRequest();
     eth.waitForTransaction.mockResolvedValue({ status: 0, hash: TX_HASH });
     const props = makeProps({ direction: 'to-public', amount: '1' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(
       act(async () => {
         await result.current.handleApprove();
@@ -1157,7 +1157,7 @@ describe('usePrivacyBridge - handleApprove', () => {
     sib.getPrivateTokensForChain.mockReturnValue(ercPrivateCfg('WETH'));
     stubZeroPrivateAllowanceApprovingTo(10n ** 18n);
     const props = makeProps({ direction: 'to-public', amount: '1' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.handleApprove();
     });
@@ -1169,7 +1169,7 @@ describe('usePrivacyBridge - handleApprove', () => {
     sib.getPrivateTokensForChain.mockReturnValue(ercPrivateCfg('WETH'));
     stubZeroPrivateAllowanceApprovingTo(0n);
     const props = makeProps({ direction: 'to-public', amount: '0' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.handleApprove();
     });
@@ -1181,7 +1181,7 @@ describe('usePrivacyBridge - handleApprove', () => {
     sib.getPrivateTokensForChain.mockReturnValue(ercPrivateCfg('WETH'));
     stubZeroPrivateAllowanceApprovingTo(ethers.MaxUint256);
     const props = makeProps({ direction: 'to-public', amount: '' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.handleApprove();
     });
@@ -1200,7 +1200,7 @@ describe('usePrivacyBridge - handleApprove', () => {
       sessionAesKey: null,
       getAESKeyFromSnap: vi.fn(async () => null),
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(
       act(async () => {
         await result.current.handleApprove();
@@ -1221,7 +1221,7 @@ describe('usePrivacyBridge - handleApprove', () => {
       direction: 'to-public',
       publicTokens: [{ symbol: 'MTT', name: 'MTT', balance: '5', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.handleApprove();
     });
@@ -1229,7 +1229,7 @@ describe('usePrivacyBridge - handleApprove', () => {
   });
 });
 
-describe('usePrivacyBridge - handleApprove COTI private allowance when non-zero', () => {
+describe('usePluginBridge - handleApprove COTI private allowance when non-zero', () => {
   const privateAllowanceIface = new ethers.Interface([
     'function approve(address spender, tuple(tuple(uint256 ciphertextHigh, uint256 ciphertextLow) ciphertext, bytes signature) value) returns (bool)',
     'function increaseAllowance(address spender, tuple(tuple(uint256 ciphertextHigh, uint256 ciphertextLow) ciphertext, bytes signature) addedValue) returns (bool)',
@@ -1273,11 +1273,11 @@ describe('usePrivacyBridge - handleApprove COTI private allowance when non-zero'
     sib.getPublicTokensForChain.mockReturnValue(ercPublicCfg('WETH'));
     sib.getPrivateTokensForChain.mockReturnValue(ercPrivateCfg('WETH'));
     stubPrivateAllowance(5n * 10n ** 17n, 10n ** 18n);
-    const encryptMod = await import('../../src/hooks/privacyBridge/encryptValue256');
+    const encryptMod = await import('../../src/hooks/bridge/encryptValue256');
     const encryptSpy = vi.spyOn(encryptMod, 'encryptValue256');
 
     const props = makeProps({ direction: 'to-public', amount: '1' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.handleApprove();
     });
@@ -1298,11 +1298,11 @@ describe('usePrivacyBridge - handleApprove COTI private allowance when non-zero'
     sib.getPublicTokensForChain.mockReturnValue(ercPublicCfg('WETH'));
     sib.getPrivateTokensForChain.mockReturnValue(ercPrivateCfg('WETH'));
     stubPrivateAllowance(2n * 10n ** 18n, 10n ** 18n);
-    const encryptMod = await import('../../src/hooks/privacyBridge/encryptValue256');
+    const encryptMod = await import('../../src/hooks/bridge/encryptValue256');
     const encryptSpy = vi.spyOn(encryptMod, 'encryptValue256');
 
     const props = makeProps({ direction: 'to-public', amount: '1' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.handleApprove();
     });
@@ -1325,7 +1325,7 @@ describe('usePrivacyBridge - handleApprove COTI private allowance when non-zero'
     stubPrivateAllowance(10n ** 18n, 10n ** 18n);
 
     const props = makeProps({ direction: 'to-public', amount: '1' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.handleApprove();
     });
@@ -1340,7 +1340,7 @@ describe('usePrivacyBridge - handleApprove COTI private allowance when non-zero'
     stubPrivateAllowance(0n, 10n ** 18n);
 
     const props = makeProps({ direction: 'to-public', amount: '1' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.handleApprove();
     });
@@ -1396,7 +1396,7 @@ describe('usePrivacyBridge - handleApprove COTI private allowance when non-zero'
       amount: '7',
       publicTokens: [{ symbol: 'USDC.e', name: 'USDC.e', balance: '10', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.handleApprove();
     });
@@ -1414,7 +1414,7 @@ describe('usePrivacyBridge - handleApprove COTI private allowance when non-zero'
     routeRequest();
 
     const props = makeProps({ direction: 'to-public', amount: '1' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(
       act(async () => {
         await result.current.handleApprove();
@@ -1444,7 +1444,7 @@ describe('usePrivacyBridge - handleApprove COTI private allowance when non-zero'
     eth.waitForTransaction.mockResolvedValue({ status: 1 });
 
     const props = makeProps({ direction: 'to-public', amount: '1' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.handleApprove();
     });
@@ -1454,10 +1454,10 @@ describe('usePrivacyBridge - handleApprove COTI private allowance when non-zero'
   });
 });
 
-describe('usePrivacyBridge - handleSwap', () => {
+describe('usePluginBridge - handleSwap', () => {
   it('does nothing when the amount is empty', async () => {
     const props = makeProps({ amount: '' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.handleSwap();
     });
@@ -1466,7 +1466,7 @@ describe('usePrivacyBridge - handleSwap', () => {
 
   it('does nothing when an error is present or amount is non-positive', async () => {
     const props = makeProps({ amount: '0' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.handleSwap();
     });
@@ -1481,7 +1481,7 @@ describe('usePrivacyBridge - handleSwap', () => {
     routeRequest();
     eth.waitForTransaction.mockResolvedValue({ status: 1 });
     const props = makeProps({ hasSnap: true });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.handleSwap('2', 'to-private', 0);
     });
@@ -1500,7 +1500,7 @@ describe('usePrivacyBridge - handleSwap', () => {
       hasSnap: false,
       sessionAesKey: 'a'.repeat(32),
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.handleSwap();
     });
@@ -1513,7 +1513,7 @@ describe('usePrivacyBridge - handleSwap', () => {
       hasSnap: false,
       sessionAesKey: null,
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(
       act(async () => {
         await result.current.handleSwap();
@@ -1532,7 +1532,7 @@ describe('usePrivacyBridge - handleSwap', () => {
       sessionAesKey: null,
       handleOnboard: vi.fn(async () => 'a'.repeat(32)),
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(
       act(async () => {
         await result.current.handleSwap();
@@ -1548,7 +1548,7 @@ describe('usePrivacyBridge - handleSwap', () => {
       sessionAesKey: null,
       handleOnboard: vi.fn(async () => null),
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(
       act(async () => {
         await result.current.handleSwap();
@@ -1562,7 +1562,7 @@ describe('usePrivacyBridge - handleSwap', () => {
       hasSnap: false,
       sessionAesKey: null,
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(
       act(async () => {
         await result.current.handleSwap();
@@ -1581,7 +1581,7 @@ describe('usePrivacyBridge - handleSwap', () => {
     const props = makeProps({
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.handleSwap('1', 'to-private', 0);
     });
@@ -1591,10 +1591,10 @@ describe('usePrivacyBridge - handleSwap', () => {
   });
 });
 
-describe('usePrivacyBridge - updateGasFee', () => {
+describe('usePluginBridge - updateGasFee', () => {
   it('clears the fee when not connected', async () => {
     const props = makeProps({ isConnected: false });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.updateGasFee();
     });
@@ -1608,7 +1608,7 @@ describe('usePrivacyBridge - updateGasFee', () => {
       feeDebugInfo: null,
     });
     const props = makeProps({ chainId: 999 });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.updateGasFee();
     });
@@ -1623,7 +1623,7 @@ describe('usePrivacyBridge - updateGasFee', () => {
       feeDebugInfo: null,
     });
     const props = makeProps();
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.updateGasFee();
     });
@@ -1639,7 +1639,7 @@ describe('usePrivacyBridge - updateGasFee', () => {
     const props = makeProps({
       publicTokens: [{ symbol: 'WBTC', name: 'WBTC', balance: '0', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.updateGasFee();
     });
@@ -1665,7 +1665,7 @@ describe('usePrivacyBridge - updateGasFee', () => {
       amount: '1',
       publicTokens: [{ symbol: 'MTT', name: 'MTT', balance: '0', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.updateGasFee();
     });
@@ -1678,7 +1678,7 @@ describe('usePrivacyBridge - updateGasFee', () => {
   it('defaults the gas price when eth_gasPrice fails and survives estimator errors', async () => {
     sib.quoteCotiBridgeFees.mockRejectedValue(new Error('estimator boom'));
     const props = makeProps();
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.updateGasFee();
     });
@@ -1686,7 +1686,7 @@ describe('usePrivacyBridge - updateGasFee', () => {
   });
 });
 
-describe('usePrivacyBridge - fetchPortalFee (debounced effect)', () => {
+describe('usePluginBridge - fetchPortalFee (debounced effect)', () => {
   it('computes a portal fee for a positive amount', async () => {
     sib.quoteCotiBridgeFees.mockResolvedValue({
       portalFeeCoti: '0.05',
@@ -1698,14 +1698,14 @@ describe('usePrivacyBridge - fetchPortalFee (debounced effect)', () => {
       },
     });
     const props = makeProps({ amount: '1', direction: 'to-private' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await waitFor(() => expect(result.current.portalFeeCoti).toBe('0.05'), { timeout: 2000 });
     expect(result.current.feeDebugInfo).toMatchObject({ cotiLastUpdated: '1' });
   });
 
   it('clears the portal fee for a zero amount', async () => {
     const props = makeProps({ amount: '0' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await new Promise(r => setTimeout(r, 500));
     expect(result.current.portalFeeCoti).toBeNull();
   });
@@ -1717,7 +1717,7 @@ describe('usePrivacyBridge - fetchPortalFee (debounced effect)', () => {
       feeDebugInfo: null,
     });
     const props = makeProps({ amount: '1' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await new Promise(r => setTimeout(r, 600));
     expect(result.current.portalFeeCoti).toBeNull();
   });
@@ -1725,20 +1725,20 @@ describe('usePrivacyBridge - fetchPortalFee (debounced effect)', () => {
   it('clears the portal fee when the estimate throws', async () => {
     sib.quoteCotiBridgeFees.mockRejectedValue(new Error('rpc down'));
     const props = makeProps({ amount: '1' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await new Promise(r => setTimeout(r, 600));
     expect(result.current.portalFeeCoti).toBeNull();
   });
 
   it('clears the portal fee when not connected', async () => {
     const props = makeProps({ isConnected: false, amount: '1' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await new Promise(r => setTimeout(r, 600));
     expect(result.current.portalFeeCoti).toBeNull();
   });
 });
 
-describe('usePrivacyBridge - checkAllowance fallback symbol resolution', () => {
+describe('usePluginBridge - checkAllowance fallback symbol resolution', () => {
   for (const [symbol, decimals] of [
     ['USDT', 6],
     ['USDC.e', 6],
@@ -1751,7 +1751,7 @@ describe('usePrivacyBridge - checkAllowance fallback symbol resolution', () => {
         direction: 'to-private',
         publicTokens: [{ symbol, name: symbol, balance: '0', isPrivate: false }],
       });
-      const { result } = renderHook(() => usePrivacyBridge(props));
+      const { result } = renderHook(() => usePluginBridge(props));
       await act(async () => {
         await result.current.checkAllowance();
       });
@@ -1766,7 +1766,7 @@ describe('usePrivacyBridge - checkAllowance fallback symbol resolution', () => {
       direction: 'to-public',
       publicTokens: [{ symbol: 'WBTC', name: 'WBTC', balance: '0', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.checkAllowance();
     });
@@ -1780,7 +1780,7 @@ describe('usePrivacyBridge - checkAllowance fallback symbol resolution', () => {
       direction: 'to-public',
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '0', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.checkAllowance();
     });
@@ -1792,7 +1792,7 @@ describe('usePrivacyBridge - checkAllowance fallback symbol resolution', () => {
       direction: 'to-public',
       publicTokens: [{ symbol: 'FOO', name: 'FOO', balance: '0', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.checkAllowance();
     });
@@ -1806,7 +1806,7 @@ describe('usePrivacyBridge - checkAllowance fallback symbol resolution', () => {
       throw new Error('decrypt fail');
     });
     const props = makeProps({ direction: 'to-public' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.checkAllowance();
     });
@@ -1824,7 +1824,7 @@ describe('usePrivacyBridge - checkAllowance fallback symbol resolution', () => {
       sessionAesKey: null,
       getAESKeyFromSnap: vi.fn(async () => null),
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.checkAllowance();
     });
@@ -1834,7 +1834,7 @@ describe('usePrivacyBridge - checkAllowance fallback symbol resolution', () => {
   it('handles a top-level checkAllowance failure', async () => {
     eth.allowance.mockRejectedValue(new Error('allowance rpc fail'));
     const props = makeProps({ direction: 'to-private' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.checkAllowance();
     });
@@ -1842,7 +1842,7 @@ describe('usePrivacyBridge - checkAllowance fallback symbol resolution', () => {
   });
 });
 
-describe('usePrivacyBridge - handleApprove fallback resolution', () => {
+describe('usePluginBridge - handleApprove fallback resolution', () => {
   for (const [symbol, decimals] of [
     ['WETH', 18],
     ['WBTC', 8],
@@ -1858,7 +1858,7 @@ describe('usePrivacyBridge - handleApprove fallback resolution', () => {
         publicTokens: [{ symbol, name: symbol, balance: '0', isPrivate: false }],
         amount: '1',
       });
-      const { result } = renderHook(() => usePrivacyBridge(props));
+      const { result } = renderHook(() => usePluginBridge(props));
       await act(async () => {
         await result.current.handleApprove();
       });
@@ -1875,7 +1875,7 @@ describe('usePrivacyBridge - handleApprove fallback resolution', () => {
       direction: 'to-public',
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '0', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.handleApprove();
     });
@@ -1890,7 +1890,7 @@ describe('usePrivacyBridge - handleApprove fallback resolution', () => {
       publicTokens: [{ symbol: 'WBTC', name: 'WBTC', balance: '0', isPrivate: false }],
       amount: '1',
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.handleApprove();
     });
@@ -1898,7 +1898,7 @@ describe('usePrivacyBridge - handleApprove fallback resolution', () => {
   });
 });
 
-describe('usePrivacyBridge - executeTransaction fallback resolution', () => {
+describe('usePluginBridge - executeTransaction fallback resolution', () => {
   for (const [symbol] of [['WETH'], ['WBTC'], ['USDT'], ['USDC.e'], ['WADA'], ['gCOTI']] as const) {
     it(`bridges ${symbol} via the symbol fallback (deposit)`, async () => {
       sib.getPublicTokensForChain.mockReturnValue([]);
@@ -1910,7 +1910,7 @@ describe('usePrivacyBridge - executeTransaction fallback resolution', () => {
       const props = makeProps({
         publicTokens: [{ symbol, name: symbol, balance: '100', isPrivate: false }],
       });
-      const { result } = renderHook(() => usePrivacyBridge(props));
+      const { result } = renderHook(() => usePluginBridge(props));
       await act(async () => {
         await result.current.executeTransaction('1', 'to-private', 0);
       });
@@ -1926,7 +1926,7 @@ describe('usePrivacyBridge - executeTransaction fallback resolution', () => {
     const props = makeProps({
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.executeTransaction('1', 'to-private', 0);
     });
@@ -1941,7 +1941,7 @@ describe('usePrivacyBridge - executeTransaction fallback resolution', () => {
     routeRequest();
     eth.waitForTransaction.mockResolvedValue({ status: 1 });
     const props = makeProps();
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(act(async () => {
       await result.current.executeTransaction('1', 'to-private', 0);
     })).rejects.toThrow(/oracle price data/);
@@ -1954,7 +1954,7 @@ describe('usePrivacyBridge - executeTransaction fallback resolution', () => {
     routeRequest();
     eth.waitForTransaction.mockResolvedValue({ status: 1 });
     const props = makeProps({ direction: 'to-public' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(act(async () => {
       await result.current.executeTransaction('1', 'to-public', 0);
     })).rejects.toThrow(/oracle price data/);
@@ -1971,7 +1971,7 @@ describe('usePrivacyBridge - executeTransaction fallback resolution', () => {
       direction: 'to-public',
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(act(async () => {
       await result.current.executeTransaction('1', 'to-public', 0);
     })).rejects.toThrow(/oracle price data/);
@@ -1986,7 +1986,7 @@ describe('usePrivacyBridge - executeTransaction fallback resolution', () => {
       return '0x0';
     });
     const props = makeProps({ direction: 'to-public' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(
       act(async () => {
         await result.current.executeTransaction('1', 'to-public', 0);
@@ -1995,7 +1995,7 @@ describe('usePrivacyBridge - executeTransaction fallback resolution', () => {
   });
 });
 
-describe('usePrivacyBridge - revert replay branches', () => {
+describe('usePluginBridge - revert replay branches', () => {
   const setupNativeRevert = (callRejection: unknown) => {
     sib.getPublicTokensForChain.mockReturnValue([
       { symbol: 'COTI', isPrivate: false, bridgeAddressKey: 'PrivacyBridgeCotiNative', decimals: 18 },
@@ -2017,7 +2017,7 @@ describe('usePrivacyBridge - revert replay branches', () => {
 
   it('uses replayErr.reason when no errorName matches', async () => {
     const props = setupNativeRevert({ reason: 'because reasons' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(
       act(async () => {
         await result.current.executeTransaction('1', 'to-private', 0);
@@ -2027,7 +2027,7 @@ describe('usePrivacyBridge - revert replay branches', () => {
 
   it('uses replayErr.shortMessage as a fallback', async () => {
     const props = setupNativeRevert({ shortMessage: 'short boom' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(
       act(async () => {
         await result.current.executeTransaction('1', 'to-private', 0);
@@ -2037,7 +2037,7 @@ describe('usePrivacyBridge - revert replay branches', () => {
 
   it('uses the revert data prefix when nothing else is available', async () => {
     const props = setupNativeRevert({ data: '0x1234567890abcdef' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(
       act(async () => {
         await result.current.executeTransaction('1', 'to-private', 0);
@@ -2046,7 +2046,7 @@ describe('usePrivacyBridge - revert replay branches', () => {
   });
 });
 
-describe('usePrivacyBridge - updateGasFee fallback resolution', () => {
+describe('usePluginBridge - updateGasFee fallback resolution', () => {
   for (const symbol of ['USDT', 'USDC.e', 'WADA', 'gCOTI'] as const) {
     it(`estimates ${symbol} gas via the symbol fallback`, async () => {
       sib.quoteCotiBridgeFees.mockResolvedValue({
@@ -2057,7 +2057,7 @@ describe('usePrivacyBridge - updateGasFee fallback resolution', () => {
       const props = makeProps({
         publicTokens: [{ symbol, name: symbol, balance: '0', isPrivate: false }],
       });
-      const { result } = renderHook(() => usePrivacyBridge(props));
+      const { result } = renderHook(() => usePluginBridge(props));
       await act(async () => {
         await result.current.updateGasFee();
       });
@@ -2077,7 +2077,7 @@ describe('usePrivacyBridge - updateGasFee fallback resolution', () => {
       const props = makeProps({
         publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '0', isPrivate: false }],
       });
-      const { result } = renderHook(() => usePrivacyBridge(props));
+      const { result } = renderHook(() => usePluginBridge(props));
       await act(async () => {
         await result.current.updateGasFee();
       });
@@ -2088,7 +2088,7 @@ describe('usePrivacyBridge - updateGasFee fallback resolution', () => {
   });
 });
 
-describe('usePrivacyBridge - isApprovalNeeded with a matching MTT permit', () => {
+describe('usePluginBridge - isApprovalNeeded with a matching MTT permit', () => {
   it('becomes false after a permit is signed for the exact amount', async () => {
     eth.getNetwork.mockResolvedValue({ chainId: 11155111n });
     sib.getPublicTokensForChain.mockReturnValue([
@@ -2104,7 +2104,7 @@ describe('usePrivacyBridge - isApprovalNeeded with a matching MTT permit', () =>
       amount: '1',
       publicTokens: [{ symbol: 'MTT', name: 'MTT', balance: '5', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     expect(result.current.isApprovalNeeded).toBe(true);
     await act(async () => {
       await result.current.handleApprove();
@@ -2113,7 +2113,7 @@ describe('usePrivacyBridge - isApprovalNeeded with a matching MTT permit', () =>
   });
 });
 
-describe('usePrivacyBridge - remaining allowance/approval branches', () => {
+describe('usePluginBridge - remaining allowance/approval branches', () => {
   it('uses 6 private decimals for a USDT withdraw allowance', async () => {
     eth.allowance.mockResolvedValue({ ownerCiphertext: { ciphertextHigh: 1n, ciphertextLow: 2n } });
     vi.mocked(decryptCtUint256).mockReturnValue(4n * 10n ** 6n);
@@ -2121,7 +2121,7 @@ describe('usePrivacyBridge - remaining allowance/approval branches', () => {
       direction: 'to-public',
       publicTokens: [{ symbol: 'USDT', name: 'USDT', balance: '0', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.checkAllowance();
     });
@@ -2136,7 +2136,7 @@ describe('usePrivacyBridge - remaining allowance/approval branches', () => {
         direction: 'to-public',
         publicTokens: [{ symbol: 'WETH', name: 'WETH', balance: '0', isPrivate: false }],
       });
-      const { result } = renderHook(() => usePrivacyBridge(props));
+      const { result } = renderHook(() => usePluginBridge(props));
       await act(async () => {
         await result.current.checkAllowance();
       });
@@ -2154,7 +2154,7 @@ describe('usePrivacyBridge - remaining allowance/approval branches', () => {
       publicTokens: [{ symbol: 'USDT', name: 'USDT', balance: '0', isPrivate: false }],
       amount: '1',
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.handleApprove();
     });
@@ -2172,7 +2172,7 @@ describe('usePrivacyBridge - remaining allowance/approval branches', () => {
     sib.signPodWithdrawPermit.mockResolvedValue({ wallet: WALLET, amountWei: (10n ** 18n).toString() });
     const { result, rerender } = renderHook(
       ({ amount }: { amount: string }) =>
-        usePrivacyBridge(
+        usePluginBridge(
           makeProps({
             direction: 'to-public',
             amount,
@@ -2195,7 +2195,7 @@ describe('usePrivacyBridge - remaining allowance/approval branches', () => {
   });
 });
 
-describe('usePrivacyBridge - additional branch coverage', () => {
+describe('usePluginBridge - additional branch coverage', () => {
   it('resolves the p.USDC_E key for a USDC.e withdraw allowance', async () => {
     eth.allowance.mockResolvedValue({ ownerCiphertext: { ciphertextHigh: 1n, ciphertextLow: 2n } });
     vi.mocked(decryptCtUint256).mockReturnValue(2n * 10n ** 6n);
@@ -2203,7 +2203,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
       direction: 'to-public',
       publicTokens: [{ symbol: 'USDC.e', name: 'USDC.e', balance: '0', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.checkAllowance();
     });
@@ -2214,7 +2214,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
     eth.allowance.mockResolvedValue({ ownerCiphertext: { ciphertextHigh: 1n, ciphertextLow: 2n } });
     snap.decryptCtUint256ViaSnap.mockResolvedValue(null);
     const props = makeProps({ direction: 'to-public', hasSnap: false, sessionAesKey: null });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.checkAllowance();
     });
@@ -2229,7 +2229,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
       publicTokens: [{ symbol: 'USDC.e', name: 'USDC.e', balance: '0', isPrivate: false }],
       amount: '1',
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.handleApprove();
     });
@@ -2246,7 +2246,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
         publicTokens: [{ symbol: 'WETH', name: 'WETH', balance: '0', isPrivate: false }],
         amount: '1',
       });
-      const { result } = renderHook(() => usePrivacyBridge(props));
+      const { result } = renderHook(() => usePluginBridge(props));
       await expect(
         act(async () => {
           await result.current.handleApprove();
@@ -2267,7 +2267,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
       direction: 'to-public',
       publicTokens: [{ symbol: 'MTT', name: 'MTT', balance: '5', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(
       act(async () => {
         await result.current.handleApprove();
@@ -2284,7 +2284,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
       const props = makeProps({
         publicTokens: [{ symbol: 'XYZ', name: 'XYZ', balance: '0', isPrivate: false }],
       });
-      const { result } = renderHook(() => usePrivacyBridge(props));
+      const { result } = renderHook(() => usePluginBridge(props));
       await expect(
         act(async () => {
           await result.current.executeTransaction('1', 'to-private', 0);
@@ -2309,7 +2309,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
     routeRequest();
     eth.waitForTransaction.mockResolvedValue({ status: 1 });
     const props = makeProps();
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(act(async () => {
       await result.current.executeTransaction('1', 'to-private', 0);
     })).rejects.toThrow(/oracle price data/);
@@ -2331,7 +2331,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
     const props = makeProps({
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(act(async () => {
       await result.current.executeTransaction('1', 'to-private', 0);
     })).rejects.toThrow(/oracle price data/);
@@ -2350,7 +2350,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
     routeRequest();
     eth.waitForTransaction.mockResolvedValue({ status: 1 });
     const props = makeProps({ direction: 'to-public' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(act(async () => {
       await result.current.executeTransaction('1', 'to-public', 0);
     })).rejects.toThrow(/oracle price data/);
@@ -2373,7 +2373,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
       direction: 'to-public',
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(act(async () => {
       await result.current.executeTransaction('1', 'to-public', 0);
     })).rejects.toThrow(/oracle price data/);
@@ -2389,7 +2389,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
     const props = makeProps({
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.executeTransaction('1', 'to-private', 0);
     });
@@ -2406,7 +2406,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
       return '0x0';
     });
     const props = makeProps({ direction: 'to-public' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.executeTransaction('1', 'to-public', 0);
     });
@@ -2429,7 +2429,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
     const props = makeProps({
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(
       act(async () => {
         await result.current.executeTransaction('1', 'to-private', 0);
@@ -2445,7 +2445,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
     routeRequest();
     eth.waitForTransaction.mockResolvedValue({ status: 1 });
     const props = makeProps({ refreshPrivateBalances: undefined });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.executeTransaction('1', 'to-private', 0);
     });
@@ -2466,7 +2466,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
     const props = makeProps({
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(
       act(async () => {
         await result.current.executeTransaction('1', 'to-private', 0);
@@ -2484,7 +2484,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
     const props = makeProps({
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(
       act(async () => {
         await result.current.executeTransaction('1', 'to-private', 0);
@@ -2502,7 +2502,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
     const props = makeProps({
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(
       act(async () => {
         await result.current.executeTransaction('1', 'to-private', 0);
@@ -2522,7 +2522,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
     const props = makeProps({
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(
       act(async () => {
         await result.current.executeTransaction('1', 'to-private', 0);
@@ -2538,7 +2538,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
       hasSnap: false,
       sessionAesKey: null,
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(
       act(async () => {
         await result.current.handleSwap('1', 'to-public', 99);
@@ -2553,7 +2553,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
       feeDebugInfo: null,
     });
     const props = makeProps({ publicTokens: [], selectedTokenIndex: 0 });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.updateGasFee();
     });
@@ -2568,7 +2568,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
       feeDebugInfo: null,
     });
     const props = makeProps({ direction: 'to-public' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.updateGasFee();
     });
@@ -2590,7 +2590,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
       amount: '1',
       publicTokens: [{ symbol: 'p.WETH', name: 'p.WETH', balance: '0', isPrivate: true }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await waitFor(() => expect(result.current.portalFeeCoti).toBe('0.07'), { timeout: 2000 });
   });
 
@@ -2601,7 +2601,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
       direction: 'to-private',
       publicTokens: [{ symbol: 'XYZ', name: 'XYZ', balance: '0', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.handleApprove();
     });
@@ -2614,7 +2614,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
       direction: 'to-public',
       publicTokens: [{ symbol: 'XYZ', name: 'XYZ', balance: '0', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.handleApprove();
     });
@@ -2635,7 +2635,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
       amount: '',
       publicTokens: [{ symbol: 'MTT', name: 'MTT', balance: '5', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.handleApprove();
     });
@@ -2653,7 +2653,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
     sib.signPodWithdrawPermit.mockResolvedValue({ wallet: WALLET, amountWei: (10n ** 18n).toString() });
     const { result, rerender } = renderHook(
       ({ amount }: { amount: string }) =>
-        usePrivacyBridge(
+        usePluginBridge(
           makeProps({
             direction: 'to-public',
             amount,
@@ -2692,7 +2692,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
     const props = makeProps({
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(
       act(async () => {
         await result.current.executeTransaction('1', 'to-private', 0);
@@ -2707,7 +2707,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
       feeDebugInfo: null,
     });
     const props = makeProps({ amount: '1', direction: 'to-private' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await new Promise(r => setTimeout(r, 600));
     expect(result.current.portalFeeCoti).toBeNull();
   });
@@ -2729,7 +2729,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
     const props = makeProps({
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await expect(
       act(async () => {
         await result.current.executeTransaction('1', 'to-private', 0);
@@ -2739,7 +2739,7 @@ describe('usePrivacyBridge - additional branch coverage', () => {
 
   it('fetchPortalFee handles an empty token symbol and falsy amount', async () => {
     const props = makeProps({ amount: '', publicTokens: [], selectedTokenIndex: 0 });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await new Promise(r => setTimeout(r, 600));
     expect(result.current.portalFeeCoti).toBeNull();
   });
@@ -2751,13 +2751,13 @@ describe('usePrivacyBridge - additional branch coverage', () => {
       feeDebugInfo: null,
     });
     const props = makeProps({ amount: '1', direction: 'to-private' });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await new Promise(r => setTimeout(r, 600));
     expect(result.current.portalFeeCoti).toBeNull();
   });
 });
 
-describe('usePrivacyBridge - handleApprove edge paths', () => {
+describe('usePluginBridge - handleApprove edge paths', () => {
   it('returns early for native COTI deposit (no approval needed)', async () => {
     sib.getPublicTokensForChain.mockReturnValue([
       { symbol: 'COTI', isPrivate: false, bridgeAddressKey: 'PrivacyBridgeCotiNative', decimals: 18 },
@@ -2767,7 +2767,7 @@ describe('usePrivacyBridge - handleApprove edge paths', () => {
       direction: 'to-private',
       publicTokens: [{ symbol: 'COTI', name: 'COTI', balance: '100', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.handleApprove();
     });
@@ -2788,7 +2788,7 @@ describe('usePrivacyBridge - handleApprove edge paths', () => {
       amount: '1',
       publicTokens: [{ symbol: 'MTT', name: 'MTT', balance: '5', isPrivate: false }],
     });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
     await act(async () => {
       await result.current.handleApprove();
     });
@@ -2796,7 +2796,7 @@ describe('usePrivacyBridge - handleApprove edge paths', () => {
   });
 });
 
-describe('usePrivacyBridge - duplicate submission guard', () => {
+describe('usePluginBridge - duplicate submission guard', () => {
   it('ignores a second handleSwap while a transaction is in progress', async () => {
     sib.getPublicTokensForChain.mockReturnValue(ercPublicCfg('WETH'));
     sib.getPrivateTokensForChain.mockReturnValue(ercPrivateCfg('WETH'));
@@ -2811,7 +2811,7 @@ describe('usePrivacyBridge - duplicate submission guard', () => {
     });
     eth.waitForTransaction.mockReturnValue(pending);
     const props = makeProps({ hasSnap: true });
-    const { result } = renderHook(() => usePrivacyBridge(props));
+    const { result } = renderHook(() => usePluginBridge(props));
 
     let first!: Promise<void>;
     await act(async () => {

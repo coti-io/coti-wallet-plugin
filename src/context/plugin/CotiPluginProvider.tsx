@@ -1,34 +1,34 @@
 import React, { useMemo, useState } from 'react';
-import { usePrivacyBridge } from '../../hooks/usePrivacyBridge';
+import { usePluginBridge } from '../../hooks/usePluginBridge';
 import {
-  resolvePrivacyBridgeSurface,
+  resolvePluginSurface,
   type CotiPluginSurface,
 } from '../../config/plugin';
 import { usePluginModalsState } from './usePluginModalsState';
 import { usePluginSession } from './usePluginSession';
-import { usePrivacyBridgePodState } from './usePrivacyBridgePodState';
+import { usePluginPodState } from './usePluginPodState';
 import {
-  PrivacyBridgeContext,
-  PrivacyBridgeModalsContext,
-  PrivacyBridgeNetworkContext,
-  PrivacyBridgePodContext,
-  PrivacyBridgeSwapContext,
-  PrivacyBridgeTokensContext,
-  PrivacyBridgeUnlockContext,
-  PrivacyBridgeWalletContext,
+  CotiPluginContext,
+  CotiModalsContext,
+  CotiNetworkContext,
+  CotiPodContext,
+  CotiSwapContext,
+  CotiTokensContext,
+  CotiUnlockContext,
+  CotiWalletContext,
 } from './contexts';
-import { mergePrivacyBridgeSlices, type PrivacyBridgeContextSlices } from './types';
+import { mergeCotiPluginSlices, type CotiPluginContextSlices } from './types';
 import {
   PrivateUnlockProvider,
   type PrivateUnlockProviderOptions,
 } from '../privateUnlock';
-import { IDLE_PRIVACY_BRIDGE_POD, IDLE_PRIVACY_BRIDGE_SWAP } from './idleBridgeSlices';
+import { IDLE_COTI_POD, IDLE_COTI_SWAP } from './idleBridgeSlices';
 
-export interface PrivacyBridgeProviderProps {
+export interface CotiPluginProviderProps {
   children: React.ReactNode;
   privateUnlock?: PrivateUnlockProviderOptions;
   /**
-   * Which subsystems to mount. Overrides `configureCotiPlugin({ privacyBridgeSurface })`.
+   * Which subsystems to mount. Overrides `configureCotiPlugin({ pluginSurface })`.
    * Default: `core` (wallet + unlock only).
    */
   surface?: CotiPluginSurface;
@@ -43,7 +43,7 @@ export interface PrivacyBridgeProviderProps {
 type Session = ReturnType<typeof usePluginSession>;
 type Modals = ReturnType<typeof usePluginModalsState>;
 
-const buildWalletSlice = (session: Session): PrivacyBridgeContextSlices['wallet'] => ({
+const buildWalletSlice = (session: Session): CotiPluginContextSlices['wallet'] => ({
   isConnected: session.isConnected,
   walletAddress: session.walletAddress,
   handleConnect: session.handleConnect,
@@ -51,7 +51,7 @@ const buildWalletSlice = (session: Session): PrivacyBridgeContextSlices['wallet'
   metamaskDetected: session.metamaskDetected,
 });
 
-const buildNetworkSlice = (session: Session): PrivacyBridgeContextSlices['network'] => ({
+const buildNetworkSlice = (session: Session): CotiPluginContextSlices['network'] => ({
   chainId: session.chainId,
   switchNetwork: session.switchNetwork,
   networkName: session.networkName,
@@ -70,7 +70,7 @@ const buildUnlockSlice = (
   onPrivateTokenRequest?: (request: NonNullable<
     Awaited<ReturnType<Session['sendPrivateToken']>>['request']
   >) => void,
-): PrivacyBridgeContextSlices['unlock'] => ({
+): CotiPluginContextSlices['unlock'] => ({
   hasSnap: session.hasSnap,
   snapError: session.snapError,
   hasAesKeyInSnap: session.hasAesKeyInSnap,
@@ -107,44 +107,44 @@ const buildUnlockSlice = (
   setShowCotiWalletAesKeyModal: session.setShowCotiWalletAesKeyModal,
 });
 
-const PrivacyBridgeTree: React.FC<{
-  slices: PrivacyBridgeContextSlices;
+const CotiPluginTree: React.FC<{
+  slices: CotiPluginContextSlices;
   privateUnlock?: PrivateUnlockProviderOptions;
   children: React.ReactNode;
 }> = ({ slices, privateUnlock, children }) => {
-  const legacyValue = useMemo(() => mergePrivacyBridgeSlices(slices), [slices]);
+  const legacyValue = useMemo(() => mergeCotiPluginSlices(slices), [slices]);
 
   return (
-    <PrivacyBridgeWalletContext.Provider value={slices.wallet}>
-      <PrivacyBridgeNetworkContext.Provider value={slices.network}>
-        <PrivacyBridgeUnlockContext.Provider value={slices.unlock}>
-          <PrivacyBridgeTokensContext.Provider value={slices.tokens}>
-            <PrivacyBridgeSwapContext.Provider value={slices.swap}>
-              <PrivacyBridgePodContext.Provider value={slices.pod}>
-                <PrivacyBridgeModalsContext.Provider value={slices.modals}>
-                  <PrivacyBridgeContext.Provider value={legacyValue}>
+    <CotiWalletContext.Provider value={slices.wallet}>
+      <CotiNetworkContext.Provider value={slices.network}>
+        <CotiUnlockContext.Provider value={slices.unlock}>
+          <CotiTokensContext.Provider value={slices.tokens}>
+            <CotiSwapContext.Provider value={slices.swap}>
+              <CotiPodContext.Provider value={slices.pod}>
+                <CotiModalsContext.Provider value={slices.modals}>
+                  <CotiPluginContext.Provider value={legacyValue}>
                     <PrivateUnlockProvider options={privateUnlock}>
                       {children}
                     </PrivateUnlockProvider>
-                  </PrivacyBridgeContext.Provider>
-                </PrivacyBridgeModalsContext.Provider>
-              </PrivacyBridgePodContext.Provider>
-            </PrivacyBridgeSwapContext.Provider>
-          </PrivacyBridgeTokensContext.Provider>
-        </PrivacyBridgeUnlockContext.Provider>
-      </PrivacyBridgeNetworkContext.Provider>
-    </PrivacyBridgeWalletContext.Provider>
+                  </CotiPluginContext.Provider>
+                </CotiModalsContext.Provider>
+              </CotiPodContext.Provider>
+            </CotiSwapContext.Provider>
+          </CotiTokensContext.Provider>
+        </CotiUnlockContext.Provider>
+      </CotiNetworkContext.Provider>
+    </CotiWalletContext.Provider>
   );
 };
 
 /** Tokens, swap/fees, and PoD polling — only mounted when surface is `bridge`. */
-const PrivacyBridgeBridgeLayer: React.FC<{
+const CotiPluginBridgeLayer: React.FC<{
   session: Session;
   modals: Modals;
   privateUnlock?: PrivateUnlockProviderOptions;
   children: React.ReactNode;
 }> = ({ session, modals, privateUnlock, children }) => {
-  const podState = usePrivacyBridgePodState({
+  const podState = usePluginPodState({
     walletAddress: session.walletAddress,
     refreshPrivateBalances: session.refreshPrivateBalances,
   });
@@ -175,7 +175,7 @@ const PrivacyBridgeBridgeLayer: React.FC<{
     l1GasFee,
     isPodChain,
     feeDebugInfo,
-  } = usePrivacyBridge({
+  } = usePluginBridge({
     isConnected: session.isConnected,
     walletAddress: session.walletAddress,
     publicTokens: session.publicTokens,
@@ -199,7 +199,7 @@ const PrivacyBridgeBridgeLayer: React.FC<{
     chainId: session.chainId ? Number(session.chainId) : undefined,
   });
 
-  const slices = useMemo((): PrivacyBridgeContextSlices => ({
+  const slices = useMemo((): CotiPluginContextSlices => ({
     wallet: buildWalletSlice(session),
     network: buildNetworkSlice(session),
     unlock: buildUnlockSlice(session, request => {
@@ -264,19 +264,19 @@ const PrivacyBridgeBridgeLayer: React.FC<{
   ]);
 
   return (
-    <PrivacyBridgeTree slices={slices} privateUnlock={privateUnlock}>
+    <CotiPluginTree slices={slices} privateUnlock={privateUnlock}>
       {children}
-    </PrivacyBridgeTree>
+    </CotiPluginTree>
   );
 };
 
-export const PrivacyBridgeProvider: React.FC<PrivacyBridgeProviderProps> = ({
+export const CotiPluginProvider: React.FC<CotiPluginProviderProps> = ({
   children,
   privateUnlock,
   autoInitTokens,
   surface,
 }) => {
-  const resolvedSurface = resolvePrivacyBridgeSurface(surface);
+  const resolvedSurface = resolvePluginSurface(surface);
   const enableBridge = resolvedSurface === 'bridge';
   const modals = usePluginModalsState();
   const session = usePluginSession({
@@ -284,7 +284,7 @@ export const PrivacyBridgeProvider: React.FC<PrivacyBridgeProviderProps> = ({
     autoInitTokens: enableBridge ? autoInitTokens : false,
   });
 
-  const coreSlices = useMemo((): PrivacyBridgeContextSlices => ({
+  const coreSlices = useMemo((): CotiPluginContextSlices => ({
     wallet: buildWalletSlice(session),
     network: buildNetworkSlice(session),
     unlock: buildUnlockSlice(session),
@@ -292,26 +292,26 @@ export const PrivacyBridgeProvider: React.FC<PrivacyBridgeProviderProps> = ({
       publicTokens: session.publicTokens,
       privateTokens: session.privateTokens,
     },
-    swap: IDLE_PRIVACY_BRIDGE_SWAP,
-    pod: IDLE_PRIVACY_BRIDGE_POD,
+    swap: IDLE_COTI_SWAP,
+    pod: IDLE_COTI_POD,
     modals,
   }), [session, modals]);
 
   if (!enableBridge) {
     return (
-      <PrivacyBridgeTree slices={coreSlices} privateUnlock={privateUnlock}>
+      <CotiPluginTree slices={coreSlices} privateUnlock={privateUnlock}>
         {children}
-      </PrivacyBridgeTree>
+      </CotiPluginTree>
     );
   }
 
   return (
-    <PrivacyBridgeBridgeLayer
+    <CotiPluginBridgeLayer
       session={session}
       modals={modals}
       privateUnlock={privateUnlock}
     >
       {children}
-    </PrivacyBridgeBridgeLayer>
+    </CotiPluginBridgeLayer>
   );
 };

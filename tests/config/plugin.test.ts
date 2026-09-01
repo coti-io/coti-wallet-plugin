@@ -8,7 +8,7 @@ import {
   isOnboardingGrantEnabled,
   isSnapEnabled,
   isAutoInitTokensEnabled,
-  resolvePrivacyBridgeSurface,
+  resolvePluginSurface,
   resolveGrantNativeCoti,
 } from '../../src/config/plugin';
 import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID, SEPOLIA_CHAIN_ID } from '../../src/config/chains';
@@ -24,7 +24,7 @@ describe('Plugin Configuration (README: Basic Setup)', () => {
       aesKeyChainId: undefined,
       clearSessionKeyOnWagmiDisconnect: true,
       waitForBalanceRefreshAfterTransfer: false,
-      privacyBridgeSurface: 'core',
+      pluginSurface: 'core',
       autoInitTokens: true,
       onboardingGrantEnabled: true,
       grantApiUrlTestnet: DEFAULT_GRANT_API_URL_TESTNET,
@@ -41,8 +41,8 @@ describe('Plugin Configuration (README: Basic Setup)', () => {
     expect(config.onboardingGrantEnabled).toBe(true);
     expect(config.autoInitTokens).toBe(true);
     expect(isAutoInitTokensEnabled()).toBe(true);
-    expect(config.privacyBridgeSurface).toBe('core');
-    expect(resolvePrivacyBridgeSurface()).toBe('core');
+    expect(config.pluginSurface).toBe('core');
+    expect(resolvePluginSurface()).toBe('core');
     expect(config.grantApiUrlTestnet).toBe(DEFAULT_GRANT_API_URL_TESTNET);
     expect(config.onboardingGrantMinBalanceWei).toBe(DEFAULT_ONBOARDING_GRANT_MIN_BALANCE_WEI);
   });
@@ -199,10 +199,10 @@ describe('Plugin Configuration (README: Basic Setup)', () => {
     expect(isAutoInitTokensEnabled(false)).toBe(false);
   });
 
-  it('resolves privacyBridgeSurface to core by default and honors overrides', () => {
-    expect(resolvePrivacyBridgeSurface()).toBe('core');
-    configureCotiPlugin({ privacyBridgeSurface: 'bridge' });
-    expect(resolvePrivacyBridgeSurface()).toBe('bridge');
-    expect(resolvePrivacyBridgeSurface('core')).toBe('core');
+  it('resolves pluginSurface to core by default and honors overrides', () => {
+    expect(resolvePluginSurface()).toBe('core');
+    configureCotiPlugin({ pluginSurface: 'bridge' });
+    expect(resolvePluginSurface()).toBe('bridge');
+    expect(resolvePluginSurface('core')).toBe('core');
   });
 });

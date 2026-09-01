@@ -15,7 +15,7 @@ import {
 } from "./podTransferFees";
 import {
   resolvePrivateTokenTransferTarget,
-} from "../../hooks/privacyBridge/executePrivateTokenTransfer";
+} from "../../hooks/bridge/executePrivateTokenTransfer";
 
 // Re-export quote helpers for consumers / tests.
 export { quotePodTransferFees, buildPodTransferMethodArgs } from "./podTransferFees";

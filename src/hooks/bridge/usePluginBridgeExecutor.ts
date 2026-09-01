@@ -15,7 +15,7 @@ import { truncateAddress } from '../../lib/format';
 import { shortHash } from './utils';
 import type { SwapProgressStage, Token, ToastState } from './types';
 
-export interface UsePrivacyBridgeExecutorOptions {
+export interface UsePluginBridgeExecutorOptions {
   walletAddress: string;
   publicTokens: Token[];
   setPublicTokens: React.Dispatch<React.SetStateAction<Token[]>>;
@@ -29,7 +29,7 @@ export interface UsePrivacyBridgeExecutorOptions {
 }
 
 /** Deposit/withdraw and PoD portal transaction execution. */
-export const usePrivacyBridgeExecutor = ({
+export const usePluginBridgeExecutor = ({
   walletAddress,
   publicTokens,
   setPublicTokens,
@@ -40,7 +40,7 @@ export const usePrivacyBridgeExecutor = ({
   upsertPodRequest,
   getPodWithdrawPermit,
   clearPodWithdrawPermit,
-}: UsePrivacyBridgeExecutorOptions) => {
+}: UsePluginBridgeExecutorOptions) => {
   const [isBridgingLoading, setIsBridgingLoading] = useState(false);
 
   // Connector for the wallet the user selected via RainbowKit/wagmi.

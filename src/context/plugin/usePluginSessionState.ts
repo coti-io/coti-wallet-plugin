@@ -9,13 +9,13 @@ import {
   getInitialPublicTokens,
   getInitialPrivateTokens,
   type Token,
-} from '../../hooks/usePrivacyBridge';
-import type { PrivacyBridgeModalsContextValue } from './types';
+} from '../../hooks/usePluginBridge';
+import type { CotiModalsContextValue } from './types';
 import { usePluginSessionKey } from './usePluginSessionKey';
 import type { PluginSessionState } from './sessionShared';
 
 interface UsePluginSessionStateOptions {
-  modals: PrivacyBridgeModalsContextValue;
+  modals: CotiModalsContextValue;
   autoInitTokens?: boolean;
 }
 

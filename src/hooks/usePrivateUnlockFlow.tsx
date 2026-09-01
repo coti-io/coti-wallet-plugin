@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import type { OnboardModalTheme, OnboardModalWarnings } from '../components/OnboardModal';
-import { usePrivacyBridgeUnlock } from '../context/privacyBridge/contexts';
+import { useCotiUnlock } from '../context/plugin/contexts';
 import { usePrivateUnlockController } from '../context/privateUnlock/usePrivateUnlockController';
 
 export interface UsePrivateUnlockFlowOptions {
@@ -25,10 +25,10 @@ export interface UsePrivateUnlockFlowResult {
   resetUnlockUi: () => void;
   lockPrivateBalances: () => void;
   onboardModal: ReactElement;
-  sendPrivateToken: ReturnType<typeof usePrivacyBridgeUnlock>['sendPrivateToken'];
-  refreshPrivateBalances: ReturnType<typeof usePrivacyBridgeUnlock>['refreshPrivateBalances'];
-  encryptPrivateValue: ReturnType<typeof usePrivacyBridgeUnlock>['encryptPrivateValue'];
-  decryptPrivateValue: ReturnType<typeof usePrivacyBridgeUnlock>['decryptPrivateValue'];
+  sendPrivateToken: ReturnType<typeof useCotiUnlock>['sendPrivateToken'];
+  refreshPrivateBalances: ReturnType<typeof useCotiUnlock>['refreshPrivateBalances'];
+  encryptPrivateValue: ReturnType<typeof useCotiUnlock>['encryptPrivateValue'];
+  decryptPrivateValue: ReturnType<typeof useCotiUnlock>['decryptPrivateValue'];
   statusMessage: string | null;
 }
 

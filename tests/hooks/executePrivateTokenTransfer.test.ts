@@ -31,7 +31,7 @@ vi.mock('ethers', async (importOriginal) => {
   };
 });
 
-vi.mock('../../src/hooks/privacyBridge/encryptValue256', () => ({
+vi.mock('../../src/hooks/bridge/encryptValue256', () => ({
   encryptValue256: vi.fn(async () => ({
     ciphertext: { ciphertextHigh: 123n, ciphertextLow: 456n },
     signature: `0x${'ab'.repeat(65)}`,
@@ -68,7 +68,7 @@ import {
   resolvePrivateTokenContractAddress,
   resolvePrivateTokenTransferTarget,
   PRIVATE_ERC20_TRANSFER_256_SIG,
-} from '../../src/hooks/privacyBridge/executePrivateTokenTransfer';
+} from '../../src/hooks/bridge/executePrivateTokenTransfer';
 import { SEPOLIA_CHAIN_ID } from '../../src/chains/sepolia';
 
 describe('executePrivateTokenTransfer', () => {

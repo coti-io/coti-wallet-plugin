@@ -5,7 +5,7 @@ export {
   getSnapRequestParams,
   isSnapEnabled,
   isAutoInitTokensEnabled,
-  resolvePrivacyBridgeSurface,
+  resolvePluginSurface,
 } from './config/plugin';
 export type {
   CotiPluginConfig,
@@ -106,7 +106,7 @@ export {
   buildPodTransferMethodArgs,
 } from './chains/portal/executePodPrivateTokenTransfer';
 export type { PodTransferFeeQuote } from './chains/portal/executePodPrivateTokenTransfer';
-export { usePodTransferFees } from './hooks/privacyBridge/usePodTransferFees';
+export { usePodTransferFees } from './hooks/bridge/usePodTransferFees';
 export { fetchPodOracleTokenUsdPrice, POD_PRICE_ORACLE_ABI } from './chains/podPriceOracle';
 export { fetchPodBridgeData, simulatePodPortalFee } from './chains/portal/podPortalAdminData';
 
@@ -124,9 +124,9 @@ export { usePrivateTokenBalance } from './hooks/usePrivateTokenBalance';
 export { useBalanceUpdater } from './hooks/useBalanceUpdater';
 
 // Hooks — Bridge Operations
-// NOTE: `usePrivacyBridge` (and its `getInitialPublicTokens`/`getInitialPrivateTokens`
+// NOTE: `usePluginBridge` (and its `getInitialPublicTokens`/`getInitialPrivateTokens`
 // helpers + `Token`/`SwapProgressStage` types) are intentionally NOT exported. They are
-// internal to `PrivacyBridgeProvider`; consumers should use the provider + context instead.
+// internal to `CotiPluginProvider`; consumers should use the provider + context instead.
 export { useBridgeData } from './hooks/useBridgeData';
 export type { BridgeData } from './hooks/useBridgeData';
 export { useBridgeStatus } from './hooks/useBridgeStatus';
@@ -139,36 +139,36 @@ export {
   resolvePrivateTokenContractAddress,
   resolvePrivateTokenTransferTarget,
   PRIVATE_ERC20_TRANSFER_256_SIG,
-} from './hooks/privacyBridge';
+} from './hooks/bridge';
 
 // Hooks — Network
 export { useNetworkEnforcer } from './hooks/useNetworkEnforcer';
 export type { NetworkEnforcerResult } from './hooks/useNetworkEnforcer';
 
-// Context — legacy flat API + bounded slice hooks
+// Context — plugin provider + bounded slice hooks
 export {
-  PrivacyBridgeProvider,
-  usePrivacyBridgeContext,
-  usePrivacyBridgeWallet,
-  usePrivacyBridgeNetwork,
-  usePrivacyBridgeUnlock,
-  usePrivacyBridgeTokens,
-  usePrivacyBridgeSwap,
-  usePrivacyBridgePod,
-  usePrivacyBridgeModals,
-} from './context/privacyBridge';
+  CotiPluginProvider,
+  useCotiPluginContext,
+  useCotiWallet,
+  useCotiNetwork,
+  useCotiUnlock,
+  useCotiTokens,
+  useCotiSwap,
+  useCotiPod,
+  useCotiModals,
+} from './context/plugin';
 export type {
-  PrivacyBridgeContextType,
-  PrivacyBridgeProviderProps,
-  PrivacyBridgeWalletContextValue,
-  PrivacyBridgeNetworkContextValue,
-  PrivacyBridgeUnlockContextValue,
-  PrivacyBridgeTokensContextValue,
-  PrivacyBridgeSwapContextValue,
-  PrivacyBridgePodContextValue,
-  PrivacyBridgeModalsContextValue,
+  CotiPluginContextType,
+  CotiPluginProviderProps,
+  CotiWalletContextValue,
+  CotiNetworkContextValue,
+  CotiUnlockContextValue,
+  CotiTokensContextValue,
+  CotiSwapContextValue,
+  CotiPodContextValue,
+  CotiModalsContextValue,
   RefreshPrivateBalancesOptions,
-} from './context/privacyBridge';
+} from './context/plugin';
 export {
   PrivateUnlockProvider,
   usePrivateUnlock,

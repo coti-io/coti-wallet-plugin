@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
 import { PRIVACY_PORTAL_ABI, POD_PTOKEN_ABI, SEPOLIA_CHAIN_ID, type PodPortalRequest } from "../../contracts/pod";
-import type { SwapProgressStage } from "../../hooks/usePrivacyBridge";
+import type { SwapProgressStage } from "../../hooks/usePluginBridge";
 import { logger } from "../../lib/logger";
 import { waitForTransactionResilient } from "../../lib/rpcProvider";
 import {

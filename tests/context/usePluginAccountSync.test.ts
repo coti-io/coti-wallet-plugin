@@ -30,7 +30,7 @@ vi.mock('../../src/lib/logger', () => ({
   logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-vi.mock('../../src/hooks/usePrivacyBridge', () => ({
+vi.mock('../../src/hooks/usePluginBridge', () => ({
   getInitialPublicTokens: vi.fn().mockReturnValue([]),
   getInitialPrivateTokens: vi.fn().mockReturnValue([]),
 }));
@@ -51,8 +51,8 @@ vi.mock('../../src/crypto/aesKeyValidation', () => ({
   validateMetaMaskAesKeyOnUnlock: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { usePluginAccountSync } from '../../src/context/privacyBridge/usePluginAccountSync';
-import type { PluginSessionState, UpdateAccountStateRef } from '../../src/context/privacyBridge/sessionShared';
+import { usePluginAccountSync } from '../../src/context/plugin/usePluginAccountSync';
+import type { PluginSessionState, UpdateAccountStateRef } from '../../src/context/plugin/sessionShared';
 
 function makeCore(overrides: Partial<PluginSessionState> = {}): PluginSessionState {
   return {

@@ -3,11 +3,11 @@ import { useAccount } from 'wagmi';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import {
   configureCotiPlugin,
-  usePrivacyBridgeNetwork,
-  usePrivacyBridgeSwap,
-  usePrivacyBridgeTokens,
-  usePrivacyBridgeUnlock,
-  usePrivacyBridgeWallet,
+  useCotiNetwork,
+  useCotiSwap,
+  useCotiTokens,
+  useCotiUnlock,
+  useCotiWallet,
   usePrivateUnlock,
   useWalletType,
   type EncryptedAesBackup,
@@ -116,11 +116,11 @@ export default function App() {
   const { address, isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
   const walletTypeInfo = useWalletType();
-  const wallet = usePrivacyBridgeWallet();
-  const network = usePrivacyBridgeNetwork();
-  const unlock = usePrivacyBridgeUnlock();
-  const swap = usePrivacyBridgeSwap();
-  const { publicTokens, privateTokens } = usePrivacyBridgeTokens();
+  const wallet = useCotiWallet();
+  const network = useCotiNetwork();
+  const unlock = useCotiUnlock();
+  const swap = useCotiSwap();
+  const { publicTokens, privateTokens } = useCotiTokens();
 
   const [cryptoStatus, setCryptoStatus] = useState<string | null>(null);
   const [snapAesKeyStatus, setSnapAesKeyStatus] = useState<SnapAesKeyStatus>('idle');
@@ -457,7 +457,7 @@ export default function App() {
           <h2 style={{ fontSize: 18, marginTop: 0 }}>Encrypt / Decrypt Private Value</h2>
           <p style={{ fontSize: 13, color: '#666' }}>
             Uses <code>encryptPrivateValue()</code> and <code>decryptPrivateValue()</code> from{' '}
-            <code>usePrivacyBridgeUnlock()</code>. If you are not onboarded yet, clicking either
+            <code>useCotiUnlock()</code>. If you are not onboarded yet, clicking either
             button opens the onboarding modal first.
           </p>
 
@@ -556,7 +556,7 @@ export default function App() {
         <section style={{ marginTop: 24, padding: 16, border: '1px solid #ddd', borderRadius: 8 }}>
           <h2 style={{ fontSize: 18, marginTop: 0 }}>Portal In / Portal Out</h2>
           <p style={{ fontSize: 13, color: '#666' }}>
-            Uses <code>usePrivacyBridgeSwap()</code>. Portal in moves public token balance to private.
+            Uses <code>useCotiSwap()</code>. Portal in moves public token balance to private.
             Portal out moves private balance back to public and may need private approval first.
           </p>
 
@@ -626,7 +626,7 @@ export default function App() {
         <section style={{ marginTop: 16, padding: 16, border: '1px solid #ddd', borderRadius: 8 }}>
           <h2 style={{ fontSize: 18, marginTop: 0 }}>Send Private Token</h2>
           <p style={{ fontSize: 13, color: '#666' }}>
-            Uses <code>usePrivacyBridgeUnlock().sendPrivateToken()</code>. The example does not
+            Uses <code>useCotiUnlock().sendPrivateToken()</code>. The example does not
             implement regular public-token send because that is standard wallet/app code, not plugin
             behavior.
           </p>

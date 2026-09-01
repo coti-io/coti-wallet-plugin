@@ -1,10 +1,10 @@
-import type { SwapProgressStage, Token } from '../../hooks/usePrivacyBridge';
+import type { SwapProgressStage, Token } from '../../hooks/usePluginBridge';
 import type { AesKeyProviderOptions } from '../../hooks/useAesKeyProvider';
 import type { PodPortalRequest } from '../../contracts/pod';
 import type { OnboardModalWarnings } from '../../lib/onboardModalWarnings';
 
 /**
- * Options for {@link PrivacyBridgeUnlockContextValue.refreshPrivateBalances}.
+ * Options for {@link CotiUnlockContextValue.refreshPrivateBalances}.
  * `preserveSessionOnError` skips clearing the AES session / hiding balances when
  * AES or onboarding errors are thrown (used for best-effort post-transfer refresh).
  */
@@ -13,7 +13,7 @@ export type RefreshPrivateBalancesOptions = AesKeyProviderOptions & {
 };
 
 /** Wallet connection slice — connect/disconnect and address. */
-export interface PrivacyBridgeWalletContextValue {
+export interface CotiWalletContextValue {
   isConnected: boolean;
   walletAddress: string;
   handleConnect: () => Promise<void>;
@@ -22,7 +22,7 @@ export interface PrivacyBridgeWalletContextValue {
 }
 
 /** Network slice — chain id, switching, and enforcer state. */
-export interface PrivacyBridgeNetworkContextValue {
+export interface CotiNetworkContextValue {
   chainId: string | null;
   switchNetwork: (chainId: string) => Promise<boolean>;
   networkName: string;
@@ -38,7 +38,7 @@ export interface PrivacyBridgeNetworkContextValue {
 }
 
 /** Snap / AES unlock slice. */
-export interface PrivacyBridgeUnlockContextValue {
+export interface CotiUnlockContextValue {
   hasSnap: boolean;
   snapError: string | null;
   /** True/false when check succeeds; null when Snap is unavailable. */
@@ -91,13 +91,13 @@ export interface PrivacyBridgeUnlockContextValue {
 }
 
 /** Token balances exposed to the UI. */
-export interface PrivacyBridgeTokensContextValue {
+export interface CotiTokensContextValue {
   publicTokens: Token[];
   privateTokens: Token[];
 }
 
 /** Bridge / swap form and transaction slice. */
-export interface PrivacyBridgeSwapContextValue {
+export interface CotiSwapContextValue {
   amount: string;
   direction: 'to-private' | 'to-public';
   selectedTokenIndex: number;
@@ -133,13 +133,13 @@ export interface PrivacyBridgeSwapContextValue {
 }
 
 /** PoD portal request tracking (Sepolia). */
-export interface PrivacyBridgePodContextValue {
+export interface CotiPodContextValue {
   podRequests: PodPortalRequest[];
   refreshPodRequest: (request: PodPortalRequest) => Promise<void>;
 }
 
 /** Install / conflict modals not tied to unlock flow. */
-export interface PrivacyBridgeModalsContextValue {
+export interface CotiModalsContextValue {
   showInstallModal: boolean;
   setShowInstallModal: (show: boolean) => void;
   showMultipleWalletsModal: boolean;
@@ -148,30 +148,30 @@ export interface PrivacyBridgeModalsContextValue {
 
 /**
  * Legacy flat context — union of all slices.
- * Existing consumers should keep using {@link usePrivacyBridgeContext}.
+ * Existing consumers should keep using {@link useCotiPluginContext}.
  */
-export type PrivacyBridgeContextType = PrivacyBridgeWalletContextValue &
-  PrivacyBridgeNetworkContextValue &
-  PrivacyBridgeUnlockContextValue &
-  PrivacyBridgeTokensContextValue &
-  PrivacyBridgeSwapContextValue &
-  PrivacyBridgePodContextValue &
-  PrivacyBridgeModalsContextValue;
+export type CotiPluginContextType = CotiWalletContextValue &
+  CotiNetworkContextValue &
+  CotiUnlockContextValue &
+  CotiTokensContextValue &
+  CotiSwapContextValue &
+  CotiPodContextValue &
+  CotiModalsContextValue;
 
-export interface PrivacyBridgeContextSlices {
-  wallet: PrivacyBridgeWalletContextValue;
-  network: PrivacyBridgeNetworkContextValue;
-  unlock: PrivacyBridgeUnlockContextValue;
-  tokens: PrivacyBridgeTokensContextValue;
-  swap: PrivacyBridgeSwapContextValue;
-  pod: PrivacyBridgePodContextValue;
-  modals: PrivacyBridgeModalsContextValue;
+export interface CotiPluginContextSlices {
+  wallet: CotiWalletContextValue;
+  network: CotiNetworkContextValue;
+  unlock: CotiUnlockContextValue;
+  tokens: CotiTokensContextValue;
+  swap: CotiSwapContextValue;
+  pod: CotiPodContextValue;
+  modals: CotiModalsContextValue;
 }
 
 /** Merges bounded slices into the legacy flat context shape. */
-export const mergePrivacyBridgeSlices = (
-  slices: PrivacyBridgeContextSlices,
-): PrivacyBridgeContextType => ({
+export const mergeCotiPluginSlices = (
+  slices: CotiPluginContextSlices,
+): CotiPluginContextType => ({
   ...slices.wallet,
   ...slices.network,
   ...slices.unlock,

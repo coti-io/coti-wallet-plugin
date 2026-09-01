@@ -2,17 +2,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { render, act } from '@testing-library/react';
 import {
-  PrivacyBridgeProvider,
-  usePrivacyBridgeContext,
-  usePrivacyBridgeWallet,
-  usePrivacyBridgeNetwork,
-  usePrivacyBridgeUnlock,
-  usePrivacyBridgeTokens,
-  usePrivacyBridgeSwap,
-  usePrivacyBridgePod,
-  usePrivacyBridgeModals,
-  mergePrivacyBridgeSlices,
-} from '../../src/context/privacyBridge';
+  CotiPluginProvider,
+  useCotiPluginContext,
+  useCotiWallet,
+  useCotiNetwork,
+  useCotiUnlock,
+  useCotiTokens,
+  useCotiSwap,
+  useCotiPod,
+  useCotiModals,
+  mergeCotiPluginSlices,
+} from '../../src/context/plugin';
 
 const h = vi.hoisted(() => ({
   wagmi: {
@@ -123,10 +123,10 @@ vi.mock('../../src/hooks/useBalanceUpdater', () => ({
   }),
 }));
 
-vi.mock('../../src/hooks/usePrivacyBridge', () => ({
+vi.mock('../../src/hooks/usePluginBridge', () => ({
   getInitialPublicTokens: () => [{ symbol: 'COTI', name: 'COTI', balance: '0.00', isPrivate: false }],
   getInitialPrivateTokens: () => [{ symbol: 'p.COTI', name: 'p.COTI', balance: '0.00', isPrivate: true }],
-  usePrivacyBridge: () => ({
+  usePluginBridge: () => ({
     handleSwap: vi.fn(async () => undefined),
     isBridgingLoading: false,
     isApprovalNeeded: false,
@@ -164,7 +164,7 @@ describe('privacyBridge facade', () => {
     });
   });
 
-  it('mergePrivacyBridgeSlices produces the same keys as the legacy context', () => {
+  it('mergeCotiPluginSlices produces the same keys as the legacy context', () => {
     const slices = {
       wallet: {
         isConnected: false,
@@ -245,7 +245,7 @@ describe('privacyBridge facade', () => {
       },
     };
 
-    const merged = mergePrivacyBridgeSlices(slices);
+    const merged = mergeCotiPluginSlices(slices);
     expect(Object.keys(merged).sort()).toEqual(
       [
         ...Object.keys(slices.wallet),
@@ -260,26 +260,26 @@ describe('privacyBridge facade', () => {
   });
 
   it('bounded hooks and legacy context stay in sync under the provider', async () => {
-    let legacy: ReturnType<typeof usePrivacyBridgeContext> | null = null;
-    let wallet: ReturnType<typeof usePrivacyBridgeWallet> | null = null;
-    let network: ReturnType<typeof usePrivacyBridgeNetwork> | null = null;
+    let legacy: ReturnType<typeof useCotiPluginContext> | null = null;
+    let wallet: ReturnType<typeof useCotiWallet> | null = null;
+    let network: ReturnType<typeof useCotiNetwork> | null = null;
 
     function Probe() {
-      legacy = usePrivacyBridgeContext();
-      wallet = usePrivacyBridgeWallet();
-      network = usePrivacyBridgeNetwork();
-      usePrivacyBridgeUnlock();
-      usePrivacyBridgeTokens();
-      usePrivacyBridgeSwap();
-      usePrivacyBridgePod();
-      usePrivacyBridgeModals();
+      legacy = useCotiPluginContext();
+      wallet = useCotiWallet();
+      network = useCotiNetwork();
+      useCotiUnlock();
+      useCotiTokens();
+      useCotiSwap();
+      useCotiPod();
+      useCotiModals();
       return null;
     }
 
     render(
-      <PrivacyBridgeProvider surface="bridge">
+      <CotiPluginProvider surface="bridge">
         <Probe />
-      </PrivacyBridgeProvider>,
+      </CotiPluginProvider>,
     );
 
     expect(legacy).not.toBeNull();
@@ -292,18 +292,18 @@ describe('privacyBridge facade', () => {
 
     await act(async () => {
       render(
-        <PrivacyBridgeProvider surface="bridge">
+        <CotiPluginProvider surface="bridge">
           <Probe />
-        </PrivacyBridgeProvider>,
+        </CotiPluginProvider>,
       );
     });
   });
 
   it('sets metamaskDetected when wagmi connects via a MetaMask connector', async () => {
-    let wallet: ReturnType<typeof usePrivacyBridgeWallet> | null = null;
+    let wallet: ReturnType<typeof useCotiWallet> | null = null;
 
     function Probe() {
-      wallet = usePrivacyBridgeWallet();
+      wallet = useCotiWallet();
       return null;
     }
 
@@ -313,9 +313,9 @@ describe('privacyBridge facade', () => {
 
     await act(async () => {
       render(
-        <PrivacyBridgeProvider surface="bridge">
+        <CotiPluginProvider surface="bridge">
           <Probe />
-        </PrivacyBridgeProvider>,
+        </CotiPluginProvider>,
       );
     });
 
@@ -323,10 +323,10 @@ describe('privacyBridge facade', () => {
   });
 
   it('clears metamaskDetected for non-MetaMask wagmi connectors', async () => {
-    let wallet: ReturnType<typeof usePrivacyBridgeWallet> | null = null;
+    let wallet: ReturnType<typeof useCotiWallet> | null = null;
 
     function Probe() {
-      wallet = usePrivacyBridgeWallet();
+      wallet = useCotiWallet();
       return null;
     }
 
@@ -336,9 +336,9 @@ describe('privacyBridge facade', () => {
 
     await act(async () => {
       render(
-        <PrivacyBridgeProvider surface="bridge">
+        <CotiPluginProvider surface="bridge">
           <Probe />
-        </PrivacyBridgeProvider>,
+        </CotiPluginProvider>,
       );
     });
 
@@ -346,17 +346,17 @@ describe('privacyBridge facade', () => {
   });
 
   it('sets metamaskDetected after explicit MetaMask handleConnect', async () => {
-    let wallet: ReturnType<typeof usePrivacyBridgeWallet> | null = null;
+    let wallet: ReturnType<typeof useCotiWallet> | null = null;
 
     function Probe() {
-      wallet = usePrivacyBridgeWallet();
+      wallet = useCotiWallet();
       return null;
     }
 
     render(
-      <PrivacyBridgeProvider surface="bridge">
+      <CotiPluginProvider surface="bridge">
         <Probe />
-      </PrivacyBridgeProvider>,
+      </CotiPluginProvider>,
     );
 
     expect(wallet!.metamaskDetected).toBe(false);
@@ -369,19 +369,19 @@ describe('privacyBridge facade', () => {
   });
 
   it('does not set metamaskDetected when connectWallet returns false', async () => {
-    let wallet: ReturnType<typeof usePrivacyBridgeWallet> | null = null;
+    let wallet: ReturnType<typeof useCotiWallet> | null = null;
 
     function Probe() {
-      wallet = usePrivacyBridgeWallet();
+      wallet = useCotiWallet();
       return null;
     }
 
     h.connectWallet.mockResolvedValueOnce(false);
 
     render(
-      <PrivacyBridgeProvider surface="bridge">
+      <CotiPluginProvider surface="bridge">
         <Probe />
-      </PrivacyBridgeProvider>,
+      </CotiPluginProvider>,
     );
 
     await act(async () => {
@@ -392,10 +392,10 @@ describe('privacyBridge facade', () => {
   });
 
   it('does not set metamaskDetected from handleConnect when wagmi manages the session', async () => {
-    let wallet: ReturnType<typeof usePrivacyBridgeWallet> | null = null;
+    let wallet: ReturnType<typeof useCotiWallet> | null = null;
 
     function Probe() {
-      wallet = usePrivacyBridgeWallet();
+      wallet = useCotiWallet();
       return null;
     }
 
@@ -405,9 +405,9 @@ describe('privacyBridge facade', () => {
 
     await act(async () => {
       render(
-        <PrivacyBridgeProvider surface="bridge">
+        <CotiPluginProvider surface="bridge">
           <Probe />
-        </PrivacyBridgeProvider>,
+        </CotiPluginProvider>,
       );
     });
 
@@ -421,10 +421,10 @@ describe('privacyBridge facade', () => {
   });
 
   it('clears metamaskDetected on wagmi disconnect via connector effect (WAG-01)', async () => {
-    let wallet: ReturnType<typeof usePrivacyBridgeWallet> | null = null;
+    let wallet: ReturnType<typeof useCotiWallet> | null = null;
 
     function Probe() {
-      wallet = usePrivacyBridgeWallet();
+      wallet = useCotiWallet();
       return null;
     }
 
@@ -433,16 +433,16 @@ describe('privacyBridge facade', () => {
     h.wagmi.connector = { id: 'io.metamask', name: 'MetaMask' };
 
     const { rerender } = render(
-      <PrivacyBridgeProvider surface="bridge">
+      <CotiPluginProvider surface="bridge">
         <Probe />
-      </PrivacyBridgeProvider>,
+      </CotiPluginProvider>,
     );
 
     await act(async () => {
       rerender(
-        <PrivacyBridgeProvider surface="bridge">
+        <CotiPluginProvider surface="bridge">
           <Probe />
-        </PrivacyBridgeProvider>,
+        </CotiPluginProvider>,
       );
     });
     expect(wallet!.metamaskDetected).toBe(true);
@@ -453,9 +453,9 @@ describe('privacyBridge facade', () => {
 
     await act(async () => {
       rerender(
-        <PrivacyBridgeProvider surface="bridge">
+        <CotiPluginProvider surface="bridge">
           <Probe />
-        </PrivacyBridgeProvider>,
+        </CotiPluginProvider>,
       );
     });
 
@@ -463,7 +463,7 @@ describe('privacyBridge facade', () => {
   });
 });
 
-describe('PrivacyBridgeProvider surface=core (default)', () => {
+describe('CotiPluginProvider surface=core (default)', () => {
   beforeEach(() => {
     h.wagmi.address = undefined;
     h.wagmi.isConnected = false;
@@ -472,21 +472,21 @@ describe('PrivacyBridgeProvider surface=core (default)', () => {
   });
 
   it('does not mount swap/fee APIs and leaves token lists empty', () => {
-    let swap: ReturnType<typeof usePrivacyBridgeSwap> | null = null;
-    let tokens: ReturnType<typeof usePrivacyBridgeTokens> | null = null;
-    let pod: ReturnType<typeof usePrivacyBridgePod> | null = null;
+    let swap: ReturnType<typeof useCotiSwap> | null = null;
+    let tokens: ReturnType<typeof useCotiTokens> | null = null;
+    let pod: ReturnType<typeof useCotiPod> | null = null;
 
     function Probe() {
-      swap = usePrivacyBridgeSwap();
-      tokens = usePrivacyBridgeTokens();
-      pod = usePrivacyBridgePod();
+      swap = useCotiSwap();
+      tokens = useCotiTokens();
+      pod = useCotiPod();
       return null;
     }
 
     render(
-      <PrivacyBridgeProvider>
+      <CotiPluginProvider>
         <Probe />
-      </PrivacyBridgeProvider>,
+      </CotiPluginProvider>,
     );
 
     expect(tokens!.publicTokens).toEqual([]);

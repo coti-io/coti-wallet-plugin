@@ -17,8 +17,8 @@ let onboardModalProps: {
   onClose?: () => void;
 } | null = null;
 
-vi.mock('../../src/context/privacyBridge/contexts', () => ({
-  usePrivacyBridgeUnlock: () => ({
+vi.mock('../../src/context/plugin/contexts', () => ({
+  useCotiUnlock: () => ({
     isPrivateUnlocked: mockIsPrivateUnlocked,
     sessionAesKey: mockSessionAesKey,
     sendPrivateToken: vi.fn(),
@@ -31,7 +31,7 @@ vi.mock('../../src/context/privacyBridge/contexts', () => ({
     encryptPrivateValue: vi.fn(),
     decryptPrivateValue: vi.fn(),
   }),
-  usePrivacyBridgeWallet: () => ({
+  useCotiWallet: () => ({
     isConnected: true,
     walletAddress: '0x1234567890123456789012345678901234567890',
     handleConnect: mockHandleConnect,
