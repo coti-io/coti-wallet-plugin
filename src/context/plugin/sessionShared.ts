@@ -20,7 +20,7 @@ export type UpdateAccountStateFn = (
   options?: UpdateAccountStateOptions & AesKeyProviderOptions,
 ) => Promise<boolean>;
 
-/** Wallet, Snap, and AES-session state. Runs for both `core` and `bridge` surfaces. */
+/** Wallet, Snap, and AES-session state. Always mounted (core). */
 export interface PluginSessionState {
   modals: CotiModalsContextValue;
   isConnected: boolean;

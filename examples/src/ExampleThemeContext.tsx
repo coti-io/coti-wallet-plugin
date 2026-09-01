@@ -58,7 +58,7 @@ export function ExampleThemeProvider({ children }: { children: ReactNode }) {
         }}
       >
         <CotiPluginProvider
-          surface="bridge"
+          features={['tokens', 'portal', 'pod']}
           privateUnlock={{
             theme: onboardTheme,
             warnings: {

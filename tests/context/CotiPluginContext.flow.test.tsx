@@ -234,7 +234,7 @@ function Consumer() {
 async function renderProvider() {
   await act(async () => {
     render(
-      <CotiPluginProvider surface="bridge">
+      <CotiPluginProvider features={['tokens', 'portal', 'pod']}>
         <Consumer />
       </CotiPluginProvider>,
     );

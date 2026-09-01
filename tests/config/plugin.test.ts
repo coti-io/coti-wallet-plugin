@@ -8,7 +8,8 @@ import {
   isOnboardingGrantEnabled,
   isSnapEnabled,
   isAutoInitTokensEnabled,
-  resolvePluginSurface,
+  resolvePluginFeatures,
+  COTI_PLUGIN_FEATURES,
   resolveGrantNativeCoti,
 } from '../../src/config/plugin';
 import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID, SEPOLIA_CHAIN_ID } from '../../src/config/chains';
@@ -24,7 +25,7 @@ describe('Plugin Configuration (README: Basic Setup)', () => {
       aesKeyChainId: undefined,
       clearSessionKeyOnWagmiDisconnect: true,
       waitForBalanceRefreshAfterTransfer: false,
-      pluginSurface: 'core',
+      pluginFeatures: [],
       autoInitTokens: true,
       onboardingGrantEnabled: true,
       grantApiUrlTestnet: DEFAULT_GRANT_API_URL_TESTNET,
@@ -41,8 +42,8 @@ describe('Plugin Configuration (README: Basic Setup)', () => {
     expect(config.onboardingGrantEnabled).toBe(true);
     expect(config.autoInitTokens).toBe(true);
     expect(isAutoInitTokensEnabled()).toBe(true);
-    expect(config.pluginSurface).toBe('core');
-    expect(resolvePluginSurface()).toBe('core');
+    expect(config.pluginFeatures).toEqual([]);
+    expect(resolvePluginFeatures()).toEqual([]);
     expect(config.grantApiUrlTestnet).toBe(DEFAULT_GRANT_API_URL_TESTNET);
     expect(config.onboardingGrantMinBalanceWei).toBe(DEFAULT_ONBOARDING_GRANT_MIN_BALANCE_WEI);
   });
@@ -199,10 +200,10 @@ describe('Plugin Configuration (README: Basic Setup)', () => {
     expect(isAutoInitTokensEnabled(false)).toBe(false);
   });
 
-  it('resolves pluginSurface to core by default and honors overrides', () => {
-    expect(resolvePluginSurface()).toBe('core');
-    configureCotiPlugin({ pluginSurface: 'bridge' });
-    expect(resolvePluginSurface()).toBe('bridge');
-    expect(resolvePluginSurface('core')).toBe('core');
+  it('resolves pluginFeatures to none by default and honors overrides', () => {
+    expect(resolvePluginFeatures()).toEqual([]);
+    configureCotiPlugin({ pluginFeatures: ['tokens', 'portal', 'pod'] });
+    expect(resolvePluginFeatures()).toEqual([...COTI_PLUGIN_FEATURES]);
+    expect(resolvePluginFeatures([])).toEqual([]);
   });
 });

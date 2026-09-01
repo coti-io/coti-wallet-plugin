@@ -19,7 +19,7 @@ Host apps must unlock through the provider controller — not a one-off modal or
 </CotiPluginProvider>
 ```
 
-Default surface is `core` (wallet + unlock). Token lists, swap/fees, and PoD tracking require `surface="bridge"`.
+Default is core only (wallet + unlock). Token lists, Privacy Portal swap/fees, and PoD tracking are opt-in via `features={['tokens', 'portal', 'pod']}`.
 
 From components: `usePrivateUnlock().unlock()`, `.lock()`, or `.requireUnlock(action)`.
 
