@@ -46,12 +46,17 @@ import {
 export function Root() {
   return (
     <WagmiRainbowKitProvider walletConnectProjectId={walletConnectProjectId}>
+      {/* Default surface is `core`: wallet + AES unlock only. */}
       <PrivacyBridgeProvider>
         <App />
       </PrivacyBridgeProvider>
     </WagmiRainbowKitProvider>
   );
 }
+
+// Token lists, bridge fees, and PoD request tracking:
+// <PrivacyBridgeProvider surface="bridge">
+
 ```
 
 See the [integration guide](https://docs.coti.io/coti-documentation/build-on-coti/tools/coti-wallet-plugin/integration-guide) for provider setup, unlock flow, and private operations.

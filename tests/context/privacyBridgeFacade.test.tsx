@@ -277,7 +277,7 @@ describe('privacyBridge facade', () => {
     }
 
     render(
-      <PrivacyBridgeProvider>
+      <PrivacyBridgeProvider surface="bridge">
         <Probe />
       </PrivacyBridgeProvider>,
     );
@@ -292,7 +292,7 @@ describe('privacyBridge facade', () => {
 
     await act(async () => {
       render(
-        <PrivacyBridgeProvider>
+        <PrivacyBridgeProvider surface="bridge">
           <Probe />
         </PrivacyBridgeProvider>,
       );
@@ -313,7 +313,7 @@ describe('privacyBridge facade', () => {
 
     await act(async () => {
       render(
-        <PrivacyBridgeProvider>
+        <PrivacyBridgeProvider surface="bridge">
           <Probe />
         </PrivacyBridgeProvider>,
       );
@@ -336,7 +336,7 @@ describe('privacyBridge facade', () => {
 
     await act(async () => {
       render(
-        <PrivacyBridgeProvider>
+        <PrivacyBridgeProvider surface="bridge">
           <Probe />
         </PrivacyBridgeProvider>,
       );
@@ -354,7 +354,7 @@ describe('privacyBridge facade', () => {
     }
 
     render(
-      <PrivacyBridgeProvider>
+      <PrivacyBridgeProvider surface="bridge">
         <Probe />
       </PrivacyBridgeProvider>,
     );
@@ -379,7 +379,7 @@ describe('privacyBridge facade', () => {
     h.connectWallet.mockResolvedValueOnce(false);
 
     render(
-      <PrivacyBridgeProvider>
+      <PrivacyBridgeProvider surface="bridge">
         <Probe />
       </PrivacyBridgeProvider>,
     );
@@ -405,7 +405,7 @@ describe('privacyBridge facade', () => {
 
     await act(async () => {
       render(
-        <PrivacyBridgeProvider>
+        <PrivacyBridgeProvider surface="bridge">
           <Probe />
         </PrivacyBridgeProvider>,
       );
@@ -433,14 +433,14 @@ describe('privacyBridge facade', () => {
     h.wagmi.connector = { id: 'io.metamask', name: 'MetaMask' };
 
     const { rerender } = render(
-      <PrivacyBridgeProvider>
+      <PrivacyBridgeProvider surface="bridge">
         <Probe />
       </PrivacyBridgeProvider>,
     );
 
     await act(async () => {
       rerender(
-        <PrivacyBridgeProvider>
+        <PrivacyBridgeProvider surface="bridge">
           <Probe />
         </PrivacyBridgeProvider>,
       );
@@ -453,12 +453,45 @@ describe('privacyBridge facade', () => {
 
     await act(async () => {
       rerender(
-        <PrivacyBridgeProvider>
+        <PrivacyBridgeProvider surface="bridge">
           <Probe />
         </PrivacyBridgeProvider>,
       );
     });
 
     expect(wallet!.metamaskDetected).toBe(false);
+  });
+});
+
+describe('PrivacyBridgeProvider surface=core (default)', () => {
+  beforeEach(() => {
+    h.wagmi.address = undefined;
+    h.wagmi.isConnected = false;
+    h.wagmi.chainId = 7082400;
+    h.wagmi.connector = undefined;
+  });
+
+  it('does not mount swap/fee APIs and leaves token lists empty', () => {
+    let swap: ReturnType<typeof usePrivacyBridgeSwap> | null = null;
+    let tokens: ReturnType<typeof usePrivacyBridgeTokens> | null = null;
+    let pod: ReturnType<typeof usePrivacyBridgePod> | null = null;
+
+    function Probe() {
+      swap = usePrivacyBridgeSwap();
+      tokens = usePrivacyBridgeTokens();
+      pod = usePrivacyBridgePod();
+      return null;
+    }
+
+    render(
+      <PrivacyBridgeProvider>
+        <Probe />
+      </PrivacyBridgeProvider>,
+    );
+
+    expect(tokens!.publicTokens).toEqual([]);
+    expect(tokens!.privateTokens).toEqual([]);
+    expect(pod!.podRequests).toEqual([]);
+    expect(() => swap!.handleSwap()).toThrow(/surface="bridge"/);
   });
 });

@@ -5,9 +5,11 @@ export {
   getSnapRequestParams,
   isSnapEnabled,
   isAutoInitTokensEnabled,
+  resolvePrivacyBridgeSurface,
 } from './config/plugin';
 export type {
   CotiPluginConfig,
+  CotiPluginSurface,
   AesKeyChainId,
   EncryptedAesBackup,
   GrantResult,

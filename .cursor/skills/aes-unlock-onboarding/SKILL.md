@@ -19,6 +19,8 @@ Host apps must unlock through the provider controller — not a one-off modal or
 </PrivacyBridgeProvider>
 ```
 
+Default surface is `core` (wallet + unlock). Token lists, swap/fees, and PoD tracking require `surface="bridge"`.
+
 From components: `usePrivateUnlock().unlock()`, `.lock()`, or `.requireUnlock(action)`.
 
 **Do not** orchestrate unlock with:
