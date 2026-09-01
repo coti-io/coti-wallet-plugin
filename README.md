@@ -46,7 +46,7 @@ import {
 export function Root() {
   return (
     <WagmiRainbowKitProvider walletConnectProjectId={walletConnectProjectId}>
-      {/* Default surface is `core`: wallet + AES unlock only. */}
+      {/* Default is core only: wallet + AES unlock. */}
       <CotiPluginProvider>
         <App />
       </CotiPluginProvider>
@@ -54,8 +54,8 @@ export function Root() {
   );
 }
 
-// Token lists, bridge fees, and PoD request tracking:
-// <CotiPluginProvider surface="bridge">
+// Token lists, Privacy Portal, and/or PoD tracking:
+// <CotiPluginProvider features={['tokens', 'portal', 'pod']}>
 
 ```
 

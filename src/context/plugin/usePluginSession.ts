@@ -15,8 +15,8 @@ interface UsePluginSessionOptions {
 
 /**
  * Composes wallet, network, balance sync, wagmi sync, connection, and unlock sub-hooks.
- * Runs for both `core` and `bridge` surfaces. Return shape is unchanged for
- * {@link CotiPluginProvider} and existing API clients.
+ * Always runs (core). Token catalog seeding follows `autoInitTokens`.
+ * Return shape is unchanged for {@link CotiPluginProvider} and existing API clients.
  */
 export const usePluginSession = ({
   modals,

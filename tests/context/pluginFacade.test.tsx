@@ -277,7 +277,7 @@ describe('privacyBridge facade', () => {
     }
 
     render(
-      <CotiPluginProvider surface="bridge">
+      <CotiPluginProvider features={['tokens', 'portal', 'pod']}>
         <Probe />
       </CotiPluginProvider>,
     );
@@ -292,7 +292,7 @@ describe('privacyBridge facade', () => {
 
     await act(async () => {
       render(
-        <CotiPluginProvider surface="bridge">
+        <CotiPluginProvider features={['tokens', 'portal', 'pod']}>
           <Probe />
         </CotiPluginProvider>,
       );
@@ -313,7 +313,7 @@ describe('privacyBridge facade', () => {
 
     await act(async () => {
       render(
-        <CotiPluginProvider surface="bridge">
+        <CotiPluginProvider features={['tokens', 'portal', 'pod']}>
           <Probe />
         </CotiPluginProvider>,
       );
@@ -336,7 +336,7 @@ describe('privacyBridge facade', () => {
 
     await act(async () => {
       render(
-        <CotiPluginProvider surface="bridge">
+        <CotiPluginProvider features={['tokens', 'portal', 'pod']}>
           <Probe />
         </CotiPluginProvider>,
       );
@@ -354,7 +354,7 @@ describe('privacyBridge facade', () => {
     }
 
     render(
-      <CotiPluginProvider surface="bridge">
+      <CotiPluginProvider features={['tokens', 'portal', 'pod']}>
         <Probe />
       </CotiPluginProvider>,
     );
@@ -379,7 +379,7 @@ describe('privacyBridge facade', () => {
     h.connectWallet.mockResolvedValueOnce(false);
 
     render(
-      <CotiPluginProvider surface="bridge">
+      <CotiPluginProvider features={['tokens', 'portal', 'pod']}>
         <Probe />
       </CotiPluginProvider>,
     );
@@ -405,7 +405,7 @@ describe('privacyBridge facade', () => {
 
     await act(async () => {
       render(
-        <CotiPluginProvider surface="bridge">
+        <CotiPluginProvider features={['tokens', 'portal', 'pod']}>
           <Probe />
         </CotiPluginProvider>,
       );
@@ -433,14 +433,14 @@ describe('privacyBridge facade', () => {
     h.wagmi.connector = { id: 'io.metamask', name: 'MetaMask' };
 
     const { rerender } = render(
-      <CotiPluginProvider surface="bridge">
+      <CotiPluginProvider features={['tokens', 'portal', 'pod']}>
         <Probe />
       </CotiPluginProvider>,
     );
 
     await act(async () => {
       rerender(
-        <CotiPluginProvider surface="bridge">
+        <CotiPluginProvider features={['tokens', 'portal', 'pod']}>
           <Probe />
         </CotiPluginProvider>,
       );
@@ -453,7 +453,7 @@ describe('privacyBridge facade', () => {
 
     await act(async () => {
       rerender(
-        <CotiPluginProvider surface="bridge">
+        <CotiPluginProvider features={['tokens', 'portal', 'pod']}>
           <Probe />
         </CotiPluginProvider>,
       );
@@ -463,7 +463,7 @@ describe('privacyBridge facade', () => {
   });
 });
 
-describe('CotiPluginProvider surface=core (default)', () => {
+describe('CotiPluginProvider default (core only)', () => {
   beforeEach(() => {
     h.wagmi.address = undefined;
     h.wagmi.isConnected = false;
@@ -492,6 +492,6 @@ describe('CotiPluginProvider surface=core (default)', () => {
     expect(tokens!.publicTokens).toEqual([]);
     expect(tokens!.privateTokens).toEqual([]);
     expect(pod!.podRequests).toEqual([]);
-    expect(() => swap!.handleSwap()).toThrow(/surface="bridge"/);
+    expect(() => swap!.handleSwap()).toThrow(/"portal"/);
   });
 });

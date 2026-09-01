@@ -10,8 +10,13 @@ export const DEFAULT_ONBOARDING_GRANT_MIN_BALANCE_WEI = '200000000000000000';
 
 export type AesKeyChainId = typeof COTI_TESTNET_CHAIN_ID | typeof COTI_MAINNET_CHAIN_ID;
 
-/** Which CotiPluginProvider subsystems to mount. */
-export type CotiPluginSurface = 'core' | 'bridge';
+/** Optional CotiPluginProvider subsystems. Core (wallet, network, unlock) is always on. */
+export const COTI_PLUGIN_FEATURES = ['tokens', 'portal', 'pod'] as const;
+export type CotiPluginFeature = (typeof COTI_PLUGIN_FEATURES)[number];
+
+function isCotiPluginFeature(value: unknown): value is CotiPluginFeature {
+  return value === 'tokens' || value === 'portal' || value === 'pod';
+}
 
 export interface EncryptedAesBackup {
   version: 2;
@@ -108,19 +113,20 @@ export interface CotiPluginConfig {
    */
   waitForBalanceRefreshAfterTransfer?: boolean;
   /**
-   * Which CotiPluginProvider subsystems to mount.
-   * - `core` (default): wallet, network, AES unlock / encrypt / decrypt / send.
-   *   Does not seed token lists, quote bridge fees, or poll PoD requests.
-   * - `bridge`: full portal shell (tokens, swap/fees, PoD tracker). Token
-   *   auto-init still follows {@link autoInitTokens}.
+   * Optional subsystems to mount on top of core (wallet, network, AES unlock /
+   * encrypt / decrypt / send). Default `[]` is core only.
+   * - `tokens`: public/private catalogs and balances (`useCotiTokens`).
+   * - `portal`: Privacy Portal swap, fees, and approvals (`useCotiSwap`).
+   *   Implies `tokens`.
+   * - `pod`: PoD request persist and poll (`useCotiPod`).
    */
-  pluginSurface?: CotiPluginSurface;
+  pluginFeatures?: CotiPluginFeature[];
   /**
    * When true (default), the provider seeds public/private token lists on mount
    * and fetches balances on wallet connect, account switch, and chain change.
-   * Only applies when {@link pluginSurface} is `bridge`.
-   * Set false for hosts that opt into the bridge shell but fetch tokens later
-   * via `refreshPublicBalances` / `refreshPrivateBalances` / `unlock()`.
+   * Only applies when `tokens` is enabled (including via `portal`).
+   * Set false for hosts that opt into tokens but fetch later via
+   * `refreshPublicBalances` / `refreshPrivateBalances` / `unlock()`.
    */
   autoInitTokens?: boolean;
   /** Optional onboarding service hooks for grant and encrypted AES backup flows. */
@@ -169,7 +175,7 @@ let _config: CotiPluginConfig = {
   debug: false,
   clearSessionKeyOnWagmiDisconnect: true,
   waitForBalanceRefreshAfterTransfer: false,
-  pluginSurface: 'core',
+  pluginFeatures: [],
   autoInitTokens: true,
   onboardingServices: { mode: 'disabled' },
   onboardingGrantEnabled: true,
@@ -298,7 +304,7 @@ export function isSnapEnabled(): boolean {
 /**
  * Whether the provider should seed token lists and fetch balances automatically.
  * `override` is the optional `CotiPluginProvider autoInitTokens` prop.
- * Token auto-init is ignored unless the resolved surface is `bridge`.
+ * Token auto-init is ignored unless the `tokens` feature is on.
  */
 export function isAutoInitTokensEnabled(override?: boolean): boolean {
   if (typeof override === 'boolean') return override;
@@ -306,12 +312,18 @@ export function isAutoInitTokensEnabled(override?: boolean): boolean {
 }
 
 /**
- * Which CotiPluginProvider subsystems to mount.
- * `override` is the optional `CotiPluginProvider surface` prop.
+ * Optional subsystems to mount. Core is always on.
+ * `override` is the optional `CotiPluginProvider features` prop.
+ * `portal` always includes `tokens`. Order is tokens, portal, pod.
  */
-export function resolvePluginSurface(
-  override?: CotiPluginSurface,
-): CotiPluginSurface {
-  if (override === 'core' || override === 'bridge') return override;
-  return getPluginConfig().pluginSurface === 'bridge' ? 'bridge' : 'core';
+export function resolvePluginFeatures(
+  override?: readonly CotiPluginFeature[],
+): CotiPluginFeature[] {
+  const source = override ?? getPluginConfig().pluginFeatures ?? [];
+  const enabled = new Set<CotiPluginFeature>();
+  for (const feature of source) {
+    if (isCotiPluginFeature(feature)) enabled.add(feature);
+  }
+  if (enabled.has('portal')) enabled.add('tokens');
+  return COTI_PLUGIN_FEATURES.filter(feature => enabled.has(feature));
 }

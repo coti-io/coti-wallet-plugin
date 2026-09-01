@@ -94,7 +94,7 @@ interface UseBalanceUpdaterProps {
     setSessionAesKey: (key: string | null, keyWallet?: string) => void;
     /**
      * When false, skip chain token catalogs and balance RPCs. Address/session AES
-     * updates still run (core surface / autoInitTokens off).
+     * updates still run (tokens feature off / autoInitTokens off).
      */
     autoInitTokens?: boolean;
     /** MetaMask-only: read-only Snap key validation on explicit unlock. */
