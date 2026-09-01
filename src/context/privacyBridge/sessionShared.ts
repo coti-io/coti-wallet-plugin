@@ -20,7 +20,8 @@ export type UpdateAccountStateFn = (
   options?: UpdateAccountStateOptions & AesKeyProviderOptions,
 ) => Promise<boolean>;
 
-export interface PrivacyBridgeSessionCore {
+/** Wallet, Snap, and AES-session state. Runs for both `core` and `bridge` surfaces. */
+export interface PluginSessionState {
   modals: PrivacyBridgeModalsContextValue;
   isConnected: boolean;
   setIsConnected: Dispatch<SetStateAction<boolean>>;

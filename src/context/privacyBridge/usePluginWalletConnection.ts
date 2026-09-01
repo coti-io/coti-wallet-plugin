@@ -7,24 +7,24 @@ import {
   getInitialPublicTokens,
   getInitialPrivateTokens,
 } from '../../hooks/usePrivacyBridge';
-import type { PrivacyBridgeAccountSync } from './usePrivacyBridgeAccountSync';
-import type { PrivacyBridgeNetworkSession } from './usePrivacyBridgeNetworkSession';
-import type { PrivacyBridgeSessionCore } from './sessionShared';
+import type { PluginAccountSync } from './usePluginAccountSync';
+import type { PluginNetworkSession } from './usePluginNetworkSession';
+import type { PluginSessionState } from './sessionShared';
 
-interface UsePrivacyBridgeWalletConnectionOptions {
-  core: PrivacyBridgeSessionCore;
-  network: PrivacyBridgeNetworkSession;
-  accountSync: PrivacyBridgeAccountSync;
+interface UsePluginWalletConnectionOptions {
+  core: PluginSessionState;
+  network: PluginNetworkSession;
+  accountSync: PluginAccountSync;
   autoInitTokens?: boolean;
 }
 
 /** MetaMask connect/disconnect flows. */
-export const usePrivacyBridgeWalletConnection = ({
+export const usePluginWalletConnection = ({
   core,
   network,
   accountSync,
   autoInitTokens: autoInitTokensProp,
-}: UsePrivacyBridgeWalletConnectionOptions) => {
+}: UsePluginWalletConnectionOptions) => {
   const {
     modals: { setShowInstallModal, setShowMultipleWalletsModal },
     metamaskExplicitConnect,

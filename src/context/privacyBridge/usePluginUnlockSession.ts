@@ -9,9 +9,9 @@ import {
   getInitialPrivateTokens,
 } from '../../hooks/usePrivacyBridge';
 import { useWalletType } from '../../hooks/useWalletType';
-import type { PrivacyBridgeAccountSync } from './usePrivacyBridgeAccountSync';
-import type { PrivacyBridgeNetworkSession } from './usePrivacyBridgeNetworkSession';
-import type { PrivacyBridgeSessionCore } from './sessionShared';
+import type { PluginAccountSync } from './usePluginAccountSync';
+import type { PluginNetworkSession } from './usePluginNetworkSession';
+import type { PluginSessionState } from './sessionShared';
 import type { AesKeyProviderOptions } from '../../hooks/useAesKeyProvider';
 import { normalizeAesKey } from '../../crypto/aesKey';
 import { resolveAesKeyChainId } from '../../lib/aesAccessStrategy';
@@ -38,20 +38,20 @@ import {
 } from '../../hooks/privacyBridge/privateValueCrypto';
 import type { RefreshPrivateBalancesOptions } from './types';
 
-interface UsePrivacyBridgeUnlockSessionOptions {
-  core: PrivacyBridgeSessionCore;
-  network: PrivacyBridgeNetworkSession;
-  accountSync: PrivacyBridgeAccountSync;
+interface UsePluginUnlockSessionOptions {
+  core: PluginSessionState;
+  network: PluginNetworkSession;
+  accountSync: PluginAccountSync;
   autoInitTokens?: boolean;
 }
 
 /** Snap/AES unlock, private balance refresh, and hard lock flows. */
-export const usePrivacyBridgeUnlockSession = ({
+export const usePluginUnlockSession = ({
   core,
   network,
   accountSync,
   autoInitTokens: autoInitTokensProp,
-}: UsePrivacyBridgeUnlockSessionOptions) => {
+}: UsePluginUnlockSessionOptions) => {
   const {
     walletAddress,
     sessionAesKey,
@@ -606,4 +606,4 @@ export const usePrivacyBridgeUnlockSession = ({
   };
 };
 
-export type PrivacyBridgeUnlockSession = ReturnType<typeof usePrivacyBridgeUnlockSession>;
+export type PluginUnlockSession = ReturnType<typeof usePluginUnlockSession>;

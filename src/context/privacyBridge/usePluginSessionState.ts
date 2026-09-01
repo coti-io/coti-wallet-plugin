@@ -11,19 +11,19 @@ import {
   type Token,
 } from '../../hooks/usePrivacyBridge';
 import type { PrivacyBridgeModalsContextValue } from './types';
-import { usePrivacyBridgeSessionKey } from './usePrivacyBridgeSessionKey';
-import type { PrivacyBridgeSessionCore } from './sessionShared';
+import { usePluginSessionKey } from './usePluginSessionKey';
+import type { PluginSessionState } from './sessionShared';
 
-interface UsePrivacyBridgeSessionCoreOptions {
+interface UsePluginSessionStateOptions {
   modals: PrivacyBridgeModalsContextValue;
   autoInitTokens?: boolean;
 }
 
-/** Shared wallet, token, snap, and session-key state for the bridge provider. */
-export const usePrivacyBridgeSessionCore = ({
+/** Wallet, Snap, and AES-session state. Not specific to the portal/bridge surface. */
+export const usePluginSessionState = ({
   modals,
   autoInitTokens: autoInitTokensProp,
-}: UsePrivacyBridgeSessionCoreOptions): PrivacyBridgeSessionCore => {
+}: UsePluginSessionStateOptions): PluginSessionState => {
   const autoInitTokens = isAutoInitTokensEnabled(autoInitTokensProp);
   const [isConnected, setIsConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState('');
@@ -50,7 +50,7 @@ export const usePrivacyBridgeSessionCore = ({
     setSessionAesKey,
     arePrivateBalancesHidden,
     setArePrivateBalancesHidden,
-  } = usePrivacyBridgeSessionKey(walletAddress);
+  } = usePluginSessionKey(walletAddress);
 
   const {
     isSnapInstalled,

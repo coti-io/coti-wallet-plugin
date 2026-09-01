@@ -11,24 +11,24 @@ import {
   getInitialPublicTokens,
   getInitialPrivateTokens,
 } from '../../hooks/usePrivacyBridge';
-import type { PrivacyBridgeNetworkSession } from './usePrivacyBridgeNetworkSession';
-import type { PrivacyBridgeSessionCore, UpdateAccountStateRef } from './sessionShared';
+import type { PluginNetworkSession } from './usePluginNetworkSession';
+import type { PluginSessionState, UpdateAccountStateRef } from './sessionShared';
 import type { AesKeyProviderOptions } from '../../hooks/useAesKeyProvider';
 
-interface UsePrivacyBridgeAccountSyncOptions {
-  core: PrivacyBridgeSessionCore;
-  network: PrivacyBridgeNetworkSession;
+interface UsePluginAccountSyncOptions {
+  core: PluginSessionState;
+  network: PluginNetworkSession;
   updateAccountStateRef: UpdateAccountStateRef;
   autoInitTokens?: boolean;
 }
 
 /** Balance refresh, token list resets, and session-key-driven account updates. */
-export const usePrivacyBridgeAccountSync = ({
+export const usePluginAccountSync = ({
   core,
   network,
   updateAccountStateRef,
   autoInitTokens: autoInitTokensProp,
-}: UsePrivacyBridgeAccountSyncOptions) => {
+}: UsePluginAccountSyncOptions) => {
   const {
     setWalletAddress,
     setIsConnected,
@@ -186,4 +186,4 @@ export const usePrivacyBridgeAccountSync = ({
   return { updateAccountState, currentChainId };
 };
 
-export type PrivacyBridgeAccountSync = ReturnType<typeof usePrivacyBridgeAccountSync>;
+export type PluginAccountSync = ReturnType<typeof usePluginAccountSync>;

@@ -38,9 +38,9 @@ vi.mock('../../src/hooks/usePrivateTokenBalance', () => ({
   usePrivateTokenBalance: () => ({ fetchPrivateBalance: vi.fn() }),
 }));
 
-import { usePrivacyBridgeSessionCore } from '../../src/context/privacyBridge/usePrivacyBridgeSessionCore';
+import { usePluginSessionState } from '../../src/context/privacyBridge/usePluginSessionState';
 
-describe('usePrivacyBridgeSessionCore — checkSnapStatus', () => {
+describe('usePluginSessionState — checkSnapStatus', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     h.isSnapInstalled.mockResolvedValue(false);
@@ -48,7 +48,7 @@ describe('usePrivacyBridgeSessionCore — checkSnapStatus', () => {
 
   it('updates hasSnap from isSnapInstalled and returns the result', async () => {
     h.isSnapInstalled.mockResolvedValue(true);
-    const { result } = renderHook(() => usePrivacyBridgeSessionCore({ modals: {} as any }));
+    const { result } = renderHook(() => usePluginSessionState({ modals: {} as any }));
 
     let installed = false;
     await act(async () => {
@@ -66,7 +66,7 @@ describe('usePrivacyBridgeSessionCore — checkSnapStatus', () => {
       () => new Promise<boolean>(resolve => { resolveInstall = resolve; }),
     );
 
-    const { result } = renderHook(() => usePrivacyBridgeSessionCore({ modals: {} as any }));
+    const { result } = renderHook(() => usePluginSessionState({ modals: {} as any }));
 
     let first!: Promise<boolean>;
     let second!: Promise<boolean>;

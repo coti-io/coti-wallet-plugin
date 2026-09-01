@@ -4,8 +4,8 @@ import {
   resolvePrivacyBridgeSurface,
   type CotiPluginSurface,
 } from '../../config/plugin';
-import { usePrivacyBridgeModalsState } from './usePrivacyBridgeModalsState';
-import { usePrivacyBridgeSession } from './usePrivacyBridgeSession';
+import { usePluginModalsState } from './usePluginModalsState';
+import { usePluginSession } from './usePluginSession';
 import { usePrivacyBridgePodState } from './usePrivacyBridgePodState';
 import {
   PrivacyBridgeContext,
@@ -40,8 +40,8 @@ export interface PrivacyBridgeProviderProps {
   autoInitTokens?: boolean;
 }
 
-type Session = ReturnType<typeof usePrivacyBridgeSession>;
-type Modals = ReturnType<typeof usePrivacyBridgeModalsState>;
+type Session = ReturnType<typeof usePluginSession>;
+type Modals = ReturnType<typeof usePluginModalsState>;
 
 const buildWalletSlice = (session: Session): PrivacyBridgeContextSlices['wallet'] => ({
   isConnected: session.isConnected,
@@ -278,8 +278,8 @@ export const PrivacyBridgeProvider: React.FC<PrivacyBridgeProviderProps> = ({
 }) => {
   const resolvedSurface = resolvePrivacyBridgeSurface(surface);
   const enableBridge = resolvedSurface === 'bridge';
-  const modals = usePrivacyBridgeModalsState();
-  const session = usePrivacyBridgeSession({
+  const modals = usePluginModalsState();
+  const session = usePluginSession({
     modals,
     autoInitTokens: enableBridge ? autoInitTokens : false,
   });

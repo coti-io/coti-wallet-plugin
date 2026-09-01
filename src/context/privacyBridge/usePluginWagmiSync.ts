@@ -8,9 +8,9 @@ import { clearAesKeyValidatedForUnlock } from '../../crypto/aesKeyValidation';
 import { getInitialPrivateTokens } from '../../hooks/usePrivacyBridge';
 import { reportPluginError, hasCotiErrorCode, CotiErrorCode } from '../../errors';
 import { isRateLimitedRpcError } from '../../lib/rpcProvider';
-import type { PrivacyBridgeAccountSync } from './usePrivacyBridgeAccountSync';
-import type { PrivacyBridgeNetworkSession } from './usePrivacyBridgeNetworkSession';
-import type { PrivacyBridgeSessionCore } from './sessionShared';
+import type { PluginAccountSync } from './usePluginAccountSync';
+import type { PluginNetworkSession } from './usePluginNetworkSession';
+import type { PluginSessionState } from './sessionShared';
 
 const reportBalanceRefreshFailure = (context: string, err: unknown) => {
   logger.error(context, err);
@@ -22,20 +22,20 @@ const reportBalanceRefreshFailure = (context: string, err: unknown) => {
   }
 };
 
-interface UsePrivacyBridgeWagmiSyncOptions {
-  core: PrivacyBridgeSessionCore;
-  network: PrivacyBridgeNetworkSession;
-  accountSync: PrivacyBridgeAccountSync;
+interface UsePluginWagmiSyncOptions {
+  core: PluginSessionState;
+  network: PluginNetworkSession;
+  accountSync: PluginAccountSync;
   autoInitTokens?: boolean;
 }
 
 /** Syncs RainbowKit/wagmi connection state into the bridge session. */
-export const usePrivacyBridgeWagmiSync = ({
+export const usePluginWagmiSync = ({
   core,
   network,
   accountSync,
   autoInitTokens: autoInitTokensProp,
-}: UsePrivacyBridgeWagmiSyncOptions) => {
+}: UsePluginWagmiSyncOptions) => {
   const {
     isConnected,
     walletAddress,
