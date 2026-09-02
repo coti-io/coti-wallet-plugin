@@ -670,7 +670,6 @@ export function usePrivateUnlockController(
       error={visibleModalError}
       walletType={walletTypeInfo.walletType}
       currentStep={currentStep}
-      aesKey={currentStep === 'complete' ? sessionAesKey : null}
       saveBackup={saveBackup}
       showSaveBackupOption={!usesSnapStorage}
       onSaveBackupChange={setSaveBackup}

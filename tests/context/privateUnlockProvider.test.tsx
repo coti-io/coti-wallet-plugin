@@ -146,7 +146,7 @@ describe('PrivateUnlockProvider', () => {
 
     expect(onboardModalProps?.isOpen).toBe(true);
     expect(onboardModalProps?.currentStep).toBe('complete');
-    expect(onboardModalProps?.aesKey).toBe('d'.repeat(32));
+    expect(onboardModalProps?.currentStep).toBe('complete');
     expect(pendingAction).not.toHaveBeenCalled();
 
     await act(async () => {

@@ -256,23 +256,14 @@ describe('OnboardModal', () => {
     expect(screen.queryByLabelText('Manual AES key')).not.toBeInTheDocument();
   });
 
-  it('shows retrieved AES key in an input with inline eye and copy controls', async () => {
-    const aesKey = 'abcdef0123456789abcdef0123456789';
-    render(<OnboardModal {...defaultProps} currentStep="complete" aesKey={aesKey} />);
+  it('confirms onboarding without showing or copying the AES key', () => {
+    render(<OnboardModal {...defaultProps} currentStep="complete" />);
 
-    const keyInput = screen.getByLabelText('Retrieved AES key');
-    expect(keyInput).toHaveAttribute('type', 'password');
-    expect(keyInput).toHaveValue(aesKey);
-    expect(screen.queryByText('Copy AES Key')).not.toBeInTheDocument();
-    expect(screen.queryByText('Show AES Key')).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByLabelText('Show AES key'));
-    expect(keyInput).toHaveAttribute('type', 'text');
-
-    fireEvent.click(screen.getByLabelText('Copy AES key'));
-    await waitFor(() => {
-      expect(navigator.clipboard.writeText).toHaveBeenCalledWith(aesKey);
-    });
+    expect(screen.getByText('Onboarding Complete')).toBeInTheDocument();
+    expect(screen.getByText(/not shown or copied/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText('Retrieved AES key')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Copy AES key')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Show AES key')).not.toBeInTheDocument();
   });
 
   it('calls onClose when "Cancel" or backdrop is clicked', () => {
@@ -451,7 +442,6 @@ describe('OnboardModal', () => {
         {...defaultProps}
         theme={lightTheme}
         currentStep="complete"
-        aesKey="abcdef0123456789abcdef0123456789"
       />
     );
 
@@ -485,21 +475,15 @@ describe('OnboardModal', () => {
     expect(screen.getByTestId('finalizing-callout')).toHaveTextContent('privacy key backup');
   });
 
-  it('keeps the copied AES key when clipboard write fails', async () => {
-    const writeText = vi.fn().mockRejectedValue(new Error('denied'));
-    Object.defineProperty(navigator, 'clipboard', {
-      configurable: true,
-      value: { writeText },
-    });
+  it('does not copy the AES key from the success screen', () => {
     render(
       <OnboardModal
         {...defaultProps}
         currentStep="complete"
-        aesKey="abcdef0123456789abcdef0123456789"
       />,
     );
-    fireEvent.click(screen.getByLabelText('Copy AES key'));
-    await waitFor(() => expect(writeText).toHaveBeenCalled());
+    expect(screen.queryByLabelText('Copy AES key')).not.toBeInTheDocument();
+    expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
   });
 
   it('shows a generic error when manual AES key submit rejects a non-Error', async () => {

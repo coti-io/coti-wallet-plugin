@@ -7,7 +7,6 @@ describe('deriveOnboardScreen', () => {
       currentStep: 'idle',
       isLoading: false,
       error: null,
-      aesKey: null,
     })).toBe('intro');
   });
 
@@ -16,7 +15,6 @@ describe('deriveOnboardScreen', () => {
       currentStep: 'idle',
       isLoading: true,
       error: null,
-      aesKey: null,
     })).toBe('intro');
   });
 
@@ -25,7 +23,6 @@ describe('deriveOnboardScreen', () => {
       currentStep: 'validating-key',
       isLoading: false,
       error: null,
-      aesKey: null,
     })).toBe('progress');
   });
 
@@ -34,31 +31,21 @@ describe('deriveOnboardScreen', () => {
       currentStep: 'signing-backup',
       isLoading: false,
       error: null,
-      aesKey: null,
     })).toBe('none');
   });
 
-  it('shows success only when complete has a key', () => {
+  it('shows success when onboarding is complete', () => {
     expect(deriveOnboardScreen({
       currentStep: 'complete',
       isLoading: false,
       error: null,
-      aesKey: 'a'.repeat(32),
     })).toBe('success');
-
-    expect(deriveOnboardScreen({
-      currentStep: 'complete',
-      isLoading: false,
-      error: null,
-      aesKey: null,
-    })).toBe('none');
 
     expect(deriveOnboardScreen({
       currentStep: 'complete',
       isLoading: true,
       error: null,
-      aesKey: null,
-    })).toBe('progress');
+    })).toBe('success');
   });
 
   it('gives errors precedence over loading and success state', () => {
@@ -66,14 +53,12 @@ describe('deriveOnboardScreen', () => {
       currentStep: 'complete',
       isLoading: true,
       error: 'boom',
-      aesKey: 'a'.repeat(32),
     })).toBe('error');
 
     expect(deriveOnboardScreen({
       currentStep: 'error',
       isLoading: false,
       error: null,
-      aesKey: null,
     })).toBe('error');
   });
 });
