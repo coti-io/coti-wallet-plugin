@@ -222,12 +222,13 @@ describe('usePrivateTokenBalance (contract paths)', () => {
     expect(h.getSigner).not.toHaveBeenCalled();
   });
 
-  it('returns "0.00" on an unexpected (non-Coti) error', async () => {
+  it('throws on an unexpected fetch error instead of reporting a zero balance', async () => {
     (window as any).ethereum = {};
     h.balanceOf.mockRejectedValue(new Error('provider unavailable'));
     const { result } = renderHook(() => usePrivateTokenBalance());
-    const bal = await result.current.fetchPrivateBalance(USER, 'a'.repeat(32), CONTRACT, 256, 18);
-    expect(bal).toBe('0.00');
+    await expect(
+      result.current.fetchPrivateBalance(USER, 'a'.repeat(32), CONTRACT, 256, 18),
+    ).rejects.toThrow('provider unavailable');
   });
 
   it('throws AES_KEY_MISMATCH on Invalid encrypted payload Snap errors', async () => {

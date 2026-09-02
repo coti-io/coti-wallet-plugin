@@ -54,19 +54,19 @@ describe('usePrivateTokenBalance', () => {
     expect(balance).toBe('0.00');
   });
 
-  it('returns "0.00" on general contract error (non-AES mismatch)', async () => {
+  it('throws on a general contract error instead of reporting a zero balance', async () => {
     // window.ethereum is set in setup.ts; provider will fail when creating BrowserProvider
     // since the mock doesn't support full ethers flow
     const { result } = renderHook(() => usePrivateTokenBalance());
-    const balance = await result.current.fetchPrivateBalance(
-      '0x1234567890abcdef1234567890abcdef12345678',
-      'a'.repeat(32),
-      '0x1234567890abcdef1234567890abcdef12345678',
-      256,
-      18,
-    );
-    // Should return '0.00' since the mock provider can't create a real BrowserProvider
-    expect(balance).toBe('0.00');
+    await expect(
+      result.current.fetchPrivateBalance(
+        '0x1234567890abcdef1234567890abcdef12345678',
+        'a'.repeat(32),
+        '0x1234567890abcdef1234567890abcdef12345678',
+        256,
+        18,
+      ),
+    ).rejects.toBeDefined();
   });
 
   it('rethrows AES key mismatch errors', async () => {

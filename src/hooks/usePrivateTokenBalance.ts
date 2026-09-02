@@ -179,8 +179,10 @@ export const usePrivateTokenBalance = () => {
                 );
             }
 
+            // A failed RPC/decode is not a zero balance. Returning "0.00" here
+            // would let unlock succeed with empty private rows.
             logger.error(`❌ Failed to fetch/decrypt for ${contractAddress}`, error);
-            return '0.00';
+            throw error instanceof Error ? error : new Error(message || 'Failed to fetch private balance');
         }
     }, []);
 
