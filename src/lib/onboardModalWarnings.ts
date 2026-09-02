@@ -22,8 +22,8 @@ export function mergeOnboardModalWarnings(
 
 export function getDefaultSuccessWarning(saveBackup: boolean): string {
   return saveBackup
-    ? 'Important: An encrypted backup can help restore this key later, but you should still store it safely.'
-    : 'Important: This key will be lost when you refresh the page. Store it in a secure location.';
+    ? 'Important: An encrypted backup can restore this key later. The plaintext key stays in this session only.'
+    : 'Important: This session key is cleared when you refresh. Enable Save Locally next time if you want an encrypted backup.';
 }
 
 /** One warning per page: runtime > app > plugin default (success only). */

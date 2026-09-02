@@ -653,7 +653,7 @@ describe('usePrivateUnlockFlow', () => {
 
     expect(result.current.showOnboardModal).toBe(true);
     expect(result.current.onboardModal.props.currentStep).toBe('complete');
-    expect(result.current.onboardModal.props.aesKey).toBe('c'.repeat(32));
+    expect(result.current.onboardModal.props.aesKey).toBeUndefined();
     expect(onUnlocked).not.toHaveBeenCalled();
     expect(pendingAction).not.toHaveBeenCalled();
 
@@ -734,7 +734,6 @@ describe('usePrivateUnlockFlow', () => {
 
     expect(result.current.showOnboardModal).toBe(true);
     expect(result.current.onboardModal.props.currentStep).toBe('complete');
-    expect(result.current.onboardModal.props.aesKey).toBe('d'.repeat(32));
     expect(result.current.walletSignPrompt.props.isOpen).toBe(false);
   });
 
@@ -1020,7 +1019,6 @@ describe('usePrivateUnlockFlow', () => {
     expect(result.current.isUnlocking).toBe(true);
     expect(result.current.showOnboardModal).toBe(true);
     expect(result.current.onboardModal.props.currentStep).toBe('validating-key');
-    expect(result.current.onboardModal.props.aesKey).toBeNull();
 
     mockSessionAesKey = 'd'.repeat(32);
     await act(async () => {
@@ -1029,7 +1027,6 @@ describe('usePrivateUnlockFlow', () => {
 
     expect(result.current.isUnlocking).toBe(false);
     expect(result.current.onboardModal.props.currentStep).toBe('complete');
-    expect(result.current.onboardModal.props.aesKey).toBe('d'.repeat(32));
   });
 
   it('does not move contract onboarding progress backwards after execute starts', async () => {

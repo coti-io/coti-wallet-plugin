@@ -40,8 +40,6 @@ export interface OnboardModalProps {
   walletType: WalletType;
   /** Current onboarding step (for progress display) */
   currentStep?: OnboardingStep;
-  /** Retrieved AES key (shown on success screen) */
-  aesKey?: string | null;
   /** Whether encrypted AES backup should be saved after contract onboarding */
   saveBackup?: boolean;
   /** When false, hides the encrypted-backup checkbox (e.g. MetaMask Snap stores the key). */
@@ -1006,7 +1004,7 @@ const SPINNER_KEYFRAMES = `
  * Screens:
  * 1. Intro: Explains the process before starting
  * 2. Progress: Shows step-by-step progress (steps 3-9)
- * 3. Success: Displays retrieved AES key with copy button
+ * 3. Success: Confirms the session key without displaying or copying it
  * 4. Error: Shows error message with retry button
  */
 export const OnboardModal: React.FC<OnboardModalProps> = ({
@@ -1017,7 +1015,6 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
   error,
   walletType,
   currentStep = 'idle',
-  aesKey,
   saveBackup = true,
   showSaveBackupOption = true,
   onSaveBackupChange,
@@ -1026,8 +1023,6 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
   runtimeWarnings,
   theme,
 }) => {
-  const [copied, setCopied] = useState(false);
-  const [isAesVisible, setIsAesVisible] = useState(false);
   const [showManualKeyInput, setShowManualKeyInput] = useState(false);
   const [manualAesKey, setManualAesKey] = useState('');
   const [manualAesKeyError, setManualAesKeyError] = useState<string | null>(null);
@@ -1039,8 +1034,6 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
   // Reset local UI state when the modal closes
   useEffect(() => {
     if (!isOpen) {
-      setCopied(false);
-      setIsAesVisible(false);
       setShowManualKeyInput(false);
       setManualAesKey('');
       setManualAesKeyError(null);
@@ -1049,7 +1042,7 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
     }
   }, [isOpen]);
 
-  const screen = deriveOnboardScreen({ currentStep, isLoading, error, aesKey });
+  const screen = deriveOnboardScreen({ currentStep, isLoading, error });
   const showIntro = screen === 'intro';
   const showProgress = screen === 'progress';
   const showSuccess = screen === 'success';
@@ -1063,9 +1056,8 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
       isOpen,
       isLoading,
       hasError: !!error,
-      hasAesKey: !!aesKey,
     });
-  }, [screen, currentStep, isOpen, isLoading, error, aesKey]);
+  }, [screen, currentStep, isOpen, isLoading, error]);
 
   const walletName = getWalletDisplayName(walletType);
   const includePersistStep = saveBackup || !showSaveBackupOption;
@@ -1262,17 +1254,6 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
     }
 
     return null;
-  };
-  // Handle copy to clipboard
-  const handleCopy = async () => {
-    if (!aesKey) return;
-    try {
-      await navigator.clipboard.writeText(aesKey);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      logger.error('Failed to copy AES key:', err);
-    }
   };
 
   const handleManualAesKeySubmit = async () => {
@@ -1549,61 +1530,8 @@ export const OnboardModal: React.FC<OnboardModalProps> = ({
               )}
 
               <p id="onboard-modal-description" style={styles.description}>
-                Your encryption key has been successfully retrieved.
+                Your encryption key is ready in this session. It is not shown or copied.
               </p>
-
-              <div style={styles.keyInputWrap}>
-                <input
-                  type={isAesVisible ? 'text' : 'password'}
-                  value={aesKey ?? ''}
-                  readOnly
-                  aria-label="Retrieved AES key"
-                  style={styles.keyInput}
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-                <div style={styles.keyInputActions}>
-                  <button
-                    type="button"
-                    onClick={() => setIsAesVisible((visible) => !visible)}
-                    aria-label={isAesVisible ? 'Hide AES key' : 'Show AES key'}
-                    title={isAesVisible ? 'Hide AES key' : 'Show AES key'}
-                    style={styles.inlineIconButton}
-                  >
-                    {isAesVisible ? (
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20C7 20 2.73 16.89 1 12a18.45 18.45 0 0 1 5.06-6.06" />
-                        <path d="M9.9 4.24A10.45 10.45 0 0 1 12 4c5 0 9.27 3.11 11 8a18.5 18.5 0 0 1-2.16 3.19" />
-                        <path d="M14.12 14.12A3 3 0 0 1 9.88 9.88" />
-                        <path d="M1 1l22 22" />
-                      </svg>
-                    ) : (
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z" />
-                        <circle cx="12" cy="12" r="3" />
-                      </svg>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleCopy}
-                    aria-label="Copy AES key"
-                    title={copied ? 'Copied' : 'Copy AES key'}
-                    style={styles.inlineIconButton}
-                  >
-                    {copied ? (
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    ) : (
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <rect x="9" y="9" width="13" height="13" rx="2" />
-                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                      </svg>
-                    )}
-                  </button>
-                </div>
-              </div>
 
               {renderPageWarning('success')}
 
