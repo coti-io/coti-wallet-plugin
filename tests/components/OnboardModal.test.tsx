@@ -458,4 +458,65 @@ describe('OnboardModal', () => {
     const note = screen.getByText(/Important:/).closest('div');
     expect(note).toHaveStyle({ padding: '12px' });
   });
+
+  it('parses hex3, rgb, and hsl theme colors on a light palette', () => {
+    render(
+      <OnboardModal
+        {...defaultProps}
+        theme={{
+          modal: { backgroundColor: 'hsl(210 40% 96%)', color: '#0f172a' },
+          title: { color: '#fff' },
+          description: { color: 'rgb(100, 116, 139)' },
+          primaryButton: { backgroundColor: '#1E29F6' },
+        }}
+      />,
+    );
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('shows the backup-finalizing callout', () => {
+    render(
+      <OnboardModal
+        {...defaultProps}
+        isLoading
+        currentStep="saving-backup"
+      />,
+    );
+    expect(screen.getByTestId('finalizing-callout')).toHaveTextContent('privacy key backup');
+  });
+
+  it('keeps the copied AES key when clipboard write fails', async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error('denied'));
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    render(
+      <OnboardModal
+        {...defaultProps}
+        currentStep="complete"
+        aesKey="abcdef0123456789abcdef0123456789"
+      />,
+    );
+    fireEvent.click(screen.getByLabelText('Copy AES key'));
+    await waitFor(() => expect(writeText).toHaveBeenCalled());
+  });
+
+  it('shows a generic error when manual AES key submit rejects a non-Error', async () => {
+    const onManualAesKeySubmit = vi.fn().mockRejectedValue('nope');
+    render(
+      <OnboardModal
+        {...defaultProps}
+        onManualAesKeySubmit={onManualAesKeySubmit}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText('Input AES key'));
+    fireEvent.change(screen.getByLabelText('Manual AES key'), {
+      target: { value: 'abcdef0123456789abcdef0123456789' },
+    });
+    fireEvent.click(screen.getByLabelText('Use AES key'));
+    await waitFor(() => {
+      expect(screen.getByText('Could not save AES key.')).toBeInTheDocument();
+    });
+  });
 });

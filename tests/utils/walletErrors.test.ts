@@ -71,6 +71,16 @@ describe('Wallet Error Detection (README: Security)', () => {
       ).toBe(true);
     });
 
+    it('returns false for a circular error object', () => {
+      const circular: { self?: unknown } = {};
+      circular.self = circular;
+      expect(isUnsupportedRpcMethodError(circular)).toBe(false);
+    });
+
+    it('detects unsupported methods from a raw string', () => {
+      expect(isUnsupportedRpcMethodError('method not found')).toBe(true);
+    });
+
     it('returns false for unrelated errors', () => {
       expect(isUnsupportedRpcMethodError(new Error('network failed'))).toBe(false);
       expect(isUnsupportedRpcMethodError({ code: 4001, message: 'user rejected' })).toBe(false);

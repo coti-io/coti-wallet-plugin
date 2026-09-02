@@ -5,6 +5,7 @@ const h = vi.hoisted(() => ({
   send: vi.fn(async () => '0x3b9aca00'),
   estimateBridgeFee: vi.fn(),
   estimateCotiBridgeGasFeeDisplay: vi.fn(),
+  publicTokens: undefined as undefined | unknown[],
 }));
 
 vi.mock('ethers', async (importOriginal) => {
@@ -29,11 +30,23 @@ vi.mock('../../../src/chains/cotiBridgeGasEstimate', () => ({
   estimateCotiBridgeGasFeeDisplay: (...args: unknown[]) => h.estimateCotiBridgeGasFeeDisplay(...args),
 }));
 
+vi.mock('../../../src/chains/index', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../src/chains/index')>();
+  return {
+    ...actual,
+    getPublicTokensForChain: (chainId?: number | string | null) =>
+      h.publicTokens === undefined
+        ? actual.getPublicTokensForChain(chainId)
+        : h.publicTokens as ReturnType<typeof actual.getPublicTokensForChain>,
+  };
+});
+
 import { quoteCotiBridgeFees } from '../../../src/chains/coti-bridge/fees';
 
 describe('quoteCotiBridgeFees', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    h.publicTokens = undefined;
     h.send.mockResolvedValue('0x3b9aca00');
     h.estimateBridgeFee.mockResolvedValue({
       depositFee: '0.0100',
@@ -147,6 +160,42 @@ describe('quoteCotiBridgeFees', () => {
         symbol: 'NIGHT',
         isErc20Token: true,
       }),
+    );
+  });
+
+  it('falls back to hardcoded decimals and bridge addresses when no public token is configured', async () => {
+    h.publicTokens = [];
+
+    await quoteCotiBridgeFees({
+      chainId: COTI_TESTNET_CHAIN_ID,
+      symbol: 'WBTC',
+      direction: 'to-private',
+      amount: '1',
+    });
+    expect(h.estimateCotiBridgeGasFeeDisplay).toHaveBeenCalledWith(
+      expect.objectContaining({ symbol: 'WBTC', isErc20Token: true }),
+    );
+
+    await quoteCotiBridgeFees({
+      chainId: COTI_TESTNET_CHAIN_ID,
+      symbol: 'USDC.e',
+      direction: 'to-private',
+      amount: '1',
+    });
+    await quoteCotiBridgeFees({
+      chainId: COTI_TESTNET_CHAIN_ID,
+      symbol: 'WADA',
+      direction: 'to-private',
+      amount: '1',
+    });
+    await quoteCotiBridgeFees({
+      chainId: COTI_TESTNET_CHAIN_ID,
+      symbol: 'gCOTI',
+      direction: 'to-private',
+      amount: '1',
+    });
+    expect(h.estimateCotiBridgeGasFeeDisplay).toHaveBeenCalledWith(
+      expect.objectContaining({ symbol: 'gCOTI', isErc20Token: true }),
     );
   });
 });

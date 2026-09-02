@@ -1191,4 +1191,39 @@ describe('useAesKeyProvider (full branch coverage)', () => {
     });
     expect(result.current.onboardingError).toBeNull();
   });
+
+  it('instruments MetaMask Mobile RPCs for reads, signatures, sends, and rejections', async () => {
+    mobileState.isMetaMaskMobileBrowser.mockReturnValue(true);
+    const walletProvider = {
+      request: vi.fn(async (args: { method?: string }) => {
+        if (args?.method === 'personal_sign') {
+          throw Object.assign(new Error('User rejected the request'), { code: 4001 });
+        }
+        if (args?.method === 'eth_chainId') return '0x6c11a0';
+        return '0xok';
+      }),
+    };
+    const signer = makeSigner('c'.repeat(32));
+    signer.generateOrRecoverAes.mockImplementation(async () => {
+      await walletProvider.request({ method: 'eth_chainId' });
+      await walletProvider.request({ method: 'eth_getBalance' });
+      await walletProvider.request({ method: 'eth_sendTransaction' });
+      await walletProvider.request({ method: 'wallet_switchEthereumChain' });
+      await walletProvider.request({ method: 'wallet_addEthereumChain' });
+      await walletProvider.request({ method: 'personal_sign' });
+    });
+    ethersState.signer = signer;
+    wagmiState.connector = {
+      getProvider: vi.fn().mockResolvedValue(walletProvider),
+    };
+    wagmiState.chainId = COTI_TESTNET;
+
+    const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'metamask' })));
+    let key: string | null = 'x';
+    await act(async () => {
+      key = await result.current.getAesKey(ADDR);
+    });
+    expect(key).toBeNull();
+    expect(mobileState.mobileHttpJsonRpc).toHaveBeenCalled();
+  });
 });

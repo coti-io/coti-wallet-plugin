@@ -38,6 +38,18 @@ describe('ethereum provider discovery', () => {
     expect(resolveRabbyInjectedTarget().provider).toBe(rabby);
   });
 
+  it('records EIP-6963 Flask announcements as MetaMask', () => {
+    const flask = { request: vi.fn(async () => 'flask'), isMetaMask: true };
+    announce('io.metamask.flask', flask);
+    expect(getEip6963MetaMaskProvider()).toBe(flask);
+    announce('io.metamask', mm);
+  });
+
+  it('returns the connector-less fallback from resolveConnectedProvider', async () => {
+    const resolved = await resolveConnectedProvider();
+    expect(resolved).not.toBeNull();
+  });
+
   it('picks MetaMask from window.ethereum.providers when EIP-6963 is empty', () => {
     (window as unknown as { ethereum: unknown }).ethereum = {
       request: vi.fn(),
@@ -91,5 +103,25 @@ describe('ethereum provider discovery', () => {
     const target = resolveRabbyInjectedTarget();
     expect(target.id).toBe('rabby');
     expect(target.provider === rabby || target.provider === getEip6963RabbyProvider()).toBe(true);
+  });
+
+  it('returns Rabby missing-provider stub and MetaMask from the providers list', async () => {
+    (window as unknown as { ethereum: unknown }).ethereum = {
+      request: vi.fn(),
+      isMetaMask: false,
+    };
+    const rabbyTarget = resolveRabbyInjectedTarget();
+    if (rabbyTarget.provider !== getEip6963RabbyProvider()) {
+      await expect(rabbyTarget.provider.request({ method: 'eth_chainId' })).rejects.toMatchObject({
+        code: 4900,
+      });
+    }
+
+    (window as unknown as { ethereum: unknown }).ethereum = {
+      request: vi.fn(),
+      providers: [mm],
+    };
+    const resolved = getMetaMaskProvider();
+    expect(resolved === mm || resolved?.isMetaMask).toBe(true);
   });
 });

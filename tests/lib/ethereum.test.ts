@@ -34,4 +34,19 @@ describe('Ethereum Provider (README: EIP-1193 Provider)', () => {
     expect(provider!.on).toBeDefined();
     expect(provider!.removeListener).toBeDefined();
   });
+
+  it('returns null when window.ethereum access throws', () => {
+    Object.defineProperty(window, 'ethereum', {
+      configurable: true,
+      get() {
+        throw new Error('extension conflict');
+      },
+    });
+    expect(getEthereumProvider()).toBeNull();
+    Object.defineProperty(window, 'ethereum', {
+      configurable: true,
+      writable: true,
+      value: { request: async () => {}, isMetaMask: true, on: () => {}, removeListener: () => {} },
+    });
+  });
 });

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 
 const injectedConnector = {
   id: 'injected',
@@ -16,7 +16,12 @@ vi.mock('wagmi', () => ({
 }));
 
 vi.mock('wagmi/connectors', () => ({
-  injected: () => () => injectedConnector,
+  injected: (opts?: { target?: unknown }) => () => {
+    if (typeof opts?.target === 'function') {
+      (opts.target as () => unknown)();
+    }
+    return injectedConnector;
+  },
   walletConnect: () => () => wcConnector,
 }));
 
@@ -36,14 +41,27 @@ const setUserAgent = (ua: string) => {
 
 describe('wallet factory coverage', () => {
   const originalUa = window.navigator.userAgent;
+  const originalPlatform = window.navigator.platform;
+  const originalMaxTouch = window.navigator.maxTouchPoints;
 
   afterEach(() => {
     setUserAgent(originalUa);
+    Object.defineProperty(window.navigator, 'platform', {
+      configurable: true,
+      value: originalPlatform,
+    });
+    Object.defineProperty(window.navigator, 'maxTouchPoints', {
+      configurable: true,
+      value: originalMaxTouch,
+    });
     (window as unknown as { ethereum?: unknown }).ethereum = {
       request: vi.fn(),
       isMetaMask: true,
     };
     delete (window as unknown as { $onekey?: unknown }).$onekey;
+    delete (window as unknown as { zerionWallet?: unknown }).zerionWallet;
+    wcConnector.connect = vi.fn();
+    injectedConnector.disconnect = vi.fn();
   });
 
   it('exposes asInjectedTarget as a typed passthrough', () => {
@@ -100,5 +118,116 @@ describe('wallet factory coverage', () => {
     const wallet = mobileZerionWallet({ projectId: 'pid' });
     expect(wallet.id).toBe('zerion');
     expect(wallet.createConnector({} as never)({} as never)).toBeTruthy();
+  });
+
+  it('uses WalletConnect for Zerion on mobile and injected when window.zerionWallet is present', () => {
+    setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)');
+    const mobile = mobileZerionWallet({ projectId: 'pid' });
+    expect(mobile.mobile?.getUri?.('wc:abc')).toContain('zerion://wc?uri=');
+    expect(mobile.createConnector({} as never)({} as never)).toMatchObject({ id: 'walletConnect' });
+
+    setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)');
+    (window as unknown as { zerionWallet: { request: () => Promise<string> } }).zerionWallet = {
+      request: async () => '0x1',
+    };
+    const desktop = mobileZerionWallet({ projectId: 'pid' });
+    expect(desktop.installed).toBe(true);
+    expect(desktop.createConnector({} as never)({} as never)).toMatchObject({ id: 'injected' });
+    delete (window as unknown as { zerionWallet?: unknown }).zerionWallet;
+  });
+
+  it('dispatches a connect-failure event for non-cancellation Zerion WalletConnect errors', async () => {
+    setUserAgent('Mozilla/5.0 (Linux; Android 14)');
+    wcConnector.connect = vi.fn(async () => {
+      throw new Error('Zerion rejected the session');
+    });
+    const failures: unknown[] = [];
+    const onFailure = (event: Event) => failures.push((event as CustomEvent).detail);
+    window.addEventListener('coti-wallet-plugin:wallet-connect-failure', onFailure);
+
+    const wallet = mobileZerionWallet({ projectId: 'pid' });
+    const connector = wallet.createConnector({} as never)({} as never) as { connect: (args?: object) => Promise<unknown> };
+    await expect(connector.connect({})).rejects.toThrow('Zerion rejected the session');
+    expect(failures).toEqual([{ walletId: 'zerion', message: 'Zerion rejected the session' }]);
+
+    wcConnector.connect = vi.fn(async () => {
+      throw new Error('User rejected the request');
+    });
+    await expect(connector.connect({})).rejects.toThrow('User rejected');
+    expect(failures).toHaveLength(1);
+    window.removeEventListener('coti-wallet-plugin:wallet-connect-failure', onFailure);
+  });
+
+  it('swallows unsupported revokePermissions errors on Zerion injected disconnect', async () => {
+    setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)');
+    (window as unknown as { zerionWallet: { request: () => Promise<string> } }).zerionWallet = {
+      request: async () => '0x1',
+    };
+    injectedConnector.disconnect = vi.fn(async () => {
+      throw { code: -32601, message: 'the method wallet_revokePermissions does not exist/is not available' };
+    });
+
+    const wallet = mobileZerionWallet({ projectId: 'pid' });
+    const connector = wallet.createConnector({} as never)({} as never) as { disconnect: () => Promise<void> };
+    await expect(connector.disconnect()).resolves.toBeUndefined();
+    delete (window as unknown as { zerionWallet?: unknown }).zerionWallet;
+  });
+
+  it('uses injected MetaMask inside the MetaMask in-app browser', () => {
+    setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) MetaMaskMobile');
+    (window as unknown as { ethereum: { isMetaMask: boolean } }).ethereum = { isMetaMask: true };
+    const wallet = mobileMetaMaskWallet({ projectId: 'pid' });
+    expect(wallet.createConnector({} as never)({} as never)).toMatchObject({ id: 'injected' });
+  });
+
+  it('picks MetaMask from window.ethereum.providers when creating the injected connector', () => {
+    setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)');
+    const mm = { isMetaMask: true, request: vi.fn() };
+    (window as unknown as { ethereum: { providers: unknown[] } }).ethereum = {
+      providers: [{ isRabby: true, isMetaMask: true }, mm],
+    };
+    const wallet = mobileMetaMaskWallet({ projectId: 'pid' });
+    const created = wallet.createConnector({} as never)({} as never);
+    expect(created).toMatchObject({ id: 'injected' });
+  });
+
+  it('treats iPad desktop-class browsers as mobile Zerion and leaves Android URIs unprefixed', () => {
+    Object.defineProperty(window.navigator, 'platform', {
+      configurable: true,
+      value: 'MacIntel',
+    });
+    Object.defineProperty(window.navigator, 'maxTouchPoints', {
+      configurable: true,
+      value: 5,
+    });
+    setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)');
+    const ipad = mobileZerionWallet({ projectId: 'pid' });
+    expect(ipad.mobile?.getUri?.('wc:abc')).toContain('zerion://wc?uri=');
+
+    Object.defineProperty(window.navigator, 'platform', {
+      configurable: true,
+      value: 'Linux armv8l',
+    });
+    Object.defineProperty(window.navigator, 'maxTouchPoints', {
+      configurable: true,
+      value: 1,
+    });
+    setUserAgent('Mozilla/5.0 (Linux; Android 14)');
+    const android = mobileZerionWallet({ projectId: 'pid' });
+    expect(android.mobile?.getUri?.('wc:abc')).toBe('wc:abc');
+  });
+
+  it('rethrows non-unsupported Zerion injected disconnect errors', async () => {
+    setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)');
+    (window as unknown as { zerionWallet: { request: () => Promise<string> } }).zerionWallet = {
+      request: async () => '0x1',
+    };
+    injectedConnector.disconnect = vi.fn(async () => {
+      throw new Error('network down');
+    });
+    const wallet = mobileZerionWallet({ projectId: 'pid' });
+    const connector = wallet.createConnector({} as never)({} as never) as { disconnect: () => Promise<void> };
+    await expect(connector.disconnect()).rejects.toThrow('network down');
+    delete (window as unknown as { zerionWallet?: unknown }).zerionWallet;
   });
 });

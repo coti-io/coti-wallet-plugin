@@ -39,4 +39,18 @@ describe('snapOrigins', () => {
     expect(canPersistAesKeyToSnap()).toBe(true);
     configureCotiPlugin({ additionalSnapAesWriteOrigins: [] });
   });
+
+  it('allows the published companion origin and rejects unknown origins', () => {
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...window.location, origin: 'https://metamask.coti.io' },
+    });
+    expect(canPersistAesKeyToSnap()).toBe(true);
+
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...window.location, origin: 'https://evil.example' },
+    });
+    expect(canPersistAesKeyToSnap()).toBe(false);
+  });
 });

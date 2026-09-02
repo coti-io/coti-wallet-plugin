@@ -1,9 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   CotiErrorCode,
   CotiPluginError,
   isCotiPluginError,
   hasCotiErrorCode,
+  reportPluginError,
 } from '../src/errors';
 
 describe('errors (typed plugin errors)', () => {
@@ -66,5 +67,20 @@ describe('errors (typed plugin errors)', () => {
       expect(hasCotiErrorCode(new Error('x'), CotiErrorCode.API_ERROR)).toBe(false);
       expect(hasCotiErrorCode(null, CotiErrorCode.API_ERROR)).toBe(false);
     });
+  });
+
+  it('dispatches plugin errors to the host window', () => {
+    const spy = vi.spyOn(window, 'dispatchEvent');
+    reportPluginError(new CotiPluginError(CotiErrorCode.RPC_RATE_LIMITED, 'limited'));
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it('swallows dispatchEvent failures when reporting plugin errors', () => {
+    const spy = vi.spyOn(window, 'dispatchEvent').mockImplementation(() => {
+      throw new Error('blocked');
+    });
+    expect(() => reportPluginError(new Error('x'))).not.toThrow();
+    spy.mockRestore();
   });
 });

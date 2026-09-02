@@ -180,4 +180,15 @@ describe('Formatting Utilities (README: formatTokenBalanceDisplay)', () => {
       expect(formatBalanceWithNotation(1e-18)).toBe('0.000000000000000001');
     });
   });
+
+  it('handles signed exponents, empty bases, and non-finite exponents', () => {
+    expect(expandExponentialNumber('+1.5e2')).toBe('150');
+    expect(expandExponentialNumber('e10')).toBe('e10');
+    expect(expandExponentialNumber('1enot')).toBe('1enot');
+    expect(formatAmountLimitDisplay(undefined)).toBe('N/A');
+    expect(formatAmountLimitDisplay('')).toBe('N/A');
+    expect(formatAmountLimitDisplay('Error')).toBe('Error');
+    expect(isDustAmount(null)).toBe(false);
+    expect(isDustAmount('')).toBe(false);
+  });
 });
