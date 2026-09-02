@@ -19,14 +19,10 @@ export type {
   SaveEncryptedAesBackupRequest,
 } from './config/plugin';
 
-// Logging — silent by default, opt in via configureCotiPlugin({ debug: true })
-export { logger, setDebugLogging } from './lib/logger';
-export type { Logger } from './lib/logger';
-
 // Errors
 export { CotiPluginError, CotiErrorCode, isCotiPluginError, hasCotiErrorCode, createRpcRateLimitedError, reportPluginError, PLUGIN_ERROR_EVENT } from './errors';
 
-// Chain definitions (viem + RPC — derived from CHAIN_CONFIGS)
+// Chain definitions (viem + chain ids). Default RPC URL constants stay internal.
 export {
   cotiMainnet,
   cotiTestnet,
@@ -38,11 +34,6 @@ export {
   POD_INBOX_ADDRESS,
   SEPOLIA_CHAIN_ID,
   ETHEREUM_MAINNET_CHAIN_ID,
-  COTI_MAINNET_RPC,
-  COTI_TESTNET_RPC,
-  SEPOLIA_RPC,
-  SEPOLIA_RPC_FALLBACK,
-  ETHEREUM_MAINNET_RPC,
   getRpcUrlForChainId,
 } from './chains';
 
@@ -73,13 +64,8 @@ export {
   DEFAULT_POD_EXPLORER_BASE_URL,
   buildPodExplorerRequestUrl,
   DEFAULT_POD_BALANCE_STATE,
-  PRIVACY_PORTAL_ABI,
-  POD_PTOKEN_ABI,
-  POD_PORTAL_ADMIN_ABI,
-  POD_PORTAL_FACTORY_ABI,
 } from './contracts/pod';
 export type { PodPortalRequest, PodPortalRequestStatus, PodBalanceState, PodBalanceTrustState } from './contracts/pod';
-export { loadPodRequests, savePodRequests, podRequestsStorageKey } from './pod/podPortalRequestsStorage';
 export { estimateCotiBridgeGasFeeDisplay } from './chains/cotiBridgeGasEstimate';
 export { quoteCotiBridgeFees } from './chains/coti-bridge/fees';
 export type { CotiBridgeFeeQuote } from './chains/coti-bridge/fees';
@@ -92,7 +78,6 @@ export {
   getPodSdkConfig,
   getPodGasPrice,
   resolvePodTxGasPrice,
-  getSepoliaGasPrice,
   quotePortalFeeOnly,
   quotePodPortalTransactionFees,
   estimatePodPortalFees,
@@ -108,13 +93,12 @@ export {
 } from './chains/portal/executePodPrivateTokenTransfer';
 export type { PodTransferFeeQuote } from './chains/portal/executePodPrivateTokenTransfer';
 export { usePodTransferFees } from './hooks/bridge/usePodTransferFees';
-export { fetchPodOracleTokenUsdPrice, POD_PRICE_ORACLE_ABI } from './chains/podPriceOracle';
+export { fetchPodOracleTokenUsdPrice } from './chains/podPriceOracle';
 export { fetchPodBridgeData, simulatePodPortalFee } from './chains/portal/podPortalAdminData';
 
-// Contracts
-export { CONTRACT_ADDRESSES, SUPPORTED_TOKENS, MINIMUM_PORTAL_IN_AMOUNTS, ERC20_ABI, getPublicTokensForChain, getPrivateTokensForChain } from './contracts/config';
+// Contracts (ABIs stay internal)
+export { CONTRACT_ADDRESSES, SUPPORTED_TOKENS, MINIMUM_PORTAL_IN_AMOUNTS, getPublicTokensForChain, getPrivateTokensForChain } from './contracts/config';
 export type { TokenConfig } from './contracts/config';
-export { TOKEN_ABI, BRIDGE_ABI, BRIDGE_ERC20_ABI, COTI_PRICE_CONSUMER_ABI } from './contracts/abis';
 export { LIMITS } from './contracts/limits';
 
 // Hooks — Wallet Manager
@@ -122,7 +106,7 @@ export { useMetamask } from './hooks/useMetamask';
 
 // Hooks — Balance Manager
 export { usePrivateTokenBalance } from './hooks/usePrivateTokenBalance';
-export { useBalanceUpdater } from './hooks/useBalanceUpdater';
+// NOTE: `useBalanceUpdater` is internal to CotiPluginProvider.
 
 // Hooks — Bridge Operations
 // NOTE: `usePluginBridge` (and its `getInitialPublicTokens`/`getInitialPrivateTokens`
@@ -266,5 +250,5 @@ export {
 } from './lib/ethereum';
 export type { EIP1193Provider, ConnectorProviderSource } from './lib/ethereum';
 
-// Chain mute utilities (for suppressing UI reactions during cross-chain onboarding)
-export { muteChainUpdates, unmuteChainUpdates, isChainUpdatesMuted } from './lib/chainMute';
+// NOTE: logger, muteChainUpdates, ABIs, default RPC URL constants, PoD localStorage
+// helpers, getSepoliaGasPrice, and useBalanceUpdater are intentionally not exported.
