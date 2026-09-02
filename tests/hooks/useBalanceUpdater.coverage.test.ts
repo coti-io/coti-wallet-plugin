@@ -127,7 +127,7 @@ describe('useBalanceUpdater branch coverage', () => {
     const { result } = renderHook(() => useBalanceUpdater(props));
 
     const ok = await result.current.refreshPublicBalances({ account: ACCOUNT, chainId: COTI_TESTNET });
-    expect(ok).toBe(true);
+    expect(ok.ok).toBe(true);
     const tokens = props.setPublicTokens.mock.calls[0][0];
     // every ERC20 token resolves to the "0" fallback
     expect(tokens.some((t: { addressKey?: string }) => t.addressKey)).toBe(true);
@@ -139,7 +139,7 @@ describe('useBalanceUpdater branch coverage', () => {
 
     // Mainnet config has empty-string private token addresses.
     const ok = await result.current.refreshPrivateBalances({ account: ACCOUNT, checkSnap: true, chainId: COTI_MAINNET });
-    expect(ok).toBe(true);
+    expect(ok.ok).toBe(true);
     expect(props.setPrivateTokens).toHaveBeenCalledTimes(1);
     expect(props.fetchPrivateBalance).not.toHaveBeenCalled();
   });
@@ -153,7 +153,7 @@ describe('useBalanceUpdater branch coverage', () => {
     const { result } = renderHook(() => useBalanceUpdater(props));
 
     const ok = await result.current.refreshPrivateBalances({ account: ACCOUNT, checkSnap: true, chainId: COTI_TESTNET });
-    expect(ok).toBe(false);
+    expect(ok.ok).toBe(false);
   });
 
   it('uses the "0" fallback when a fetched private balance value is nullish (line 164)', async () => {
@@ -165,7 +165,7 @@ describe('useBalanceUpdater branch coverage', () => {
     const { result } = renderHook(() => useBalanceUpdater(props));
 
     const ok = await result.current.refreshPrivateBalances({ account: ACCOUNT, checkSnap: true, chainId: COTI_TESTNET });
-    expect(ok).toBe(true);
+    expect(ok.ok).toBe(true);
     expect(props.setPrivateTokens).toHaveBeenCalledTimes(1);
   });
 
@@ -174,7 +174,7 @@ describe('useBalanceUpdater branch coverage', () => {
     const { result } = renderHook(() => useBalanceUpdater(props));
 
     const ok = await result.current.refreshPrivateBalances({ account: ACCOUNT, checkSnap: true, chainId: KEYLESS_CHAIN });
-    expect(ok).toBe(true);
+    expect(ok.ok).toBe(true);
     expect(props.fetchPrivateBalance).not.toHaveBeenCalled();
     const privTokens = props.setPrivateTokens.mock.calls[0][0];
     expect(privTokens[0].symbol).toBe('NOKEY');

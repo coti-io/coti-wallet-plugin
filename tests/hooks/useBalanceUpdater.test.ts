@@ -106,7 +106,7 @@ describe('useBalanceUpdater', () => {
       chainId: COTI_TESTNET,
     });
 
-    expect(ok).toBe(true);
+    expect(ok.ok).toBe(true);
     expect(props.setPublicTokens).not.toHaveBeenCalled();
     expect(props.setPrivateTokens).not.toHaveBeenCalled();
     expect(h.getBalance).not.toHaveBeenCalled();
@@ -122,7 +122,7 @@ describe('useBalanceUpdater', () => {
 
     const ok = await result.current.refreshPrivateBalances({ account: ACCOUNT, checkSnap: true });
 
-    expect(ok).toBe(false);
+    expect(ok.ok).toBe(false);
     expect(props.setSessionAesKey).not.toHaveBeenCalled();
     expect(props.setPrivateTokens).not.toHaveBeenCalled();
 
@@ -140,7 +140,7 @@ describe('useBalanceUpdater', () => {
       chainId: 999999,
     });
 
-    expect(ok).toBe(false);
+    expect(ok.ok).toBe(false);
     expect(props.setPrivateTokens).not.toHaveBeenCalled();
   });
 
@@ -153,7 +153,7 @@ describe('useBalanceUpdater', () => {
 
     const ok = await result.current.bindAccount(ACCOUNT);
 
-    expect(ok).toBe(true);
+    expect(ok.ok).toBe(true);
     expect(props.setWalletAddress).toHaveBeenCalledWith(ACCOUNT);
     expect(props.setIsConnected).toHaveBeenCalledWith(true);
     expect(props.setPublicTokens).not.toHaveBeenCalled();
@@ -170,7 +170,7 @@ describe('useBalanceUpdater', () => {
 
     const ok = await result.current.refreshPublicBalances({ account: ACCOUNT, chainId: COTI_TESTNET });
 
-    expect(ok).toBe(true);
+    expect(ok.ok).toBe(true);
     // checkNetwork only runs when a BrowserProvider exists
     expect(props.checkNetwork).not.toHaveBeenCalled();
     expect(props.setPublicTokens).toHaveBeenCalledTimes(1);
@@ -187,7 +187,7 @@ describe('useBalanceUpdater', () => {
 
     const ok = await result.current.bindAccount(ACCOUNT);
 
-    expect(ok).toBe(true);
+    expect(ok.ok).toBe(true);
     expect(props.checkNetwork).toHaveBeenCalledTimes(1);
     expect(h.getNetwork).toHaveBeenCalled();
     expect(props.setPublicTokens).toHaveBeenCalledTimes(1);
@@ -206,7 +206,7 @@ describe('useBalanceUpdater', () => {
       chainId: COTI_TESTNET,
     });
 
-    expect(ok).toBe(true);
+    expect(ok.ok).toBe(true);
     expect(props.fetchPrivateBalance).toHaveBeenCalled();
     expect(props.setPrivateTokens).toHaveBeenCalledTimes(1);
     // No snap fetch needed since an override key was supplied
@@ -222,7 +222,7 @@ describe('useBalanceUpdater', () => {
 
     const ok = await result.current.refreshPrivateBalances({ account: ACCOUNT, checkSnap: true, chainId: COTI_TESTNET });
 
-    expect(ok).toBe(true);
+    expect(ok.ok).toBe(true);
     expect(props.getAESKeyFromSnap).toHaveBeenCalledWith(ACCOUNT);
     expect(props.setSessionAesKey).toHaveBeenCalledWith('b'.repeat(32), ACCOUNT);
     expect(props.setHasSnap).not.toHaveBeenCalled();
@@ -237,7 +237,7 @@ describe('useBalanceUpdater', () => {
 
     const ok = await result.current.refreshPrivateBalances({ account: ACCOUNT, checkSnap: true, chainId: COTI_TESTNET });
 
-    expect(ok).toBe(true);
+    expect(ok.ok).toBe(true);
     expect(props.getAESKeyFromSnap).not.toHaveBeenCalled();
     expect(props.setHasSnap).not.toHaveBeenCalled();
     expect(props.setPrivateTokens).toHaveBeenCalledTimes(1);
@@ -251,7 +251,7 @@ describe('useBalanceUpdater', () => {
 
     const ok = await result.current.refreshPrivateBalances({ account: ACCOUNT, checkSnap: true, chainId: COTI_TESTNET });
 
-    expect(ok).toBe(false);
+    expect(ok.ok).toBe(false);
     expect(props.setPrivateTokens).not.toHaveBeenCalled();
   });
 
@@ -276,7 +276,7 @@ describe('useBalanceUpdater', () => {
     const { result } = renderHook(() => useBalanceUpdater(props));
 
     const ok = await result.current.refreshPrivateBalances({ account: ACCOUNT, chainId: SEPOLIA });
-    expect(ok).toBe(true);
+    expect(ok.ok).toBe(true);
     expect(props.fetchPrivateBalance).toHaveBeenCalled();
     expect(props.setPrivateTokens).toHaveBeenCalledTimes(1);
   });
@@ -289,7 +289,7 @@ describe('useBalanceUpdater', () => {
     const { result } = renderHook(() => useBalanceUpdater(props));
 
     const ok = await result.current.refreshPrivateBalances({ account: ACCOUNT, checkSnap: true, chainId: COTI_TESTNET });
-    expect(ok).toBe(false);
+    expect(ok.ok).toBe(false);
   });
 
   it('does not mark an AES key validated when private balance fetch fails', async () => {
@@ -315,7 +315,7 @@ describe('useBalanceUpdater', () => {
       options: { validateOnUnlock: true },
     });
 
-    expect(ok).toBe(false);
+    expect(ok.ok).toBe(false);
     expect(validateMetaMaskAesKeyOnUnlock).toHaveBeenCalled();
     expect(isAesKeyValidatedForUnlock(ACCOUNT, aesKey)).toBe(false);
     clearAesKeyValidatedForUnlock();
@@ -341,7 +341,7 @@ describe('useBalanceUpdater', () => {
     const { result } = renderHook(() => useBalanceUpdater(props));
 
     const ok = await result.current.bindAccount(ACCOUNT);
-    expect(ok).toBe(false);
+    expect(ok.ok).toBe(false);
   });
 
   it('ignores stale public balance updates when a newer refreshPublicBalances starts', async () => {
@@ -368,8 +368,8 @@ describe('useBalanceUpdater', () => {
     resolveSlowBalance(1500000000000000000n);
     const [slowOk, fastOk] = await Promise.all([slowUpdate, fastUpdate]);
 
-    expect(slowOk).toBe(false);
-    expect(fastOk).toBe(true);
+    expect(slowOk.ok).toBe(false);
+    expect(fastOk.ok).toBe(true);
     expect(props.setPublicTokens).toHaveBeenCalledTimes(1);
     expect(props.setWalletAddress).toHaveBeenLastCalledWith(accountB);
 
@@ -410,8 +410,8 @@ describe('useBalanceUpdater', () => {
     resolveSlowPrivate('11');
     const [slowOk, fastOk] = await Promise.all([slowUpdate, fastUpdate]);
 
-    expect(slowOk).toBe(false);
-    expect(fastOk).toBe(true);
+    expect(slowOk.ok).toBe(false);
+    expect(fastOk.ok).toBe(true);
     expect(props.setPrivateTokens).toHaveBeenCalledTimes(1);
     expect(props.setWalletAddress).toHaveBeenLastCalledWith(accountB);
 
@@ -455,7 +455,7 @@ describe('useBalanceUpdater', () => {
     rejectSlowPrivate(new Error('AES key mismatch'));
     const slowOk = await slowUpdate;
 
-    expect(slowOk).toBe(false);
+    expect(slowOk.ok).toBe(false);
 
     (window as any).ethereum = original;
   });
@@ -496,7 +496,7 @@ describe('useBalanceUpdater', () => {
     resolveSlowSnap('a'.repeat(32));
     const slowOk = await slowUpdate;
 
-    expect(slowOk).toBe(false);
+    expect(slowOk.ok).toBe(false);
     expect(props.setSessionAesKey).not.toHaveBeenCalledWith('a'.repeat(32), ACCOUNT);
     expect(props.setSessionAesKey).toHaveBeenCalledWith('b'.repeat(32), accountB);
 
@@ -529,7 +529,7 @@ describe('useBalanceUpdater', () => {
       options: { validateOnUnlock: true },
     });
 
-    expect(ok).toBe(true);
+    expect(ok.ok).toBe(true);
     expect(props.getAESKeyFromSnap).not.toHaveBeenCalled();
     expect(validateMetaMaskAesKeyOnUnlock).not.toHaveBeenCalled();
     clearAesKeyValidatedForUnlock();
@@ -557,7 +557,7 @@ describe('useBalanceUpdater', () => {
       options: { validateOnUnlock: true, forceContractOnboarding: true },
     });
 
-    expect(ok).toBe(true);
+    expect(ok.ok).toBe(true);
     expect(props.getAESKeyFromSnap).toHaveBeenCalledWith(ACCOUNT, {
       skipCache: true,
       forceContractOnboarding: true,
@@ -600,7 +600,7 @@ describe('useBalanceUpdater', () => {
       options: { validateOnUnlock: true },
     });
 
-    expect(ok).toBe(true);
+    expect(ok.ok).toBe(true);
     expect(props.getAESKeyFromSnap).not.toHaveBeenCalled();
     expect(validateMetaMaskAesKeyOnUnlock).toHaveBeenCalledWith(sessionKey, ACCOUNT, COTI_TESTNET);
     clearAesKeyValidatedForUnlock();
@@ -626,7 +626,7 @@ describe('useBalanceUpdater', () => {
       options: { restoreOnly: true, snapSideDecrypt: true },
     });
 
-    expect(ok).toBe(true);
+    expect(ok.ok).toBe(true);
     expect(props.getAESKeyFromSnap).not.toHaveBeenCalled();
     expect(props.setHasSnap).toHaveBeenCalledWith(true);
     expect(props.fetchPrivateBalance).toHaveBeenCalledWith(
@@ -657,7 +657,7 @@ describe('useBalanceUpdater', () => {
       options: { validateOnUnlock: true, forceContractOnboarding: true },
     });
 
-    expect(ok).toBe(false);
+    expect(ok.ok).toBe(false);
     expect(props.fetchPrivateBalance).not.toHaveBeenCalled();
     expect(props.setSessionAesKey).not.toHaveBeenCalled();
   });
@@ -687,7 +687,7 @@ describe('useBalanceUpdater', () => {
       options: { restoreOnly: true, validateOnUnlock: true },
     });
 
-    expect(ok).toBe(true);
+    expect(ok.ok).toBe(true);
     expect(callOrder[0]).toBe('aes-key');
     expect(callOrder).not.toContain('public-balance');
     expect(callOrder).not.toContain('check-network');

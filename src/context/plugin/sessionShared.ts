@@ -24,11 +24,30 @@ export type RefreshPrivateBalancesParams = {
   options?: UpdateAccountStateOptions & AesKeyProviderOptions;
 };
 
+/** Why a named account-state operation returned ok: false. */
+export type AccountStateFailureReason =
+  | 'stale'
+  | 'no_aes_key'
+  | 'no_provider'
+  | 'unsupported_chain'
+  | 'keys_unavailable'
+  | 'failed';
+
+export type AccountStateResult =
+  | { ok: true }
+  | { ok: false; reason: AccountStateFailureReason };
+
+export const ACCOUNT_STATE_OK: AccountStateResult = { ok: true };
+
+export const accountStateFailed = (
+  reason: AccountStateFailureReason,
+): AccountStateResult => ({ ok: false, reason });
+
 /** Named account-state operations. Replaces the old positional updateAccountState flags. */
 export type AccountStateOperations = {
-  bindAccount: (account: string) => Promise<boolean>;
-  refreshPublicBalances: (params: RefreshPublicBalancesParams) => Promise<boolean>;
-  refreshPrivateBalances: (params: RefreshPrivateBalancesParams) => Promise<boolean>;
+  bindAccount: (account: string) => Promise<AccountStateResult>;
+  refreshPublicBalances: (params: RefreshPublicBalancesParams) => Promise<AccountStateResult>;
+  refreshPrivateBalances: (params: RefreshPrivateBalancesParams) => Promise<AccountStateResult>;
 };
 
 /** Wallet, Snap, and AES-session state. Always mounted (core). */

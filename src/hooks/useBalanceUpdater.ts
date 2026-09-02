@@ -23,11 +23,14 @@ import {
     reportPluginError,
 } from '../errors';
 import { logger } from '../lib/logger';
-import type {
-    AccountStateOperations,
-    RefreshPrivateBalancesParams,
-    RefreshPublicBalancesParams,
-    UpdateAccountStateOptions,
+import {
+    ACCOUNT_STATE_OK,
+    accountStateFailed,
+    type AccountStateOperations,
+    type AccountStateResult,
+    type RefreshPrivateBalancesParams,
+    type RefreshPublicBalancesParams,
+    type UpdateAccountStateOptions,
 } from '../context/plugin/sessionShared';
 import {
     isAesKeyValidatedForUnlock,
@@ -142,7 +145,7 @@ export const useBalanceUpdater = ({
         aesKey?: string | null;
         chainId?: number;
         options?: UpdateAccountStateOptions & AesKeyProviderOptions;
-    }) => {
+    }): Promise<AccountStateResult> => {
         const account = params.account;
         const checkSnap = params.checkSnap === true;
         const fetchPrivate = params.fetchPrivate;
@@ -169,7 +172,7 @@ export const useBalanceUpdater = ({
 
             if (!autoInitTokens) {
                 if (!fetchPrivate) {
-                    return true;
+                    return ACCOUNT_STATE_OK;
                 }
 
                 const forceContractOnboarding = options?.forceContractOnboarding === true;
@@ -188,8 +191,8 @@ export const useBalanceUpdater = ({
                         : options === undefined
                             ? await getAESKeyFromSnap(account)
                             : await getAESKeyFromSnap(account, aesKeyOptions);
-                    if (isStale()) return false;
-                    if (!restoredAesKey) return false;
+                    if (isStale()) return accountStateFailed('stale');
+                    if (!restoredAesKey) return accountStateFailed('no_aes_key');
                 }
 
                 if (
@@ -200,7 +203,7 @@ export const useBalanceUpdater = ({
                     && !isAesKeyValidatedForUnlock(account, restoredAesKey)
                 ) {
                     await validateMetaMaskAesKeyOnUnlock(restoredAesKey, account, chainOverride ?? null);
-                    if (isStale()) return false;
+                    if (isStale()) return accountStateFailed('stale');
                     markAesKeyValidatedForUnlock(account, restoredAesKey);
                 }
 
@@ -210,7 +213,9 @@ export const useBalanceUpdater = ({
                 if (restoredAesKey) {
                     setSessionAesKey(restoredAesKey, account);
                 }
-                return Boolean(restoredAesKey || allowSnapOperations);
+                return restoredAesKey || allowSnapOperations
+                    ? ACCOUNT_STATE_OK
+                    : accountStateFailed('no_aes_key');
             }
 
             const hasChainOverride = typeof chainOverride === 'number';
@@ -218,9 +223,9 @@ export const useBalanceUpdater = ({
             if (!(window.ethereum || hasChainOverride)) {
                 if (fetchPrivate) {
                     logger.warn('Cannot fetch private balances without wallet provider or chain override');
-                    return false;
+                    return accountStateFailed('no_provider');
                 }
-                return true;
+                return ACCOUNT_STATE_OK;
             }
 
             if (window.ethereum || hasChainOverride) {
@@ -243,26 +248,26 @@ export const useBalanceUpdater = ({
                     restoredAesKey = validateOnUnlock
                         ? await getAESKeyFromSnap(account, { skipCache: true, ...aesKeyOptions })
                         : await getAESKeyFromSnap(account, aesKeyOptions);
-                    if (isStale()) return false;
+                    if (isStale()) return accountStateFailed('stale');
                     if (!restoredAesKey) {
-                        return false;
+                        return accountStateFailed('no_aes_key');
                     }
                 }
 
                 if (browserProvider && !deferPublicBalances) {
                     await checkNetwork(browserProvider);
-                    if (isStale()) return false;
+                    if (isStale()) return accountStateFailed('stale');
                 }
 
                 const currentChainId = hasChainOverride
                     ? chainOverride
                     : Number((await browserProvider!.getNetwork()).chainId);
-                if (isStale()) return false;
+                if (isStale()) return accountStateFailed('stale');
 
                 const addresses = CONTRACT_ADDRESSES[currentChainId];
                 if (fetchPrivate && !addresses) {
                     logger.warn(`No contract addresses configured for chain ${currentChainId}`);
-                    return false;
+                    return accountStateFailed('unsupported_chain');
                 }
 
                 let readProvider: ethers.Provider;
@@ -338,7 +343,7 @@ export const useBalanceUpdater = ({
                     }
                 }
 
-                if (isStale()) return false;
+                if (isStale()) return accountStateFailed('stale');
 
                 logger.log('✅ Updating public tokens list');
                 setPublicTokens(publicTokenConfigs.map((token, index) => ({
@@ -371,10 +376,10 @@ export const useBalanceUpdater = ({
                                     ? await getAESKeyFromSnap(account)
                                     : await getAESKeyFromSnap(account, aesKeyOptions);
                             }
-                            if (isStale()) return false;
+                            if (isStale()) return accountStateFailed('stale');
                             if (!aesKey) {
                                 logger.log('ℹ️ AES key required for unlock but unavailable (cancelled or failed).');
-                                return false;
+                                return accountStateFailed('no_aes_key');
                             }
                         }
 
@@ -386,7 +391,7 @@ export const useBalanceUpdater = ({
                             && !isAesKeyValidatedForUnlock(account, aesKey)
                         ) {
                             await validateMetaMaskAesKeyOnUnlock(aesKey, account, currentChainId);
-                            if (isStale()) return false;
+                            if (isStale()) return accountStateFailed('stale');
                             markValidatedAfterSuccess = true;
                         }
 
@@ -395,7 +400,7 @@ export const useBalanceUpdater = ({
                         }
 
                         if (allowSnapOperations) {
-                            if (isStale()) return false;
+                            if (isStale()) return accountStateFailed('stale');
                             setHasSnap(true);
                         }
 
@@ -410,7 +415,7 @@ export const useBalanceUpdater = ({
 
                         if (!aesKey && !allowSnapOperations && !hasPlainPrivateTokens) {
                             logger.log('ℹ️ Snap available but keys missing/rejected.');
-                            return false;
+                            return accountStateFailed('keys_unavailable');
                         }
 
                         if (aesKey || allowSnapOperations || hasPlainPrivateTokens) {
@@ -467,7 +472,7 @@ export const useBalanceUpdater = ({
                                 }
                             }));
 
-                            if (isStale()) return false;
+                            if (isStale()) return accountStateFailed('stale');
 
                             const mismatchCount = privateFetches.filter(r => r.isMismatch).length;
 
@@ -494,27 +499,27 @@ export const useBalanceUpdater = ({
                                 };
                             }));
                             if (aesKey) {
-                                if (isStale()) return false;
+                                if (isStale()) return accountStateFailed('stale');
                                 if (markValidatedAfterSuccess) {
                                     markAesKeyValidatedForUnlock(account, aesKey);
                                 }
                                 setSessionAesKey(aesKey, account);
                             }
-                            return true;
+                            return ACCOUNT_STATE_OK;
                         }
                     } catch (privateError: any) {
-                        if (isStale()) return false;
+                        if (isStale()) return accountStateFailed('stale');
                         logger.warn('⚠️ Could not fetch/decrypt private balance on load:', privateError);
                         if (privateError instanceof CotiPluginError) {
                             throw privateError;
                         }
-                        return false;
+                        return accountStateFailed('failed');
                     }
                 }
             }
-            return true;
+            return ACCOUNT_STATE_OK;
         } catch (error: any) {
-            if (isStale()) return false;
+            if (isStale()) return accountStateFailed('stale');
             logger.error('Error updating account state:', error);
             if (error instanceof CotiPluginError) {
                 if (error.code === CotiErrorCode.RPC_RATE_LIMITED) {
@@ -529,7 +534,7 @@ export const useBalanceUpdater = ({
             ) {
                 raiseFujiRateLimited();
             }
-            return false;
+            return accountStateFailed('failed');
         }
     }, [setWalletAddress, setHasSnap, setIsConnected, setPublicTokens, checkNetwork, getAESKeyFromSnap, fetchPrivateBalance, canUseSnapOperations, setPrivateTokens, sessionAesKey, setSessionAesKey, autoInitTokens, validateMetaMaskAesKeyOnUnlock]);
 

@@ -4,9 +4,9 @@ import { configureCotiPlugin } from '../../src/config/plugin';
 
 // ─── Hoisted mock state ─────────────────────────────────────────────────────
 const h = vi.hoisted(() => ({
-  bindAccount: vi.fn().mockResolvedValue(true),
-  refreshPublicBalances: vi.fn().mockResolvedValue(true),
-  refreshPrivateBalances: vi.fn().mockResolvedValue(true),
+  bindAccount: vi.fn().mockResolvedValue({ ok: true }),
+  refreshPublicBalances: vi.fn().mockResolvedValue({ ok: true }),
+  refreshPrivateBalances: vi.fn().mockResolvedValue({ ok: true }),
   isChainUpdatesMuted: vi.fn().mockReturnValue(false),
   balanceUpdaterParams: undefined as any,
 }));
@@ -137,7 +137,7 @@ describe('usePluginAccountSync — sessionAesKey effect', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     configureCotiPlugin({ snapEnabled: true });
-    h.refreshPrivateBalances.mockResolvedValue(true);
+    h.refreshPrivateBalances.mockResolvedValue({ ok: true });
     h.isChainUpdatesMuted.mockReturnValue(false);
     h.balanceUpdaterParams = undefined;
   });
@@ -179,7 +179,7 @@ describe('usePluginAccountSync — sessionAesKey effect', () => {
   });
 
   it('does not unlock private balances when session key refresh fails', async () => {
-    h.refreshPrivateBalances.mockResolvedValueOnce(false);
+    h.refreshPrivateBalances.mockResolvedValueOnce({ ok: false, reason: 'failed' });
     const core = makeCore({ sessionAesKey: null, walletAddress: '0xabc123' });
     const network = makeNetwork({ wagmiChainId: 11155111 });
     const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
@@ -359,7 +359,7 @@ describe('usePluginAccountSync — sessionAesKey effect', () => {
 describe('usePluginAccountSync — snap auto-probe', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    h.refreshPrivateBalances.mockResolvedValue(true);
+    h.refreshPrivateBalances.mockResolvedValue({ ok: true });
   });
 
   it('calls checkSnapStatus when MetaMask connects with hasSnap false', async () => {
@@ -402,7 +402,7 @@ describe('usePluginAccountSync — autoInitTokens', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     configureCotiPlugin({ autoInitTokens: true, snapEnabled: true });
-    h.refreshPrivateBalances.mockResolvedValue(true);
+    h.refreshPrivateBalances.mockResolvedValue({ ok: true });
     h.isChainUpdatesMuted.mockReturnValue(false);
   });
 
