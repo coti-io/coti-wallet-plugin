@@ -17,8 +17,8 @@ vi.mock('wagmi/connectors', () => ({
 }));
 
 vi.mock('@tanstack/react-query', () => ({
-  QueryClient: vi.fn(() => ({})),
-  QueryClientProvider: ({ children }: any) => children,
+  QueryClient: class QueryClient {},
+  QueryClientProvider: ({ children }: { children: unknown }) => children,
 }));
 
 vi.mock('@rainbow-me/rainbowkit', () => ({
@@ -126,5 +126,42 @@ describe('Package Exports (README: Installation & API)', () => {
     const aesKey = await import('../src/crypto/aesKey');
     expect(aesKey.normalizeAesKey).toBeDefined();
     expect(aesKey.validateAesKey).toBeDefined();
+  });
+
+  it('does not publish internals on the package barrel', async () => {
+    const mod = await import('../src/index') as Record<string, unknown>;
+    const withheld = [
+      'useBalanceUpdater',
+      'muteChainUpdates',
+      'unmuteChainUpdates',
+      'isChainUpdatesMuted',
+      'logger',
+      'setDebugLogging',
+      'TOKEN_ABI',
+      'BRIDGE_ABI',
+      'BRIDGE_ERC20_ABI',
+      'COTI_PRICE_CONSUMER_ABI',
+      'ERC20_ABI',
+      'PRIVACY_PORTAL_ABI',
+      'POD_PTOKEN_ABI',
+      'POD_PORTAL_ADMIN_ABI',
+      'POD_PORTAL_FACTORY_ABI',
+      'POD_PRICE_ORACLE_ABI',
+      'COTI_MAINNET_RPC',
+      'COTI_TESTNET_RPC',
+      'SEPOLIA_RPC',
+      'SEPOLIA_RPC_FALLBACK',
+      'ETHEREUM_MAINNET_RPC',
+      'loadPodRequests',
+      'savePodRequests',
+      'podRequestsStorageKey',
+      'getSepoliaGasPrice',
+    ];
+    for (const name of withheld) {
+      expect(mod[name], name).toBeUndefined();
+    }
+    expect(mod.CotiPluginProvider).toBeDefined();
+    expect(mod.usePrivateUnlock).toBeDefined();
+    expect(mod.configureCotiPlugin).toBeDefined();
   });
 });
