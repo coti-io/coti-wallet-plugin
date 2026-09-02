@@ -59,6 +59,12 @@ export const accountStateFailed = (
   reason: AccountStateFailureReason,
 ): { ok: false; reason: AccountStateFailureReason } => ({ ok: false, reason });
 
+/** Restore-only unlock opens Onboard User only when no usable AES key exists. */
+export const restoreNeedsOnboarding = (
+  result: AccountStateResult,
+): result is { ok: false; reason: 'no_aes_key' } =>
+  !result.ok && result.reason === 'no_aes_key';
+
 /** Named account-state operations. AES session is not mixed into token catalog writes. */
 export type AccountStateOperations = {
   bindAccount: (account: string) => Promise<AccountStateResult>;
