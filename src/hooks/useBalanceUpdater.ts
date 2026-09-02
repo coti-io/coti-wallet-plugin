@@ -41,7 +41,8 @@ interface UseBalanceUpdaterProps {
 
 /**
  * Account bind, AES session, and public/private token catalog writes.
- * AES session restore is not mixed into catalog refresh.
+ * AES session restore uses its own generation counter so a catalog refresh
+ * (wagmi connect, key-arrived effect) cannot discard an in-flight backup decrypt.
  */
 export const useBalanceUpdater = ({
     setWalletAddress,
@@ -59,7 +60,8 @@ export const useBalanceUpdater = ({
     autoInitTokens = true,
     validateMetaMaskAesKeyOnUnlock,
 }: UseBalanceUpdaterProps) => {
-    const updateGenerationRef = useRef(0);
+    const aesSessionGenerationRef = useRef(0);
+    const catalogGenerationRef = useRef(0);
 
     const deps: BalanceUpdaterDeps = {
         setWalletAddress,
@@ -80,8 +82,8 @@ export const useBalanceUpdater = ({
 
     const bindAccount = useCallback(
         (account: string) => {
-            const generation = ++updateGenerationRef.current;
-            return runBindAccount(deps, account, () => generation !== updateGenerationRef.current);
+            const generation = ++catalogGenerationRef.current;
+            return runBindAccount(deps, account, () => generation !== catalogGenerationRef.current);
         },
         [
             setWalletAddress,
@@ -103,8 +105,8 @@ export const useBalanceUpdater = ({
 
     const establishAesSession = useCallback(
         (params: EstablishAesSessionParams) => {
-            const generation = ++updateGenerationRef.current;
-            return runEstablishAesSession(deps, params, () => generation !== updateGenerationRef.current);
+            const generation = ++aesSessionGenerationRef.current;
+            return runEstablishAesSession(deps, params, () => generation !== aesSessionGenerationRef.current);
         },
         [
             setWalletAddress,
@@ -126,8 +128,8 @@ export const useBalanceUpdater = ({
 
     const refreshPublicBalances = useCallback(
         (params: RefreshPublicBalancesParams) => {
-            const generation = ++updateGenerationRef.current;
-            return runRefreshPublicBalances(deps, params, () => generation !== updateGenerationRef.current);
+            const generation = ++catalogGenerationRef.current;
+            return runRefreshPublicBalances(deps, params, () => generation !== catalogGenerationRef.current);
         },
         [
             setWalletAddress,
@@ -149,8 +151,8 @@ export const useBalanceUpdater = ({
 
     const refreshPrivateBalances = useCallback(
         (params: RefreshPrivateBalancesParams) => {
-            const generation = ++updateGenerationRef.current;
-            return runRefreshPrivateBalances(deps, params, () => generation !== updateGenerationRef.current);
+            const generation = ++catalogGenerationRef.current;
+            return runRefreshPrivateBalances(deps, params, () => generation !== catalogGenerationRef.current);
         },
         [
             setWalletAddress,

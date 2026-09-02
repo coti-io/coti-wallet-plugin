@@ -3,6 +3,7 @@ import { OnboardModal, type OnboardModalTheme } from '../../components/OnboardMo
 import { WalletSignPrompt, type WalletSignPromptPurpose } from '../../components/WalletSignPrompt';
 import { useCotiUnlock, useCotiWallet } from '../plugin/contexts';
 import { useSessionAesKey } from '../plugin/sessionAesKeyContext';
+import { restoreNeedsOnboarding } from '../plugin/sessionShared';
 import { formatOnboardingError, isMetaMaskMobileBrowser } from '../../lib/metaMaskMobile';
 import { isUserRejection } from '../../lib/walletErrors';
 import type {
@@ -340,7 +341,7 @@ export function usePrivateUnlockController(
 
     try {
       let restoreCancelled = false;
-      if ((await unlock.refreshPrivateBalances({
+      const restoreResult = await unlock.refreshPrivateBalances({
         restoreOnly: true,
         onRestoreCancelled: () => {
           if (!isActiveUnlockRequest(requestId)) return;
@@ -355,7 +356,8 @@ export function usePrivateUnlockController(
           }
           handleRestoreUnlockProgress(step);
         },
-      })).ok) {
+      });
+      if (restoreResult.ok) {
         if (!isActiveUnlockRequest(requestId)) {
           return handleStaleRestoreCompletion(requestId, true);
         }
@@ -367,6 +369,19 @@ export function usePrivateUnlockController(
       }
 
       if (restoreCancelled) {
+        releaseUnlockInProgress(requestId);
+        return false;
+      }
+
+      if (isPrivateUnlockedRef.current) {
+        return completeUnlock(requestId);
+      }
+
+      if (!restoreNeedsOnboarding(restoreResult)) {
+        logger.debug('[PrivateUnlock] restore failed without needing onboarding', restoreResult);
+        setCurrentStep('idle');
+        setShowOnboardModal(false);
+        setStatusMessage('Could not finish unlocking private balances. Try again.');
         releaseUnlockInProgress(requestId);
         return false;
       }

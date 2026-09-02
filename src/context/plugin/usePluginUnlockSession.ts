@@ -13,7 +13,9 @@ import { useWalletType } from '../../hooks/useWalletType';
 import type { PluginAccountSync } from './usePluginAccountSync';
 import type { PluginNetworkSession } from './usePluginNetworkSession';
 import {
+  ACCOUNT_STATE_OK,
   accountStateFailed,
+  type AccountStateFailureReason,
   type AccountStateResult,
   type PluginSessionState,
 } from './sessionShared';
@@ -98,6 +100,13 @@ export const usePluginUnlockSession = ({
     walletTypeInfo.walletType === 'metamask'
     && (walletTypeInfo.isMetaMaskWithSnap || hasSnap);
 
+  type ComposeUnlockResult =
+    | { ok: true; restoredAesKey: string | null }
+    | { ok: false; reason: AccountStateFailureReason; restoredAesKey?: string | null };
+
+  const toHostResult = (result: ComposeUnlockResult): AccountStateResult =>
+    result.ok ? ACCOUNT_STATE_OK : accountStateFailed(result.reason);
+
   const composeUnlockRefresh = async ({
     account,
     chainId,
@@ -110,7 +119,7 @@ export const usePluginUnlockSession = ({
     aesKey?: string;
     checkSnap?: boolean;
     options?: Parameters<typeof establishAesSession>[0]['options'];
-  }): Promise<AccountStateResult> => {
+  }): Promise<ComposeUnlockResult> => {
     const aes = await establishAesSession({
       account,
       chainId,
@@ -119,17 +128,19 @@ export const usePluginUnlockSession = ({
       options,
     });
     if (!aes.ok) return aes;
-    if (!autoInitTokens) return { ok: true };
+    if (!autoInitTokens) return { ok: true, restoredAesKey: aes.aesKey };
     if (!options?.restoreOnly) {
       const pub = await syncPublicBalances({ account, chainId });
-      if (!pub.ok) return pub;
+      if (!pub.ok) return { ...pub, restoredAesKey: aes.aesKey };
     }
-    return syncPrivateBalances({
+    const priv = await syncPrivateBalances({
       account,
       chainId,
       aesKey: aesKey ?? aes.aesKey,
       allowSnapDecrypt: allowSnapOperations(canUseSnapOperations, options),
     });
+    if (!priv.ok) return { ...priv, restoredAesKey: aes.aesKey };
+    return { ok: true, restoredAesKey: aes.aesKey };
   };
 
   const commitAesKeyUnlock = async (key: string): Promise<void> => {
@@ -377,32 +388,48 @@ export const usePluginUnlockSession = ({
       if (!result.ok) {
         if (aesKeyOptions?.forceContractOnboarding) {
           logger.log('Forced contract onboarding did not complete — skipping interactive retry');
-          return result;
+          return toHostResult(result);
         }
 
+        const restoredKey = result.restoredAesKey ?? keyForUnlock;
         if (aesKeyOptions?.restoreOnly) {
-          logger.log('Restore-only unlock did not complete — skipping retry');
-          return result;
+          if (
+            !restoredKey
+            || result.reason === 'no_aes_key'
+            || result.reason === 'user_rejected'
+          ) {
+            logger.log('Restore-only unlock did not complete — skipping retry');
+            return toHostResult(result);
+          }
+          logger.log('Restore-only catalog did not complete after AES session — retrying');
+          result = await composeUnlockRefresh({
+            account: walletAddress,
+            checkSnap,
+            aesKey: restoredKey,
+            chainId: chainOverride,
+            options: unlockOptions,
+          });
+          logger.log('Restore-only catalog retry completed', { success: result.ok });
+        } else {
+          keyForUnlock =
+            keyForUnlock ?? getValidatedAesKeyForUnlock(walletAddress) ?? undefined;
+          logger.log('First private balance fetch failed, retrying after 1.5s');
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          result = await composeUnlockRefresh({
+            account: walletAddress,
+            aesKey: keyForUnlock,
+            chainId: chainOverride,
+            options: unlockOptions,
+          });
+          logger.log('Retry private balance fetch completed', { success: result.ok });
         }
-
-        keyForUnlock =
-          keyForUnlock ?? getValidatedAesKeyForUnlock(walletAddress) ?? undefined;
-        logger.log('First private balance fetch failed, retrying after 1.5s');
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        result = await composeUnlockRefresh({
-          account: walletAddress,
-          aesKey: keyForUnlock,
-          chainId: chainOverride,
-          options: unlockOptions,
-        });
-        logger.log('Retry private balance fetch completed', { success: result.ok });
       }
 
       if (result.ok) {
         setArePrivateBalancesHidden(false);
         setSnapError(null);
       }
-      return result;
+      return toHostResult(result);
     } catch (err: unknown) {
       const errorInfo = err as { code?: number | string; name?: string };
       logger.log('Unlock logic caught error', { code: errorInfo.code, name: errorInfo.name });

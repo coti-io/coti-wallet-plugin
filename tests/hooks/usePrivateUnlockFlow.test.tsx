@@ -28,7 +28,7 @@ vi.mock('../../src/context/plugin/contexts', () => ({
       if (value && typeof value === 'object' && 'ok' in (value as object)) {
         return value;
       }
-      return value ? { ok: true } : { ok: false, reason: 'failed' };
+      return value ? { ok: true } : { ok: false, reason: 'no_aes_key' };
     },
     onboardingError: mockOnboardingError,
     onboardingWarnings: mockOnboardingWarnings,
@@ -97,6 +97,52 @@ describe('usePrivateUnlockFlow', () => {
       onProgress: expect.any(Function),
     });
     expect(result.current.showOnboardModal).toBe(true);
+  });
+
+  it('does not open onboarding when restoreOnly fails after a key was restored', async () => {
+    mockRefreshPrivateBalances.mockResolvedValueOnce({ ok: false, reason: 'stale' });
+
+    const { result } = renderHook(() => usePrivateUnlockFlow());
+
+    await act(async () => {
+      await result.current.openUnlockFlow();
+    });
+
+    expect(result.current.showOnboardModal).toBe(false);
+    expect(result.current.statusMessage).toMatch(/try again/i);
+  });
+
+  it('does not open onboarding when restoreOnly catalog refresh fails', async () => {
+    mockRefreshPrivateBalances.mockImplementation(async (options?: {
+      onProgress?: (step: string) => void;
+    }) => {
+      options?.onProgress?.('signing-backup');
+      options?.onProgress?.('complete');
+      return { ok: false, reason: 'failed' };
+    });
+
+    const { result } = renderHook(() => usePrivateUnlockFlow());
+
+    await act(async () => {
+      await result.current.openUnlockFlow();
+    });
+
+    expect(result.current.showOnboardModal).toBe(false);
+  });
+
+  it('completes restore when the session unlocked despite a stale catalog result', async () => {
+    mockIsPrivateUnlocked = true;
+    mockRefreshPrivateBalances.mockResolvedValueOnce({ ok: false, reason: 'stale' });
+
+    const { result } = renderHook(() => usePrivateUnlockFlow());
+
+    let ok = false;
+    await act(async () => {
+      ok = await result.current.unlockPrivateBalances();
+    });
+
+    expect(ok).toBe(true);
+    expect(result.current.showOnboardModal).toBe(false);
   });
 
   it('does not open modal when backup restore is cancelled', async () => {

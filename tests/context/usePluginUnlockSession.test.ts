@@ -143,6 +143,25 @@ describe('usePluginUnlockSession', () => {
     expect(accountSync.refreshPrivateBalances).toHaveBeenCalled();
   });
 
+  it('retries restoreOnly catalog refresh after AES session succeeds', async () => {
+    const accountSync = makeAccountSync({
+      refreshPrivateBalances: vi.fn()
+        .mockResolvedValueOnce({ ok: false, reason: 'stale' })
+        .mockResolvedValueOnce({ ok: true }),
+    });
+    const { result } = renderHook(() => usePluginUnlockSession({
+      core: makeCore() as never,
+      network: { wagmiChainId: 7082400 } as never,
+      accountSync: accountSync as never,
+    }));
+
+    await expect(result.current.refreshPrivateBalances({ restoreOnly: true })).resolves.toEqual({
+      ok: true,
+    });
+    expect(accountSync.establishAesSession).toHaveBeenCalledTimes(2);
+    expect(accountSync.refreshPrivateBalances).toHaveBeenCalledTimes(2);
+  });
+
   it('returns the AES session failure from composeUnlockRefresh', async () => {
     const accountSync = makeAccountSync({
       establishAesSession: vi.fn().mockResolvedValue({ ok: false, reason: 'no_aes_key' }),

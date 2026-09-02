@@ -504,6 +504,43 @@ describe('useBalanceUpdater', () => {
     (window as any).ethereum = original;
   });
 
+  it('does not discard an in-flight AES session when a catalog refresh starts', async () => {
+    const original = (window as any).ethereum;
+    delete (window as any).ethereum;
+
+    let resolveSlowSnap!: (value: string) => void;
+    const slowSnap = new Promise<string>(resolve => {
+      resolveSlowSnap = resolve;
+    });
+
+    const props = makeProps({
+      getAESKeyFromSnap: vi.fn().mockReturnValueOnce(slowSnap),
+    });
+    const { result } = renderHook(() => useBalanceUpdater(props));
+
+    const aesPromise = result.current.establishAesSession({
+      account: ACCOUNT,
+      checkSnap: true,
+      chainId: COTI_TESTNET,
+    });
+    await vi.waitFor(() => {
+      expect(props.getAESKeyFromSnap).toHaveBeenCalledWith(ACCOUNT);
+    });
+
+    const catalog = await result.current.refreshPublicBalances({
+      account: ACCOUNT,
+      chainId: COTI_TESTNET,
+    });
+    resolveSlowSnap('a'.repeat(32));
+    const aes = await aesPromise;
+
+    expect(catalog.ok).toBe(true);
+    expect(aes).toEqual({ ok: true, aesKey: 'a'.repeat(32) });
+    expect(props.setSessionAesKey).toHaveBeenCalledWith('a'.repeat(32), ACCOUNT);
+
+    (window as any).ethereum = original;
+  });
+
   it('reuses session AES key on validateOnUnlock without calling Snap when already validated', async () => {
     const original = (window as any).ethereum;
     delete (window as any).ethereum;

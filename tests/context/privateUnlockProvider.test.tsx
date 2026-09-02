@@ -30,7 +30,7 @@ vi.mock('../../src/context/plugin/contexts', () => ({
       if (value && typeof value === 'object' && 'ok' in (value as object)) {
         return value;
       }
-      return value ? { ok: true } : { ok: false, reason: 'failed' };
+      return value ? { ok: true } : { ok: false, reason: 'no_aes_key' };
     },
     onboardingError: null,
     onboardingWarnings: {},
