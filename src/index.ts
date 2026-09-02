@@ -39,15 +39,10 @@ export {
 
 // Chain registry (multi-chain portal strategies)
 export {
-  CHAIN_CONFIGS,
   DEFAULT_CHAIN_ID,
-  getChainConfig,
-  requireChainConfig,
   getContractAddresses,
   getTokensForChain,
   getExplorerBaseUrlForChain,
-  getRpcUrlForChain,
-  getRpcUrlsForChain,
   getNetworkNameForChain,
   getUnlockStrategyForChain,
   getWalletNetworkConfigs,
@@ -66,9 +61,6 @@ export {
   DEFAULT_POD_BALANCE_STATE,
 } from './contracts/pod';
 export type { PodPortalRequest, PodPortalRequestStatus, PodBalanceState, PodBalanceTrustState } from './contracts/pod';
-export { estimateCotiBridgeGasFeeDisplay } from './chains/cotiBridgeGasEstimate';
-export { quoteCotiBridgeFees } from './chains/coti-bridge/fees';
-export type { CotiBridgeFeeQuote } from './chains/coti-bridge/fees';
 export { resolvePodRequestStatus } from './chains/portal/podRequestStatus';
 export {
   executePodPortalTransaction,
@@ -76,25 +68,13 @@ export {
   assertPodPTokenReady,
   getPodInboxAddress,
   getPodSdkConfig,
-  getPodGasPrice,
   resolvePodTxGasPrice,
-  quotePortalFeeOnly,
-  quotePodPortalTransactionFees,
-  estimatePodPortalFees,
-  formatPortalFeeDisplay,
-  formatPodFeeDisplay,
 } from './chains/portal/executePodPortalTransaction';
-export type { PodWithdrawPermit, PodPortalFeeQuote } from './chains/portal/executePodPortalTransaction';
+export type { PodWithdrawPermit } from './chains/portal/executePodPortalTransaction';
 export {
   executePodPrivateTokenTransfer,
-  quotePodPrivateTokenTransferFees,
-  quotePodTransferFees,
   buildPodTransferMethodArgs,
 } from './chains/portal/executePodPrivateTokenTransfer';
-export type { PodTransferFeeQuote } from './chains/portal/executePodPrivateTokenTransfer';
-export { usePodTransferFees } from './hooks/bridge/usePodTransferFees';
-export { fetchPodOracleTokenUsdPrice } from './chains/podPriceOracle';
-export { fetchPodBridgeData, simulatePodPortalFee } from './chains/portal/podPortalAdminData';
 
 // Contracts (ABIs stay internal)
 export { CONTRACT_ADDRESSES, SUPPORTED_TOKENS, MINIMUM_PORTAL_IN_AMOUNTS, getPublicTokensForChain, getPrivateTokensForChain } from './contracts/config';
@@ -102,7 +82,7 @@ export type { TokenConfig } from './contracts/config';
 export { LIMITS } from './contracts/limits';
 
 // Hooks — Wallet Manager
-export { useMetamask } from './hooks/useMetamask';
+// NOTE: `useMetamask` is internal to CotiPluginProvider.
 
 // Hooks — Balance Manager
 export { usePrivateTokenBalance } from './hooks/usePrivateTokenBalance';
@@ -112,14 +92,8 @@ export { usePrivateTokenBalance } from './hooks/usePrivateTokenBalance';
 // NOTE: `usePluginBridge` (and its `getInitialPublicTokens`/`getInitialPrivateTokens`
 // helpers + `Token`/`SwapProgressStage` types) are intentionally NOT exported. They are
 // internal to `CotiPluginProvider`; consumers should use the provider + context instead.
-export { useBridgeData } from './hooks/useBridgeData';
-export type { BridgeData } from './hooks/useBridgeData';
-export { useBridgeStatus } from './hooks/useBridgeStatus';
-export type { BridgeStatus } from './hooks/useBridgeStatus';
-export { estimateBridgeFee } from './hooks/useEstimateBridgeFees';
-export type { FeeEstimate } from './hooks/useEstimateBridgeFees';
-export { fetchBridgeFees, fetchTokenUsdPrice, computeCotiFee, computeErc20Fee, simulateFeeOnChain, getTokenSimulationMeta } from './hooks/useBridgeFees';
-export type { BridgeFees, SimulationResult } from './hooks/useBridgeFees';
+// NOTE: bridge fee helpers (`estimateBridgeFee`, `useBridgeData`, `quoteCotiBridgeFees`,
+// `usePodTransferFees`, …) stay internal. Hosts use `useCotiSwap`.
 export {
   resolvePrivateTokenContractAddress,
   resolvePrivateTokenTransferTarget,
@@ -182,8 +156,9 @@ export type {
   OnboardingProgressCallback,
 } from './hooks/useAesKeyProvider';
 // Components — Onboarding
-export { OnboardModal, onboardModalDefaultStyles, ONBOARD_MODAL_STYLE_KEYS } from './components/OnboardModal';
-export type { OnboardModalProps, OnboardModalTheme, OnboardModalPage, OnboardModalWarnings } from './components/OnboardModal';
+// NOTE: `OnboardModal` is plugin-owned. Hosts theme it via `privateUnlock` /
+// `usePrivateUnlock`, not by mounting the component.
+export type { OnboardModalTheme, OnboardModalPage, OnboardModalWarnings } from './components/OnboardModal';
 
 // Components — Network
 export { NetworkGuard } from './components/NetworkGuard';
@@ -238,4 +213,5 @@ export {
 export type { EIP1193Provider, ConnectorProviderSource } from './lib/ethereum';
 
 // NOTE: logger, muteChainUpdates, ABIs, default RPC URL constants, PoD localStorage
-// helpers, getSepoliaGasPrice, and useBalanceUpdater are intentionally not exported.
+// helpers, getSepoliaGasPrice, useBalanceUpdater, useMetamask, OnboardModal,
+// CHAIN_CONFIGS, and bridge fee helpers are intentionally not exported.
