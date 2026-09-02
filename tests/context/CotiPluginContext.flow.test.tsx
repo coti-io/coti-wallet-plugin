@@ -64,11 +64,17 @@ const h = vi.hoisted(() => ({
       h.balanceUpdater.params?.setIsConnected(true);
       return { ok: true as const };
     }),
-    refreshPrivateBalances: vi.fn(async ({ account }: { account: string }) => {
+    establishAesSession: vi.fn(async ({ account, aesKey }: { account: string; aesKey?: string | null }) => {
       h.balanceUpdater.lastAccount = account;
       h.balanceUpdater.params?.setWalletAddress(account);
       h.balanceUpdater.params?.setIsConnected(true);
       await h.balanceUpdater.params?.getAESKeyFromSnap(account);
+      return { ok: true as const, aesKey: aesKey ?? null };
+    }),
+    refreshPrivateBalances: vi.fn(async ({ account }: { account: string }) => {
+      h.balanceUpdater.lastAccount = account;
+      h.balanceUpdater.params?.setWalletAddress(account);
+      h.balanceUpdater.params?.setIsConnected(true);
       return { ok: true as const };
     }),
     params: null as null | Record<string, (...args: unknown[]) => unknown>,
@@ -177,6 +183,7 @@ vi.mock('../../src/hooks/useBalanceUpdater', () => ({
     h.balanceUpdater.params = params;
     return {
       bindAccount: h.balanceUpdater.bindAccount,
+      establishAesSession: h.balanceUpdater.establishAesSession,
       refreshPublicBalances: h.balanceUpdater.refreshPublicBalances,
       refreshPrivateBalances: h.balanceUpdater.refreshPrivateBalances,
     };
@@ -336,10 +343,15 @@ describe('CotiPluginContext (flow coverage)', () => {
       h.balanceUpdater.params?.setIsConnected(true);
       return { ok: true as const };
     });
-    h.balanceUpdater.refreshPrivateBalances.mockImplementation(async ({ account }: { account: string }) => {
+    h.balanceUpdater.establishAesSession.mockImplementation(async ({ account, aesKey }: { account: string; aesKey?: string | null }) => {
       h.balanceUpdater.params?.setWalletAddress(account);
       h.balanceUpdater.params?.setIsConnected(true);
       await h.balanceUpdater.params?.getAESKeyFromSnap(account);
+      return { ok: true as const, aesKey: aesKey ?? null };
+    });
+    h.balanceUpdater.refreshPrivateBalances.mockImplementation(async ({ account }: { account: string }) => {
+      h.balanceUpdater.params?.setWalletAddress(account);
+      h.balanceUpdater.params?.setIsConnected(true);
       return { ok: true as const };
     });
     h.balanceUpdater.params = null;
@@ -648,6 +660,7 @@ describe('CotiPluginContext (flow coverage)', () => {
       h.wagmi.chainId = 2632500;
       await bumpWagmi();
       expect(h.balanceUpdater.refreshPrivateBalances).not.toHaveBeenCalled();
+      expect(h.balanceUpdater.establishAesSession).not.toHaveBeenCalled();
     });
 
     it('uses wagmi chainId as effective chainId when connected', async () => {
@@ -756,7 +769,7 @@ describe('CotiPluginContext (flow coverage)', () => {
         const key = await latest!.handleOnboard();
         expect(key).toBe('B'.repeat(32));
       });
-      expect(h.balanceUpdater.refreshPrivateBalances).toHaveBeenCalledWith({
+      expect(h.balanceUpdater.establishAesSession).toHaveBeenCalledWith({
         account: WALLET_A,
         aesKey: 'B'.repeat(32),
         chainId: 7082400,
@@ -870,7 +883,7 @@ describe('CotiPluginContext (flow coverage)', () => {
       await act(async () => {
         await latest!.saveManualAesKey('A'.repeat(32));
       });
-      expect(h.balanceUpdater.refreshPrivateBalances).toHaveBeenCalledWith({
+      expect(h.balanceUpdater.establishAesSession).toHaveBeenCalledWith({
         account: WALLET_A,
         aesKey: expect.any(String),
         chainId: 11155111,
@@ -1067,6 +1080,7 @@ describe('CotiPluginContext (flow coverage)', () => {
 
       expect(h.snap.hasAesKeyInSnap).toHaveBeenCalledTimes(2);
       expect(h.balanceUpdater.refreshPrivateBalances).not.toHaveBeenCalled();
+      expect(h.balanceUpdater.establishAesSession).not.toHaveBeenCalled();
     });
 
     it('does not error when Snap is not installed and key probe is unavailable', async () => {
@@ -1121,12 +1135,12 @@ describe('CotiPluginContext (flow coverage)', () => {
 
       expect(latest!.sessionAesKey).toBeNull();
       expect(latest!.isPrivateUnlocked).toBe(false);
-      expect(h.balanceUpdater.refreshPrivateBalances).toHaveBeenCalledWith({
+      expect(h.balanceUpdater.establishAesSession).toHaveBeenCalledWith(expect.objectContaining({
         account: WALLET_A,
         chainId: 7082400,
         checkSnap: true,
         options: { validateOnUnlock: true, forceContractOnboarding: true },
-      });
+      }));
     });
 
     it('does not retry forced contract onboarding after a soft failure', async () => {
@@ -1138,12 +1152,12 @@ describe('CotiPluginContext (flow coverage)', () => {
       ).resolves.toBe(false);
 
       expect(h.balanceUpdater.refreshPrivateBalances).toHaveBeenCalledTimes(1);
-      expect(h.balanceUpdater.refreshPrivateBalances).toHaveBeenCalledWith({
+      expect(h.balanceUpdater.establishAesSession).toHaveBeenCalledWith(expect.objectContaining({
         account: WALLET_A,
         chainId: 7082400,
         checkSnap: true,
         options: { validateOnUnlock: true, forceContractOnboarding: true },
-      });
+      }));
     });
 
     it('skips balance fetch and retry for restore-only onboard probe', async () => {
@@ -1156,6 +1170,7 @@ describe('CotiPluginContext (flow coverage)', () => {
       ).resolves.toBe(false);
 
       expect(h.balanceUpdater.refreshPrivateBalances).not.toHaveBeenCalled();
+      expect(h.balanceUpdater.establishAesSession).not.toHaveBeenCalled();
     });
 
     it('passes wagmi chain override during refresh when synced via RainbowKit', async () => {
@@ -1164,12 +1179,12 @@ describe('CotiPluginContext (flow coverage)', () => {
       await act(async () => {
         await latest!.refreshPrivateBalances();
       });
-      expect(h.balanceUpdater.refreshPrivateBalances).toHaveBeenCalledWith({
+      expect(h.balanceUpdater.establishAesSession).toHaveBeenCalledWith(expect.objectContaining({
         account: WALLET_A,
         chainId: 11155111,
         checkSnap: true,
         options: { validateOnUnlock: true, forceContractOnboarding: true },
-      });
+      }));
     });
   });
 

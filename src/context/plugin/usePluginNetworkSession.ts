@@ -194,6 +194,7 @@ export const usePluginNetworkSession = ({
       // instead of reloading the page.
       if (walletAddress) {
         await updateAccountStateRef.current?.bindAccount(walletAddress);
+        await updateAccountStateRef.current?.refreshPublicBalances({ account: walletAddress });
       }
     },
     onAccountChanged: async account => {
@@ -216,6 +217,7 @@ export const usePluginNetworkSession = ({
       setSessionAesKey(null);
       setArePrivateBalancesHidden(true);
       await updateAccountStateRef.current?.bindAccount(account);
+      await updateAccountStateRef.current?.refreshPublicBalances({ account });
     },
     onSnapCheck: async account => {
       if (wagmiSyncRef.current || wagmiConnected || disconnectingRef.current) return;
@@ -223,6 +225,7 @@ export const usePluginNetworkSession = ({
 
       await executeSnapCheck(async () => {
         await updateAccountStateRef.current?.bindAccount(account);
+        await updateAccountStateRef.current?.refreshPublicBalances({ account });
         return true;
       });
     },

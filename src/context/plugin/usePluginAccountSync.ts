@@ -164,12 +164,15 @@ export const usePluginAccountSync = ({
 
     if (keyJustArrived && sessionAesKey && walletAddress && arePrivateBalancesHidden) {
       if (!autoInitTokens) return;
-      logger.log('Session AES Key arrived — refreshing private balances...');
+      logger.log('Session AES Key arrived — refreshing public and private balances...');
       const chainOverride = wagmiSyncRef.current ? wagmiChainId : undefined;
-      accountState.refreshPrivateBalances({
-        account: walletAddress,
-        aesKey: sessionAesKey,
-        chainId: chainOverride,
+      const catalogs = { account: walletAddress, chainId: chainOverride };
+      void accountState.refreshPublicBalances(catalogs).then((pub) => {
+        if (!pub.ok) return pub;
+        return accountState.refreshPrivateBalances({
+          ...catalogs,
+          aesKey: sessionAesKey,
+        });
       }).then((result) => {
         if (result.ok) {
           setArePrivateBalancesHidden(false);
@@ -180,6 +183,7 @@ export const usePluginAccountSync = ({
     sessionAesKey,
     walletAddress,
     arePrivateBalancesHidden,
+    accountState.refreshPublicBalances,
     accountState.refreshPrivateBalances,
     setArePrivateBalancesHidden,
     wagmiSyncRef,

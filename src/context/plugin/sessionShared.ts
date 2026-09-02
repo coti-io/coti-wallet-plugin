@@ -20,6 +20,14 @@ export type RefreshPrivateBalancesParams = {
   account: string;
   chainId?: number;
   aesKey?: string | null;
+  /** Override Snap-side decrypt. Defaults to the updater's canUseSnapOperations. */
+  allowSnapDecrypt?: boolean;
+};
+
+export type EstablishAesSessionParams = {
+  account: string;
+  chainId?: number;
+  aesKey?: string | null;
   checkSnap?: boolean;
   options?: UpdateAccountStateOptions & AesKeyProviderOptions;
 };
@@ -37,15 +45,20 @@ export type AccountStateResult =
   | { ok: true }
   | { ok: false; reason: AccountStateFailureReason };
 
+export type AesSessionResult =
+  | { ok: true; aesKey: string | null }
+  | { ok: false; reason: AccountStateFailureReason };
+
 export const ACCOUNT_STATE_OK: AccountStateResult = { ok: true };
 
 export const accountStateFailed = (
   reason: AccountStateFailureReason,
-): AccountStateResult => ({ ok: false, reason });
+): { ok: false; reason: AccountStateFailureReason } => ({ ok: false, reason });
 
-/** Named account-state operations. Replaces the old positional updateAccountState flags. */
+/** Named account-state operations. AES session is not mixed into token catalog writes. */
 export type AccountStateOperations = {
   bindAccount: (account: string) => Promise<AccountStateResult>;
+  establishAesSession: (params: EstablishAesSessionParams) => Promise<AesSessionResult>;
   refreshPublicBalances: (params: RefreshPublicBalancesParams) => Promise<AccountStateResult>;
   refreshPrivateBalances: (params: RefreshPrivateBalancesParams) => Promise<AccountStateResult>;
 };

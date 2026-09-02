@@ -100,27 +100,33 @@ describe('useBalanceUpdater', () => {
     const props = makeProps({ autoInitTokens: false, sessionAesKey: 'a'.repeat(32) });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.refreshPrivateBalances({
+    const aes = await result.current.establishAesSession({
+      account: ACCOUNT,
+      aesKey: 'a'.repeat(32),
+      chainId: COTI_TESTNET,
+    });
+    const catalogs = await result.current.refreshPrivateBalances({
       account: ACCOUNT,
       aesKey: 'a'.repeat(32),
       chainId: COTI_TESTNET,
     });
 
-    expect(ok.ok).toBe(true);
+    expect(aes.ok).toBe(true);
+    expect(catalogs.ok).toBe(true);
     expect(props.setPublicTokens).not.toHaveBeenCalled();
     expect(props.setPrivateTokens).not.toHaveBeenCalled();
     expect(h.getBalance).not.toHaveBeenCalled();
     expect(props.setSessionAesKey).toHaveBeenCalled();
   });
 
-  it('returns false when fetchPrivate is requested without provider or chain override', async () => {
+  it('returns false when private catalog refresh has no provider or chain override', async () => {
     const original = (window as any).ethereum;
     delete (window as any).ethereum;
 
     const props = makeProps({ sessionAesKey: 'a'.repeat(32) });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.refreshPrivateBalances({ account: ACCOUNT, checkSnap: true });
+    const ok = await result.current.refreshPrivateBalances({ account: ACCOUNT });
 
     expect(ok.ok).toBe(false);
     expect(props.setSessionAesKey).not.toHaveBeenCalled();
@@ -135,7 +141,6 @@ describe('useBalanceUpdater', () => {
 
     const ok = await result.current.refreshPrivateBalances({
       account: ACCOUNT,
-      checkSnap: true,
       aesKey: 'a'.repeat(32),
       chainId: 999999,
     });
@@ -185,7 +190,7 @@ describe('useBalanceUpdater', () => {
     const props = makeProps();
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.bindAccount(ACCOUNT);
+    const ok = await result.current.refreshPublicBalances({ account: ACCOUNT });
 
     expect(ok.ok).toBe(true);
     expect(props.checkNetwork).toHaveBeenCalledTimes(1);
@@ -201,7 +206,6 @@ describe('useBalanceUpdater', () => {
 
     const ok = await result.current.refreshPrivateBalances({
       account: ACCOUNT,
-      checkSnap: true,
       aesKey: 'a'.repeat(32),
       chainId: COTI_TESTNET,
     });
@@ -216,11 +220,10 @@ describe('useBalanceUpdater', () => {
   it('retrieves the AES key from the snap and caches it when no session key exists', async () => {
     const props = makeProps({
       getAESKeyFromSnap: vi.fn().mockResolvedValue('b'.repeat(32)),
-      fetchPrivateBalance: vi.fn().mockResolvedValue('7'),
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.refreshPrivateBalances({ account: ACCOUNT, checkSnap: true, chainId: COTI_TESTNET });
+    const ok = await result.current.establishAesSession({ account: ACCOUNT, checkSnap: true, chainId: COTI_TESTNET });
 
     expect(ok.ok).toBe(true);
     expect(props.getAESKeyFromSnap).toHaveBeenCalledWith(ACCOUNT);
@@ -235,7 +238,7 @@ describe('useBalanceUpdater', () => {
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.refreshPrivateBalances({ account: ACCOUNT, checkSnap: true, chainId: COTI_TESTNET });
+    const ok = await result.current.refreshPrivateBalances({ account: ACCOUNT, chainId: COTI_TESTNET });
 
     expect(ok.ok).toBe(true);
     expect(props.getAESKeyFromSnap).not.toHaveBeenCalled();
@@ -243,16 +246,16 @@ describe('useBalanceUpdater', () => {
     expect(props.setPrivateTokens).toHaveBeenCalledTimes(1);
   });
 
-  it('returns false when no AES key can be obtained for private balances', async () => {
+  it('returns false when no AES key can be obtained for the session', async () => {
     const props = makeProps({
       getAESKeyFromSnap: vi.fn().mockResolvedValue(null),
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.refreshPrivateBalances({ account: ACCOUNT, checkSnap: true, chainId: COTI_TESTNET });
+    const ok = await result.current.establishAesSession({ account: ACCOUNT, checkSnap: true, chainId: COTI_TESTNET });
 
     expect(ok.ok).toBe(false);
-    expect(props.setPrivateTokens).not.toHaveBeenCalled();
+    expect(props.setSessionAesKey).not.toHaveBeenCalled();
   });
 
   it('throws AES_KEY_MISMATCH when a private balance decrypt mismatches', async () => {
@@ -263,12 +266,12 @@ describe('useBalanceUpdater', () => {
     const { result } = renderHook(() => useBalanceUpdater(props));
 
     await expect(
-      result.current.refreshPrivateBalances({ account: ACCOUNT, checkSnap: true, chainId: COTI_TESTNET }),
+      result.current.refreshPrivateBalances({ account: ACCOUNT, chainId: COTI_TESTNET }),
     ).rejects.toMatchObject({ code: CotiErrorCode.AES_KEY_MISMATCH });
     expect(props.setPrivateTokens).not.toHaveBeenCalled();
   });
 
-  it('fetches private balances when fetchPrivate is true even if checkSnap is false', async () => {
+  it('fetches private balances from the session key without Snap AES fetch', async () => {
     const props = makeProps({
       sessionAesKey: 'f'.repeat(64),
       fetchPrivateBalance: vi.fn().mockResolvedValue('1.5'),
@@ -288,11 +291,11 @@ describe('useBalanceUpdater', () => {
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.refreshPrivateBalances({ account: ACCOUNT, checkSnap: true, chainId: COTI_TESTNET });
+    const ok = await result.current.refreshPrivateBalances({ account: ACCOUNT, chainId: COTI_TESTNET });
     expect(ok.ok).toBe(false);
   });
 
-  it('does not mark an AES key validated when private balance fetch fails', async () => {
+  it('marks an AES key validated on establishAesSession even if catalogs are not written', async () => {
     const {
       clearAesKeyValidatedForUnlock,
       isAesKeyValidatedForUnlock,
@@ -304,20 +307,19 @@ describe('useBalanceUpdater', () => {
     const props = makeProps({
       sessionAesKey: aesKey,
       validateMetaMaskAesKeyOnUnlock,
-      fetchPrivateBalance: vi.fn().mockRejectedValue(new Error('network blip')),
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.refreshPrivateBalances({
+    const ok = await result.current.establishAesSession({
       account: ACCOUNT,
       checkSnap: true,
       chainId: COTI_TESTNET,
       options: { validateOnUnlock: true },
     });
 
-    expect(ok.ok).toBe(false);
+    expect(ok.ok).toBe(true);
     expect(validateMetaMaskAesKeyOnUnlock).toHaveBeenCalled();
-    expect(isAesKeyValidatedForUnlock(ACCOUNT, aesKey)).toBe(false);
+    expect(isAesKeyValidatedForUnlock(ACCOUNT, aesKey)).toBe(true);
     clearAesKeyValidatedForUnlock();
   });
 
@@ -330,7 +332,7 @@ describe('useBalanceUpdater', () => {
     const { result } = renderHook(() => useBalanceUpdater(props));
 
     await expect(
-      result.current.bindAccount(ACCOUNT),
+      result.current.refreshPublicBalances({ account: ACCOUNT }),
     ).rejects.toMatchObject({ code: CotiErrorCode.UNSUPPORTED_NETWORK });
   });
 
@@ -340,7 +342,7 @@ describe('useBalanceUpdater', () => {
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.bindAccount(ACCOUNT);
+    const ok = await result.current.refreshPublicBalances({ account: ACCOUNT });
     expect(ok.ok).toBe(false);
   });
 
@@ -397,12 +399,10 @@ describe('useBalanceUpdater', () => {
     const accountB = '0xcccccccccccccccccccccccccccccccccccccccc';
     const slowUpdate = result.current.refreshPrivateBalances({
       account: ACCOUNT,
-      checkSnap: true,
       chainId: COTI_TESTNET,
     });
     const fastUpdate = result.current.refreshPrivateBalances({
       account: accountB,
-      checkSnap: true,
       aesKey: 'a'.repeat(32),
       chainId: COTI_TESTNET,
     });
@@ -438,7 +438,6 @@ describe('useBalanceUpdater', () => {
 
     const slowUpdate = result.current.refreshPrivateBalances({
       account: ACCOUNT,
-      checkSnap: true,
       chainId: COTI_TESTNET,
     });
     await vi.waitFor(() => {
@@ -446,7 +445,6 @@ describe('useBalanceUpdater', () => {
     });
     const fastUpdate = result.current.refreshPrivateBalances({
       account: accountB,
-      checkSnap: true,
       aesKey: 'e'.repeat(32),
       chainId: COTI_TESTNET,
     });
@@ -478,7 +476,7 @@ describe('useBalanceUpdater', () => {
     const { result } = renderHook(() => useBalanceUpdater(props));
 
     const accountB = '0xdddddddddddddddddddddddddddddddddddddddd';
-    const slowUpdate = result.current.refreshPrivateBalances({
+    const slowUpdate = result.current.establishAesSession({
       account: ACCOUNT,
       checkSnap: true,
       chainId: COTI_TESTNET,
@@ -486,7 +484,7 @@ describe('useBalanceUpdater', () => {
     await vi.waitFor(() => {
       expect(props.getAESKeyFromSnap).toHaveBeenCalledWith(ACCOUNT);
     });
-    const fastUpdate = result.current.refreshPrivateBalances({
+    const fastUpdate = result.current.establishAesSession({
       account: accountB,
       checkSnap: true,
       chainId: COTI_TESTNET,
@@ -522,7 +520,7 @@ describe('useBalanceUpdater', () => {
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.refreshPrivateBalances({
+    const ok = await result.current.establishAesSession({
       account: ACCOUNT,
       aesKey: sessionKey,
       chainId: COTI_TESTNET,
@@ -550,13 +548,20 @@ describe('useBalanceUpdater', () => {
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.refreshPrivateBalances({
+    const aes = await result.current.establishAesSession({
       account: ACCOUNT,
       checkSnap: true,
       chainId: COTI_TESTNET,
       options: { validateOnUnlock: true, forceContractOnboarding: true },
     });
+    const ok = await result.current.refreshPrivateBalances({
+      account: ACCOUNT,
+      aesKey: contractKey,
+      chainId: COTI_TESTNET,
+      allowSnapDecrypt: false,
+    });
 
+    expect(aes.ok).toBe(true);
     expect(ok.ok).toBe(true);
     expect(props.getAESKeyFromSnap).toHaveBeenCalledWith(ACCOUNT, {
       skipCache: true,
@@ -593,7 +598,7 @@ describe('useBalanceUpdater', () => {
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.refreshPrivateBalances({
+    const ok = await result.current.establishAesSession({
       account: ACCOUNT,
       aesKey: sessionKey,
       chainId: COTI_TESTNET,
@@ -620,12 +625,18 @@ describe('useBalanceUpdater', () => {
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.refreshPrivateBalances({
+    const aes = await result.current.establishAesSession({
       account: ACCOUNT,
       chainId: COTI_TESTNET,
       options: { restoreOnly: true, snapSideDecrypt: true },
     });
+    const ok = await result.current.refreshPrivateBalances({
+      account: ACCOUNT,
+      chainId: COTI_TESTNET,
+      allowSnapDecrypt: true,
+    });
 
+    expect(aes.ok).toBe(true);
     expect(ok.ok).toBe(true);
     expect(props.getAESKeyFromSnap).not.toHaveBeenCalled();
     expect(props.setHasSnap).toHaveBeenCalledWith(true);
@@ -650,7 +661,7 @@ describe('useBalanceUpdater', () => {
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.refreshPrivateBalances({
+    const ok = await result.current.establishAesSession({
       account: ACCOUNT,
       checkSnap: true,
       chainId: SEPOLIA,
@@ -680,7 +691,7 @@ describe('useBalanceUpdater', () => {
     });
 
     const { result } = renderHook(() => useBalanceUpdater(props));
-    const ok = await result.current.refreshPrivateBalances({
+    const ok = await result.current.establishAesSession({
       account: ACCOUNT,
       checkSnap: true,
       chainId: COTI_TESTNET,
@@ -691,5 +702,54 @@ describe('useBalanceUpdater', () => {
     expect(callOrder[0]).toBe('aes-key');
     expect(callOrder).not.toContain('public-balance');
     expect(callOrder).not.toContain('check-network');
+  });
+
+  it('loads a restore-only Snap key without skipCache when not validating', async () => {
+    const original = (window as any).ethereum;
+    delete (window as any).ethereum;
+    const props = makeProps({
+      getAESKeyFromSnap: vi.fn().mockResolvedValue('c'.repeat(32)),
+    });
+    const { result } = renderHook(() => useBalanceUpdater(props));
+
+    const ok = await result.current.establishAesSession({
+      account: ACCOUNT,
+      checkSnap: true,
+      chainId: COTI_TESTNET,
+      options: { restoreOnly: true },
+    });
+
+    expect(ok.ok).toBe(true);
+    expect(props.getAESKeyFromSnap).toHaveBeenCalledWith(ACCOUNT, { restoreOnly: true });
+    expect(props.setSessionAesKey).toHaveBeenCalledWith('c'.repeat(32), ACCOUNT);
+
+    (window as any).ethereum = original;
+  });
+
+  it('returns keys_unavailable when private catalogs have no AES key or Snap', async () => {
+    const props = makeProps();
+    const { result } = renderHook(() => useBalanceUpdater(props));
+
+    const ok = await result.current.refreshPrivateBalances({
+      account: ACCOUNT,
+      chainId: COTI_TESTNET,
+    });
+
+    expect(ok).toEqual({ ok: false, reason: 'keys_unavailable' });
+    expect(props.setPrivateTokens).not.toHaveBeenCalled();
+  });
+
+  it('reads Fuji public balances through the JsonRpc fallback path', async () => {
+    const original = (window as any).ethereum;
+    delete (window as any).ethereum;
+    const FUJI = 43113;
+    const props = makeProps();
+    const { result } = renderHook(() => useBalanceUpdater(props));
+
+    const ok = await result.current.refreshPublicBalances({ account: ACCOUNT, chainId: FUJI });
+    expect(ok.ok).toBe(true);
+    expect(props.setPublicTokens).toHaveBeenCalled();
+
+    (window as any).ethereum = original;
   });
 });

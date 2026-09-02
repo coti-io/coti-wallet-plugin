@@ -25,6 +25,7 @@ export const normalizeAesKey = vi.fn((key: string | null | undefined) => {
   }
   return lowered;
 });
+export const encryptUint256 = vi.fn(() => ({ ciphertextHigh: 1n, ciphertextLow: 2n }));
 export const encryptUint = vi.fn(() => 12345n);
 export const buildItSignature = vi.fn(() => `0x${'ab'.repeat(64)}00`);
 export const buildItUint256WithSigner = vi.fn(async ({

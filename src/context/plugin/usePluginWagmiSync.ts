@@ -60,7 +60,7 @@ export const usePluginWagmiSync = ({
     wagmiConnector,
   } = network;
 
-  const { refreshPublicBalances, refreshPrivateBalances } = accountSync;
+  const { establishAesSession, refreshPublicBalances, refreshPrivateBalances } = accountSync;
   const autoInitTokens = isAutoInitTokensEnabled(autoInitTokensProp);
 
   useEffect(() => {
@@ -71,9 +71,15 @@ export const usePluginWagmiSync = ({
       });
       wagmiSyncRef.current = true;
       if (autoInitTokens) {
-        void refreshPrivateBalances({
+        void refreshPublicBalances({
           account: wagmiAddress,
           chainId: wagmiChainId,
+        }).then((pub) => {
+          if (!pub.ok) return;
+          return refreshPrivateBalances({
+            account: wagmiAddress,
+            chainId: wagmiChainId,
+          });
         }).catch(err => {
           reportBalanceRefreshFailure('Wagmi connect balance refresh failed', err);
         });
@@ -139,6 +145,7 @@ export const usePluginWagmiSync = ({
     wagmiConnector,
     refreshPublicBalances,
     refreshPrivateBalances,
+    establishAesSession,
     wagmiSyncRef,
     setIsConnected,
     setWalletAddress,
@@ -184,19 +191,31 @@ export const usePluginWagmiSync = ({
           prevWagmiChainIdRef.current = wagmiChainId;
           return;
         }
-        // When a session AES key exists, private balances are already correct.
-        // Re-fetch with the key to avoid resetting private tokens to zero.
+        // When a session AES key exists, restore AES for the new chain then rewrite catalogs.
         if (core.sessionAesKey) {
           logger.log('[ChainChange] sessionAesKey present — refreshing with private balances', {
             from: prevWagmiChainIdRef.current,
             to: wagmiChainId,
           });
           prevWagmiChainIdRef.current = wagmiChainId;
-          void refreshPrivateBalances({
+          void establishAesSession({
             account: wagmiAddress,
             chainId: wagmiChainId,
             aesKey: core.sessionAesKey,
             checkSnap: true,
+          }).then((aes) => {
+            if (!aes.ok) return;
+            return refreshPublicBalances({
+              account: wagmiAddress,
+              chainId: wagmiChainId,
+            });
+          }).then((pub) => {
+            if (!pub || !pub.ok) return;
+            return refreshPrivateBalances({
+              account: wagmiAddress,
+              chainId: wagmiChainId,
+              aesKey: core.sessionAesKey,
+            });
           }).catch(err => {
             reportBalanceRefreshFailure('Wagmi chain-change balance refresh failed', err);
           });
@@ -206,14 +225,20 @@ export const usePluginWagmiSync = ({
           from: prevWagmiChainIdRef.current,
           to: wagmiChainId,
         });
-        void refreshPrivateBalances({
+        void refreshPublicBalances({
           account: wagmiAddress,
           chainId: wagmiChainId,
+        }).then((pub) => {
+          if (!pub.ok) return;
+          return refreshPrivateBalances({
+            account: wagmiAddress,
+            chainId: wagmiChainId,
+          });
         }).catch(err => {
           reportBalanceRefreshFailure('Wagmi chain-change balance refresh failed', err);
         });
       }
       prevWagmiChainIdRef.current = wagmiChainId;
     }
-  }, [wagmiConnected, wagmiAddress, walletAddress, isConnected, wagmiChainId, refreshPrivateBalances, core.sessionAesKey, autoInitTokens]);
+  }, [wagmiConnected, wagmiAddress, walletAddress, isConnected, wagmiChainId, establishAesSession, refreshPublicBalances, refreshPrivateBalances, core.sessionAesKey, autoInitTokens]);
 };

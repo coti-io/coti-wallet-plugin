@@ -7,6 +7,7 @@ const h = vi.hoisted(() => ({
   bindAccount: vi.fn().mockResolvedValue({ ok: true }),
   refreshPublicBalances: vi.fn().mockResolvedValue({ ok: true }),
   refreshPrivateBalances: vi.fn().mockResolvedValue({ ok: true }),
+  establishAesSession: vi.fn().mockResolvedValue({ ok: true, aesKey: null }),
   isChainUpdatesMuted: vi.fn().mockReturnValue(false),
   balanceUpdaterParams: undefined as any,
 }));
@@ -18,6 +19,7 @@ vi.mock('../../src/hooks/useBalanceUpdater', () => ({
       bindAccount: h.bindAccount,
       refreshPublicBalances: h.refreshPublicBalances,
       refreshPrivateBalances: h.refreshPrivateBalances,
+      establishAesSession: h.establishAesSession,
     };
   },
 }));
@@ -171,6 +173,10 @@ describe('usePluginAccountSync — sessionAesKey effect', () => {
       expect(h.refreshPrivateBalances).toHaveBeenCalled();
     });
 
+    expect(h.refreshPublicBalances).toHaveBeenCalledWith({
+      account: '0xabc123',
+      chainId: 11155111,
+    });
     expect(h.refreshPrivateBalances).toHaveBeenCalledWith({
       account: '0xabc123',
       aesKey: 'a'.repeat(32),
@@ -258,6 +264,10 @@ describe('usePluginAccountSync — sessionAesKey effect', () => {
       expect(h.refreshPrivateBalances).toHaveBeenCalled();
     });
 
+    expect(h.refreshPublicBalances).toHaveBeenCalledWith({
+      account: '0xdef456',
+      chainId: undefined,
+    });
     expect(h.refreshPrivateBalances).toHaveBeenCalledWith({
       account: '0xdef456',
       aesKey: 'b'.repeat(32),
