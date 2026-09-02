@@ -133,12 +133,12 @@ describe('usePluginUnlockSession', () => {
       { initialProps: { autoInitTokens: false } },
     );
 
-    await expect(result.current.refreshPrivateBalances()).resolves.toBe(true);
+    await expect(result.current.refreshPrivateBalances()).resolves.toEqual({ ok: true });
     expect(accountSync.refreshPublicBalances).not.toHaveBeenCalled();
     expect(accountSync.refreshPrivateBalances).not.toHaveBeenCalled();
 
     rerender({ autoInitTokens: true });
-    await expect(result.current.refreshPrivateBalances({ restoreOnly: true })).resolves.toBe(true);
+    await expect(result.current.refreshPrivateBalances({ restoreOnly: true })).resolves.toEqual({ ok: true });
     expect(accountSync.refreshPublicBalances).not.toHaveBeenCalled();
     expect(accountSync.refreshPrivateBalances).toHaveBeenCalled();
   });
@@ -152,10 +152,13 @@ describe('usePluginUnlockSession', () => {
       network: { wagmiChainId: 7082400 } as never,
       accountSync: accountSync as never,
     }));
-    await expect(result.current.refreshPrivateBalances()).resolves.toBe(false);
+    await expect(result.current.refreshPrivateBalances()).resolves.toEqual({
+      ok: false,
+      reason: 'no_aes_key',
+    });
   });
 
-  it('returns false when public catalog refresh fails during unlock', async () => {
+  it('returns a failed result when public catalog refresh fails during unlock', async () => {
     const accountSync = makeAccountSync({
       refreshPublicBalances: vi.fn().mockResolvedValue({ ok: false, reason: 'failed' }),
     });
@@ -164,7 +167,10 @@ describe('usePluginUnlockSession', () => {
       network: { wagmiChainId: 7082400 } as never,
       accountSync: accountSync as never,
     }));
-    await expect(result.current.refreshPrivateBalances()).resolves.toBe(false);
+    await expect(result.current.refreshPrivateBalances()).resolves.toEqual({
+      ok: false,
+      reason: 'failed',
+    });
   });
 
   it('saves a manual AES key and reports backup outcomes', async () => {
@@ -213,7 +219,14 @@ describe('usePluginUnlockSession', () => {
 
     rerender({ walletAddress: '' });
     await expect(result.current.saveManualAesKey(AES_KEY)).rejects.toThrow('Connect your wallet first');
-    await expect(result.current.refreshPublicBalances()).resolves.toBe(false);
+    await expect(result.current.refreshPublicBalances()).resolves.toEqual({
+      ok: false,
+      reason: 'not_connected',
+    });
+    await expect(result.current.refreshPrivateBalances()).resolves.toEqual({
+      ok: false,
+      reason: 'not_connected',
+    });
   });
 
   it('encrypts and decrypts with the local AES key, and via Snap', async () => {
@@ -363,7 +376,36 @@ describe('usePluginUnlockSession', () => {
     expect(accountSync.establishAesSession).toHaveBeenCalled();
   });
 
-  it('surfaces public refresh failures as false', async () => {
+  it('returns unsupported_chain when the network is unavailable', async () => {
+    const { result } = renderHook(() => usePluginUnlockSession({
+      core: makeCore() as never,
+      network: { wagmiChainId: 7082400 } as never,
+      accountSync: makeAccountSync({ currentChainId: Number.NaN }) as never,
+    }));
+    await expect(result.current.refreshPrivateBalances()).resolves.toEqual({
+      ok: false,
+      reason: 'unsupported_chain',
+    });
+  });
+
+  it('returns user_rejected when the wallet request is rejected', async () => {
+    const accountSync = makeAccountSync({
+      refreshPrivateBalances: vi.fn().mockRejectedValue(
+        Object.assign(new Error('User rejected the request'), { code: 4001 }),
+      ),
+    });
+    const { result } = renderHook(() => usePluginUnlockSession({
+      core: makeCore() as never,
+      network: { wagmiChainId: 7082400 } as never,
+      accountSync: accountSync as never,
+    }));
+    await expect(result.current.refreshPrivateBalances()).resolves.toEqual({
+      ok: false,
+      reason: 'user_rejected',
+    });
+  });
+
+  it('surfaces public refresh failures as a failed result', async () => {
     const accountSync = makeAccountSync({
       refreshPublicBalances: vi.fn().mockRejectedValue(new Error('rpc down')),
     });
@@ -372,6 +414,6 @@ describe('usePluginUnlockSession', () => {
       network: { wagmiChainId: 7082400 } as never,
       accountSync: accountSync as never,
     }));
-    await expect(result.current.refreshPublicBalances()).resolves.toBe(false);
+    await expect(result.current.refreshPublicBalances()).resolves.toEqual({ ok: false, reason: 'failed' });
   });
 });

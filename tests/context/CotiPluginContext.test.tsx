@@ -305,7 +305,7 @@ describe('CotiPluginContext', () => {
       await ctx.updateGasFee();
       await ctx.handleApprove();
     });
-    await expect(ctx.refreshPrivateBalances()).resolves.toBe(false);
+    await expect(ctx.refreshPrivateBalances()).resolves.toEqual({ ok: false, reason: 'not_connected' });
   });
 
   it('refreshPodRequest swallows a null status without throwing', async () => {

@@ -1,3 +1,5 @@
+import type { AccountStateResult } from '../../context/plugin/sessionShared';
+
 export interface Token {
   symbol: string;
   name: string;
@@ -28,8 +30,8 @@ export interface UsePluginBridgeProps {
   isConnected: boolean;
   walletAddress: string;
   publicTokens: Token[];
-  refreshPrivateBalances?: () => Promise<boolean>;
-  refreshPublicBalances?: () => Promise<boolean>;
+  refreshPrivateBalances?: () => Promise<AccountStateResult>;
+  refreshPublicBalances?: () => Promise<AccountStateResult>;
   setPublicTokens: React.Dispatch<React.SetStateAction<Token[]>>;
   setPrivateTokens: React.Dispatch<React.SetStateAction<Token[]>>;
   setToastState: React.Dispatch<React.SetStateAction<ToastState>>;

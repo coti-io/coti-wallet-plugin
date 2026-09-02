@@ -2,6 +2,9 @@ import type { SwapProgressStage, Token } from '../../hooks/usePluginBridge';
 import type { AesKeyProviderOptions } from '../../hooks/useAesKeyProvider';
 import type { PodPortalRequest } from '../../contracts/pod';
 import type { OnboardModalWarnings } from '../../lib/onboardModalWarnings';
+import type { AccountStateResult } from './sessionShared';
+
+export type { AccountStateResult, AccountStateFailureReason } from './sessionShared';
 
 /**
  * Options for {@link CotiUnlockContextValue.refreshPrivateBalances}.
@@ -70,8 +73,11 @@ export interface CotiUnlockContextValue {
     ciphertext: string;
     decimals?: number;
   }) => Promise<{ amount: string }>;
-  /** Low-level balance/key refresh primitive. App UI should not orchestrate unlock with this. */
-  refreshPrivateBalances: (options?: RefreshPrivateBalancesOptions) => Promise<boolean>;
+  /**
+   * Low-level balance/key refresh primitive. App UI should not orchestrate unlock with this.
+   * Soft failures return `{ ok: false, reason }` so hosts can switch; typed AES/Snap errors still throw.
+   */
+  refreshPrivateBalances: (options?: RefreshPrivateBalancesOptions) => Promise<AccountStateResult>;
   /** Last contract-onboarding error produced by the AES provider. */
   onboardingError: string | null;
   /** Last non-blocking onboarding warnings produced by restore/backup flows. */

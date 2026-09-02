@@ -169,6 +169,8 @@ export type {
   CotiPodContextValue,
   CotiModalsContextValue,
   RefreshPrivateBalancesOptions,
+  AccountStateResult,
+  AccountStateFailureReason,
 } from './context/plugin';
 export {
   PrivateUnlockProvider,

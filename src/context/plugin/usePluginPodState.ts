@@ -5,6 +5,7 @@ import { resolvePodRequestStatus } from '../../chains/portal/podRequestStatus';
 import { CHAIN_CONFIGS } from '../../chains/index';
 import { logger } from '../../lib/logger';
 import type { CotiPodContextValue } from './types';
+import type { AccountStateResult } from './sessionShared';
 
 const POD_PORTAL_CHAIN_IDS = new Set(
   Object.values(CHAIN_CONFIGS)
@@ -20,7 +21,7 @@ const TERMINAL_POD_STATUSES = new Set<PodPortalRequest['status']>([
 
 interface UsePluginPodOptions {
   walletAddress: string;
-  refreshPrivateBalances: () => Promise<boolean>;
+  refreshPrivateBalances: () => Promise<AccountStateResult>;
 }
 
 /** PoD portal request persistence and polling. */
@@ -95,7 +96,7 @@ export const usePluginPodState = ({
     async (requestId: string) => {
       if (completedPodRefreshesRef.current.has(requestId)) return;
 
-      const attemptRefresh = async () => refreshPrivateBalances();
+      const attemptRefresh = async () => (await refreshPrivateBalances()).ok;
 
       try {
         let success = await attemptRefresh();

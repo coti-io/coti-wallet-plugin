@@ -37,8 +37,12 @@ export type AccountStateFailureReason =
   | 'stale'
   | 'no_aes_key'
   | 'no_provider'
+  /** Wallet address is missing — host called refresh while disconnected. */
+  | 'not_connected'
   | 'unsupported_chain'
   | 'keys_unavailable'
+  /** EIP-1193 4001 / user dismissed the wallet request. */
+  | 'user_rejected'
   | 'failed';
 
 export type AccountStateResult =

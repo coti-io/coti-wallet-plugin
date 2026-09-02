@@ -322,7 +322,7 @@ function makeProps(overrides: Record<string, unknown> = {}) {
     setHasSnap: vi.fn(),
     getAESKeyFromSnap: vi.fn(async () => 'a'.repeat(32)),
     handleOnboard: vi.fn(async () => 'a'.repeat(32)),
-    refreshPrivateBalances: vi.fn(async () => true),
+    refreshPrivateBalances: vi.fn(async () => ({ ok: true })),
     upsertPodRequest: vi.fn(),
     sessionAesKey: 'a'.repeat(32),
     chainId: 7082400,

@@ -20,7 +20,13 @@ vi.mock('../../src/context/plugin/contexts', () => ({
     isPrivateUnlocked: mockIsPrivateUnlocked,
     sessionAesKey: mockSessionAesKey,
     sendPrivateToken: vi.fn(),
-    refreshPrivateBalances: mockRefreshPrivateBalances,
+    refreshPrivateBalances: async (...args: unknown[]) => {
+      const value = await mockRefreshPrivateBalances(...args);
+      if (value && typeof value === 'object' && 'ok' in (value as object)) {
+        return value;
+      }
+      return value ? { ok: true } : { ok: false, reason: 'failed' };
+    },
     onboardingError: mockOnboardingError,
     onboardingWarnings: mockOnboardingWarnings,
     lockPrivateBalances: mockLockPrivateBalances,

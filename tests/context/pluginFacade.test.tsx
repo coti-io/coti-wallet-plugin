@@ -215,7 +215,7 @@ describe('privacyBridge facade', () => {
         checkSnapStatus: async () => false,
         isPrivateUnlocked: false,
         sendPrivateToken: async () => ({ txHash: '0x1' }),
-        refreshPrivateBalances: async () => false,
+        refreshPrivateBalances: async () => ({ ok: false, reason: 'not_connected' }),
         onboardingError: null,
         onboardingWarnings: {},
         lockPrivateBalances: () => undefined,
