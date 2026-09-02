@@ -223,33 +223,32 @@ describe('usePluginWagmiSync — chain-change guard with sessionAesKey', () => {
     });
   });
 
-  it('calls refreshPrivateBalances without a session key when chain changes (regression)', async () => {
-    const core = makeCore({ sessionAesKey: null, walletAddress: '0xabc123' });
+  it('resets private placeholders and skips decrypt when chain changes without a session key', async () => {
+    const setPrivateTokens = vi.fn();
+    const core = makeCore({
+      sessionAesKey: null,
+      walletAddress: '0xabc123',
+      setPrivateTokens,
+    });
     const network = makeNetwork({ wagmiChainId: 11155111 });
     const accountSync = makeAccountSync();
 
-    // First render — sets prevWagmiChainIdRef
     const { rerender } = renderHook(
       (props) => usePluginWagmiSync(props),
       { initialProps: { core, network, accountSync } },
     );
 
-    // Simulate chain change
     h.wagmiAccount.chainId = 7082400;
-    const updatedNetwork = makeNetwork({ wagmiChainId: 7082400 });
-
-    rerender({ core, network: updatedNetwork, accountSync });
+    rerender({ core, network: makeNetwork({ wagmiChainId: 7082400 }), accountSync });
 
     await vi.waitFor(() => {
       expect(h.refreshPublicBalances).toHaveBeenCalledWith({
         account: '0xabc123',
         chainId: 7082400,
       });
-      expect(h.refreshPrivateBalances).toHaveBeenCalledWith({
-        account: '0xabc123',
-        chainId: 7082400,
-      });
     });
+    expect(setPrivateTokens).toHaveBeenCalled();
+    expect(h.refreshPrivateBalances).not.toHaveBeenCalled();
   });
 
   it('does NOT refresh balances when chain updates are muted', async () => {
@@ -279,6 +278,56 @@ describe('usePluginWagmiSync — chain-change guard with sessionAesKey', () => {
       (call: [{ chainId?: number }]) => call[0]?.chainId === 7082400,
     );
     expect(chainChangeCalls).toHaveLength(0);
+  });
+});
+
+describe('usePluginWagmiSync — connect catalogs', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    h.refreshPrivateBalances.mockResolvedValue({ ok: true });
+    h.refreshPublicBalances.mockResolvedValue({ ok: true });
+    h.bindAccount.mockResolvedValue({ ok: true });
+    h.establishAesSession.mockResolvedValue({ ok: true, aesKey: null });
+    h.wagmiAccount.address = '0xabc123';
+    h.wagmiAccount.isConnected = true;
+    h.wagmiAccount.chainId = 11155111;
+    vi.mocked(h.mapConnectorIdToWalletType).mockReturnValue('unknown');
+    h.autoInitTokens = true;
+  });
+
+  it('refreshes public catalogs only when connecting without a session AES key', async () => {
+    const core = makeCore({ isConnected: false, sessionAesKey: null });
+    const network = makeNetwork();
+    const accountSync = makeAccountSync();
+
+    renderHook(() => usePluginWagmiSync({ core, network, accountSync }));
+
+    await vi.waitFor(() => {
+      expect(h.refreshPublicBalances).toHaveBeenCalledWith({
+        account: '0xabc123',
+        chainId: 11155111,
+      });
+    });
+    expect(h.refreshPrivateBalances).not.toHaveBeenCalled();
+  });
+
+  it('refreshes private catalogs with the session key when reconnecting already unlocked', async () => {
+    const core = makeCore({
+      isConnected: false,
+      sessionAesKey: 'c'.repeat(32),
+    });
+    const network = makeNetwork();
+    const accountSync = makeAccountSync();
+
+    renderHook(() => usePluginWagmiSync({ core, network, accountSync }));
+
+    await vi.waitFor(() => {
+      expect(h.refreshPrivateBalances).toHaveBeenCalledWith({
+        account: '0xabc123',
+        chainId: 11155111,
+        aesKey: 'c'.repeat(32),
+      });
+    });
   });
 });
 
