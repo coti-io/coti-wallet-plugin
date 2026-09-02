@@ -147,6 +147,11 @@ function getWagmiConfigCacheKey(
 
 let cachedWagmiConfig: { key: string; config: Config } | undefined;
 
+/**
+ * Process-wide wagmi config cache. WalletConnect Core is a process singleton
+ * (`Init()` must run once per JS context), and WagmiRainbowKitProvider sits
+ * outside CotiPluginProvider, so this is not instance-scoped plugin state.
+ */
 function getCachedWagmiConfig(
   walletConnectProjectId?: string,
   options: WagmiConfigOptions = {},

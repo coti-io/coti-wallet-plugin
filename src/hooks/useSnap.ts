@@ -12,6 +12,7 @@ import {
     validateAesKeyRoundTrip,
 } from '../crypto/aesKeyValidation';
 import { guardedEthAccounts } from '../lib/metaMaskMobile';
+import { useOptionalPluginRuntime } from '../context/plugin/pluginRuntimeContext';
 import type { CtUint256 } from '../types/ciphertext';
 
 export interface GetAESKeyFromSnapOptions {
@@ -56,22 +57,6 @@ export interface SnapItUint256 {
  * - `resetError`: Function to clear the error state (if setSnapError is provided).
  */
 const getSnapId = () => getPluginConfig().snapId;
-
-/**
- * Module-level AES key cache — singleton shared across all `useSnap` hook instances.
- *
- * IMPORTANT: This is intentionally a module-scoped mutable variable, NOT React state.
- * It acts as a process-wide singleton cache so that multiple components mounting
- * `useSnap` share the same cached key without triggering re-renders.
- *
- * Constraints:
- * - Only safe in browser SPA environments (single JS context per tab).
- * - NOT compatible with SSR or React Server Components — the cache would leak
- *   across requests on the server.
- * - Cleared explicitly via `clearSnapCache()` on disconnect or account change.
- * - Never persisted to storage — lost on page refresh by design.
- */
-let globalAESKeyCache: Record<string, string> = {};
 
 function getErrorMessage(error: unknown): string {
     if (error && typeof error === 'object') {
@@ -170,6 +155,7 @@ async function prepareSnapForKeyAccess(
 }
 
 export const useSnap = (setSnapError?: (error: string | null) => void) => {
+    const runtime = useOptionalPluginRuntime();
     const isSnapRequestPending = useRef(false);
     const { address: connectedAddress, connector } = useAccount();
 
@@ -523,14 +509,14 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
         // Return cached key if available (unless a fresh fetch was requested)
         if (!skipCache && accountAddress) {
             const cacheKey = aesKeyCacheKey(accountAddress, cotiChainId);
-            const cachedKey = globalAESKeyCache[cacheKey];
+            const cachedKey = runtime.getSnapAesKey(cacheKey);
             if (cachedKey) {
                 try {
                     await assertMetaMaskActiveAccount(provider, accountAddress);
-                    logger.log('🔑 Returning globally cached AES key');
+                    logger.log('🔑 Returning cached AES key');
                     return cachedKey;
                 } catch {
-                    delete globalAESKeyCache[cacheKey];
+                    runtime.deleteSnapAesKey(cacheKey);
                 }
             }
         }
@@ -636,7 +622,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
 
                     logger.log('✅ AES key received from snap and passed round-trip validation');
 
-                    globalAESKeyCache[aesKeyCacheKey(accountAddress, cotiChainId)] = snapKey;
+                    runtime.setSnapAesKey(aesKeyCacheKey(accountAddress, cotiChainId), snapKey);
                     return snapKey;
 
                 } catch (error: any) {
@@ -674,7 +660,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
         } finally {
             isSnapRequestPending.current = false;
         }
-    }, [isSnapInstalled, setSnapError, resolveProvider, syncEnvironment]);
+    }, [isSnapInstalled, setSnapError, resolveProvider, syncEnvironment, runtime]);
 
     /**
      * Read-only check: whether the Snap has an AES key stored for the active account.
@@ -760,7 +746,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
             });
             logger.log('✅ AES key saved to Snap successfully');
             if (accountAddress) {
-                globalAESKeyCache[aesKeyCacheKey(accountAddress, cotiChainId)] = key;
+                runtime.setSnapAesKey(aesKeyCacheKey(accountAddress, cotiChainId), key);
             }
             if (setSnapError) setSnapError(null);
             return true;
@@ -768,20 +754,20 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
             logger.error('❌ Failed to save AES key to Snap:', err);
             return false;
         }
-    }, [setSnapError, resolveProvider, isSnapInstalled, syncEnvironment]);
+    }, [setSnapError, resolveProvider, isSnapInstalled, syncEnvironment, runtime]);
 
     const resetError = useCallback(() => {
         if (setSnapError) setSnapError(null);
     }, [setSnapError]);
 
     /**
-     * Clears the globally cached AES key.
+     * Clears the in-memory AES key cache for this plugin runtime.
      * This forces the next unlock request to go back to the Snap or Onboarding flow.
      */
     const clearSnapCache = useCallback(() => {
-        logger.log('🧹 Clearing global AES key cache');
-        globalAESKeyCache = {};
-    }, []);
+        logger.log('🧹 Clearing AES key cache');
+        runtime.clearSnapAesKeyCache();
+    }, [runtime]);
 
     // Helper to expose sync
     const connectAndSync = useCallback(async () => {

@@ -7,6 +7,7 @@ import { getRpcUrlsForChain } from "../chains/rpcUrls";
 import { SEPOLIA_CHAIN_ID } from "../chains/sepolia";
 import { createRpcRateLimitedError, reportPluginError } from "../errors";
 import { logger } from "./logger";
+import { getPluginRuntime } from "./pluginRuntime";
 
 const collectErrorText = (error: unknown): string => {
   if (!error) return "";
@@ -135,10 +136,8 @@ export const isRateLimitedRpcError = (error: unknown): boolean => {
 };
 
 /** After a chain's primary is rate-limited, prefer fallback URLs for subsequent reads. */
-const preferFallbackRpcByChainId = new Set<number>();
-
 export const markPrimaryRateLimited = (chainId: number): void => {
-  preferFallbackRpcByChainId.add(chainId);
+  getPluginRuntime().markPrimaryRateLimited(chainId);
 };
 
 /** @deprecated Prefer {@link markPrimaryRateLimited}. */
@@ -164,7 +163,7 @@ export const resolveRpcUrlsForChain = (chainId?: number | string | null): string
   }
   let urls = !override ? base : [...new Set([override, ...base])];
 
-  if (preferFallbackRpcByChainId.has(numericId) && urls.length > 1) {
+  if (getPluginRuntime().prefersFallbackRpc(numericId) && urls.length > 1) {
     urls = [urls[1], urls[0], ...urls.slice(2)];
   }
   return urls;

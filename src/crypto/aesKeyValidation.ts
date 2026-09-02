@@ -8,6 +8,7 @@ import { logger } from '../lib/logger';
 import type { EIP1193Provider } from '../lib/ethereum';
 import { CONTRACT_ADDRESSES, getPrivateTokensForChain, getPublicTokensForChain } from '../contracts/config';
 import { withRpcFallback } from '../lib/rpcProvider';
+import { getPluginRuntime } from '../lib/pluginRuntime';
 
 /** Fixed plaintext used for local encrypt/decrypt round-trip validation. */
 const ROUND_TRIP_TEST_VALUE = 0x0123456789abcdefn;
@@ -185,29 +186,25 @@ export async function validateMetaMaskAesKeyOnUnlock(
 }
 
 /** Session-scoped registry of AES keys that passed unlock validation for a wallet. */
-const validatedUnlockKeys = new Map<string, string>();
-
 export function markAesKeyValidatedForUnlock(address: string, aesKey: string): void {
-  validatedUnlockKeys.set(
+  getPluginRuntime().markAesKeyValidatedForUnlock(
     address.toLowerCase(),
     getSdkAesKeyHex(aesKey).toLowerCase(),
   );
 }
 
 export function clearAesKeyValidatedForUnlock(address?: string): void {
-  if (address) {
-    validatedUnlockKeys.delete(address.toLowerCase());
-  } else {
-    validatedUnlockKeys.clear();
-  }
+  getPluginRuntime().clearAesKeyValidatedForUnlock(
+    address ? address.toLowerCase() : undefined,
+  );
 }
 
 export function isAesKeyValidatedForUnlock(address: string, aesKey: string): boolean {
-  const stored = validatedUnlockKeys.get(address.toLowerCase());
+  const stored = getPluginRuntime().getValidatedAesKeyForUnlock(address.toLowerCase());
   if (!stored) return false;
   return stored === getSdkAesKeyHex(aesKey).toLowerCase();
 }
 
 export function getValidatedAesKeyForUnlock(address: string): string | null {
-  return validatedUnlockKeys.get(address.toLowerCase()) ?? null;
+  return getPluginRuntime().getValidatedAesKeyForUnlock(address.toLowerCase()) ?? null;
 }
