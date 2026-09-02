@@ -17,6 +17,7 @@ Intended for the next npm release after `0.3.10`. Hosts on `0.3.10` should treat
 - Removed `sessionAesKey` from the public unlock context. Hosts encrypt/decrypt via `encryptPrivateValue` / `decryptPrivateValue`.
 - RainbowKit is optional: import `WagmiRainbowKitProvider` from `@coti-io/coti-wallet-plugin/rainbowkit`. The main entry no longer imports RainbowKit.
 - Stopped exporting dApp internals from the package barrel (`useMetamask`, `OnboardModal`, `CHAIN_CONFIGS`, fee helpers, mute/logger/ABI/RPC constants, and related names).
+- Raised peer floors to the validated stack (`wagmi@^2.14.0`, `viem@^2.47.0`, `react@^18.3.0`, optional `@rainbow-me/rainbowkit@^2.2.0`, and matching ethers / react-query / MetaMask provider mins). Hosts on earlier 2.x / 18.x should upgrade.
 
 ### Changed
 
@@ -24,6 +25,7 @@ Intended for the next npm release after `0.3.10`. Hosts on `0.3.10` should treat
 - Chain mute, Snap AES cache, validated unlock keys, and RPC fallback live on a per-provider `PluginRuntime`.
 - Onboard success no longer displays or copies the plaintext AES key.
 - CI and `prepublishOnly` fail when coverage drops below the floors in `vitest.config.ts`.
+- Runtime dependency `@coti-io/coti-ethers` is `^1.0.5` (the version this repo installs).
 
 ### Fixed
 

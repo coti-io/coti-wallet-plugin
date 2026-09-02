@@ -38,7 +38,7 @@ RainbowKit is optional. Install it only if you use the convenience wrapper:
 npm install @rainbow-me/rainbowkit
 ```
 
-Peer ranges are `wagmi@^2.0.0` and optional `@rainbow-me/rainbowkit@^2.0.0`. This release is validated with `@rainbow-me/rainbowkit@2.2.0` and `wagmi@2.14.0`.
+Peer floors are the stack this repo runs (`wagmi@^2.14.0`, `viem@^2.47.0`, optional `@rainbow-me/rainbowkit@^2.2.0`). Carets still allow later 2.x / 18.x patches. This release is validated with `wagmi@2.14.0`, `viem@2.47.10`, and `@rainbow-me/rainbowkit@2.2.0`.
 
 ## Quickstart
 
