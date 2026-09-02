@@ -1,6 +1,8 @@
 import '@testing-library/jest-dom';
 import { webcrypto } from 'node:crypto';
-import { vi } from 'vitest';
+import { afterEach, vi } from 'vitest';
+
+import { resetPluginRuntime } from '../src/lib/pluginRuntime';
 
 vi.stubEnv('VITE_WALLETCONNECT_PROJECT_ID', 'vitest-walletconnect-project-id');
 
@@ -85,3 +87,7 @@ vi.mock('wagmi', () => ({
   useConfig: vi.fn(() => ({})),
   WagmiProvider: ({ children }: { children: unknown }) => children,
 }));
+
+afterEach(() => {
+  resetPluginRuntime();
+});

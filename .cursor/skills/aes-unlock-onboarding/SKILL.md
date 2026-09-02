@@ -71,7 +71,8 @@ unlock() → session key → Snap/backup restore → OnboardModal only if restor
 
 - [ ] Never log, persist, or transmit raw AES keys as ordinary app data
 - [ ] Session AES is wallet-bound; avoid cross-account leakage
-- [ ] Do not put `sessionAesKey` on public unlock/context types — hosts use `encryptPrivateValue` / `decryptPrivateValue`
+- [ ] Do not display or copy the plaintext AES key in OnboardModal
+- [ ] Keep Snap AES cache, validated unlock keys, and chain mute on PluginRuntime (not module singletons)
 - [ ] Do not invent alternate unlock entry points outside `usePrivateUnlock` / `aesAccessStrategy`
 - [ ] Keep Snap vs local vs onboard routing in `aesAccessStrategy` — do not duplicate the table elsewhere
 

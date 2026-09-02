@@ -1,10 +1,16 @@
+import { getPluginRuntime } from './pluginRuntime';
+
 /**
- * Module-level flag to suppress UI chain-change reactions during onboarding.
+ * Suppress UI chain-change reactions during onboarding.
  * When muted, consuming apps should ignore provider chainChanged events
  * so the UI stays on the original chain while onboarding executes on COTI.
  */
-let muted = false;
-
-export function muteChainUpdates() { muted = true; }
-export function unmuteChainUpdates() { muted = false; }
-export function isChainUpdatesMuted() { return muted; }
+export function muteChainUpdates() {
+  getPluginRuntime().muteChainUpdates();
+}
+export function unmuteChainUpdates() {
+  getPluginRuntime().unmuteChainUpdates();
+}
+export function isChainUpdatesMuted() {
+  return getPluginRuntime().isChainUpdatesMuted();
+}

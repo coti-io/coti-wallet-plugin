@@ -19,6 +19,7 @@ import {
   CotiWalletContext,
 } from './contexts';
 import { SessionAesKeyContext } from './sessionAesKeyContext';
+import { PluginRuntimeContext, usePluginRuntimeLease } from './pluginRuntimeContext';
 import {
   mergeCotiPluginSlices,
   type CotiPluginContextSlices,
@@ -360,7 +361,16 @@ const CotiPluginWithOptionalPortal: React.FC<{
   );
 };
 
-export const CotiPluginProvider: React.FC<CotiPluginProviderProps> = ({
+export const CotiPluginProvider: React.FC<CotiPluginProviderProps> = (props) => {
+  const runtime = usePluginRuntimeLease();
+  return (
+    <PluginRuntimeContext.Provider value={runtime}>
+      <CotiPluginProviderInner {...props} />
+    </PluginRuntimeContext.Provider>
+  );
+};
+
+const CotiPluginProviderInner: React.FC<CotiPluginProviderProps> = ({
   children,
   privateUnlock,
   autoInitTokens,
