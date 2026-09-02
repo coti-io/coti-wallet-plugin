@@ -11,7 +11,11 @@ import {
 import { useWalletType } from '../../hooks/useWalletType';
 import type { PluginAccountSync } from './usePluginAccountSync';
 import type { PluginNetworkSession } from './usePluginNetworkSession';
-import type { PluginSessionState, AccountStateResult } from './sessionShared';
+import {
+  accountStateFailed,
+  type AccountStateResult,
+  type PluginSessionState,
+} from './sessionShared';
 import type { AesKeyProviderOptions } from '../../hooks/useAesKeyProvider';
 import { normalizeAesKey } from '../../crypto/aesKey';
 import { resolveAesKeyChainId } from '../../lib/aesAccessStrategy';
@@ -221,19 +225,19 @@ export const usePluginUnlockSession = ({
     return {};
   };
 
-  const refreshPublicBalances = useCallback(async () => {
-    if (!walletAddress) return false;
+  const refreshPublicBalances = useCallback(async (): Promise<AccountStateResult> => {
+    if (!walletAddress) return accountStateFailed('not_connected');
 
     logger.log('Triggering public balance fetch...');
     try {
       const chainOverride = wagmiSyncRef.current ? wagmiChainId : undefined;
-      return (await syncPublicBalances({
+      return await syncPublicBalances({
         account: walletAddress,
         chainId: chainOverride,
-      })).ok;
+      });
     } catch (err: unknown) {
       logger.warn('Public balance fetch failed', err);
-      return false;
+      return accountStateFailed('failed');
     }
   }, [walletAddress, syncPublicBalances, wagmiChainId, wagmiSyncRef]);
 
@@ -325,8 +329,8 @@ export const usePluginUnlockSession = ({
 
   const refreshPrivateBalances = useCallback(async (
     aesKeyOptions?: RefreshPrivateBalancesOptions,
-  ) => {
-    if (!walletAddress) return false;
+  ): Promise<AccountStateResult> => {
+    if (!walletAddress) return accountStateFailed('not_connected');
 
     const lockSessionOnAesFailure = !aesKeyOptions?.preserveSessionOnError;
     const clearSessionAfterAesFailure = () => {
@@ -341,7 +345,7 @@ export const usePluginUnlockSession = ({
       const chainOverride = wagmiSyncRef.current ? wagmiChainId : undefined;
       const plan = await resolveRestoreUnlockPlan(aesKeyOptions);
       if (plan.failed === true) {
-        return false;
+        return accountStateFailed('unsupported_chain');
       }
       const {
         unlockOptions,
@@ -357,7 +361,7 @@ export const usePluginUnlockSession = ({
         && !keyForUnlock
       ) {
         logger.log('Restore-only probe: account needs onboarding — skipping balance fetch');
-        return false;
+        return accountStateFailed('no_aes_key');
       }
 
       let result = await composeUnlockRefresh({
@@ -372,12 +376,12 @@ export const usePluginUnlockSession = ({
       if (!result.ok) {
         if (aesKeyOptions?.forceContractOnboarding) {
           logger.log('Forced contract onboarding did not complete — skipping interactive retry');
-          return false;
+          return result;
         }
 
         if (aesKeyOptions?.restoreOnly) {
           logger.log('Restore-only unlock did not complete — skipping retry');
-          return false;
+          return result;
         }
 
         keyForUnlock =
@@ -397,7 +401,7 @@ export const usePluginUnlockSession = ({
         setArePrivateBalancesHidden(false);
         setSnapError(null);
       }
-      return result.ok;
+      return result;
     } catch (err: unknown) {
       const errorInfo = err as { code?: number | string; name?: string; message?: string };
       logger.log('Unlock logic caught error', { code: errorInfo.code, name: errorInfo.name });
@@ -423,7 +427,7 @@ export const usePluginUnlockSession = ({
         errorInfo.message?.includes('User rejected') ||
         errorInfo.message?.includes('rejected the request')
       ) {
-        return false;
+        return accountStateFailed('user_rejected');
       }
 
       if (
@@ -461,7 +465,7 @@ export const usePluginUnlockSession = ({
           errorInfo.message,
         );
       }
-      return false;
+      return accountStateFailed('failed');
     }
   }, [
     walletAddress,

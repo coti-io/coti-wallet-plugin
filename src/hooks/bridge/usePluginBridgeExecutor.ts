@@ -14,6 +14,7 @@ import { waitForTransactionResilient } from '../../lib/rpcProvider';
 import { truncateAddress } from '../../lib/format';
 import { shortHash } from './utils';
 import type { SwapProgressStage, Token, ToastState } from './types';
+import type { AccountStateResult } from '../../context/plugin/sessionShared';
 
 export interface UsePluginBridgeExecutorOptions {
   walletAddress: string;
@@ -21,8 +22,8 @@ export interface UsePluginBridgeExecutorOptions {
   setPublicTokens: React.Dispatch<React.SetStateAction<Token[]>>;
   setPrivateTokens: React.Dispatch<React.SetStateAction<Token[]>>;
   setToastState: React.Dispatch<React.SetStateAction<ToastState>>;
-  refreshPrivateBalances?: () => Promise<boolean>;
-  refreshPublicBalances?: () => Promise<boolean>;
+  refreshPrivateBalances?: () => Promise<AccountStateResult>;
+  refreshPublicBalances?: () => Promise<AccountStateResult>;
   upsertPodRequest?: (request: PodPortalRequest) => void;
   getPodWithdrawPermit: () => PodWithdrawPermit | null;
   clearPodWithdrawPermit: () => void;

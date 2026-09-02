@@ -972,10 +972,13 @@ describe('CotiPluginContext (flow coverage)', () => {
       });
     });
 
-    it('returns false when user rejects (4001)', async () => {
+    it('returns user_rejected when the user rejects (4001)', async () => {
       const err = Object.assign(new Error('User rejected'), { code: 4001 });
       h.balanceUpdater.refreshPrivateBalances.mockRejectedValueOnce(err);
-      await expect(latest!.refreshPrivateBalances()).resolves.toBe(false);
+      await expect(latest!.refreshPrivateBalances()).resolves.toEqual({
+        ok: false,
+        reason: 'user_rejected',
+      });
     });
 
     it('rethrows SNAP_DIALOG_REJECTED', async () => {
@@ -1088,14 +1091,17 @@ describe('CotiPluginContext (flow coverage)', () => {
       h.snap.isSnapInstalled.mockResolvedValue(false);
       h.snap.hasAesKeyInSnap.mockResolvedValue(null);
 
-      await expect(latest!.refreshPrivateBalances()).resolves.toBe(true);
+      await expect(latest!.refreshPrivateBalances()).resolves.toEqual({ ok: true });
       expect(h.snap.hasAesKeyInSnap).not.toHaveBeenCalled();
       expect(h.balanceUpdater.refreshPrivateBalances).toHaveBeenCalled();
     });
 
-    it('returns false on generic errors', async () => {
+    it('returns a failed result on generic errors', async () => {
       h.balanceUpdater.refreshPrivateBalances.mockRejectedValueOnce(new Error('rpc down'));
-      await expect(latest!.refreshPrivateBalances()).resolves.toBe(false);
+      await expect(latest!.refreshPrivateBalances()).resolves.toEqual({
+        ok: false,
+        reason: 'failed',
+      });
     });
 
     it('clears snapError on successful refresh', async () => {
@@ -1106,10 +1112,13 @@ describe('CotiPluginContext (flow coverage)', () => {
       expect(latest!.snapError).toBeNull();
     });
 
-    it('returns false without unlocking when refreshPrivateBalances fails softly', async () => {
+    it('returns a failed result without unlocking when refreshPrivateBalances fails softly', async () => {
       await connectWagmi();
       h.balanceUpdater.refreshPrivateBalances.mockResolvedValue({ ok: false, reason: 'failed' });
-      await expect(latest!.refreshPrivateBalances()).resolves.toBe(false);
+      await expect(latest!.refreshPrivateBalances()).resolves.toEqual({
+        ok: false,
+        reason: 'failed',
+      });
       expect(latest!.isPrivateUnlocked).toBe(false);
     });
 
@@ -1118,7 +1127,10 @@ describe('CotiPluginContext (flow coverage)', () => {
       markAesKeyValidatedForUnlock(WALLET_A, 'a'.repeat(32));
       h.balanceUpdater.refreshPrivateBalances.mockResolvedValue({ ok: false, reason: 'failed' });
 
-      await expect(latest!.refreshPrivateBalances()).resolves.toBe(false);
+      await expect(latest!.refreshPrivateBalances()).resolves.toEqual({
+        ok: false,
+        reason: 'failed',
+      });
 
       expect(latest!.sessionAesKey).toBeNull();
       expect(latest!.isPrivateUnlocked).toBe(false);
@@ -1131,7 +1143,7 @@ describe('CotiPluginContext (flow coverage)', () => {
 
       await expect(
         latest!.refreshPrivateBalances({ forceContractOnboarding: true }),
-      ).resolves.toBe(false);
+      ).resolves.toEqual({ ok: false, reason: 'failed' });
 
       expect(latest!.sessionAesKey).toBeNull();
       expect(latest!.isPrivateUnlocked).toBe(false);
@@ -1149,7 +1161,7 @@ describe('CotiPluginContext (flow coverage)', () => {
 
       await expect(
         latest!.refreshPrivateBalances({ forceContractOnboarding: true }),
-      ).resolves.toBe(false);
+      ).resolves.toEqual({ ok: false, reason: 'failed' });
 
       expect(h.balanceUpdater.refreshPrivateBalances).toHaveBeenCalledTimes(1);
       expect(h.balanceUpdater.establishAesSession).toHaveBeenCalledWith(expect.objectContaining({
@@ -1167,7 +1179,7 @@ describe('CotiPluginContext (flow coverage)', () => {
 
       await expect(
         latest!.refreshPrivateBalances({ restoreOnly: true }),
-      ).resolves.toBe(false);
+      ).resolves.toEqual({ ok: false, reason: 'no_aes_key' });
 
       expect(h.balanceUpdater.refreshPrivateBalances).not.toHaveBeenCalled();
       expect(h.balanceUpdater.establishAesSession).not.toHaveBeenCalled();

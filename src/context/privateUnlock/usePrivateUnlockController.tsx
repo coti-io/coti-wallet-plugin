@@ -338,7 +338,7 @@ export function usePrivateUnlockController(
 
     try {
       let restoreCancelled = false;
-      if (await unlock.refreshPrivateBalances({
+      if ((await unlock.refreshPrivateBalances({
         restoreOnly: true,
         onRestoreCancelled: () => {
           if (!isActiveUnlockRequest(requestId)) return;
@@ -353,7 +353,7 @@ export function usePrivateUnlockController(
           }
           handleRestoreUnlockProgress(step);
         },
-      })) {
+      })).ok) {
         if (!isActiveUnlockRequest(requestId)) {
           return handleStaleRestoreCompletion(requestId, true);
         }
@@ -502,7 +502,7 @@ export function usePrivateUnlockController(
         return;
       }
 
-      const ok = await unlock.refreshPrivateBalances({
+      const onboardResult = await unlock.refreshPrivateBalances({
         forceContractOnboarding: true,
         saveBackup: useSnapStorageForOnboarding ? false : saveBackup,
         // Explicit: don't rely on isMetaMaskWithSnap which can lag after connectSnap.
@@ -513,7 +513,7 @@ export function usePrivateUnlockController(
           }
         },
       });
-      if (!ok) {
+      if (!onboardResult.ok) {
         handleOnboardingIncomplete(requestId);
         return;
       }
@@ -523,7 +523,7 @@ export function usePrivateUnlockController(
       }
 
       logger.debug('[PrivateUnlock] contract onboarding result', {
-        ok,
+        ok: onboardResult.ok,
         currentStep,
         hasSessionAesKey: !!unlock.sessionAesKey,
         hasOnboardingError: !!unlock.onboardingError,

@@ -21,5 +21,7 @@ export type {
   CotiModalsContextValue,
   CotiPluginContextSlices,
   RefreshPrivateBalancesOptions,
+  AccountStateResult,
+  AccountStateFailureReason,
 } from './types';
 export { mergeCotiPluginSlices } from './types';
