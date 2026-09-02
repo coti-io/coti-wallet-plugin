@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactElement } from 'rea
 import { OnboardModal, type OnboardModalTheme } from '../../components/OnboardModal';
 import { WalletSignPrompt, type WalletSignPromptPurpose } from '../../components/WalletSignPrompt';
 import { useCotiUnlock, useCotiWallet } from '../plugin/contexts';
+import { useSessionAesKey } from '../plugin/sessionAesKeyContext';
 import { formatOnboardingError, isMetaMaskMobileBrowser } from '../../lib/metaMaskMobile';
 import { isUserRejection } from '../../lib/walletErrors';
 import type {
@@ -71,6 +72,7 @@ export function usePrivateUnlockController(
 ): PrivateUnlockController {
   const { theme, warnings, onUnlocked, onRestoreCancelled, onOnboardingCancelled } = options;
   const unlock = useCotiUnlock();
+  const sessionAesKey = useSessionAesKey();
   const wallet = useCotiWallet();
   const walletTypeInfo = useWalletType();
 
@@ -474,10 +476,10 @@ export function usePrivateUnlockController(
 
   useEffect(() => {
     const requestId = pendingCompleteRequestIdRef.current;
-    if (requestId === null || !unlock.sessionAesKey) return;
+    if (requestId === null || !sessionAesKey) return;
 
     showOnboardingComplete(requestId);
-  }, [showOnboardingComplete, unlock.sessionAesKey]);
+  }, [showOnboardingComplete, sessionAesKey]);
 
   const beginOnboarding = useCallback(async () => {
     if (!connectedAddress) return;
@@ -525,7 +527,7 @@ export function usePrivateUnlockController(
       logger.debug('[PrivateUnlock] contract onboarding result', {
         ok: onboardResult.ok,
         currentStep,
-        hasSessionAesKey: !!unlock.sessionAesKey,
+        hasSessionAesKey: !!sessionAesKey,
         hasOnboardingError: !!unlock.onboardingError,
         hasOnboardingWarning: hasOnboardModalWarnings(unlock.onboardingWarnings),
       });
@@ -544,7 +546,7 @@ export function usePrivateUnlockController(
         return;
       }
 
-      if (unlock.sessionAesKey) {
+      if (sessionAesKey) {
         showOnboardingComplete(requestId);
       } else {
         pendingCompleteRequestIdRef.current = requestId;
@@ -569,7 +571,7 @@ export function usePrivateUnlockController(
         setIsUnlocking(false);
       }
     }
-  }, [canUseSnap, connectSnap, connectedAddress, currentStep, dismissOnboardModal, handleContractOnboardingProgress, handleOnboardingIncomplete, isActiveUnlockRequest, onOnboardingCancelled, saveBackup, showOnboardingComplete, unlock, usesSnapStorage]);
+  }, [canUseSnap, connectSnap, connectedAddress, currentStep, dismissOnboardModal, handleContractOnboardingProgress, handleOnboardingIncomplete, isActiveUnlockRequest, onOnboardingCancelled, saveBackup, sessionAesKey, showOnboardingComplete, unlock, usesSnapStorage]);
 
   const handleOnboardModalClose = useCallback(() => {
     if (
@@ -653,7 +655,7 @@ export function usePrivateUnlockController(
       error={visibleModalError}
       walletType={walletTypeInfo.walletType}
       currentStep={currentStep}
-      aesKey={currentStep === 'complete' ? unlock.sessionAesKey : null}
+      aesKey={currentStep === 'complete' ? sessionAesKey : null}
       saveBackup={saveBackup}
       showSaveBackupOption={!usesSnapStorage}
       onSaveBackupChange={setSaveBackup}

@@ -15,10 +15,13 @@ let mockSessionAesKey: string | null = null;
 let mockOnboardingError: string | null = null;
 let mockOnboardingWarnings: Record<string, string> = {};
 
+vi.mock('../../src/context/plugin/sessionAesKeyContext', () => ({
+  useSessionAesKey: () => mockSessionAesKey,
+}));
+
 vi.mock('../../src/context/plugin/contexts', () => ({
   useCotiUnlock: () => ({
     isPrivateUnlocked: mockIsPrivateUnlocked,
-    sessionAesKey: mockSessionAesKey,
     sendPrivateToken: vi.fn(),
     refreshPrivateBalances: async (...args: unknown[]) => {
       const value = await mockRefreshPrivateBalances(...args);

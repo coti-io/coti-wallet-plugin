@@ -17,10 +17,13 @@ let onboardModalProps: {
   onClose?: () => void;
 } | null = null;
 
+vi.mock('../../src/context/plugin/sessionAesKeyContext', () => ({
+  useSessionAesKey: () => mockSessionAesKey,
+}));
+
 vi.mock('../../src/context/plugin/contexts', () => ({
   useCotiUnlock: () => ({
     isPrivateUnlocked: mockIsPrivateUnlocked,
-    sessionAesKey: mockSessionAesKey,
     sendPrivateToken: vi.fn(),
     refreshPrivateBalances: async (...args: unknown[]) => {
       const value = await mockRefreshPrivateBalances(...args);

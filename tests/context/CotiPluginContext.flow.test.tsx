@@ -239,8 +239,9 @@ import {
   CotiPluginProvider,
   useCotiPluginContext,
 } from '../../src/context/CotiPluginContext';
+import { useSessionAesKey } from '../../src/context/plugin/sessionAesKeyContext';
 
-type Ctx = ReturnType<typeof useCotiPluginContext>;
+type Ctx = ReturnType<typeof useCotiPluginContext> & { sessionAesKey: string | null };
 const reqMock = window.ethereum!.request as unknown as ReturnType<typeof vi.fn>;
 
 const WALLET_A = '0x1111111111111111111111111111111111111111';
@@ -248,7 +249,9 @@ const WALLET_B = '0x2222222222222222222222222222222222222222';
 
 let latest: Ctx | null = null;
 function Consumer() {
-  latest = useCotiPluginContext();
+  const ctx = useCotiPluginContext();
+  const sessionAesKey = useSessionAesKey();
+  latest = { ...ctx, sessionAesKey };
   return null;
 }
 

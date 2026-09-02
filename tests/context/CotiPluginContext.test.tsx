@@ -189,14 +189,17 @@ import {
   CotiPluginProvider,
   useCotiPluginContext,
 } from '../../src/context/CotiPluginContext';
+import { useSessionAesKey } from '../../src/context/plugin/sessionAesKeyContext';
 import { useNetworkEnforcer } from '../../src/hooks/useNetworkEnforcer';
 
-type Ctx = ReturnType<typeof useCotiPluginContext>;
+type Ctx = ReturnType<typeof useCotiPluginContext> & { sessionAesKey: string | null };
 const reqMock = window.ethereum!.request as unknown as ReturnType<typeof vi.fn>;
 
 let latest: Ctx | null = null;
 function Consumer() {
-  latest = useCotiPluginContext();
+  const ctx = useCotiPluginContext();
+  const sessionAesKey = useSessionAesKey();
+  latest = { ...ctx, sessionAesKey };
   return null;
 }
 

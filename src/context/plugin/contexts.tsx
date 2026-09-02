@@ -60,7 +60,7 @@ export const useCotiNetwork = (): CotiNetworkContextValue => {
   return context!;
 };
 
-/** Snap, AES key, and private balance unlock flows. */
+/** Snap, onboarding, and private balance unlock flows. */
 export const useCotiUnlock = (): CotiUnlockContextValue => {
   const context = useContext(CotiUnlockContext);
   if (context === undefined) missingProvider('useCotiUnlock');

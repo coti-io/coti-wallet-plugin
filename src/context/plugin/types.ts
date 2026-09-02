@@ -40,7 +40,7 @@ export interface CotiNetworkContextValue {
   SEPOLIA_ID: string;
 }
 
-/** Snap / AES unlock slice. */
+/** Snap / AES unlock slice. The plaintext session AES key is not exposed. */
 export interface CotiUnlockContextValue {
   hasSnap: boolean;
   snapError: string | null;
@@ -50,8 +50,6 @@ export interface CotiUnlockContextValue {
   requestSnapConnection: () => Promise<boolean>;
   /** Probes Snap via wallet_getSnaps, updates hasSnap, and returns the result. */
   checkSnapStatus: () => Promise<boolean>;
-  /** Session-bound AES key. Locking hides balances but may keep this key in memory. */
-  sessionAesKey: string | null;
   /** COTI Testnet/Mainnet chain used for AES onboarding, Snap, and backup state. */
   aesKeyChainId: number | undefined;
   /** Set a session/connection AES key chain. Only COTI Testnet/Mainnet are accepted. */
