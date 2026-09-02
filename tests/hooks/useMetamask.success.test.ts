@@ -68,7 +68,6 @@ describe('useMetamask (success & lifecycle paths)', () => {
     it('calls onConnect with the first account on success', async () => {
       mockRequest.mockImplementation((args: { method: string }) => {
         if (args.method === 'eth_accounts') return Promise.resolve([]);
-        if (args.method === 'wallet_requestPermissions') return Promise.resolve(undefined);
         if (args.method === 'eth_requestAccounts') return Promise.resolve(['0xabc123']);
         return Promise.resolve(undefined);
       });
@@ -83,6 +82,87 @@ describe('useMetamask (success & lifecycle paths)', () => {
       });
 
       expect(onConnect).toHaveBeenCalledWith('0xabc123');
+    });
+
+    it('skips eth_requestAccounts when eth_accounts already has an account', async () => {
+      mockRequest.mockImplementation((args: { method: string }) => {
+        if (args.method === 'eth_accounts') return Promise.resolve(['0xabc123']);
+        if (args.method === 'eth_requestAccounts' || args.method === 'wallet_requestPermissions') {
+          return Promise.reject(new Error(`${args.method} must not be called`));
+        }
+        return Promise.resolve(undefined);
+      });
+      h.getNetwork.mockResolvedValue({ chainId: 7082400n });
+
+      const onConnect = vi.fn().mockResolvedValue(undefined);
+      const { result } = renderHook(() => useMetamask());
+
+      await act(async () => {
+        expect(await result.current.connectWallet(onConnect)).toBe(true);
+      });
+
+      expect(onConnect).toHaveBeenCalledWith('0xabc123');
+      expect(mockRequest).not.toHaveBeenCalledWith(
+        expect.objectContaining({ method: 'eth_requestAccounts' }),
+      );
+      expect(mockRequest).not.toHaveBeenCalledWith(
+        expect.objectContaining({ method: 'wallet_requestPermissions' }),
+      );
+    });
+
+    it('coalesces concurrent connectWallet calls into one account request', async () => {
+      let resolveAccounts: (accounts: string[]) => void = () => {};
+      const accounts = new Promise<string[]>((resolve) => {
+        resolveAccounts = resolve;
+      });
+      mockRequest.mockImplementation((args: { method: string }) => {
+        if (args.method === 'eth_accounts') return Promise.resolve([]);
+        if (args.method === 'eth_requestAccounts') return accounts;
+        return Promise.resolve(undefined);
+      });
+      h.getNetwork.mockResolvedValue({ chainId: 7082400n });
+
+      const first = vi.fn().mockResolvedValue(undefined);
+      const second = vi.fn().mockResolvedValue(undefined);
+      const { result } = renderHook(() => useMetamask());
+
+      const pending = Promise.all([
+        result.current.connectWallet(first),
+        result.current.connectWallet(second),
+      ]);
+      resolveAccounts(['0xabc123']);
+      await act(async () => {
+        await pending;
+      });
+
+      expect(mockRequest.mock.calls.filter((call) => call[0]?.method === 'eth_requestAccounts')).toHaveLength(1);
+      expect(first).toHaveBeenCalledWith('0xabc123');
+      expect(second).toHaveBeenCalledWith('0xabc123');
+    });
+
+    it('waits for eth_accounts when a permission request is already pending', async () => {
+      let accounts: string[] = [];
+      mockRequest.mockImplementation((args: { method: string }) => {
+        if (args.method === 'eth_accounts') return Promise.resolve(accounts);
+        if (args.method === 'eth_requestAccounts') {
+          accounts = ['0xabc123'];
+          return Promise.reject({
+            code: -32002,
+            message: "Request of type 'wallet_requestPermissions' already pending",
+          });
+        }
+        return Promise.resolve(undefined);
+      });
+      h.getNetwork.mockResolvedValue({ chainId: 7082400n });
+
+      const onConnect = vi.fn().mockResolvedValue(undefined);
+      const { result } = renderHook(() => useMetamask());
+
+      await act(async () => {
+        expect(await result.current.connectWallet(onConnect)).toBe(true);
+      });
+      expect(onConnect).toHaveBeenCalledWith('0xabc123');
+      expect(mockRequest.mock.calls.filter((call) => call[0]?.method === 'eth_requestAccounts')).toHaveLength(1);
     });
 
     it('returns false on provider errors without rethrowing', async () => {

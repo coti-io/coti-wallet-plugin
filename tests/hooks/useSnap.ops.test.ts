@@ -291,6 +291,7 @@ describe('useSnap crypto and probe operations', () => {
   it('maps connectToSnap failures for Flask vs non-Flask wallets', async () => {
     const setSnapError = vi.fn();
     mockRequest.mockImplementation(snapRpc({
+      wallet_getSnaps: async () => ({}),
       wallet_requestSnaps: async () => {
         throw { message: 'denied' };
       },
@@ -303,6 +304,7 @@ describe('useSnap crypto and probe operations', () => {
 
     mockRequest.mockImplementation(snapRpc({
       web3_clientVersion: async () => 'MetaMask/v11.0.0-flask',
+      wallet_getSnaps: async () => ({}),
       wallet_requestSnaps: async () => {
         throw { message: 'denied' };
       },
@@ -319,6 +321,7 @@ describe('useSnap crypto and probe operations', () => {
   it('maps wallet_requestSnaps method-not-found to a MetaMask-required error', async () => {
     const setSnapError = vi.fn();
     mockRequest.mockImplementation(snapRpc({
+      wallet_getSnaps: async () => ({}),
       wallet_requestSnaps: async () => {
         throw { code: -32601, message: 'Method not found' };
       },

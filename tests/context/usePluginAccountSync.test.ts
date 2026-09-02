@@ -135,7 +135,7 @@ function makeNetwork(overrides: Partial<any> = {}) {
   };
 }
 
-describe('usePluginAccountSync — sessionAesKey effect', () => {
+describe('usePluginAccountSync — session AES key', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     configureCotiPlugin({ snapEnabled: true });
@@ -144,7 +144,7 @@ describe('usePluginAccountSync — sessionAesKey effect', () => {
     h.balanceUpdaterParams = undefined;
   });
 
-  it('calls refreshPrivateBalances with the session key when sessionAesKey changes to non-null', async () => {
+  it('does not auto-refresh catalogs when a session AES key arrives', async () => {
     const core = makeCore({ sessionAesKey: null, walletAddress: '0xabc123' });
     const network = makeNetwork({ wagmiChainId: 11155111 });
     const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
@@ -156,10 +156,8 @@ describe('usePluginAccountSync — sessionAesKey effect', () => {
       },
     );
 
-    // Initial render with null sessionAesKey — no call for session key effect
     expect(h.refreshPrivateBalances).not.toHaveBeenCalled();
 
-    // Now simulate sessionAesKey being set
     const updatedCore = makeCore({
       sessionAesKey: 'a'.repeat(32),
       walletAddress: '0xabc123',
@@ -168,50 +166,10 @@ describe('usePluginAccountSync — sessionAesKey effect', () => {
 
     rerender({ core: updatedCore, network, updateAccountStateRef });
 
-    // Wait for the effect to fire
-    await vi.waitFor(() => {
-      expect(h.refreshPrivateBalances).toHaveBeenCalled();
-    });
-
-    expect(h.refreshPublicBalances).toHaveBeenCalledWith({
-      account: '0xabc123',
-      chainId: 11155111,
-    });
-    expect(h.refreshPrivateBalances).toHaveBeenCalledWith({
-      account: '0xabc123',
-      aesKey: 'a'.repeat(32),
-      chainId: 11155111,
-    });
-  });
-
-  it('does not unlock private balances when session key refresh fails', async () => {
-    h.refreshPrivateBalances.mockResolvedValueOnce({ ok: false, reason: 'failed' });
-    const core = makeCore({ sessionAesKey: null, walletAddress: '0xabc123' });
-    const network = makeNetwork({ wagmiChainId: 11155111 });
-    const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
-
-    const { rerender } = renderHook(
-      (props) => usePluginAccountSync(props),
-      {
-        initialProps: { core, network, updateAccountStateRef },
-      },
-    );
-
-    const updatedCore = makeCore({
-      sessionAesKey: 'a'.repeat(32),
-      walletAddress: '0xabc123',
-      wagmiSyncRef: { current: true },
-    });
-
-    rerender({ core: updatedCore, network, updateAccountStateRef });
-
-    await vi.waitFor(() => {
-      expect(h.refreshPrivateBalances).toHaveBeenCalled();
-    });
-
-    await new Promise(resolve => setTimeout(resolve, 0));
-
-    expect(updatedCore.setArePrivateBalancesHidden).not.toHaveBeenCalledWith(false);
+    await new Promise(resolve => setTimeout(resolve, 30));
+    expect(h.refreshPublicBalances).not.toHaveBeenCalled();
+    expect(h.refreshPrivateBalances).not.toHaveBeenCalled();
+    expect(updatedCore.setArePrivateBalancesHidden).not.toHaveBeenCalled();
   });
 
   it('does NOT call refreshPrivateBalances when sessionAesKey is null', () => {
@@ -249,7 +207,7 @@ describe('usePluginAccountSync — sessionAesKey effect', () => {
     expect(h.refreshPrivateBalances).not.toHaveBeenCalled();
   });
 
-  it('passes undefined chainOverride when wagmiSyncRef is false', async () => {
+  it('does not auto-refresh catalogs when a session key is already present on mount', async () => {
     const core = makeCore({
       sessionAesKey: 'b'.repeat(32),
       walletAddress: '0xdef456',
@@ -260,19 +218,9 @@ describe('usePluginAccountSync — sessionAesKey effect', () => {
 
     renderHook(() => usePluginAccountSync({ core, network, updateAccountStateRef }));
 
-    await vi.waitFor(() => {
-      expect(h.refreshPrivateBalances).toHaveBeenCalled();
-    });
-
-    expect(h.refreshPublicBalances).toHaveBeenCalledWith({
-      account: '0xdef456',
-      chainId: undefined,
-    });
-    expect(h.refreshPrivateBalances).toHaveBeenCalledWith({
-      account: '0xdef456',
-      aesKey: 'b'.repeat(32),
-      chainId: undefined,
-    });
+    await new Promise(resolve => setTimeout(resolve, 30));
+    expect(h.refreshPublicBalances).not.toHaveBeenCalled();
+    expect(h.refreshPrivateBalances).not.toHaveBeenCalled();
   });
 
   it('routes force-contract skipCache requests to the wallet provider instead of Snap', async () => {

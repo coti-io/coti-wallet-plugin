@@ -386,13 +386,23 @@ export const usePluginUnlockSession = ({
       logger.log('Private balance fetch completed', { success: result.ok });
 
       if (!result.ok) {
-        if (aesKeyOptions?.forceContractOnboarding) {
-          logger.log('Forced contract onboarding did not complete — skipping interactive retry');
-          return toHostResult(result);
-        }
-
         const restoredKey = result.restoredAesKey ?? keyForUnlock;
-        if (aesKeyOptions?.restoreOnly) {
+        if (aesKeyOptions?.forceContractOnboarding) {
+          if (restoredKey && result.reason === 'stale') {
+            logger.log('Forced onboard AES session succeeded; catalog was superseded — retrying');
+            result = await composeUnlockRefresh({
+              account: walletAddress,
+              checkSnap,
+              aesKey: restoredKey,
+              chainId: chainOverride,
+              options: { validateOnUnlock: true },
+            });
+            logger.log('Forced onboard catalog retry completed', { success: result.ok });
+          } else {
+            logger.log('Forced contract onboarding did not complete — skipping interactive retry');
+            return toHostResult(result);
+          }
+        } else if (aesKeyOptions?.restoreOnly) {
           if (
             !restoredKey
             || result.reason === 'no_aes_key'

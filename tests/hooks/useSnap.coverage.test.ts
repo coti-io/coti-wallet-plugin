@@ -115,7 +115,7 @@ describe('useSnap (branch coverage)', () => {
   it('reports the generic Flask-installed failure message when already on Flask', async () => {
     mockRequest.mockImplementation((args: ReqArgs) => {
       if (args.method === 'web3_clientVersion') return Promise.resolve('MetaMask/v11.0.0-flask');
-      if (args.method === 'wallet_getSnaps') return Promise.resolve({ [SNAP_ID]: {} });
+      if (args.method === 'wallet_getSnaps') return Promise.resolve({});
       if (args.method === 'wallet_requestSnaps') return Promise.reject(new Error('boom'));
       return Promise.resolve(undefined);
     });

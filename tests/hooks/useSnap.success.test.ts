@@ -91,15 +91,12 @@ describe('useSnap (success & lifecycle paths)', () => {
   });
 
   describe('connectToSnap / connectAndSync', () => {
-    it('connectToSnap (connectAndSync) connects and syncs environment', async () => {
+    it('connectToSnap (connectAndSync) syncs environment without re-requesting Snap when already connected', async () => {
       const { result } = renderHook(() => useSnap());
       const ok = await result.current.connectToSnap();
       expect(ok).toBe(true);
-      expect(mockRequest).toHaveBeenCalledWith(
-        expect.objectContaining({
-          method: 'wallet_requestSnaps',
-          params: { [SNAP_ID]: {} },
-        }),
+      expect(mockRequest).not.toHaveBeenCalledWith(
+        expect.objectContaining({ method: 'wallet_requestSnaps' }),
       );
       expect(mockRequest).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -113,6 +110,12 @@ describe('useSnap (success & lifecycle paths)', () => {
 
     it('requestSnapConnection passes a pinned snap version when configured', async () => {
       configureCotiPlugin({ snapVersion: '1.0.52' });
+      mockRequest.mockImplementation((args: { method: string }) => {
+        if (args.method === 'web3_clientVersion') return Promise.resolve('MetaMask/v11.0.0');
+        if (args.method === 'wallet_getSnaps') return Promise.resolve({});
+        if (args.method === 'wallet_requestSnaps') return Promise.resolve(undefined);
+        return Promise.resolve(undefined);
+      });
       const { result } = renderHook(() => useSnap());
 
       await result.current.requestSnapConnection();
@@ -124,6 +127,47 @@ describe('useSnap (success & lifecycle paths)', () => {
         }),
       );
       configureCotiPlugin({ snapVersion: undefined });
+    });
+
+    it('requestSnapConnection coalesces concurrent Snap permission requests', async () => {
+      let resolveSnaps: () => void = () => {};
+      const snaps = new Promise<undefined>((resolve) => {
+        resolveSnaps = () => resolve(undefined);
+      });
+      mockRequest.mockImplementation((args: { method: string }) => {
+        if (args.method === 'web3_clientVersion') return Promise.resolve('MetaMask/v11.0.0');
+        if (args.method === 'wallet_getSnaps') return Promise.resolve({});
+        if (args.method === 'wallet_requestSnaps') return snaps;
+        return Promise.resolve(undefined);
+      });
+      const { result } = renderHook(() => useSnap());
+      const pending = Promise.all([
+        result.current.requestSnapConnection(),
+        result.current.requestSnapConnection(),
+      ]);
+      resolveSnaps();
+      expect(await pending).toEqual([true, true]);
+      expect(mockRequest.mock.calls.filter((call) => call[0]?.method === 'wallet_requestSnaps')).toHaveLength(1);
+    });
+
+    it('requestSnapConnection treats an already-pending Snap permission as connected when getSnaps succeeds', async () => {
+      let getSnapsCalls = 0;
+      mockRequest.mockImplementation((args: { method: string }) => {
+        if (args.method === 'web3_clientVersion') return Promise.resolve('MetaMask/v11.0.0');
+        if (args.method === 'wallet_getSnaps') {
+          getSnapsCalls += 1;
+          return Promise.resolve(getSnapsCalls > 1 ? { [SNAP_ID]: { version: '1.0.0' } } : {});
+        }
+        if (args.method === 'wallet_requestSnaps') {
+          return Promise.reject({
+            code: -32002,
+            message: "Request of type 'wallet_requestPermissions' already pending",
+          });
+        }
+        return Promise.resolve(undefined);
+      });
+      const { result } = renderHook(() => useSnap());
+      expect(await result.current.requestSnapConnection()).toBe(true);
     });
 
     it('requestSnapConnection returns false when snap is disabled', async () => {

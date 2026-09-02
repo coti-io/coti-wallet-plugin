@@ -56,7 +56,7 @@ describe('useMetamask', () => {
 
     it('does nothing when accounts array is empty', async () => {
       mockRequest
-        .mockResolvedValueOnce(undefined) // wallet_requestPermissions
+        .mockResolvedValueOnce([]) // eth_accounts
         .mockResolvedValueOnce([]); // eth_requestAccounts returns empty
 
       const onConnect = vi.fn();
