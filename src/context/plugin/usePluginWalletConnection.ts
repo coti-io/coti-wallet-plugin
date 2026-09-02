@@ -50,7 +50,7 @@ export const usePluginWalletConnection = ({
     wagmiConnector,
     wagmiConfig,
   } = network;
-  const { bindAccount, currentChainId } = accountSync;
+  const { bindAccount, refreshPublicBalances, currentChainId } = accountSync;
   const autoInitTokens = isAutoInitTokensEnabled(autoInitTokensProp);
 
   const handleConnectRef = useRef<() => Promise<void>>();
@@ -62,6 +62,7 @@ export const usePluginWalletConnection = ({
       const connected = await connectWallet(async account => {
         if (autoInitTokens) {
           await bindAccount(account);
+          await refreshPublicBalances({ account });
         } else {
           setWalletAddress(account);
           setIsConnected(true);

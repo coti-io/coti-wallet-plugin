@@ -116,17 +116,30 @@ vi.mock('../../src/hooks/useBalanceUpdater', () => ({
       }
       return { ok: true as const };
     },
-    refreshPrivateBalances: async ({
+    establishAesSession: async ({
       account,
+      aesKey,
       checkSnap,
     }: {
       account: string;
+      aesKey?: string | null;
       checkSnap?: boolean;
     }) => {
       if (account) {
         params.setWalletAddress(account);
         params.setIsConnected(true);
         if (checkSnap) params.setHasSnap(true);
+      }
+      return { ok: true as const, aesKey: aesKey ?? null };
+    },
+    refreshPrivateBalances: async ({
+      account,
+    }: {
+      account: string;
+    }) => {
+      if (account) {
+        params.setWalletAddress(account);
+        params.setIsConnected(true);
       }
       return { ok: true as const };
     },

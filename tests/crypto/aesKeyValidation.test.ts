@@ -1,8 +1,39 @@
 import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
 import * as CotiSDK from '@coti-io/coti-sdk-typescript';
 import { CotiErrorCode } from '../../src/errors';
+import { COTI_TESTNET_CHAIN_ID } from '../../src/chains/coti';
 
 const ROUND_TRIP_TEST_VALUE = 0x0123456789abcdefn;
+
+const h = vi.hoisted(() => ({
+  balanceOf: vi.fn(),
+  decryptCtUint256: vi.fn(),
+  withRpcFallback: vi.fn(async (_chainId: number, fn: (provider: unknown) => Promise<unknown>) => fn({})),
+}));
+
+vi.mock('ethers', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('ethers')>();
+  class Contract {
+    balanceOf = h.balanceOf;
+  }
+  return { ...actual, ethers: { ...actual.ethers, Contract } };
+});
+
+vi.mock('../../src/crypto/decryption', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/crypto/decryption')>();
+  return {
+    ...actual,
+    decryptCtUint256: (...args: unknown[]) => h.decryptCtUint256(...args),
+  };
+});
+
+vi.mock('../../src/lib/rpcProvider', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/lib/rpcProvider')>();
+  return {
+    ...actual,
+    withRpcFallback: h.withRpcFallback,
+  };
+});
 
 describe('aesKeyValidation', () => {
   let validateAesKeyRoundTrip: (aesKey: string) => boolean;
@@ -115,6 +146,96 @@ describe('aesKeyValidation', () => {
       expect(getValidatedAesKeyForUnlock('0xABC')).toBe(key.toLowerCase().slice(0, 32));
       clearAesKeyValidatedForUnlock('0xabc');
       expect(isAesKeyValidatedForUnlock('0xabc', key)).toBe(false);
+    });
+  });
+
+  describe('on-chain ciphertext validation', () => {
+    let validateAesKeyAgainstOnChainCiphertext: (
+      aesKey: string,
+      account: string,
+      chainId: number,
+    ) => Promise<void>;
+    let validateMetaMaskAesKeyOnUnlock: (
+      snapKey: string,
+      address: string,
+      walletProvider: { request: (args: { method: string }) => Promise<unknown> },
+      chainId?: number | null,
+    ) => Promise<void>;
+
+    beforeAll(async () => {
+      const mod = await import('../../src/crypto/aesKeyValidation');
+      validateAesKeyAgainstOnChainCiphertext = mod.validateAesKeyAgainstOnChainCiphertext;
+      validateMetaMaskAesKeyOnUnlock = mod.validateMetaMaskAesKeyOnUnlock;
+    });
+
+    const account = '0x' + '1'.repeat(40);
+    const key = 'a'.repeat(32);
+
+    beforeEach(() => {
+      h.balanceOf.mockReset();
+      h.decryptCtUint256.mockReset();
+      h.withRpcFallback.mockClear();
+      h.withRpcFallback.mockImplementation(async (_chainId, fn) => fn({}));
+    });
+
+    it('no-ops when the chain has no contract addresses', async () => {
+      await expect(validateAesKeyAgainstOnChainCiphertext(key, account, 1)).resolves.toBeUndefined();
+      expect(h.balanceOf).not.toHaveBeenCalled();
+    });
+
+    it('skips a failed balanceOf read and a zero ciphertext', async () => {
+      h.balanceOf
+        .mockRejectedValueOnce(new Error('revert'))
+        .mockResolvedValueOnce({ ciphertextHigh: 0n, ciphertextLow: 0n })
+        .mockResolvedValue({ ciphertextHigh: 5n, ciphertextLow: 6n });
+      h.decryptCtUint256.mockReturnValue(1n);
+
+      await expect(
+        validateAesKeyAgainstOnChainCiphertext(key, account, COTI_TESTNET_CHAIN_ID),
+      ).resolves.toBeUndefined();
+      expect(h.decryptCtUint256).toHaveBeenCalled();
+    });
+
+    it('throws when every non-zero ciphertext fails to decrypt', async () => {
+      h.balanceOf.mockResolvedValue({ ciphertextHigh: 9n, ciphertextLow: 8n });
+      h.decryptCtUint256.mockReturnValue(null);
+
+      await expect(
+        validateAesKeyAgainstOnChainCiphertext(key, account, COTI_TESTNET_CHAIN_ID),
+      ).rejects.toMatchObject({ code: CotiErrorCode.AES_KEY_MISMATCH });
+    });
+
+    it('accepts a tuple-shaped encrypted balance', async () => {
+      h.balanceOf.mockResolvedValue([11n, 12n]);
+      h.decryptCtUint256.mockReturnValue(1n);
+
+      await expect(
+        validateAesKeyAgainstOnChainCiphertext(key, account, COTI_TESTNET_CHAIN_ID),
+      ).resolves.toBeUndefined();
+    });
+
+    it('rejects a Snap key that fails local round-trip', async () => {
+      vi.mocked(CotiSDK.decryptUint).mockReturnValue(0n);
+      const provider = { request: vi.fn().mockResolvedValue([account]) };
+      await expect(
+        validateMetaMaskAesKeyOnUnlock(key, account, provider, COTI_TESTNET_CHAIN_ID),
+      ).rejects.toMatchObject({ code: CotiErrorCode.AES_KEY_MISMATCH });
+    });
+
+    it('validates a Snap key with matching account and on-chain ciphertext', async () => {
+      const provider = { request: vi.fn().mockResolvedValue([account]) };
+      h.balanceOf.mockResolvedValue({ ciphertextHigh: 1n, ciphertextLow: 2n });
+      h.decryptCtUint256.mockReturnValue(1n);
+
+      await expect(
+        validateMetaMaskAesKeyOnUnlock(key, account, provider, COTI_TESTNET_CHAIN_ID),
+      ).resolves.toBeUndefined();
+    });
+
+    it('skips on-chain probe when no chainId is provided', async () => {
+      const provider = { request: vi.fn().mockResolvedValue([account]) };
+      await expect(validateMetaMaskAesKeyOnUnlock(key, account, provider)).resolves.toBeUndefined();
+      expect(h.withRpcFallback).not.toHaveBeenCalled();
     });
   });
 });

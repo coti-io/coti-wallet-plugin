@@ -11,7 +11,7 @@ import {
 import { useWalletType } from '../../hooks/useWalletType';
 import type { PluginAccountSync } from './usePluginAccountSync';
 import type { PluginNetworkSession } from './usePluginNetworkSession';
-import type { PluginSessionState } from './sessionShared';
+import type { PluginSessionState, AccountStateResult } from './sessionShared';
 import type { AesKeyProviderOptions } from '../../hooks/useAesKeyProvider';
 import { normalizeAesKey } from '../../crypto/aesKey';
 import { resolveAesKeyChainId } from '../../lib/aesAccessStrategy';
@@ -37,6 +37,7 @@ import {
   serializeCtUint256,
 } from '../../hooks/bridge/privateValueCrypto';
 import type { RefreshPrivateBalancesOptions } from './types';
+import { allowSnapOperations } from '../../hooks/accountState/aesSession';
 
 interface UsePluginUnlockSessionOptions {
   core: PluginSessionState;
@@ -66,6 +67,7 @@ export const usePluginUnlockSession = ({
     clearSnapCache,
     setPrivateTokens,
     wagmiSyncRef,
+    hasSnap,
     hasAesKeyInSnap,
     checkSnapStatus,
     getAESKeyFromSnap,
@@ -75,6 +77,7 @@ export const usePluginUnlockSession = ({
 
   const { wagmiChainId } = network;
   const {
+    establishAesSession,
     refreshPublicBalances: syncPublicBalances,
     refreshPrivateBalances: syncPrivateBalances,
     currentChainId,
@@ -86,12 +89,50 @@ export const usePluginUnlockSession = ({
   // unreliable when multiple wallet extensions are installed.
   const { connector } = useAccount();
 
+  const canUseSnapOperations =
+    walletTypeInfo.walletType === 'metamask'
+    && (walletTypeInfo.isMetaMaskWithSnap || hasSnap);
+
+  const composeUnlockRefresh = async ({
+    account,
+    chainId,
+    aesKey,
+    checkSnap,
+    options,
+  }: {
+    account: string;
+    chainId?: number;
+    aesKey?: string;
+    checkSnap?: boolean;
+    options?: Parameters<typeof establishAesSession>[0]['options'];
+  }): Promise<AccountStateResult> => {
+    const aes = await establishAesSession({
+      account,
+      chainId,
+      aesKey,
+      checkSnap,
+      options,
+    });
+    if (!aes.ok) return aes;
+    if (!autoInitTokens) return { ok: true };
+    if (!options?.restoreOnly) {
+      const pub = await syncPublicBalances({ account, chainId });
+      if (!pub.ok) return pub;
+    }
+    return syncPrivateBalances({
+      account,
+      chainId,
+      aesKey: aesKey ?? aes.aesKey,
+      allowSnapDecrypt: allowSnapOperations(canUseSnapOperations, options),
+    });
+  };
+
   const commitAesKeyUnlock = async (key: string): Promise<void> => {
     if (!walletAddress) throw new Error('Connect your wallet first.');
 
     const chainOverride = wagmiSyncRef.current ? wagmiChainId : undefined;
     try {
-      const result = await syncPrivateBalances({
+      const result = await composeUnlockRefresh({
         account: walletAddress,
         aesKey: key,
         chainId: chainOverride,
@@ -319,7 +360,7 @@ export const usePluginUnlockSession = ({
         return false;
       }
 
-      let result = await syncPrivateBalances({
+      let result = await composeUnlockRefresh({
         account: walletAddress,
         checkSnap,
         aesKey: keyForUnlock,
@@ -343,7 +384,7 @@ export const usePluginUnlockSession = ({
           keyForUnlock ?? getValidatedAesKeyForUnlock(walletAddress) ?? undefined;
         logger.log('First private balance fetch failed, retrying after 1.5s');
         await new Promise(resolve => setTimeout(resolve, 1500));
-        result = await syncPrivateBalances({
+        result = await composeUnlockRefresh({
           account: walletAddress,
           aesKey: keyForUnlock,
           chainId: chainOverride,
@@ -424,7 +465,13 @@ export const usePluginUnlockSession = ({
     }
   }, [
     walletAddress,
+    establishAesSession,
+    syncPublicBalances,
     syncPrivateBalances,
+    autoInitTokens,
+    hasSnap,
+    walletTypeInfo.walletType,
+    walletTypeInfo.isMetaMaskWithSnap,
     wagmiChainId,
     clearSnapCache,
     setSessionAesKey,
