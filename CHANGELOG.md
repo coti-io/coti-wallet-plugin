@@ -7,7 +7,9 @@ Version numbers follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
-Intended for the next npm release after `0.3.10`. Hosts on `0.3.10` should treat the items below as breaking until that version is published.
+## [0.4.0] - 2026-09-02
+
+Breaking host API vs `0.3.10`. Hosts must upgrade to this version for the names and contracts below.
 
 ### Breaking
 
@@ -41,5 +43,6 @@ Intended for the next npm release after `0.3.10`. Hosts on `0.3.10` should treat
 
 Published npm release. Includes testnet PoD v2.4 remount addresses and MTT faucet/portal pointer updates from the `0.3.9` → `0.3.10` window.
 
-[Unreleased]: https://github.com/coti-io/coti-wallet-plugin/compare/v0.3.10...HEAD
+[Unreleased]: https://github.com/coti-io/coti-wallet-plugin/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/coti-io/coti-wallet-plugin/compare/v0.3.10...v0.4.0
 [0.3.10]: https://github.com/coti-io/coti-wallet-plugin/releases/tag/v0.3.10
