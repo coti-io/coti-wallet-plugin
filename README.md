@@ -1,8 +1,8 @@
 # @coti-io/coti-wallet-plugin
 
-React library for adding COTI private token (pToken) support to wagmi v2 + RainbowKit dApps.
+React library for adding COTI private token (pToken) support to **wagmi v2** dApps.
 
-**Important:** This is a **plugin for existing dApps and wallets**, not a standalone wallet application. It provides React hooks, multi-wallet support, and token detection for any EIP-1193 wallet.
+**Important:** This is a **plugin for existing dApps**, not a standalone wallet. `CotiPluginProvider` must sit under a wagmi `WagmiProvider`. RainbowKit is optional — use `@coti-io/coti-wallet-plugin/rainbowkit` or bring your own connectors.
 
 ## Documentation
 
@@ -29,7 +29,13 @@ npm install @coti-io/coti-wallet-plugin
 ### Peer dependencies
 
 ```bash
-npm install react react-dom ethers viem @coti-io/coti-sdk-typescript @metamask/providers @rainbow-me/rainbowkit wagmi @tanstack/react-query
+npm install react react-dom ethers viem @coti-io/coti-sdk-typescript @metamask/providers wagmi @tanstack/react-query
+```
+
+RainbowKit is optional. Install it only if you use the convenience wrapper:
+
+```bash
+npm install @rainbow-me/rainbowkit
 ```
 
 This release is validated with `@rainbow-me/rainbowkit@2.2.0` and `wagmi@2.14.0`.
@@ -39,9 +45,9 @@ This release is validated with `@rainbow-me/rainbowkit@2.2.0` and `wagmi@2.14.0`
 ```tsx
 import {
   CotiPluginProvider,
-  WagmiRainbowKitProvider,
   usePrivateUnlock,
 } from '@coti-io/coti-wallet-plugin';
+import { WagmiRainbowKitProvider } from '@coti-io/coti-wallet-plugin/rainbowkit';
 
 export function Root() {
   return (
@@ -58,6 +64,8 @@ export function Root() {
 // <CotiPluginProvider features={['tokens', 'portal', 'pod']}>
 
 ```
+
+Hosts that already mount `WagmiProvider` + `QueryClientProvider` can skip `WagmiRainbowKitProvider` and wrap with `CotiPluginProvider` only.
 
 See the [integration guide](https://docs.coti.io/coti-documentation/build-on-coti/tools/coti-wallet-plugin/integration-guide) for provider setup, unlock flow, and private operations.
 

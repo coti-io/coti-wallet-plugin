@@ -1,7 +1,7 @@
 {
   "name": "@coti-io/coti-wallet-plugin",
   "version": "0.3.10",
-  "description": "COTI Wallet Plugin — high-level abstraction for Private Token (pToken) operations across EIP-1193 wallets",
+  "description": "React plugin for COTI private tokens in wagmi v2 apps. Optional RainbowKit wrapper at @coti-io/coti-wallet-plugin/rainbowkit.",
   "repository": {
     "type": "git",
     "url": "git+ssh://git@github.com/coti-io/coti-wallet-plugin.git"
@@ -18,6 +18,18 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
+    },
+    "./rainbowkit": {
+      "types": "./dist/rainbowkit.d.ts",
+      "import": "./dist/rainbowkit.mjs",
+      "require": "./dist/rainbowkit.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "rainbowkit": [
+        "dist/rainbowkit.d.ts"
+      ]
     }
   },
   "files": [
@@ -73,6 +85,11 @@
     "react-dom": "^18.0.0",
     "viem": "^2.0.0",
     "wagmi": "^2.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@rainbow-me/rainbowkit": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@coti-io/coti-sdk-typescript": "^1.0.8",

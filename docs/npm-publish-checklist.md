@@ -35,7 +35,7 @@ npm install ./coti-io-coti-wallet-plugin-0.1.0.tgz \
 Then verify the package imports:
 
 ```bash
-node --input-type=module -e "const m = await import('@coti-io/coti-wallet-plugin'); if (!m.CotiPluginProvider || !m.WagmiRainbowKitProvider) throw new Error('missing exports')"
+node --input-type=module -e "const m = await import('@coti-io/coti-wallet-plugin'); if (!m.CotiPluginProvider) throw new Error('missing main exports'); const rk = await import('@coti-io/coti-wallet-plugin/rainbowkit'); if (!rk.WagmiRainbowKitProvider) throw new Error('missing rainbowkit exports')"
 ```
 
 ## Publish

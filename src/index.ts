@@ -166,18 +166,8 @@ export type {
   PrivateUnlockProviderProps,
 } from './context/privateUnlock';
 
-// Providers — Multi-Wallet Support
-export {
-  WagmiRainbowKitProvider,
-  getWagmiConfig,
-  wagmiConfig,
-  type WagmiConfigOptions,
-} from './providers/WagmiRainbowKitProvider';
-export {
-  mobileZerionWallet,
-  WALLET_CONNECT_FAILURE_EVENT,
-  type WalletConnectFailureDetail,
-} from './providers/mobileZerionWallet';
+// NOTE: WagmiRainbowKitProvider, getWagmiConfig, mobileZerionWallet, and
+// useConnectModal live on `@coti-io/coti-wallet-plugin/rainbowkit`.
 
 // Hooks — Wallet Type Detection
 export { useWalletType } from './hooks/useWalletType';
@@ -198,9 +188,6 @@ export type { OnboardModalProps, OnboardModalTheme, OnboardModalPage, OnboardMod
 // Components — Network
 export { NetworkGuard } from './components/NetworkGuard';
 export type { NetworkGuardProps } from './components/NetworkGuard';
-
-// Re-export from RainbowKit for consuming apps
-export { useConnectModal } from '@rainbow-me/rainbowkit';
 
 export {
   encryptAesKeyBackup,
