@@ -163,6 +163,38 @@ describe('Package Exports (README: Installation & API)', () => {
       'mobileZerionWallet',
       'WALLET_CONNECT_FAILURE_EVENT',
       'useConnectModal',
+      'useMetamask',
+      'OnboardModal',
+      'onboardModalDefaultStyles',
+      'ONBOARD_MODAL_STYLE_KEYS',
+      'CHAIN_CONFIGS',
+      'getChainConfig',
+      'requireChainConfig',
+      'getRpcUrlForChain',
+      'getRpcUrlsForChain',
+      'estimateCotiBridgeGasFeeDisplay',
+      'quoteCotiBridgeFees',
+      'quotePortalFeeOnly',
+      'quotePodPortalTransactionFees',
+      'estimatePodPortalFees',
+      'formatPortalFeeDisplay',
+      'formatPodFeeDisplay',
+      'quotePodPrivateTokenTransferFees',
+      'quotePodTransferFees',
+      'usePodTransferFees',
+      'fetchPodOracleTokenUsdPrice',
+      'fetchPodBridgeData',
+      'simulatePodPortalFee',
+      'useBridgeData',
+      'useBridgeStatus',
+      'estimateBridgeFee',
+      'fetchBridgeFees',
+      'fetchTokenUsdPrice',
+      'computeCotiFee',
+      'computeErc20Fee',
+      'simulateFeeOnChain',
+      'getTokenSimulationMeta',
+      'getPodGasPrice',
     ];
     for (const name of withheld) {
       expect(mod[name], name).toBeUndefined();
@@ -170,6 +202,7 @@ describe('Package Exports (README: Installation & API)', () => {
     expect(mod.CotiPluginProvider).toBeDefined();
     expect(mod.usePrivateUnlock).toBeDefined();
     expect(mod.configureCotiPlugin).toBeDefined();
+    expect(mod.useCotiSwap).toBeDefined();
   });
 
   it('exports RainbowKit helpers from the rainbowkit entry', async () => {
