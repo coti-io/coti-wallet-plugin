@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import type { CotiModalsContextValue } from './types';
-import type { UpdateAccountStateFn } from './sessionShared';
+import type { UpdateAccountStateRef } from './sessionShared';
 import { usePluginSessionState } from './usePluginSessionState';
 import { usePluginNetworkSession } from './usePluginNetworkSession';
 import { usePluginAccountSync } from './usePluginAccountSync';
@@ -23,7 +23,7 @@ export const usePluginSession = ({
   autoInitTokens,
 }: UsePluginSessionOptions) => {
   const sessionState = usePluginSessionState({ modals, autoInitTokens });
-  const updateAccountStateRef = useRef<UpdateAccountStateFn | null>(null);
+  const updateAccountStateRef = useRef<UpdateAccountStateRef['current']>(null);
 
   const network = usePluginNetworkSession({ core: sessionState, updateAccountStateRef });
   const accountSync = usePluginAccountSync({

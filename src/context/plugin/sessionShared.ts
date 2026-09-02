@@ -7,18 +7,29 @@ import type { BuildItUint256ViaSnapParams, SnapItUint256 } from '../../hooks/use
 import type { OnboardModalWarnings } from '../../lib/onboardModalWarnings';
 
 export type UpdateAccountStateOptions = {
-    /** When true, validate MetaMask Snap keys on unlock (reuses session key when present). */
-    validateOnUnlock?: boolean;
+  /** When true, validate MetaMask Snap keys on unlock (reuses session key when present). */
+  validateOnUnlock?: boolean;
 };
 
-export type UpdateAccountStateFn = (
-  account: string,
-  checkSnap?: boolean,
-  fetchPrivate?: boolean,
-  aesKeyOverride?: string | null,
-  chainOverride?: number,
-  options?: UpdateAccountStateOptions & AesKeyProviderOptions,
-) => Promise<boolean>;
+export type RefreshPublicBalancesParams = {
+  account: string;
+  chainId?: number;
+};
+
+export type RefreshPrivateBalancesParams = {
+  account: string;
+  chainId?: number;
+  aesKey?: string | null;
+  checkSnap?: boolean;
+  options?: UpdateAccountStateOptions & AesKeyProviderOptions;
+};
+
+/** Named account-state operations. Replaces the old positional updateAccountState flags. */
+export type AccountStateOperations = {
+  bindAccount: (account: string) => Promise<boolean>;
+  refreshPublicBalances: (params: RefreshPublicBalancesParams) => Promise<boolean>;
+  refreshPrivateBalances: (params: RefreshPrivateBalancesParams) => Promise<boolean>;
+};
 
 /** Wallet, Snap, and AES-session state. Always mounted (core). */
 export interface PluginSessionState {
@@ -88,4 +99,4 @@ export interface PluginSessionState {
   onboardingWarnings: OnboardModalWarnings;
 }
 
-export type UpdateAccountStateRef = MutableRefObject<UpdateAccountStateFn | null>;
+export type UpdateAccountStateRef = MutableRefObject<AccountStateOperations | null>;

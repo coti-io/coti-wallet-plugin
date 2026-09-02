@@ -113,7 +113,21 @@ vi.mock('../../src/hooks/useBalanceUpdater', () => ({
     setWalletAddress: (a: string) => void;
     setIsConnected: (v: boolean) => void;
   }) => ({
-    updateAccountState: async (account: string) => {
+    bindAccount: async (account: string) => {
+      if (account) {
+        params.setWalletAddress(account);
+        params.setIsConnected(true);
+      }
+      return true;
+    },
+    refreshPublicBalances: async ({ account }: { account: string }) => {
+      if (account) {
+        params.setWalletAddress(account);
+        params.setIsConnected(true);
+      }
+      return true;
+    },
+    refreshPrivateBalances: async ({ account }: { account: string }) => {
       if (account) {
         params.setWalletAddress(account);
         params.setIsConnected(true);
