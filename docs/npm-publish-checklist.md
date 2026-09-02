@@ -13,7 +13,7 @@ Applies to the version in this repo’s `package.json` (currently **0.3.10**). B
 
 ## Peer ranges vs validated versions
 
-`package.json` peer ranges stay wide (`wagmi@^2.0.0`, optional `@rainbow-me/rainbowkit@^2.0.0`) so hosts are not pinned to a single patch. Smoke-test the **validated** versions from the README (`wagmi@2.14.0`, `@rainbow-me/rainbowkit@2.2.0`) before publish.
+`package.json` peers use carets on the **minimum versions this repo actually runs** (`wagmi@^2.14.0`, `viem@^2.47.0`, optional `@rainbow-me/rainbowkit@^2.2.0`) so hosts are not pinned to a single patch. Smoke-test the **validated** versions from the README (`wagmi@2.14.0`, `viem@2.47.10`, `@rainbow-me/rainbowkit@2.2.0`) before publish.
 
 ## Required Validation
 
