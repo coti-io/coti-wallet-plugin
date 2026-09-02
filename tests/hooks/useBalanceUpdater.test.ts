@@ -262,7 +262,9 @@ describe('useBalanceUpdater', () => {
   it('throws AES_KEY_MISMATCH when a private balance decrypt mismatches', async () => {
     const props = makeProps({
       sessionAesKey: 'd'.repeat(32),
-      fetchPrivateBalance: vi.fn().mockRejectedValue(new Error('AES key mismatch')),
+      fetchPrivateBalance: vi.fn().mockRejectedValue(
+        new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch'),
+      ),
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
@@ -451,7 +453,7 @@ describe('useBalanceUpdater', () => {
     });
 
     await fastUpdate;
-    rejectSlowPrivate(new Error('AES key mismatch'));
+    rejectSlowPrivate(new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch'));
     const slowOk = await slowUpdate;
 
     expect(slowOk.ok).toBe(false);
