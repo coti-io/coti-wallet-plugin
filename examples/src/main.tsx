@@ -2,7 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import {
   WagmiRainbowKitProvider,
-} from '@coti-io/coti-wallet-plugin';
+} from '@coti-io/coti-wallet-plugin/rainbowkit';
 import '@rainbow-me/rainbowkit/styles.css';
 import App from './App';
 import { ExampleThemeProvider } from './ExampleThemeContext';

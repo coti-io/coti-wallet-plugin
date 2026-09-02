@@ -31,6 +31,12 @@ import {
 } from '../privateUnlock';
 import { IDLE_COTI_POD, IDLE_COTI_SWAP } from './idleBridgeSlices';
 
+/**
+ * Plugin session + unlock. Must sit under a wagmi `WagmiProvider`
+ * (and typically a React Query `QueryClientProvider`).
+ * Use `WagmiRainbowKitProvider` from `@coti-io/coti-wallet-plugin/rainbowkit`,
+ * or supply your own wagmi config.
+ */
 export interface CotiPluginProviderProps {
   children: React.ReactNode;
   privateUnlock?: PrivateUnlockProviderOptions;

@@ -22,8 +22,9 @@ vi.mock('@tanstack/react-query', () => ({
 }));
 
 vi.mock('@rainbow-me/rainbowkit', () => ({
-  RainbowKitProvider: ({ children }: any) => children,
+  RainbowKitProvider: ({ children }: { children: unknown }) => children,
   useConnectModal: vi.fn(() => ({ openConnectModal: vi.fn() })),
+  connectorsForWallets: vi.fn(() => []),
 }));
 
 vi.mock('viem', () => ({
@@ -156,6 +157,12 @@ describe('Package Exports (README: Installation & API)', () => {
       'savePodRequests',
       'podRequestsStorageKey',
       'getSepoliaGasPrice',
+      'WagmiRainbowKitProvider',
+      'getWagmiConfig',
+      'wagmiConfig',
+      'mobileZerionWallet',
+      'WALLET_CONNECT_FAILURE_EVENT',
+      'useConnectModal',
     ];
     for (const name of withheld) {
       expect(mod[name], name).toBeUndefined();
@@ -163,5 +170,15 @@ describe('Package Exports (README: Installation & API)', () => {
     expect(mod.CotiPluginProvider).toBeDefined();
     expect(mod.usePrivateUnlock).toBeDefined();
     expect(mod.configureCotiPlugin).toBeDefined();
+  });
+
+  it('exports RainbowKit helpers from the rainbowkit entry', async () => {
+    const mod = await import('../src/rainbowkit') as Record<string, unknown>;
+    expect(mod.WagmiRainbowKitProvider).toBeDefined();
+    expect(mod.getWagmiConfig).toBeDefined();
+    expect(mod.wagmiConfig).toBeDefined();
+    expect(mod.mobileZerionWallet).toBeDefined();
+    expect(mod.WALLET_CONNECT_FAILURE_EVENT).toBeDefined();
+    expect(mod.useConnectModal).toBeDefined();
   });
 });
