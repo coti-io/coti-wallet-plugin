@@ -52,13 +52,23 @@ const h = vi.hoisted(() => ({
     hasAesKeyInSnap: vi.fn(async () => false as boolean | null),
   },
   balanceUpdater: {
-    updateAccountState: vi.fn(async (account: string, _hasSnap: boolean, fetchPrivate?: boolean) => {
+    bindAccount: vi.fn(async (account: string) => {
       h.balanceUpdater.lastAccount = account;
       h.balanceUpdater.params?.setWalletAddress(account);
       h.balanceUpdater.params?.setIsConnected(true);
-      if (fetchPrivate) {
-        await h.balanceUpdater.params?.getAESKeyFromSnap(account);
-      }
+      return true;
+    }),
+    refreshPublicBalances: vi.fn(async ({ account }: { account: string }) => {
+      h.balanceUpdater.lastAccount = account;
+      h.balanceUpdater.params?.setWalletAddress(account);
+      h.balanceUpdater.params?.setIsConnected(true);
+      return true;
+    }),
+    refreshPrivateBalances: vi.fn(async ({ account }: { account: string }) => {
+      h.balanceUpdater.lastAccount = account;
+      h.balanceUpdater.params?.setWalletAddress(account);
+      h.balanceUpdater.params?.setIsConnected(true);
+      await h.balanceUpdater.params?.getAESKeyFromSnap(account);
       return true;
     }),
     params: null as null | Record<string, (...args: unknown[]) => unknown>,
@@ -165,7 +175,11 @@ vi.mock('../../src/hooks/usePrivateTokenBalance', () => ({
 vi.mock('../../src/hooks/useBalanceUpdater', () => ({
   useBalanceUpdater: (params: Record<string, (...args: unknown[]) => unknown>) => {
     h.balanceUpdater.params = params;
-    return { updateAccountState: h.balanceUpdater.updateAccountState };
+    return {
+      bindAccount: h.balanceUpdater.bindAccount,
+      refreshPublicBalances: h.balanceUpdater.refreshPublicBalances,
+      refreshPrivateBalances: h.balanceUpdater.refreshPrivateBalances,
+    };
   },
 }));
 
@@ -312,12 +326,20 @@ describe('CotiPluginContext (flow coverage)', () => {
     h.snap.clearSnapCache.mockReset();
     h.snap.hasAesKeyInSnap.mockResolvedValue(false);
 
-    h.balanceUpdater.updateAccountState.mockImplementation(async (account: string, _hasSnap: boolean, fetchPrivate?: boolean) => {
+    h.balanceUpdater.bindAccount.mockImplementation(async (account: string) => {
       h.balanceUpdater.params?.setWalletAddress(account);
       h.balanceUpdater.params?.setIsConnected(true);
-      if (fetchPrivate) {
-        await h.balanceUpdater.params?.getAESKeyFromSnap(account);
-      }
+      return true;
+    });
+    h.balanceUpdater.refreshPublicBalances.mockImplementation(async ({ account }: { account: string }) => {
+      h.balanceUpdater.params?.setWalletAddress(account);
+      h.balanceUpdater.params?.setIsConnected(true);
+      return true;
+    });
+    h.balanceUpdater.refreshPrivateBalances.mockImplementation(async ({ account }: { account: string }) => {
+      h.balanceUpdater.params?.setWalletAddress(account);
+      h.balanceUpdater.params?.setIsConnected(true);
+      await h.balanceUpdater.params?.getAESKeyFromSnap(account);
       return true;
     });
     h.balanceUpdater.params = null;
@@ -404,7 +426,7 @@ describe('CotiPluginContext (flow coverage)', () => {
         await ctx.handleConnect();
       });
       expect(h.metamask.connectWallet).toHaveBeenCalled();
-      expect(h.balanceUpdater.updateAccountState).toHaveBeenCalledWith(WALLET_A, false, false);
+      expect(h.balanceUpdater.bindAccount).toHaveBeenCalledWith(WALLET_A);
       expect(latest!.isConnected).toBe(true);
     });
 
@@ -469,11 +491,11 @@ describe('CotiPluginContext (flow coverage)', () => {
   describe('MetaMask callbacks', () => {
     it('ignores onAccountChanged when wagmi manages the connection', async () => {
       await connectWagmi();
-      const callsBefore = h.balanceUpdater.updateAccountState.mock.calls.length;
+      const callsBefore = h.balanceUpdater.bindAccount.mock.calls.length;
       await act(async () => {
         await h.metamask.onAccountChanged?.(WALLET_B);
       });
-      expect(h.balanceUpdater.updateAccountState.mock.calls.length).toBe(callsBefore);
+      expect(h.balanceUpdater.bindAccount.mock.calls.length).toBe(callsBefore);
     });
 
     it('ignores onAccountChanged until explicit MetaMask connect', async () => {
@@ -481,7 +503,7 @@ describe('CotiPluginContext (flow coverage)', () => {
       await act(async () => {
         await h.metamask.onAccountChanged?.(WALLET_A);
       });
-      expect(h.balanceUpdater.updateAccountState).not.toHaveBeenCalled();
+      expect(h.balanceUpdater.bindAccount).not.toHaveBeenCalled();
     });
 
     it('skips onAccountChanged when account is unchanged', async () => {
@@ -489,11 +511,11 @@ describe('CotiPluginContext (flow coverage)', () => {
       await act(async () => {
         await ctx.handleConnect();
       });
-      const callsBefore = h.balanceUpdater.updateAccountState.mock.calls.length;
+      const callsBefore = h.balanceUpdater.bindAccount.mock.calls.length;
       await act(async () => {
         await h.metamask.onAccountChanged?.(WALLET_A);
       });
-      expect(h.balanceUpdater.updateAccountState.mock.calls.length).toBe(callsBefore);
+      expect(h.balanceUpdater.bindAccount.mock.calls.length).toBe(callsBefore);
     });
 
     it('clears session and updates state on account change after MetaMask connect', async () => {
@@ -502,13 +524,13 @@ describe('CotiPluginContext (flow coverage)', () => {
         await ctx.handleConnect();
       });
       h.balanceUpdater.params?.setSessionAesKey('a'.repeat(32), WALLET_A);
-      h.balanceUpdater.updateAccountState.mockClear();
+      h.balanceUpdater.bindAccount.mockClear();
 
       await act(async () => {
         await h.metamask.onAccountChanged?.(WALLET_B);
       });
       expect(latest!.sessionAesKey).toBeNull();
-      expect(h.balanceUpdater.updateAccountState).toHaveBeenCalledWith(WALLET_B, false, false);
+      expect(h.balanceUpdater.bindAccount).toHaveBeenCalledWith(WALLET_B);
     });
 
     it('runs onSnapCheck after explicit MetaMask connect', async () => {
@@ -516,12 +538,12 @@ describe('CotiPluginContext (flow coverage)', () => {
       await act(async () => {
         await ctx.handleConnect();
       });
-      h.balanceUpdater.updateAccountState.mockClear();
+      h.balanceUpdater.bindAccount.mockClear();
       await act(async () => {
         await h.metamask.onSnapCheck?.(WALLET_A);
       });
       expect(h.snap.executeSnapCheck).toHaveBeenCalled();
-      expect(h.balanceUpdater.updateAccountState).toHaveBeenCalledWith(WALLET_A, true, false);
+      expect(h.balanceUpdater.bindAccount).toHaveBeenCalledWith(WALLET_A);
     });
 
     it('ignores onSnapCheck when wagmi is connected', async () => {
@@ -597,41 +619,35 @@ describe('CotiPluginContext (flow coverage)', () => {
 
     it('handles wagmi account switch while connected', async () => {
       await connectWagmi(WALLET_A);
-      h.balanceUpdater.updateAccountState.mockClear();
+      h.balanceUpdater.refreshPublicBalances.mockClear();
       h.snap.clearSnapCache.mockClear();
       h.wagmi.address = WALLET_B;
       await bumpWagmi();
       expect(h.snap.clearSnapCache).toHaveBeenCalled();
-      expect(h.balanceUpdater.updateAccountState).toHaveBeenCalledWith(
-        WALLET_B,
-        false,
-        false,
-        undefined,
-        7082400,
-      );
+      expect(h.balanceUpdater.refreshPublicBalances).toHaveBeenCalledWith({
+        account: WALLET_B,
+        chainId: 7082400,
+      });
     });
 
     it('refreshes balances when wagmi chain changes', async () => {
       await connectWagmi(WALLET_A, 7082400);
-      h.balanceUpdater.updateAccountState.mockClear();
+      h.balanceUpdater.refreshPrivateBalances.mockClear();
       h.wagmi.chainId = 2632500;
       await bumpWagmi();
-      expect(h.balanceUpdater.updateAccountState).toHaveBeenCalledWith(
-        WALLET_A,
-        false,
-        true,
-        undefined,
-        2632500,
-      );
+      expect(h.balanceUpdater.refreshPrivateBalances).toHaveBeenCalledWith({
+        account: WALLET_A,
+        chainId: 2632500,
+      });
     });
 
     it('ignores wagmi chain change when chain updates are muted', async () => {
       await connectWagmi(WALLET_A, 7082400);
-      h.balanceUpdater.updateAccountState.mockClear();
+      h.balanceUpdater.refreshPrivateBalances.mockClear();
       muteChainUpdates();
       h.wagmi.chainId = 2632500;
       await bumpWagmi();
-      expect(h.balanceUpdater.updateAccountState).not.toHaveBeenCalled();
+      expect(h.balanceUpdater.refreshPrivateBalances).not.toHaveBeenCalled();
     });
 
     it('uses wagmi chainId as effective chainId when connected', async () => {
@@ -735,18 +751,17 @@ describe('CotiPluginContext (flow coverage)', () => {
     it('handleOnboard stores session key when onboarding succeeds', async () => {
       h.snap.handleManualOnboarding.mockResolvedValue('B'.repeat(32));
       await connectWagmi();
-      h.balanceUpdater.updateAccountState.mockClear();
+      h.balanceUpdater.refreshPrivateBalances.mockClear();
       await act(async () => {
         const key = await latest!.handleOnboard();
         expect(key).toBe('B'.repeat(32));
       });
-      expect(h.balanceUpdater.updateAccountState).toHaveBeenCalledWith(
-        WALLET_A,
-        true,
-        true,
-        'B'.repeat(32),
-        7082400,
-      );
+      expect(h.balanceUpdater.refreshPrivateBalances).toHaveBeenCalledWith({
+        account: WALLET_A,
+        aesKey: 'B'.repeat(32),
+        chainId: 7082400,
+        checkSnap: true,
+      });
       expect(latest!.sessionAesKey).toBe('B'.repeat(32));
       expect(latest!.isPrivateUnlocked).toBe(true);
     });
@@ -754,7 +769,7 @@ describe('CotiPluginContext (flow coverage)', () => {
     it('handleOnboard does not store session key when balance refresh fails softly', async () => {
       h.snap.handleManualOnboarding.mockResolvedValue('B'.repeat(32));
       await connectWagmi();
-      h.balanceUpdater.updateAccountState.mockResolvedValueOnce(false);
+      h.balanceUpdater.refreshPrivateBalances.mockResolvedValueOnce(false);
 
       await expect(
         act(async () => {
@@ -768,7 +783,7 @@ describe('CotiPluginContext (flow coverage)', () => {
 
     it('encryptPrivateValue rejects when private balances are locked', async () => {
       await connectWagmi();
-      h.balanceUpdater.updateAccountState.mockResolvedValueOnce(false);
+      h.balanceUpdater.refreshPrivateBalances.mockResolvedValueOnce(false);
       await act(async () => {
         h.balanceUpdater.params?.setSessionAesKey('a'.repeat(32), WALLET_A);
         await Promise.resolve();
@@ -784,7 +799,7 @@ describe('CotiPluginContext (flow coverage)', () => {
 
     it('decryptPrivateValue rejects when private balances are locked', async () => {
       await connectWagmi();
-      h.balanceUpdater.updateAccountState.mockResolvedValueOnce(false);
+      h.balanceUpdater.refreshPrivateBalances.mockResolvedValueOnce(false);
       await act(async () => {
         h.balanceUpdater.params?.setSessionAesKey('a'.repeat(32), WALLET_A);
         await Promise.resolve();
@@ -800,7 +815,7 @@ describe('CotiPluginContext (flow coverage)', () => {
 
     it('sessionAesKey effect refreshes account state and sets hasSnap', async () => {
       await connectWagmi();
-      h.balanceUpdater.updateAccountState.mockClear();
+      h.balanceUpdater.refreshPrivateBalances.mockClear();
       act(() => {
         latest!.lockPrivateBalances();
       });
@@ -810,7 +825,7 @@ describe('CotiPluginContext (flow coverage)', () => {
       await act(async () => {
         await Promise.resolve();
       });
-      expect(h.balanceUpdater.updateAccountState).toHaveBeenCalled();
+      expect(h.balanceUpdater.refreshPrivateBalances).toHaveBeenCalled();
     });
 
     it('warns and clears when setSessionAesKey is called without a wallet', async () => {
@@ -855,19 +870,18 @@ describe('CotiPluginContext (flow coverage)', () => {
       await act(async () => {
         await latest!.saveManualAesKey('A'.repeat(32));
       });
-      expect(h.balanceUpdater.updateAccountState).toHaveBeenCalledWith(
-        WALLET_A,
-        true,
-        true,
-        expect.any(String),
-        11155111,
-      );
+      expect(h.balanceUpdater.refreshPrivateBalances).toHaveBeenCalledWith({
+        account: WALLET_A,
+        aesKey: expect.any(String),
+        chainId: 11155111,
+        checkSnap: true,
+      });
     });
 
     it('saveManualAesKey reports retryable error when balance refresh fails softly', async () => {
       await connectWagmi(WALLET_A, 11155111);
       markAesKeyValidatedForUnlock(WALLET_A, 'c'.repeat(32));
-      h.balanceUpdater.updateAccountState.mockResolvedValueOnce(false);
+      h.balanceUpdater.refreshPrivateBalances.mockResolvedValueOnce(false);
 
       await expect(
         act(async () => {
@@ -883,7 +897,7 @@ describe('CotiPluginContext (flow coverage)', () => {
     it('saveManualAesKey clears session and rethrows AES_KEY_MISMATCH', async () => {
       await connectWagmi(WALLET_A, 11155111);
       markAesKeyValidatedForUnlock(WALLET_A, 'c'.repeat(32));
-      h.balanceUpdater.updateAccountState.mockRejectedValueOnce(
+      h.balanceUpdater.refreshPrivateBalances.mockRejectedValueOnce(
         new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch'),
       );
 
@@ -939,7 +953,7 @@ describe('CotiPluginContext (flow coverage)', () => {
     });
 
     it('throws SNAP_REQUIRED on SNAP_CONNECT_FAILED', async () => {
-      h.balanceUpdater.updateAccountState.mockRejectedValueOnce(new Error('SNAP_CONNECT_FAILED'));
+      h.balanceUpdater.refreshPrivateBalances.mockRejectedValueOnce(new Error('SNAP_CONNECT_FAILED'));
       await expect(latest!.refreshPrivateBalances()).rejects.toMatchObject({
         code: CotiErrorCode.SNAP_REQUIRED,
       });
@@ -947,19 +961,19 @@ describe('CotiPluginContext (flow coverage)', () => {
 
     it('returns false when user rejects (4001)', async () => {
       const err = Object.assign(new Error('User rejected'), { code: 4001 });
-      h.balanceUpdater.updateAccountState.mockRejectedValueOnce(err);
+      h.balanceUpdater.refreshPrivateBalances.mockRejectedValueOnce(err);
       await expect(latest!.refreshPrivateBalances()).resolves.toBe(false);
     });
 
     it('rethrows SNAP_DIALOG_REJECTED', async () => {
-      h.balanceUpdater.updateAccountState.mockRejectedValueOnce(new Error('SNAP_DIALOG_REJECTED'));
+      h.balanceUpdater.refreshPrivateBalances.mockRejectedValueOnce(new Error('SNAP_DIALOG_REJECTED'));
       await expect(latest!.refreshPrivateBalances()).rejects.toMatchObject({
         code: CotiErrorCode.SNAP_DIALOG_REJECTED,
       });
     });
 
     it('throws ACCOUNT_NOT_ONBOARDED on ACCOUNT_NOT_ONBOARDED', async () => {
-      h.balanceUpdater.updateAccountState.mockRejectedValueOnce(new Error('ACCOUNT_NOT_ONBOARDED'));
+      h.balanceUpdater.refreshPrivateBalances.mockRejectedValueOnce(new Error('ACCOUNT_NOT_ONBOARDED'));
       await act(async () => {
         await expect(latest!.refreshPrivateBalances()).rejects.toMatchObject({
           code: CotiErrorCode.ACCOUNT_NOT_ONBOARDED,
@@ -969,7 +983,7 @@ describe('CotiPluginContext (flow coverage)', () => {
     });
 
     it('throws AES_KEY_MISMATCH on onboarding-related errors', async () => {
-      h.balanceUpdater.updateAccountState.mockRejectedValueOnce(new Error('AES key mismatch during onboarding'));
+      h.balanceUpdater.refreshPrivateBalances.mockRejectedValueOnce(new Error('AES key mismatch during onboarding'));
       await expect(latest!.refreshPrivateBalances()).rejects.toMatchObject({
         code: CotiErrorCode.AES_KEY_MISMATCH,
       });
@@ -984,7 +998,7 @@ describe('CotiPluginContext (flow coverage)', () => {
       expect(latest!.sessionAesKey).toBe(sessionKey);
       h.snap.clearSnapCache.mockClear();
 
-      h.balanceUpdater.updateAccountState.mockRejectedValueOnce(
+      h.balanceUpdater.refreshPrivateBalances.mockRejectedValueOnce(
         new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch'),
       );
 
@@ -1005,7 +1019,7 @@ describe('CotiPluginContext (flow coverage)', () => {
       expect(latest!.isPrivateUnlocked).toBe(true);
       h.snap.clearSnapCache.mockClear();
 
-      h.balanceUpdater.updateAccountState.mockRejectedValueOnce(new Error('ACCOUNT_NOT_ONBOARDED'));
+      h.balanceUpdater.refreshPrivateBalances.mockRejectedValueOnce(new Error('ACCOUNT_NOT_ONBOARDED'));
 
       await expect(
         latest!.refreshPrivateBalances({ preserveSessionOnError: true }),
@@ -1025,7 +1039,7 @@ describe('CotiPluginContext (flow coverage)', () => {
       expect(latest!.isPrivateUnlocked).toBe(true);
       h.snap.clearSnapCache.mockClear();
 
-      h.balanceUpdater.updateAccountState.mockRejectedValueOnce(
+      h.balanceUpdater.refreshPrivateBalances.mockRejectedValueOnce(
         new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch'),
       );
 
@@ -1042,7 +1056,7 @@ describe('CotiPluginContext (flow coverage)', () => {
     });
 
     it('does not onboard blindly when Snap AES key check is unknown', async () => {
-      h.balanceUpdater.updateAccountState.mockClear();
+      h.balanceUpdater.refreshPrivateBalances.mockClear();
       h.snap.isSnapInstalled.mockResolvedValue(true);
       h.snap.hasAesKeyInSnap.mockResolvedValue(null);
 
@@ -1052,21 +1066,21 @@ describe('CotiPluginContext (flow coverage)', () => {
       });
 
       expect(h.snap.hasAesKeyInSnap).toHaveBeenCalledTimes(2);
-      expect(h.balanceUpdater.updateAccountState).not.toHaveBeenCalled();
+      expect(h.balanceUpdater.refreshPrivateBalances).not.toHaveBeenCalled();
     });
 
     it('does not error when Snap is not installed and key probe is unavailable', async () => {
-      h.balanceUpdater.updateAccountState.mockClear();
+      h.balanceUpdater.refreshPrivateBalances.mockClear();
       h.snap.isSnapInstalled.mockResolvedValue(false);
       h.snap.hasAesKeyInSnap.mockResolvedValue(null);
 
       await expect(latest!.refreshPrivateBalances()).resolves.toBe(true);
       expect(h.snap.hasAesKeyInSnap).not.toHaveBeenCalled();
-      expect(h.balanceUpdater.updateAccountState).toHaveBeenCalled();
+      expect(h.balanceUpdater.refreshPrivateBalances).toHaveBeenCalled();
     });
 
     it('returns false on generic errors', async () => {
-      h.balanceUpdater.updateAccountState.mockRejectedValueOnce(new Error('rpc down'));
+      h.balanceUpdater.refreshPrivateBalances.mockRejectedValueOnce(new Error('rpc down'));
       await expect(latest!.refreshPrivateBalances()).resolves.toBe(false);
     });
 
@@ -1078,9 +1092,9 @@ describe('CotiPluginContext (flow coverage)', () => {
       expect(latest!.snapError).toBeNull();
     });
 
-    it('returns false without unlocking when updateAccountState fails softly', async () => {
+    it('returns false without unlocking when refreshPrivateBalances fails softly', async () => {
       await connectWagmi();
-      h.balanceUpdater.updateAccountState.mockResolvedValue(false);
+      h.balanceUpdater.refreshPrivateBalances.mockResolvedValue(false);
       await expect(latest!.refreshPrivateBalances()).resolves.toBe(false);
       expect(latest!.isPrivateUnlocked).toBe(false);
     });
@@ -1088,7 +1102,7 @@ describe('CotiPluginContext (flow coverage)', () => {
     it('does not unlock from a stale validated key after a soft failure', async () => {
       await connectWagmi();
       markAesKeyValidatedForUnlock(WALLET_A, 'a'.repeat(32));
-      h.balanceUpdater.updateAccountState.mockResolvedValue(false);
+      h.balanceUpdater.refreshPrivateBalances.mockResolvedValue(false);
 
       await expect(latest!.refreshPrivateBalances()).resolves.toBe(false);
 
@@ -1099,7 +1113,7 @@ describe('CotiPluginContext (flow coverage)', () => {
     it('does not complete forced onboarding from a stale validated key after a soft failure', async () => {
       await connectWagmi();
       markAesKeyValidatedForUnlock(WALLET_A, 'b'.repeat(32));
-      h.balanceUpdater.updateAccountState.mockResolvedValue(false);
+      h.balanceUpdater.refreshPrivateBalances.mockResolvedValue(false);
 
       await expect(
         latest!.refreshPrivateBalances({ forceContractOnboarding: true }),
@@ -1107,37 +1121,33 @@ describe('CotiPluginContext (flow coverage)', () => {
 
       expect(latest!.sessionAesKey).toBeNull();
       expect(latest!.isPrivateUnlocked).toBe(false);
-      expect(h.balanceUpdater.updateAccountState).toHaveBeenCalledWith(
-        WALLET_A,
-        true,
-        true,
-        undefined,
-        7082400,
-        { validateOnUnlock: true, forceContractOnboarding: true },
-      );
+      expect(h.balanceUpdater.refreshPrivateBalances).toHaveBeenCalledWith({
+        account: WALLET_A,
+        chainId: 7082400,
+        checkSnap: true,
+        options: { validateOnUnlock: true, forceContractOnboarding: true },
+      });
     });
 
     it('does not retry forced contract onboarding after a soft failure', async () => {
-      h.balanceUpdater.updateAccountState.mockClear();
-      h.balanceUpdater.updateAccountState.mockResolvedValue(false);
+      h.balanceUpdater.refreshPrivateBalances.mockClear();
+      h.balanceUpdater.refreshPrivateBalances.mockResolvedValue(false);
 
       await expect(
         latest!.refreshPrivateBalances({ forceContractOnboarding: true }),
       ).resolves.toBe(false);
 
-      expect(h.balanceUpdater.updateAccountState).toHaveBeenCalledTimes(1);
-      expect(h.balanceUpdater.updateAccountState).toHaveBeenCalledWith(
-        WALLET_A,
-        true,
-        true,
-        undefined,
-        7082400,
-        { validateOnUnlock: true, forceContractOnboarding: true },
-      );
+      expect(h.balanceUpdater.refreshPrivateBalances).toHaveBeenCalledTimes(1);
+      expect(h.balanceUpdater.refreshPrivateBalances).toHaveBeenCalledWith({
+        account: WALLET_A,
+        chainId: 7082400,
+        checkSnap: true,
+        options: { validateOnUnlock: true, forceContractOnboarding: true },
+      });
     });
 
     it('skips balance fetch and retry for restore-only onboard probe', async () => {
-      h.balanceUpdater.updateAccountState.mockClear();
+      h.balanceUpdater.refreshPrivateBalances.mockClear();
       h.snap.isSnapInstalled.mockResolvedValue(false);
       h.snap.hasAesKeyInSnap.mockResolvedValue(false);
 
@@ -1145,23 +1155,21 @@ describe('CotiPluginContext (flow coverage)', () => {
         latest!.refreshPrivateBalances({ restoreOnly: true }),
       ).resolves.toBe(false);
 
-      expect(h.balanceUpdater.updateAccountState).not.toHaveBeenCalled();
+      expect(h.balanceUpdater.refreshPrivateBalances).not.toHaveBeenCalled();
     });
 
     it('passes wagmi chain override during refresh when synced via RainbowKit', async () => {
       await connectWagmi(WALLET_A, 11155111);
-      h.balanceUpdater.updateAccountState.mockClear();
+      h.balanceUpdater.refreshPrivateBalances.mockClear();
       await act(async () => {
         await latest!.refreshPrivateBalances();
       });
-      expect(h.balanceUpdater.updateAccountState).toHaveBeenCalledWith(
-        WALLET_A,
-        true,
-        true,
-        undefined,
-        11155111,
-        { validateOnUnlock: true, forceContractOnboarding: true },
-      );
+      expect(h.balanceUpdater.refreshPrivateBalances).toHaveBeenCalledWith({
+        account: WALLET_A,
+        chainId: 11155111,
+        checkSnap: true,
+        options: { validateOnUnlock: true, forceContractOnboarding: true },
+      });
     });
   });
 
@@ -1181,7 +1189,7 @@ describe('CotiPluginContext (flow coverage)', () => {
       expect(latest!.isPrivateUnlocked).toBe(true);
       h.snap.clearSnapCache.mockClear();
 
-      h.balanceUpdater.updateAccountState.mockRejectedValue(
+      h.balanceUpdater.refreshPrivateBalances.mockRejectedValue(
         new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch'),
       );
       const errorSpy = vi.spyOn(logger, 'error').mockImplementation(() => {});
@@ -1219,7 +1227,7 @@ describe('CotiPluginContext (flow coverage)', () => {
       h.snap.clearSnapCache.mockClear();
 
       // Reject only after unlock-effect refresh has finished.
-      h.balanceUpdater.updateAccountState.mockRejectedValue(
+      h.balanceUpdater.refreshPrivateBalances.mockRejectedValue(
         new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch'),
       );
 
@@ -1384,7 +1392,7 @@ describe('CotiPluginContext (flow coverage)', () => {
         message: 'ok',
         refreshPrivateBalances: true,
       });
-      h.balanceUpdater.updateAccountState.mockResolvedValue(false);
+      h.balanceUpdater.refreshPrivateBalances.mockResolvedValue(false);
       await connectWagmi();
       vi.useFakeTimers();
       try {
@@ -1437,7 +1445,7 @@ describe('CotiPluginContext (flow coverage)', () => {
         message: 'ok',
         refreshPrivateBalances: true,
       });
-      h.balanceUpdater.updateAccountState.mockClear();
+      h.balanceUpdater.refreshPrivateBalances.mockClear();
       await act(async () => {
         await latest!.refreshPodRequest(req);
         await latest!.refreshPodRequest(req);

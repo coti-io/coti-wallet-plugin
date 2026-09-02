@@ -23,7 +23,12 @@ import {
     reportPluginError,
 } from '../errors';
 import { logger } from '../lib/logger';
-import type { UpdateAccountStateOptions } from '../context/plugin/sessionShared';
+import type {
+    AccountStateOperations,
+    RefreshPrivateBalancesParams,
+    RefreshPublicBalancesParams,
+    UpdateAccountStateOptions,
+} from '../context/plugin/sessionShared';
 import {
     isAesKeyValidatedForUnlock,
     markAesKeyValidatedForUnlock,
@@ -110,7 +115,7 @@ interface UseBalanceUpdaterProps {
  * Dynamically iterates over SUPPORTED_TOKENS filtered by chain — no hardcoded token lists.
  *
  * @param props - State setters and helper functions required for updating the account.
- * @returns An object containing the `updateAccountState` function.
+ * @returns Named account-state operations (`bindAccount`, `refreshPublicBalances`, `refreshPrivateBalances`).
  */
 export const useBalanceUpdater = ({
     setWalletAddress,
@@ -130,14 +135,21 @@ export const useBalanceUpdater = ({
 }: UseBalanceUpdaterProps) => {
     const updateGenerationRef = useRef(0);
 
-    const updateAccountState = useCallback(async (
-        account: string,
-        checkSnap = false,
-        fetchPrivate = false,
-        aesKeyOverride?: string | null,
-        chainOverride?: number,
-        options?: UpdateAccountStateOptions & AesKeyProviderOptions,
-    ) => {
+    const runAccountState = useCallback(async (params: {
+        account: string;
+        fetchPrivate: boolean;
+        checkSnap?: boolean;
+        aesKey?: string | null;
+        chainId?: number;
+        options?: UpdateAccountStateOptions & AesKeyProviderOptions;
+    }) => {
+        const account = params.account;
+        const checkSnap = params.checkSnap === true;
+        const fetchPrivate = params.fetchPrivate;
+        const aesKeyOverride = params.aesKey;
+        const chainOverride = params.chainId;
+        const options = params.options;
+
         const generation = ++updateGenerationRef.current;
         const isStale = () => generation !== updateGenerationRef.current;
         const validateOnUnlock = options?.validateOnUnlock === true;
@@ -521,5 +533,29 @@ export const useBalanceUpdater = ({
         }
     }, [setWalletAddress, setHasSnap, setIsConnected, setPublicTokens, checkNetwork, getAESKeyFromSnap, fetchPrivateBalance, canUseSnapOperations, setPrivateTokens, sessionAesKey, setSessionAesKey, autoInitTokens, validateMetaMaskAesKeyOnUnlock]);
 
-    return { updateAccountState };
+    const bindAccount = useCallback(
+        (account: string) => runAccountState({ account, fetchPrivate: false }),
+        [runAccountState],
+    );
+
+    const refreshPublicBalances = useCallback(
+        ({ account, chainId }: RefreshPublicBalancesParams) =>
+            runAccountState({ account, chainId, fetchPrivate: false }),
+        [runAccountState],
+    );
+
+    const refreshPrivateBalances = useCallback(
+        ({ account, chainId, aesKey, checkSnap, options }: RefreshPrivateBalancesParams) =>
+            runAccountState({
+                account,
+                chainId,
+                aesKey,
+                checkSnap,
+                fetchPrivate: true,
+                options,
+            }),
+        [runAccountState],
+    );
+
+    return { bindAccount, refreshPublicBalances, refreshPrivateBalances } satisfies AccountStateOperations;
 };

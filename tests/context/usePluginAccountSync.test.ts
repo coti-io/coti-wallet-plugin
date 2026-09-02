@@ -4,7 +4,9 @@ import { configureCotiPlugin } from '../../src/config/plugin';
 
 // ─── Hoisted mock state ─────────────────────────────────────────────────────
 const h = vi.hoisted(() => ({
-  updateAccountState: vi.fn().mockResolvedValue(true),
+  bindAccount: vi.fn().mockResolvedValue(true),
+  refreshPublicBalances: vi.fn().mockResolvedValue(true),
+  refreshPrivateBalances: vi.fn().mockResolvedValue(true),
   isChainUpdatesMuted: vi.fn().mockReturnValue(false),
   balanceUpdaterParams: undefined as any,
 }));
@@ -12,7 +14,11 @@ const h = vi.hoisted(() => ({
 vi.mock('../../src/hooks/useBalanceUpdater', () => ({
   useBalanceUpdater: (params: any) => {
     h.balanceUpdaterParams = params;
-    return { updateAccountState: h.updateAccountState };
+    return {
+      bindAccount: h.bindAccount,
+      refreshPublicBalances: h.refreshPublicBalances,
+      refreshPrivateBalances: h.refreshPrivateBalances,
+    };
   },
 }));
 
@@ -131,12 +137,12 @@ describe('usePluginAccountSync — sessionAesKey effect', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     configureCotiPlugin({ snapEnabled: true });
-    h.updateAccountState.mockResolvedValue(true);
+    h.refreshPrivateBalances.mockResolvedValue(true);
     h.isChainUpdatesMuted.mockReturnValue(false);
     h.balanceUpdaterParams = undefined;
   });
 
-  it('calls updateAccountState with fetchPrivate=true and the session key when sessionAesKey changes to non-null', async () => {
+  it('calls refreshPrivateBalances with the session key when sessionAesKey changes to non-null', async () => {
     const core = makeCore({ sessionAesKey: null, walletAddress: '0xabc123' });
     const network = makeNetwork({ wagmiChainId: 11155111 });
     const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
@@ -149,7 +155,7 @@ describe('usePluginAccountSync — sessionAesKey effect', () => {
     );
 
     // Initial render with null sessionAesKey — no call for session key effect
-    expect(h.updateAccountState).not.toHaveBeenCalled();
+    expect(h.refreshPrivateBalances).not.toHaveBeenCalled();
 
     // Now simulate sessionAesKey being set
     const updatedCore = makeCore({
@@ -162,20 +168,18 @@ describe('usePluginAccountSync — sessionAesKey effect', () => {
 
     // Wait for the effect to fire
     await vi.waitFor(() => {
-      expect(h.updateAccountState).toHaveBeenCalled();
+      expect(h.refreshPrivateBalances).toHaveBeenCalled();
     });
 
-    expect(h.updateAccountState).toHaveBeenCalledWith(
-      '0xabc123',
-      false,
-      true,
-      'a'.repeat(32),
-      11155111,
-    );
+    expect(h.refreshPrivateBalances).toHaveBeenCalledWith({
+      account: '0xabc123',
+      aesKey: 'a'.repeat(32),
+      chainId: 11155111,
+    });
   });
 
   it('does not unlock private balances when session key refresh fails', async () => {
-    h.updateAccountState.mockResolvedValueOnce(false);
+    h.refreshPrivateBalances.mockResolvedValueOnce(false);
     const core = makeCore({ sessionAesKey: null, walletAddress: '0xabc123' });
     const network = makeNetwork({ wagmiChainId: 11155111 });
     const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
@@ -196,7 +200,7 @@ describe('usePluginAccountSync — sessionAesKey effect', () => {
     rerender({ core: updatedCore, network, updateAccountStateRef });
 
     await vi.waitFor(() => {
-      expect(h.updateAccountState).toHaveBeenCalled();
+      expect(h.refreshPrivateBalances).toHaveBeenCalled();
     });
 
     await new Promise(resolve => setTimeout(resolve, 0));
@@ -204,7 +208,7 @@ describe('usePluginAccountSync — sessionAesKey effect', () => {
     expect(updatedCore.setArePrivateBalancesHidden).not.toHaveBeenCalledWith(false);
   });
 
-  it('does NOT call updateAccountState when sessionAesKey is null', () => {
+  it('does NOT call refreshPrivateBalances when sessionAesKey is null', () => {
     const core = makeCore({ sessionAesKey: null, walletAddress: '0xabc123' });
     const network = makeNetwork();
     const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
@@ -212,20 +216,20 @@ describe('usePluginAccountSync — sessionAesKey effect', () => {
     renderHook(() => usePluginAccountSync({ core, network, updateAccountStateRef }));
 
     // The session-key effect should not fire when key is null
-    expect(h.updateAccountState).not.toHaveBeenCalled();
+    expect(h.refreshPrivateBalances).not.toHaveBeenCalled();
   });
 
-  it('does NOT call updateAccountState when walletAddress is empty', () => {
+  it('does NOT call refreshPrivateBalances when walletAddress is empty', () => {
     const core = makeCore({ sessionAesKey: 'a'.repeat(32), walletAddress: '' });
     const network = makeNetwork();
     const updateAccountStateRef = { current: null } as unknown as UpdateAccountStateRef;
 
     renderHook(() => usePluginAccountSync({ core, network, updateAccountStateRef }));
 
-    expect(h.updateAccountState).not.toHaveBeenCalled();
+    expect(h.refreshPrivateBalances).not.toHaveBeenCalled();
   });
 
-  it('does NOT call updateAccountState when private balances are already visible', () => {
+  it('does NOT call refreshPrivateBalances when private balances are already visible', () => {
     const core = makeCore({
       sessionAesKey: 'a'.repeat(64),
       walletAddress: '0xabc123',
@@ -236,7 +240,7 @@ describe('usePluginAccountSync — sessionAesKey effect', () => {
 
     renderHook(() => usePluginAccountSync({ core, network, updateAccountStateRef }));
 
-    expect(h.updateAccountState).not.toHaveBeenCalled();
+    expect(h.refreshPrivateBalances).not.toHaveBeenCalled();
   });
 
   it('passes undefined chainOverride when wagmiSyncRef is false', async () => {
@@ -251,16 +255,14 @@ describe('usePluginAccountSync — sessionAesKey effect', () => {
     renderHook(() => usePluginAccountSync({ core, network, updateAccountStateRef }));
 
     await vi.waitFor(() => {
-      expect(h.updateAccountState).toHaveBeenCalled();
+      expect(h.refreshPrivateBalances).toHaveBeenCalled();
     });
 
-    expect(h.updateAccountState).toHaveBeenCalledWith(
-      '0xdef456',
-      false,
-      true,
-      'b'.repeat(32),
-      undefined, // wagmiSyncRef.current is false, so chainOverride = undefined
-    );
+    expect(h.refreshPrivateBalances).toHaveBeenCalledWith({
+      account: '0xdef456',
+      aesKey: 'b'.repeat(32),
+      chainId: undefined,
+    });
   });
 
   it('routes force-contract skipCache requests to the wallet provider instead of Snap', async () => {
@@ -357,7 +359,7 @@ describe('usePluginAccountSync — sessionAesKey effect', () => {
 describe('usePluginAccountSync — snap auto-probe', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    h.updateAccountState.mockResolvedValue(true);
+    h.refreshPrivateBalances.mockResolvedValue(true);
   });
 
   it('calls checkSnapStatus when MetaMask connects with hasSnap false', async () => {
@@ -400,7 +402,7 @@ describe('usePluginAccountSync — autoInitTokens', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     configureCotiPlugin({ autoInitTokens: true, snapEnabled: true });
-    h.updateAccountState.mockResolvedValue(true);
+    h.refreshPrivateBalances.mockResolvedValue(true);
     h.isChainUpdatesMuted.mockReturnValue(false);
   });
 
@@ -474,6 +476,6 @@ describe('usePluginAccountSync — autoInitTokens', () => {
     });
 
     await new Promise(resolve => setTimeout(resolve, 30));
-    expect(h.updateAccountState).not.toHaveBeenCalled();
+    expect(h.refreshPrivateBalances).not.toHaveBeenCalled();
   });
 });

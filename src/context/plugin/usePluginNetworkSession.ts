@@ -55,7 +55,6 @@ export const usePluginNetworkSession = ({
   const {
     isConnected,
     walletAddress,
-    hasSnap,
     wagmiSyncRef,
     disconnectingRef,
     metamaskExplicitConnect,
@@ -194,7 +193,7 @@ export const usePluginNetworkSession = ({
       // Non-wagmi (injected MetaMask) path: soft-resync account/network state
       // instead of reloading the page.
       if (walletAddress) {
-        await updateAccountStateRef.current?.(walletAddress, hasSnap, false);
+        await updateAccountStateRef.current?.bindAccount(walletAddress);
       }
     },
     onAccountChanged: async account => {
@@ -216,14 +215,14 @@ export const usePluginNetworkSession = ({
       logger.log('Account changed, clearing sessionAesKey and locking', truncateAddress(account));
       setSessionAesKey(null);
       setArePrivateBalancesHidden(true);
-      await updateAccountStateRef.current?.(account, hasSnap, false);
+      await updateAccountStateRef.current?.bindAccount(account);
     },
     onSnapCheck: async account => {
       if (wagmiSyncRef.current || wagmiConnected || disconnectingRef.current) return;
       if (!metamaskExplicitConnect.current && !isConnected) return;
 
       await executeSnapCheck(async () => {
-        await updateAccountStateRef.current?.(account, true, false);
+        await updateAccountStateRef.current?.bindAccount(account);
         return true;
       });
     },

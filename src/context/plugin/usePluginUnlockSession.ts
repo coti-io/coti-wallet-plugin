@@ -74,7 +74,11 @@ export const usePluginUnlockSession = ({
   } = core;
 
   const { wagmiChainId } = network;
-  const { updateAccountState, currentChainId } = accountSync;
+  const {
+    refreshPublicBalances: syncPublicBalances,
+    refreshPrivateBalances: syncPrivateBalances,
+    currentChainId,
+  } = accountSync;
   const autoInitTokens = isAutoInitTokensEnabled(autoInitTokensProp);
   const walletTypeInfo = useWalletType();
   // Connector for the wallet the user selected via RainbowKit/wagmi — used to
@@ -87,7 +91,12 @@ export const usePluginUnlockSession = ({
 
     const chainOverride = wagmiSyncRef.current ? wagmiChainId : undefined;
     try {
-      const success = await updateAccountState(walletAddress, true, true, key, chainOverride);
+      const success = await syncPrivateBalances({
+        account: walletAddress,
+        aesKey: key,
+        chainId: chainOverride,
+        checkSnap: true,
+      });
       if (!success) {
         throw new Error('Could not unlock private balances. Try again.');
       }
@@ -177,12 +186,15 @@ export const usePluginUnlockSession = ({
     logger.log('Triggering public balance fetch...');
     try {
       const chainOverride = wagmiSyncRef.current ? wagmiChainId : undefined;
-      return await updateAccountState(walletAddress, false, false, undefined, chainOverride);
+      return await syncPublicBalances({
+        account: walletAddress,
+        chainId: chainOverride,
+      });
     } catch (err: unknown) {
       logger.warn('Public balance fetch failed', err);
       return false;
     }
-  }, [walletAddress, updateAccountState, wagmiChainId, wagmiSyncRef]);
+  }, [walletAddress, syncPublicBalances, wagmiChainId, wagmiSyncRef]);
 
   const resolveSessionAesKey = useCallback((): string | undefined => {
     return sessionAesKey
@@ -307,14 +319,13 @@ export const usePluginUnlockSession = ({
         return false;
       }
 
-      let success = await updateAccountState(
-        walletAddress,
+      let success = await syncPrivateBalances({
+        account: walletAddress,
         checkSnap,
-        true,
-        keyForUnlock,
-        chainOverride,
-        unlockOptions,
-      );
+        aesKey: keyForUnlock,
+        chainId: chainOverride,
+        options: unlockOptions,
+      });
       logger.log('Private balance fetch completed', { success });
 
       if (!success) {
@@ -332,14 +343,12 @@ export const usePluginUnlockSession = ({
           keyForUnlock ?? getValidatedAesKeyForUnlock(walletAddress) ?? undefined;
         logger.log('First private balance fetch failed, retrying after 1.5s');
         await new Promise(resolve => setTimeout(resolve, 1500));
-        success = await updateAccountState(
-          walletAddress,
-          false,
-          true,
-          keyForUnlock,
-          chainOverride,
-          unlockOptions,
-        );
+        success = await syncPrivateBalances({
+          account: walletAddress,
+          aesKey: keyForUnlock,
+          chainId: chainOverride,
+          options: unlockOptions,
+        });
         logger.log('Retry private balance fetch completed', { success });
       }
 
@@ -415,7 +424,7 @@ export const usePluginUnlockSession = ({
     }
   }, [
     walletAddress,
-    updateAccountState,
+    syncPrivateBalances,
     wagmiChainId,
     clearSnapCache,
     setSessionAesKey,

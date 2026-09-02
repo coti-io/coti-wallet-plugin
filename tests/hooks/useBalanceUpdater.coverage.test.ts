@@ -126,7 +126,7 @@ describe('useBalanceUpdater branch coverage', () => {
     const props = makeProps();
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.updateAccountState(ACCOUNT, false, false, null, COTI_TESTNET);
+    const ok = await result.current.refreshPublicBalances({ account: ACCOUNT, chainId: COTI_TESTNET });
     expect(ok).toBe(true);
     const tokens = props.setPublicTokens.mock.calls[0][0];
     // every ERC20 token resolves to the "0" fallback
@@ -138,7 +138,7 @@ describe('useBalanceUpdater branch coverage', () => {
     const { result } = renderHook(() => useBalanceUpdater(props));
 
     // Mainnet config has empty-string private token addresses.
-    const ok = await result.current.updateAccountState(ACCOUNT, true, true, undefined, COTI_MAINNET);
+    const ok = await result.current.refreshPrivateBalances({ account: ACCOUNT, checkSnap: true, chainId: COTI_MAINNET });
     expect(ok).toBe(true);
     expect(props.setPrivateTokens).toHaveBeenCalledTimes(1);
     expect(props.fetchPrivateBalance).not.toHaveBeenCalled();
@@ -152,7 +152,7 @@ describe('useBalanceUpdater branch coverage', () => {
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.updateAccountState(ACCOUNT, true, true, undefined, COTI_TESTNET);
+    const ok = await result.current.refreshPrivateBalances({ account: ACCOUNT, checkSnap: true, chainId: COTI_TESTNET });
     expect(ok).toBe(false);
   });
 
@@ -164,7 +164,7 @@ describe('useBalanceUpdater branch coverage', () => {
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.updateAccountState(ACCOUNT, true, true, undefined, COTI_TESTNET);
+    const ok = await result.current.refreshPrivateBalances({ account: ACCOUNT, checkSnap: true, chainId: COTI_TESTNET });
     expect(ok).toBe(true);
     expect(props.setPrivateTokens).toHaveBeenCalledTimes(1);
   });
@@ -173,7 +173,7 @@ describe('useBalanceUpdater branch coverage', () => {
     const props = makeProps({ sessionAesKey: 'd'.repeat(32) });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.updateAccountState(ACCOUNT, true, true, undefined, KEYLESS_CHAIN);
+    const ok = await result.current.refreshPrivateBalances({ account: ACCOUNT, checkSnap: true, chainId: KEYLESS_CHAIN });
     expect(ok).toBe(true);
     expect(props.fetchPrivateBalance).not.toHaveBeenCalled();
     const privTokens = props.setPrivateTokens.mock.calls[0][0];

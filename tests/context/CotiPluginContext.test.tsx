@@ -102,11 +102,31 @@ vi.mock('../../src/hooks/useBalanceUpdater', () => ({
     setIsConnected: (v: boolean) => void;
     setHasSnap: (v: boolean) => void;
   }) => ({
-    updateAccountState: async (account: string, hasSnapFlag?: boolean) => {
+    bindAccount: async (account: string) => {
       if (account) {
         params.setWalletAddress(account);
         params.setIsConnected(true);
-        if (hasSnapFlag) params.setHasSnap(true);
+      }
+      return true;
+    },
+    refreshPublicBalances: async ({ account }: { account: string }) => {
+      if (account) {
+        params.setWalletAddress(account);
+        params.setIsConnected(true);
+      }
+      return true;
+    },
+    refreshPrivateBalances: async ({
+      account,
+      checkSnap,
+    }: {
+      account: string;
+      checkSnap?: boolean;
+    }) => {
+      if (account) {
+        params.setWalletAddress(account);
+        params.setIsConnected(true);
+        if (checkSnap) params.setHasSnap(true);
       }
       return true;
     },

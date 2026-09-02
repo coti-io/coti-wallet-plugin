@@ -60,7 +60,7 @@ export const usePluginWagmiSync = ({
     wagmiConnector,
   } = network;
 
-  const { updateAccountState } = accountSync;
+  const { refreshPublicBalances, refreshPrivateBalances } = accountSync;
   const autoInitTokens = isAutoInitTokensEnabled(autoInitTokensProp);
 
   useEffect(() => {
@@ -71,7 +71,10 @@ export const usePluginWagmiSync = ({
       });
       wagmiSyncRef.current = true;
       if (autoInitTokens) {
-        void updateAccountState(wagmiAddress, false, true, undefined, wagmiChainId).catch(err => {
+        void refreshPrivateBalances({
+          account: wagmiAddress,
+          chainId: wagmiChainId,
+        }).catch(err => {
           reportBalanceRefreshFailure('Wagmi connect balance refresh failed', err);
         });
       } else {
@@ -116,7 +119,10 @@ export const usePluginWagmiSync = ({
       setArePrivateBalancesHidden(true);
       if (autoInitTokens) {
         setPrivateTokens(getInitialPrivateTokens(wagmiChainId));
-        void updateAccountState(wagmiAddress, false, false, undefined, wagmiChainId).catch(err => {
+        void refreshPublicBalances({
+          account: wagmiAddress,
+          chainId: wagmiChainId,
+        }).catch(err => {
           reportBalanceRefreshFailure('Wagmi account-switch balance refresh failed', err);
         });
       } else {
@@ -131,7 +137,8 @@ export const usePluginWagmiSync = ({
     isConnected,
     wagmiChainId,
     wagmiConnector,
-    updateAccountState,
+    refreshPublicBalances,
+    refreshPrivateBalances,
     wagmiSyncRef,
     setIsConnected,
     setWalletAddress,
@@ -185,7 +192,12 @@ export const usePluginWagmiSync = ({
             to: wagmiChainId,
           });
           prevWagmiChainIdRef.current = wagmiChainId;
-          void updateAccountState(wagmiAddress, true, true, core.sessionAesKey, wagmiChainId).catch(err => {
+          void refreshPrivateBalances({
+            account: wagmiAddress,
+            chainId: wagmiChainId,
+            aesKey: core.sessionAesKey,
+            checkSnap: true,
+          }).catch(err => {
             reportBalanceRefreshFailure('Wagmi chain-change balance refresh failed', err);
           });
           return;
@@ -194,11 +206,14 @@ export const usePluginWagmiSync = ({
           from: prevWagmiChainIdRef.current,
           to: wagmiChainId,
         });
-        void updateAccountState(wagmiAddress, false, true, undefined, wagmiChainId).catch(err => {
+        void refreshPrivateBalances({
+          account: wagmiAddress,
+          chainId: wagmiChainId,
+        }).catch(err => {
           reportBalanceRefreshFailure('Wagmi chain-change balance refresh failed', err);
         });
       }
       prevWagmiChainIdRef.current = wagmiChainId;
     }
-  }, [wagmiConnected, wagmiAddress, walletAddress, isConnected, wagmiChainId, updateAccountState, core.sessionAesKey, autoInitTokens]);
+  }, [wagmiConnected, wagmiAddress, walletAddress, isConnected, wagmiChainId, refreshPrivateBalances, core.sessionAesKey, autoInitTokens]);
 };

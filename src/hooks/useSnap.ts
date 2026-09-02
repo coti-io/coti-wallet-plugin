@@ -328,7 +328,7 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
     /**
      * Orchestrates the Snap connection check with logging and error handling.
      * 
-     * @param onSnapFound - Callback to execute if Snap is installed (e.g., updateAccountState).
+     * @param onSnapFound - Callback to execute if Snap is installed (e.g., bindAccount).
      *                      Should return true if successful, false otherwise.
      * @returns {Promise<void>}
      */

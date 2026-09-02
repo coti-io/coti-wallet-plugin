@@ -3,7 +3,9 @@ import { renderHook } from '@testing-library/react';
 
 // ─── Hoisted mock state ─────────────────────────────────────────────────────
 const h = vi.hoisted(() => ({
-  updateAccountState: vi.fn().mockResolvedValue(true),
+  bindAccount: vi.fn().mockResolvedValue(true),
+  refreshPublicBalances: vi.fn().mockResolvedValue(true),
+  refreshPrivateBalances: vi.fn().mockResolvedValue(true),
   isChainUpdatesMuted: vi.fn().mockReturnValue(false),
   mapConnectorIdToWalletType: vi.fn(() => 'unknown' as const),
   wagmiAccount: {
@@ -161,7 +163,9 @@ function makeNetwork(overrides: Partial<any> = {}) {
 
 function makeAccountSync(overrides: Partial<any> = {}) {
   return {
-    updateAccountState: h.updateAccountState,
+    bindAccount: h.bindAccount,
+    refreshPublicBalances: h.refreshPublicBalances,
+    refreshPrivateBalances: h.refreshPrivateBalances,
     currentChainId: 11155111,
     ...overrides,
   };
@@ -170,7 +174,9 @@ function makeAccountSync(overrides: Partial<any> = {}) {
 describe('usePluginWagmiSync — chain-change guard with sessionAesKey', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    h.updateAccountState.mockResolvedValue(true);
+    h.refreshPrivateBalances.mockResolvedValue(true);
+    h.refreshPublicBalances.mockResolvedValue(true);
+    h.bindAccount.mockResolvedValue(true);
     h.isChainUpdatesMuted.mockReturnValue(false);
     h.wagmiAccount.address = '0xabc123';
     h.wagmiAccount.isConnected = true;
@@ -178,7 +184,7 @@ describe('usePluginWagmiSync — chain-change guard with sessionAesKey', () => {
     h.autoInitTokens = true;
   });
 
-  it('calls updateAccountState with fetchPrivate=true and sessionAesKey when key is set and chain changes (unmuted)', async () => {
+  it('calls refreshPrivateBalances with sessionAesKey when key is set and chain changes (unmuted)', async () => {
     const core = makeCore({ sessionAesKey: 'c'.repeat(32), walletAddress: '0xabc123' });
     const network = makeNetwork({ wagmiChainId: 11155111 });
     const accountSync = makeAccountSync();
@@ -196,17 +202,16 @@ describe('usePluginWagmiSync — chain-change guard with sessionAesKey', () => {
     rerender({ core, network: updatedNetwork, accountSync });
 
     await vi.waitFor(() => {
-      expect(h.updateAccountState).toHaveBeenCalledWith(
-        '0xabc123',
-        true,
-        true,
-        'c'.repeat(32),
-        7082400,
-      );
+      expect(h.refreshPrivateBalances).toHaveBeenCalledWith({
+        account: '0xabc123',
+        chainId: 7082400,
+        aesKey: 'c'.repeat(32),
+        checkSnap: true,
+      });
     });
   });
 
-  it('calls updateAccountState with fetchPrivate=false when sessionAesKey is null and chain changes (regression)', async () => {
+  it('calls refreshPrivateBalances without a session key when chain changes (regression)', async () => {
     const core = makeCore({ sessionAesKey: null, walletAddress: '0xabc123' });
     const network = makeNetwork({ wagmiChainId: 11155111 });
     const accountSync = makeAccountSync();
@@ -224,17 +229,14 @@ describe('usePluginWagmiSync — chain-change guard with sessionAesKey', () => {
     rerender({ core, network: updatedNetwork, accountSync });
 
     await vi.waitFor(() => {
-      expect(h.updateAccountState).toHaveBeenCalledWith(
-        '0xabc123',
-        false,
-        true,
-        undefined,
-        7082400,
-      );
+      expect(h.refreshPrivateBalances).toHaveBeenCalledWith({
+        account: '0xabc123',
+        chainId: 7082400,
+      });
     });
   });
 
-  it('does NOT call updateAccountState when chain updates are muted', async () => {
+  it('does NOT refresh balances when chain updates are muted', async () => {
     h.isChainUpdatesMuted.mockReturnValue(true);
 
     const core = makeCore({ sessionAesKey: 'c'.repeat(32), walletAddress: '0xabc123' });
@@ -255,10 +257,10 @@ describe('usePluginWagmiSync — chain-change guard with sessionAesKey', () => {
     // Give time for any async effects
     await new Promise(r => setTimeout(r, 50));
 
-    // The chain-change effect should not call updateAccountState because muted
+    // The chain-change effect should not refresh balances because muted
     // (Only first-render calls may have happened for connection sync)
-    const chainChangeCalls = h.updateAccountState.mock.calls.filter(
-      (call: any[]) => call[4] === 7082400 // chainOverride matches the new chain
+    const chainChangeCalls = h.refreshPrivateBalances.mock.calls.filter(
+      (call: [{ chainId?: number }]) => call[0]?.chainId === 7082400,
     );
     expect(chainChangeCalls).toHaveLength(0);
   });
@@ -267,7 +269,9 @@ describe('usePluginWagmiSync — chain-change guard with sessionAesKey', () => {
 describe('usePluginWagmiSync — snap status on connect', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    h.updateAccountState.mockResolvedValue(true);
+    h.refreshPrivateBalances.mockResolvedValue(true);
+    h.refreshPublicBalances.mockResolvedValue(true);
+    h.bindAccount.mockResolvedValue(true);
     h.wagmiAccount.address = '0xabc123';
     h.wagmiAccount.isConnected = true;
     h.wagmiAccount.chainId = 11155111;
@@ -304,7 +308,9 @@ describe('usePluginWagmiSync — snap status on connect', () => {
 describe('usePluginWagmiSync — account switch', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    h.updateAccountState.mockResolvedValue(true);
+    h.refreshPrivateBalances.mockResolvedValue(true);
+    h.refreshPublicBalances.mockResolvedValue(true);
+    h.bindAccount.mockResolvedValue(true);
     h.wagmiAccount.address = '0xnew456';
     h.wagmiAccount.isConnected = true;
     h.wagmiAccount.chainId = 7082400;
@@ -341,13 +347,10 @@ describe('usePluginWagmiSync — account switch', () => {
       expect(clearSnapCache).toHaveBeenCalled();
       expect(setArePrivateBalancesHidden).toHaveBeenCalledWith(true);
       expect(setPrivateTokens).toHaveBeenCalled();
-      expect(h.updateAccountState).toHaveBeenCalledWith(
-        '0xnew456',
-        false,
-        false,
-        undefined,
-        7082400,
-      );
+      expect(h.refreshPublicBalances).toHaveBeenCalledWith({
+        account: '0xnew456',
+        chainId: 7082400,
+      });
     });
   });
 });
@@ -355,7 +358,9 @@ describe('usePluginWagmiSync — account switch', () => {
 describe('usePluginWagmiSync — autoInitTokens false', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    h.updateAccountState.mockResolvedValue(true);
+    h.refreshPrivateBalances.mockResolvedValue(true);
+    h.refreshPublicBalances.mockResolvedValue(true);
+    h.bindAccount.mockResolvedValue(true);
     h.isChainUpdatesMuted.mockReturnValue(false);
     h.autoInitTokens = false;
     h.wagmiAccount.address = '0xabc123';
@@ -382,7 +387,9 @@ describe('usePluginWagmiSync — autoInitTokens false', () => {
       autoInitTokens: false,
     }));
 
-    expect(h.updateAccountState).not.toHaveBeenCalled();
+    expect(h.refreshPrivateBalances).not.toHaveBeenCalled();
+    expect(h.refreshPublicBalances).not.toHaveBeenCalled();
+    expect(h.bindAccount).not.toHaveBeenCalled();
     expect(setWalletAddress).toHaveBeenCalledWith('0xabc123');
     expect(setIsConnected).toHaveBeenCalledWith(true);
   });
@@ -413,8 +420,8 @@ describe('usePluginWagmiSync — autoInitTokens false', () => {
     });
 
     await new Promise(r => setTimeout(r, 50));
-    const chainChangeCalls = h.updateAccountState.mock.calls.filter(
-      (call: unknown[]) => call[4] === 7082400,
+    const chainChangeCalls = h.refreshPrivateBalances.mock.calls.filter(
+      (call: [{ chainId?: number }]) => call[0]?.chainId === 7082400,
     );
     expect(chainChangeCalls).toHaveLength(0);
   });
@@ -447,6 +454,8 @@ describe('usePluginWagmiSync — autoInitTokens false', () => {
       expect(setWalletAddress).toHaveBeenCalledWith('0xnew456');
     });
     expect(setPrivateTokens).toHaveBeenCalledWith([]);
-    expect(h.updateAccountState).not.toHaveBeenCalled();
+    expect(h.refreshPrivateBalances).not.toHaveBeenCalled();
+    expect(h.refreshPublicBalances).not.toHaveBeenCalled();
+    expect(h.bindAccount).not.toHaveBeenCalled();
   });
 });

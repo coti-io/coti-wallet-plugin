@@ -100,13 +100,11 @@ describe('useBalanceUpdater', () => {
     const props = makeProps({ autoInitTokens: false, sessionAesKey: 'a'.repeat(32) });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.updateAccountState(
-      ACCOUNT,
-      false,
-      true,
-      'a'.repeat(32),
-      COTI_TESTNET,
-    );
+    const ok = await result.current.refreshPrivateBalances({
+      account: ACCOUNT,
+      aesKey: 'a'.repeat(32),
+      chainId: COTI_TESTNET,
+    });
 
     expect(ok).toBe(true);
     expect(props.setPublicTokens).not.toHaveBeenCalled();
@@ -122,7 +120,7 @@ describe('useBalanceUpdater', () => {
     const props = makeProps({ sessionAesKey: 'a'.repeat(32) });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.updateAccountState(ACCOUNT, true, true);
+    const ok = await result.current.refreshPrivateBalances({ account: ACCOUNT, checkSnap: true });
 
     expect(ok).toBe(false);
     expect(props.setSessionAesKey).not.toHaveBeenCalled();
@@ -135,13 +133,12 @@ describe('useBalanceUpdater', () => {
     const props = makeProps({ sessionAesKey: 'a'.repeat(32) });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.updateAccountState(
-      ACCOUNT,
-      true,
-      true,
-      'a'.repeat(32),
-      999999,
-    );
+    const ok = await result.current.refreshPrivateBalances({
+      account: ACCOUNT,
+      checkSnap: true,
+      aesKey: 'a'.repeat(32),
+      chainId: 999999,
+    });
 
     expect(ok).toBe(false);
     expect(props.setPrivateTokens).not.toHaveBeenCalled();
@@ -154,7 +151,7 @@ describe('useBalanceUpdater', () => {
     const props = makeProps();
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.updateAccountState(ACCOUNT);
+    const ok = await result.current.bindAccount(ACCOUNT);
 
     expect(ok).toBe(true);
     expect(props.setWalletAddress).toHaveBeenCalledWith(ACCOUNT);
@@ -171,7 +168,7 @@ describe('useBalanceUpdater', () => {
     const props = makeProps();
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.updateAccountState(ACCOUNT, false, false, null, COTI_TESTNET);
+    const ok = await result.current.refreshPublicBalances({ account: ACCOUNT, chainId: COTI_TESTNET });
 
     expect(ok).toBe(true);
     // checkNetwork only runs when a BrowserProvider exists
@@ -188,7 +185,7 @@ describe('useBalanceUpdater', () => {
     const props = makeProps();
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.updateAccountState(ACCOUNT, false, false);
+    const ok = await result.current.bindAccount(ACCOUNT);
 
     expect(ok).toBe(true);
     expect(props.checkNetwork).toHaveBeenCalledTimes(1);
@@ -202,13 +199,12 @@ describe('useBalanceUpdater', () => {
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.updateAccountState(
-      ACCOUNT,
-      true,
-      true,
-      'a'.repeat(32),
-      COTI_TESTNET,
-    );
+    const ok = await result.current.refreshPrivateBalances({
+      account: ACCOUNT,
+      checkSnap: true,
+      aesKey: 'a'.repeat(32),
+      chainId: COTI_TESTNET,
+    });
 
     expect(ok).toBe(true);
     expect(props.fetchPrivateBalance).toHaveBeenCalled();
@@ -224,7 +220,7 @@ describe('useBalanceUpdater', () => {
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.updateAccountState(ACCOUNT, true, true, undefined, COTI_TESTNET);
+    const ok = await result.current.refreshPrivateBalances({ account: ACCOUNT, checkSnap: true, chainId: COTI_TESTNET });
 
     expect(ok).toBe(true);
     expect(props.getAESKeyFromSnap).toHaveBeenCalledWith(ACCOUNT);
@@ -239,7 +235,7 @@ describe('useBalanceUpdater', () => {
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.updateAccountState(ACCOUNT, true, true, undefined, COTI_TESTNET);
+    const ok = await result.current.refreshPrivateBalances({ account: ACCOUNT, checkSnap: true, chainId: COTI_TESTNET });
 
     expect(ok).toBe(true);
     expect(props.getAESKeyFromSnap).not.toHaveBeenCalled();
@@ -253,7 +249,7 @@ describe('useBalanceUpdater', () => {
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.updateAccountState(ACCOUNT, true, true, undefined, COTI_TESTNET);
+    const ok = await result.current.refreshPrivateBalances({ account: ACCOUNT, checkSnap: true, chainId: COTI_TESTNET });
 
     expect(ok).toBe(false);
     expect(props.setPrivateTokens).not.toHaveBeenCalled();
@@ -267,7 +263,7 @@ describe('useBalanceUpdater', () => {
     const { result } = renderHook(() => useBalanceUpdater(props));
 
     await expect(
-      result.current.updateAccountState(ACCOUNT, true, true, undefined, COTI_TESTNET),
+      result.current.refreshPrivateBalances({ account: ACCOUNT, checkSnap: true, chainId: COTI_TESTNET }),
     ).rejects.toMatchObject({ code: CotiErrorCode.AES_KEY_MISMATCH });
     expect(props.setPrivateTokens).not.toHaveBeenCalled();
   });
@@ -279,7 +275,7 @@ describe('useBalanceUpdater', () => {
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.updateAccountState(ACCOUNT, false, true, undefined, SEPOLIA);
+    const ok = await result.current.refreshPrivateBalances({ account: ACCOUNT, chainId: SEPOLIA });
     expect(ok).toBe(true);
     expect(props.fetchPrivateBalance).toHaveBeenCalled();
     expect(props.setPrivateTokens).toHaveBeenCalledTimes(1);
@@ -292,7 +288,7 @@ describe('useBalanceUpdater', () => {
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.updateAccountState(ACCOUNT, true, true, undefined, COTI_TESTNET);
+    const ok = await result.current.refreshPrivateBalances({ account: ACCOUNT, checkSnap: true, chainId: COTI_TESTNET });
     expect(ok).toBe(false);
   });
 
@@ -312,14 +308,12 @@ describe('useBalanceUpdater', () => {
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.updateAccountState(
-      ACCOUNT,
-      true,
-      true,
-      undefined,
-      COTI_TESTNET,
-      { validateOnUnlock: true },
-    );
+    const ok = await result.current.refreshPrivateBalances({
+      account: ACCOUNT,
+      checkSnap: true,
+      chainId: COTI_TESTNET,
+      options: { validateOnUnlock: true },
+    });
 
     expect(ok).toBe(false);
     expect(validateMetaMaskAesKeyOnUnlock).toHaveBeenCalled();
@@ -336,7 +330,7 @@ describe('useBalanceUpdater', () => {
     const { result } = renderHook(() => useBalanceUpdater(props));
 
     await expect(
-      result.current.updateAccountState(ACCOUNT, false, false),
+      result.current.bindAccount(ACCOUNT),
     ).rejects.toMatchObject({ code: CotiErrorCode.UNSUPPORTED_NETWORK });
   });
 
@@ -346,11 +340,11 @@ describe('useBalanceUpdater', () => {
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.updateAccountState(ACCOUNT, false, false);
+    const ok = await result.current.bindAccount(ACCOUNT);
     expect(ok).toBe(false);
   });
 
-  it('ignores stale public balance updates when a newer updateAccountState starts', async () => {
+  it('ignores stale public balance updates when a newer refreshPublicBalances starts', async () => {
     const original = (window as any).ethereum;
     delete (window as any).ethereum;
 
@@ -368,8 +362,8 @@ describe('useBalanceUpdater', () => {
     const { result } = renderHook(() => useBalanceUpdater(props));
 
     const accountB = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
-    const slowUpdate = result.current.updateAccountState(ACCOUNT, false, false, null, COTI_TESTNET);
-    const fastUpdate = result.current.updateAccountState(accountB, false, false, null, COTI_TESTNET);
+    const slowUpdate = result.current.refreshPublicBalances({ account: ACCOUNT, chainId: COTI_TESTNET });
+    const fastUpdate = result.current.refreshPublicBalances({ account: accountB, chainId: COTI_TESTNET });
 
     resolveSlowBalance(1500000000000000000n);
     const [slowOk, fastOk] = await Promise.all([slowUpdate, fastUpdate]);
@@ -382,7 +376,7 @@ describe('useBalanceUpdater', () => {
     (window as any).ethereum = original;
   });
 
-  it('ignores stale private balance updates when a newer updateAccountState starts', async () => {
+  it('ignores stale private balance updates when a newer refreshPrivateBalances starts', async () => {
     const original = (window as any).ethereum;
     delete (window as any).ethereum;
 
@@ -401,20 +395,17 @@ describe('useBalanceUpdater', () => {
     const { result } = renderHook(() => useBalanceUpdater(props));
 
     const accountB = '0xcccccccccccccccccccccccccccccccccccccccc';
-    const slowUpdate = result.current.updateAccountState(
-      ACCOUNT,
-      true,
-      true,
-      undefined,
-      COTI_TESTNET,
-    );
-    const fastUpdate = result.current.updateAccountState(
-      accountB,
-      true,
-      true,
-      'a'.repeat(32),
-      COTI_TESTNET,
-    );
+    const slowUpdate = result.current.refreshPrivateBalances({
+      account: ACCOUNT,
+      checkSnap: true,
+      chainId: COTI_TESTNET,
+    });
+    const fastUpdate = result.current.refreshPrivateBalances({
+      account: accountB,
+      checkSnap: true,
+      aesKey: 'a'.repeat(32),
+      chainId: COTI_TESTNET,
+    });
 
     resolveSlowPrivate('11');
     const [slowOk, fastOk] = await Promise.all([slowUpdate, fastUpdate]);
@@ -445,23 +436,20 @@ describe('useBalanceUpdater', () => {
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const slowUpdate = result.current.updateAccountState(
-      ACCOUNT,
-      true,
-      true,
-      undefined,
-      COTI_TESTNET,
-    );
+    const slowUpdate = result.current.refreshPrivateBalances({
+      account: ACCOUNT,
+      checkSnap: true,
+      chainId: COTI_TESTNET,
+    });
     await vi.waitFor(() => {
       expect(props.fetchPrivateBalance).toHaveBeenCalled();
     });
-    const fastUpdate = result.current.updateAccountState(
-      accountB,
-      true,
-      true,
-      'e'.repeat(32),
-      COTI_TESTNET,
-    );
+    const fastUpdate = result.current.refreshPrivateBalances({
+      account: accountB,
+      checkSnap: true,
+      aesKey: 'e'.repeat(32),
+      chainId: COTI_TESTNET,
+    });
 
     await fastUpdate;
     rejectSlowPrivate(new Error('AES key mismatch'));
@@ -490,23 +478,19 @@ describe('useBalanceUpdater', () => {
     const { result } = renderHook(() => useBalanceUpdater(props));
 
     const accountB = '0xdddddddddddddddddddddddddddddddddddddddd';
-    const slowUpdate = result.current.updateAccountState(
-      ACCOUNT,
-      true,
-      true,
-      undefined,
-      COTI_TESTNET,
-    );
+    const slowUpdate = result.current.refreshPrivateBalances({
+      account: ACCOUNT,
+      checkSnap: true,
+      chainId: COTI_TESTNET,
+    });
     await vi.waitFor(() => {
       expect(props.getAESKeyFromSnap).toHaveBeenCalledWith(ACCOUNT);
     });
-    const fastUpdate = result.current.updateAccountState(
-      accountB,
-      true,
-      true,
-      undefined,
-      COTI_TESTNET,
-    );
+    const fastUpdate = result.current.refreshPrivateBalances({
+      account: accountB,
+      checkSnap: true,
+      chainId: COTI_TESTNET,
+    });
 
     await fastUpdate;
     resolveSlowSnap('a'.repeat(32));
@@ -538,14 +522,12 @@ describe('useBalanceUpdater', () => {
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.updateAccountState(
-      ACCOUNT,
-      false,
-      true,
-      sessionKey,
-      COTI_TESTNET,
-      { validateOnUnlock: true },
-    );
+    const ok = await result.current.refreshPrivateBalances({
+      account: ACCOUNT,
+      aesKey: sessionKey,
+      chainId: COTI_TESTNET,
+      options: { validateOnUnlock: true },
+    });
 
     expect(ok).toBe(true);
     expect(props.getAESKeyFromSnap).not.toHaveBeenCalled();
@@ -568,14 +550,12 @@ describe('useBalanceUpdater', () => {
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.updateAccountState(
-      ACCOUNT,
-      true,
-      true,
-      undefined,
-      COTI_TESTNET,
-      { validateOnUnlock: true, forceContractOnboarding: true },
-    );
+    const ok = await result.current.refreshPrivateBalances({
+      account: ACCOUNT,
+      checkSnap: true,
+      chainId: COTI_TESTNET,
+      options: { validateOnUnlock: true, forceContractOnboarding: true },
+    });
 
     expect(ok).toBe(true);
     expect(props.getAESKeyFromSnap).toHaveBeenCalledWith(ACCOUNT, {
@@ -613,14 +593,12 @@ describe('useBalanceUpdater', () => {
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.updateAccountState(
-      ACCOUNT,
-      false,
-      true,
-      sessionKey,
-      COTI_TESTNET,
-      { validateOnUnlock: true },
-    );
+    const ok = await result.current.refreshPrivateBalances({
+      account: ACCOUNT,
+      aesKey: sessionKey,
+      chainId: COTI_TESTNET,
+      options: { validateOnUnlock: true },
+    });
 
     expect(ok).toBe(true);
     expect(props.getAESKeyFromSnap).not.toHaveBeenCalled();
@@ -642,14 +620,11 @@ describe('useBalanceUpdater', () => {
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.updateAccountState(
-      ACCOUNT,
-      false,
-      true,
-      undefined,
-      COTI_TESTNET,
-      { restoreOnly: true, snapSideDecrypt: true },
-    );
+    const ok = await result.current.refreshPrivateBalances({
+      account: ACCOUNT,
+      chainId: COTI_TESTNET,
+      options: { restoreOnly: true, snapSideDecrypt: true },
+    });
 
     expect(ok).toBe(true);
     expect(props.getAESKeyFromSnap).not.toHaveBeenCalled();
@@ -675,14 +650,12 @@ describe('useBalanceUpdater', () => {
     });
     const { result } = renderHook(() => useBalanceUpdater(props));
 
-    const ok = await result.current.updateAccountState(
-      ACCOUNT,
-      true,
-      true,
-      undefined,
-      SEPOLIA,
-      { validateOnUnlock: true, forceContractOnboarding: true },
-    );
+    const ok = await result.current.refreshPrivateBalances({
+      account: ACCOUNT,
+      checkSnap: true,
+      chainId: SEPOLIA,
+      options: { validateOnUnlock: true, forceContractOnboarding: true },
+    });
 
     expect(ok).toBe(false);
     expect(props.fetchPrivateBalance).not.toHaveBeenCalled();
@@ -707,14 +680,12 @@ describe('useBalanceUpdater', () => {
     });
 
     const { result } = renderHook(() => useBalanceUpdater(props));
-    const ok = await result.current.updateAccountState(
-      ACCOUNT,
-      true,
-      true,
-      undefined,
-      COTI_TESTNET,
-      { restoreOnly: true, validateOnUnlock: true },
-    );
+    const ok = await result.current.refreshPrivateBalances({
+      account: ACCOUNT,
+      checkSnap: true,
+      chainId: COTI_TESTNET,
+      options: { restoreOnly: true, validateOnUnlock: true },
+    });
 
     expect(ok).toBe(true);
     expect(callOrder[0]).toBe('aes-key');

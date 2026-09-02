@@ -103,7 +103,7 @@ export const usePluginAccountSync = ({
     [sessionAesKey, getAesKeyFromProvider, getAESKeyFromSnap, walletTypeInfo.walletType],
   );
 
-  const { updateAccountState } = useBalanceUpdater({
+  const accountState = useBalanceUpdater({
     setWalletAddress,
     setIsConnected,
     setHasSnap,
@@ -125,7 +125,7 @@ export const usePluginAccountSync = ({
     autoInitTokens,
   });
 
-  updateAccountStateRef.current = updateAccountState;
+  updateAccountStateRef.current = accountState;
 
   // Proactively detect Snap on MetaMask wallet connect so hasSnap is available
   // before the user triggers refreshPrivateBalances / unlock routing.
@@ -166,7 +166,11 @@ export const usePluginAccountSync = ({
       if (!autoInitTokens) return;
       logger.log('Session AES Key arrived — refreshing private balances...');
       const chainOverride = wagmiSyncRef.current ? wagmiChainId : undefined;
-      updateAccountState(walletAddress, false, true, sessionAesKey, chainOverride).then((success) => {
+      accountState.refreshPrivateBalances({
+        account: walletAddress,
+        aesKey: sessionAesKey,
+        chainId: chainOverride,
+      }).then((success) => {
         if (success) {
           setArePrivateBalancesHidden(false);
         }
@@ -176,14 +180,14 @@ export const usePluginAccountSync = ({
     sessionAesKey,
     walletAddress,
     arePrivateBalancesHidden,
-    updateAccountState,
+    accountState.refreshPrivateBalances,
     setArePrivateBalancesHidden,
     wagmiSyncRef,
     wagmiChainId,
     autoInitTokens,
   ]);
 
-  return { updateAccountState, currentChainId };
+  return { ...accountState, currentChainId };
 };
 
 export type PluginAccountSync = ReturnType<typeof usePluginAccountSync>;
