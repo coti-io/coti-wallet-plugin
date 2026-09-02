@@ -5,7 +5,20 @@ import { useNetworkEnforcer } from '../../hooks/useNetworkEnforcer';
 import { getNetworkNameForChain, getWalletNetworkConfigs } from '../../chains';
 import { logger } from '../../lib/logger';
 import { truncateAddress } from '../../lib/format';
+import { getInitialPrivateTokens } from '../../hooks/usePluginBridge';
+import { getMetaMaskProvider } from '../../lib/ethereum';
 import type { PluginSessionState, UpdateAccountStateRef } from './sessionShared';
+
+const parseInjectedChainId = (value: string | null | undefined): number | undefined => {
+  if (!value) return undefined;
+  const parsed = value.startsWith('0x') ? Number.parseInt(value, 16) : Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+};
+
+const resolveInjectedChainId = (): number | undefined => {
+  const provider = getMetaMaskProvider() as { chainId?: string } | null;
+  return parseInjectedChainId(provider?.chainId);
+};
 
 interface UsePluginNetworkSessionOptions {
   core: PluginSessionState;
@@ -58,8 +71,10 @@ export const usePluginNetworkSession = ({
     wagmiSyncRef,
     disconnectingRef,
     metamaskExplicitConnect,
+    sessionAesKey,
     setSessionAesKey,
     setArePrivateBalancesHidden,
+    setPrivateTokens,
     executeSnapCheck,
   } = core;
 
@@ -191,10 +206,24 @@ export const usePluginNetworkSession = ({
         return;
       }
       // Non-wagmi (injected MetaMask) path: soft-resync account/network state
-      // instead of reloading the page.
+      // instead of reloading the page. Match wagmi: wipe or refetch private
+      // catalogs so useCotiTokens() cannot keep the previous chain's decrypts.
       if (walletAddress) {
+        const chainId = resolveInjectedChainId();
         await updateAccountStateRef.current?.bindAccount(walletAddress);
-        await updateAccountStateRef.current?.refreshPublicBalances({ account: walletAddress });
+        await updateAccountStateRef.current?.refreshPublicBalances({
+          account: walletAddress,
+          chainId,
+        });
+        if (sessionAesKey) {
+          await updateAccountStateRef.current?.refreshPrivateBalances({
+            account: walletAddress,
+            chainId,
+            aesKey: sessionAesKey,
+          });
+        } else {
+          setPrivateTokens(getInitialPrivateTokens(chainId));
+        }
       }
     },
     onAccountChanged: async account => {
@@ -214,10 +243,12 @@ export const usePluginNetworkSession = ({
       }
 
       logger.log('Account changed, clearing sessionAesKey and locking', truncateAddress(account));
+      const chainId = resolveInjectedChainId();
       setSessionAesKey(null);
       setArePrivateBalancesHidden(true);
+      setPrivateTokens(getInitialPrivateTokens(chainId));
       await updateAccountStateRef.current?.bindAccount(account);
-      await updateAccountStateRef.current?.refreshPublicBalances({ account });
+      await updateAccountStateRef.current?.refreshPublicBalances({ account, chainId });
     },
     onSnapCheck: async account => {
       if (wagmiSyncRef.current || wagmiConnected || disconnectingRef.current) return;

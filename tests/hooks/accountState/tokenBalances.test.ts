@@ -80,4 +80,42 @@ describe('tokenBalances catalog writes', () => {
     })).rejects.toMatchObject({ code: CotiErrorCode.RPC_RATE_LIMITED });
     expect(raiseFujiRateLimited).toHaveBeenCalled();
   });
+
+  it('does not use the Fuji rate-limit helper on other chains', async () => {
+    const raiseFujiRateLimited = vi.fn(() => {
+      throw new Error('Fuji helper must not run off Fuji');
+    });
+    const rateLimited = new CotiPluginError(CotiErrorCode.RPC_RATE_LIMITED, 'too many requests');
+
+    await expect(writePublicBalances({
+      account: '0x' + 'a'.repeat(40),
+      currentChainId: COTI_TESTNET_CHAIN_ID,
+      addresses: { WETH: '0x' + 'b'.repeat(40) },
+      readProvider: {
+        getBalance: vi.fn().mockResolvedValue(10n ** 18n),
+        call: vi.fn().mockRejectedValue(rateLimited),
+      } as never,
+      useFujiRpcFallback: false,
+      isStale: () => false,
+      setPublicTokens: vi.fn(),
+      raiseFujiRateLimited,
+    })).rejects.toMatchObject({ code: CotiErrorCode.RPC_RATE_LIMITED });
+    expect(raiseFujiRateLimited).not.toHaveBeenCalled();
+  });
+
+  it('returns keys_unavailable when no AES key, Snap, or plain private tokens exist', async () => {
+    const setPrivateTokens = vi.fn();
+    const result = await writePrivateBalances({
+      account: '0x' + 'a'.repeat(40),
+      aesKey: null,
+      currentChainId: COTI_TESTNET_CHAIN_ID,
+      addresses: {},
+      allowSnap: false,
+      isStale: () => false,
+      fetchPrivateBalance: vi.fn(),
+      setPrivateTokens,
+    });
+    expect(result).toEqual({ ok: false, reason: 'keys_unavailable' });
+    expect(setPrivateTokens).not.toHaveBeenCalled();
+  });
 });

@@ -51,6 +51,8 @@ const makeCore = (overrides: Record<string, unknown> = {}) => ({
   metamaskExplicitConnect: { current: true },
   setSessionAesKey: vi.fn(),
   setArePrivateBalancesHidden: vi.fn(),
+  setPrivateTokens: vi.fn(),
+  sessionAesKey: null,
   executeSnapCheck: vi.fn(async (fn: () => Promise<boolean>) => fn()),
   ...overrides,
 });
@@ -290,6 +292,7 @@ describe('usePluginNetworkSession', () => {
   it('soft-resyncs injected MetaMask network and account changes when wagmi is idle', async () => {
     const bindAccount = vi.fn().mockResolvedValue({ ok: true });
     const refreshPublicBalances = vi.fn().mockResolvedValue({ ok: true });
+    const refreshPrivateBalances = vi.fn().mockResolvedValue({ ok: true });
     const core = makeCore({
       wagmiSyncRef: { current: false },
       disconnectingRef: { current: false },
@@ -304,20 +307,58 @@ describe('usePluginNetworkSession', () => {
     renderHook(() => usePluginNetworkSession({
       core: core as never,
       updateAccountStateRef: {
-        current: { bindAccount, refreshPublicBalances },
+        current: { bindAccount, refreshPublicBalances, refreshPrivateBalances },
       } as never,
     }));
 
     await h.metamaskCallbacks?.onNetworkChanged?.();
     expect(bindAccount).toHaveBeenCalledWith(WALLET);
-    expect(refreshPublicBalances).toHaveBeenCalledWith({ account: WALLET });
+    expect(refreshPublicBalances).toHaveBeenCalledWith({
+      account: WALLET,
+      chainId: undefined,
+    });
+    expect(refreshPrivateBalances).not.toHaveBeenCalled();
+    expect(core.setPrivateTokens).toHaveBeenCalled();
 
     await h.metamaskCallbacks?.onAccountChanged?.('0x' + 'b'.repeat(40));
     expect(core.setSessionAesKey).toHaveBeenCalledWith(null);
     expect(core.setArePrivateBalancesHidden).toHaveBeenCalledWith(true);
+    expect(core.setPrivateTokens).toHaveBeenCalled();
 
     await h.metamaskCallbacks?.onSnapCheck?.('0x' + 'c'.repeat(40));
     expect(core.executeSnapCheck).toHaveBeenCalled();
+  });
+
+  it('refetches private catalogs on injected chain change when a session AES key exists', async () => {
+    const bindAccount = vi.fn().mockResolvedValue({ ok: true });
+    const refreshPublicBalances = vi.fn().mockResolvedValue({ ok: true });
+    const refreshPrivateBalances = vi.fn().mockResolvedValue({ ok: true });
+    const core = makeCore({
+      wagmiSyncRef: { current: false },
+      disconnectingRef: { current: false },
+      sessionAesKey: 'a'.repeat(64),
+    });
+    vi.mocked(useAccount).mockReturnValue({
+      address: undefined,
+      isConnected: false,
+      chainId: undefined,
+      connector: undefined,
+    } as never);
+
+    renderHook(() => usePluginNetworkSession({
+      core: core as never,
+      updateAccountStateRef: {
+        current: { bindAccount, refreshPublicBalances, refreshPrivateBalances },
+      } as never,
+    }));
+
+    await h.metamaskCallbacks?.onNetworkChanged?.();
+    expect(refreshPrivateBalances).toHaveBeenCalledWith({
+      account: WALLET,
+      chainId: undefined,
+      aesKey: 'a'.repeat(64),
+    });
+    expect(core.setPrivateTokens).not.toHaveBeenCalled();
   });
 
   it('ignores injected MetaMask events while wagmi owns the session', async () => {
