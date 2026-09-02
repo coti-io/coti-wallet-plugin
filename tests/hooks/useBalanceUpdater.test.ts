@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { useBalanceUpdater } from '../../src/hooks/useBalanceUpdater';
 import { CotiPluginError, CotiErrorCode } from '../../src/errors';
+import { resolveRpcUrlsForChain, isTransientRpcError } from '../../src/lib/rpcProvider';
 
 const h = vi.hoisted(() => ({
   getNetwork: vi.fn(),
@@ -739,6 +740,49 @@ describe('useBalanceUpdater', () => {
     expect(props.setPrivateTokens).not.toHaveBeenCalled();
   });
 
+  it('returns no_aes_key when Snap operations are disabled and no key is available', async () => {
+    const props = makeProps({ canUseSnapOperations: false });
+    const { result } = renderHook(() => useBalanceUpdater(props));
+
+    const ok = await result.current.establishAesSession({
+      account: ACCOUNT,
+      checkSnap: true,
+      chainId: COTI_TESTNET,
+    });
+
+    expect(ok).toEqual({ ok: false, reason: 'no_aes_key' });
+    expect(props.setSessionAesKey).not.toHaveBeenCalled();
+  });
+
+  it('rethrows RPC_RATE_LIMITED from wrapAccountStateError', async () => {
+    const props = makeProps({
+      checkNetwork: vi.fn().mockRejectedValue(
+        new CotiPluginError(CotiErrorCode.RPC_RATE_LIMITED, 'too many requests'),
+      ),
+    });
+    const { result } = renderHook(() => useBalanceUpdater(props));
+
+    await expect(
+      result.current.refreshPublicBalances({ account: ACCOUNT }),
+    ).rejects.toMatchObject({ code: CotiErrorCode.RPC_RATE_LIMITED });
+  });
+
+  it('rethrows a CotiPluginError raised while decrypting private balances', async () => {
+    const props = makeProps({
+      sessionAesKey: 'a'.repeat(32),
+      fetchPrivateBalance: vi.fn().mockRejectedValue(
+        new CotiPluginError(CotiErrorCode.SNAP_CONNECT_FAILED, 'snap down'),
+      ),
+    });
+    const { result } = renderHook(() => useBalanceUpdater(props));
+
+    await expect(result.current.refreshPrivateBalances({
+      account: ACCOUNT,
+      aesKey: 'a'.repeat(32),
+      chainId: COTI_TESTNET,
+    })).rejects.toMatchObject({ code: CotiErrorCode.SNAP_CONNECT_FAILED });
+  });
+
   it('reads Fuji public balances through the JsonRpc fallback path', async () => {
     const original = (window as any).ethereum;
     delete (window as any).ethereum;
@@ -751,5 +795,71 @@ describe('useBalanceUpdater', () => {
     expect(props.setPublicTokens).toHaveBeenCalled();
 
     (window as any).ethereum = original;
+  });
+
+  it('falls back to the next Fuji RPC after the primary is rate-limited', async () => {
+    const original = (window as any).ethereum;
+    delete (window as any).ethereum;
+    vi.mocked(resolveRpcUrlsForChain).mockReturnValueOnce([
+      'http://fuji-primary.example',
+      'http://fuji-fallback.example',
+    ]);
+    h.getNetwork
+      .mockRejectedValueOnce(new Error('429 too many requests'))
+      .mockResolvedValueOnce({ chainId: 43113n });
+
+    const props = makeProps();
+    const { result } = renderHook(() => useBalanceUpdater(props));
+    const ok = await result.current.refreshPublicBalances({ account: ACCOUNT, chainId: 43113 });
+    expect(ok.ok).toBe(true);
+    expect(h.getNetwork).toHaveBeenCalledTimes(2);
+
+    (window as any).ethereum = original;
+  });
+
+  it('raises Fuji rate-limited when every fallback RPC is 429', async () => {
+    const original = (window as any).ethereum;
+    delete (window as any).ethereum;
+    vi.mocked(resolveRpcUrlsForChain).mockReturnValueOnce([
+      'http://fuji-a.example',
+      'http://fuji-b.example',
+    ]);
+    h.getNetwork
+      .mockRejectedValueOnce(new Error('429 too many requests'))
+      .mockRejectedValueOnce(new Error('429 too many requests'));
+    const props = makeProps();
+    const { result } = renderHook(() => useBalanceUpdater(props));
+    await expect(
+      result.current.refreshPublicBalances({ account: ACCOUNT, chainId: 43113 }),
+    ).rejects.toMatchObject({ code: CotiErrorCode.RPC_RATE_LIMITED });
+    (window as any).ethereum = original;
+  });
+
+  it('rethrows a non-transient Fuji RPC error without trying the next URL', async () => {
+    const original = (window as any).ethereum;
+    delete (window as any).ethereum;
+    vi.mocked(resolveRpcUrlsForChain).mockReturnValueOnce([
+      'http://fuji-a.example',
+      'http://fuji-b.example',
+    ]);
+    vi.mocked(isTransientRpcError).mockReturnValueOnce(false);
+    h.getNetwork.mockRejectedValueOnce(new Error('execution reverted'));
+    const props = makeProps();
+    const { result } = renderHook(() => useBalanceUpdater(props));
+    await expect(
+      result.current.refreshPublicBalances({ account: ACCOUNT, chainId: 43113 }),
+    ).resolves.toEqual({ ok: false, reason: 'failed' });
+    expect(h.getNetwork).toHaveBeenCalledTimes(1);
+    (window as any).ethereum = original;
+  });
+
+  it('returns failed when a generic public-balance error is not rate-limited', async () => {
+    const props = makeProps({
+      checkNetwork: vi.fn().mockRejectedValue(new Error('rpc down')),
+    });
+    const { result } = renderHook(() => useBalanceUpdater(props));
+    await expect(
+      result.current.refreshPublicBalances({ account: ACCOUNT }),
+    ).resolves.toEqual({ ok: false, reason: 'failed' });
   });
 });

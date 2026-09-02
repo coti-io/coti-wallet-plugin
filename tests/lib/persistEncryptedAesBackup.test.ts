@@ -330,4 +330,75 @@ describe('persistEncryptedAesBackup', () => {
       code: CotiErrorCode.USER_REJECTED,
     });
   });
+
+  it('continues after a fetch probe failure and maps non-Error storage failures', async () => {
+    const saveEncryptedAesBackup = vi.fn().mockResolvedValue(undefined);
+    const fetchEncryptedAesBackup = vi.fn().mockRejectedValue(new Error('probe down'));
+    configureCotiPlugin({
+      onboardingServices: {
+        mode: 'custom',
+        fetchEncryptedAesBackup,
+        saveEncryptedAesBackup,
+      },
+    });
+    const connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
+    await expect(persistEncryptedAesBackup({
+      aesKey: VALID_KEY,
+      address: ADDR,
+      chainId: CHAIN_ID,
+      connector: connector as never,
+    })).resolves.toEqual({ status: 'saved' });
+    expect(saveEncryptedAesBackup).toHaveBeenCalled();
+
+    saveEncryptedAesBackup.mockRejectedValueOnce('quota');
+    await expect(persistEncryptedAesBackup({
+      aesKey: VALID_KEY,
+      address: ADDR,
+      chainId: CHAIN_ID,
+      connector: connector as never,
+    })).resolves.toMatchObject({
+      status: 'failed',
+      code: CotiErrorCode.AES_BACKUP_STORAGE_FAILED,
+      message: 'Encrypted AES backup storage service failed.',
+    });
+  });
+
+  it('skips persist when only replace is configured and no existing backup is found', async () => {
+    configureCotiPlugin({
+      onboardingServices: {
+        mode: 'custom',
+        fetchEncryptedAesBackup: vi.fn().mockResolvedValue(null),
+        saveEncryptedAesBackup: undefined,
+        replaceEncryptedAesBackup: vi.fn(),
+      },
+    });
+    const connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
+    await expect(persistEncryptedAesBackup({
+      aesKey: VALID_KEY,
+      address: ADDR,
+      chainId: CHAIN_ID,
+      connector: connector as never,
+    })).resolves.toEqual({ status: 'skipped' });
+  });
+
+  it('maps a non-Error encrypt failure to AES_BACKUP_CRYPTO_VALIDATION_FAILED', async () => {
+    configureCotiPlugin({
+      onboardingServices: {
+        mode: 'custom',
+        saveEncryptedAesBackup: vi.fn(),
+      },
+    });
+    vi.mocked(encryptAesKeyBackup).mockRejectedValueOnce('boom');
+    const connector = { getProvider: vi.fn().mockResolvedValue({ request: vi.fn() }) };
+    await expect(persistEncryptedAesBackup({
+      aesKey: VALID_KEY,
+      address: ADDR,
+      chainId: CHAIN_ID,
+      connector: connector as never,
+    })).resolves.toMatchObject({
+      status: 'failed',
+      code: CotiErrorCode.AES_BACKUP_CRYPTO_VALIDATION_FAILED,
+      message: 'Encrypted AES backup could not be saved.',
+    });
+  });
 });

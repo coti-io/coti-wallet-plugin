@@ -56,4 +56,13 @@ describe('wrapZerionProvider', () => {
     expect(first).toBe(provider);
     expect(second).toBe(first);
   });
+
+  it('rethrows errors that are not unsupported revokePermissions', async () => {
+    const wrapped = wrapZerionProvider({
+      request: async () => {
+        throw new Error('network down');
+      },
+    });
+    await expect(wrapped.request({ method: 'eth_chainId' })).rejects.toThrow('network down');
+  });
 });

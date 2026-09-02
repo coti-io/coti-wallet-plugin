@@ -1,0 +1,83 @@
+import { describe, it, expect, vi } from 'vitest';
+import { CotiPluginError, CotiErrorCode } from '../../../src/errors';
+import { COTI_TESTNET_CHAIN_ID } from '../../../src/chains/coti';
+import { AVALANCHE_FUJI_CHAIN_ID } from '../../../src/chains/avalancheFuji';
+
+const rpc = vi.hoisted(() => ({
+  withRpcFallback: vi.fn(),
+}));
+
+vi.mock('../../../src/lib/rpcProvider', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../src/lib/rpcProvider')>();
+  return {
+    ...actual,
+    withRpcFallback: (...args: unknown[]) => rpc.withRpcFallback(...args),
+  };
+});
+
+import { writePublicBalances, writePrivateBalances } from '../../../src/hooks/accountState/tokenBalances';
+
+describe('tokenBalances catalog writes', () => {
+  it('writes 0 for public tokens whose address is missing from chain config', async () => {
+    const setPublicTokens = vi.fn();
+    const readProvider = {
+      getBalance: vi.fn().mockResolvedValue(10n ** 18n),
+    };
+
+    const result = await writePublicBalances({
+      account: '0x' + 'a'.repeat(40),
+      currentChainId: COTI_TESTNET_CHAIN_ID,
+      addresses: {},
+      readProvider: readProvider as never,
+      useFujiRpcFallback: false,
+      isStale: () => false,
+      setPublicTokens,
+      raiseFujiRateLimited: () => {
+        throw new Error('unexpected');
+      },
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(setPublicTokens).toHaveBeenCalled();
+    const tokens = setPublicTokens.mock.calls[0][0] as Array<{ isNative?: boolean; balance: string }>;
+    expect(tokens.some(token => !token.isNative && token.balance === '0')).toBe(true);
+  });
+
+  it('writes 0 for private tokens whose address is missing from chain config', async () => {
+    const setPrivateTokens = vi.fn();
+    const fetchPrivateBalance = vi.fn();
+    const result = await writePrivateBalances({
+      account: '0x' + 'a'.repeat(40),
+      aesKey: 'a'.repeat(32),
+      currentChainId: COTI_TESTNET_CHAIN_ID,
+      addresses: {},
+      allowSnap: false,
+      isStale: () => false,
+      fetchPrivateBalance,
+      setPrivateTokens,
+    });
+    expect(result).toEqual({ ok: true });
+    expect(fetchPrivateBalance).not.toHaveBeenCalled();
+    expect(setPrivateTokens).toHaveBeenCalled();
+  });
+
+  it('rethrows Fuji public ERC20 failures after reporting rate limits', async () => {
+    rpc.withRpcFallback
+      .mockResolvedValueOnce(10n ** 18n)
+      .mockRejectedValue(new CotiPluginError(CotiErrorCode.RPC_RATE_LIMITED, 'limited'));
+    const raiseFujiRateLimited = vi.fn(() => {
+      throw new CotiPluginError(CotiErrorCode.RPC_RATE_LIMITED, 'limited');
+    });
+    await expect(writePublicBalances({
+      account: '0x' + 'a'.repeat(40),
+      currentChainId: AVALANCHE_FUJI_CHAIN_ID,
+      addresses: { MTT: '0x' + 'b'.repeat(40), USDC: '0x' + 'c'.repeat(40), WAVAX: '0x' + 'd'.repeat(40) },
+      readProvider: { getBalance: vi.fn() } as never,
+      useFujiRpcFallback: true,
+      isStale: () => false,
+      setPublicTokens: vi.fn(),
+      raiseFujiRateLimited,
+    })).rejects.toMatchObject({ code: CotiErrorCode.RPC_RATE_LIMITED });
+    expect(raiseFujiRateLimited).toHaveBeenCalled();
+  });
+});

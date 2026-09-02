@@ -86,6 +86,7 @@ import {
   getSepoliaGasPrice,
   quotePortalFeeOnly,
   getPodSdkConfig,
+  getPodInboxAddress,
   type PodWithdrawPermit,
 } from '../../../src/chains/portal/executePodPortalTransaction';
 import { PRIVACY_PORTAL_ABI, SEPOLIA_CHAIN_ID } from '../../../src/contracts/pod';
@@ -213,6 +214,11 @@ describe('getPodSdkConfig', () => {
     const cfg = getPodSdkConfig();
     expect(cfg.chains[0].chainId).toBe(SEPOLIA_CHAIN_ID);
     expect(typeof cfg.chains[0].rpcUrl).toBe('string');
+  });
+
+  it('returns the shared inbox address and rejects unknown tracking chains', () => {
+    expect(getPodInboxAddress(SEPOLIA_CHAIN_ID)).toBe(POD_INBOX_ADDRESS);
+    expect(() => getPodInboxAddress(1)).toThrow(/PoD inbox is not registered/);
   });
 });
 

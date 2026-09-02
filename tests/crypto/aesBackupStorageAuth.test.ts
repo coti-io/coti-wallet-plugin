@@ -58,14 +58,38 @@ describe('aesBackupStorageAuth', () => {
     }
   });
 
-  it('requires authorization fields for every storage operation shape', () => {
-    for (const operation of ['fetch', 'save', 'replace', 'delete'] as const) {
-      const { message } = buildAesBackupStorageAuthTypedData({
-        ...BASE_CHALLENGE,
-        operation,
-        method: operation === 'delete' ? 'DELETE' : operation === 'fetch' ? 'GET' : 'PUT',
-      });
-      expect(message.operation).toBe(operation);
-    }
+  it('rejects malformed challenge timestamps and missing fields', () => {
+    expect(() => assertAesBackupStorageAuthChallengeFresh({
+      ...BASE_CHALLENGE,
+      expiresAt: BASE_CHALLENGE.issuedAt,
+    })).toThrow(/expiresAt must be after issuedAt/);
+    expect(() => assertAesBackupStorageAuthChallengeFresh(
+      BASE_CHALLENGE,
+      BASE_CHALLENGE.issuedAt - 120,
+    )).toThrow(/issuedAt is in the future/);
+    expect(() => assertAesBackupStorageAuthChallengeFresh({
+      ...BASE_CHALLENGE,
+      operation: 'nope' as never,
+    })).toThrow(/Unsupported AES backup storage operation/);
+    expect(() => assertAesBackupStorageAuthChallengeFresh({
+      ...BASE_CHALLENGE,
+      nonce: '   ',
+    })).toThrow(/requires a nonce/);
+    expect(() => assertAesBackupStorageAuthChallengeFresh({
+      ...BASE_CHALLENGE,
+      audience: '',
+    })).toThrow(/requires an audience/);
+    expect(() => assertAesBackupStorageAuthChallengeFresh({
+      ...BASE_CHALLENGE,
+      resource: '',
+    })).toThrow(/requires a resource/);
+    expect(() => assertAesBackupStorageAuthChallengeFresh({
+      ...BASE_CHALLENGE,
+      method: '',
+    })).toThrow(/requires an HTTP method/);
+    expect(() => assertAesBackupStorageAuthChallengeFresh({
+      ...BASE_CHALLENGE,
+      issuedAt: Number.NaN,
+    })).toThrow(/timestamps must be finite/);
   });
 });
