@@ -9,6 +9,7 @@ const h = vi.hoisted(() => ({
     onSnapCheck?: (account: string) => Promise<void>;
   } | null,
   switchNetwork: vi.fn(async () => true),
+  getMetaMaskProvider: vi.fn(() => null as { chainId?: string } | null),
 }));
 
 vi.mock('../../src/hooks/useMetamask', () => ({
@@ -38,6 +39,14 @@ vi.mock('../../src/hooks/useNetworkEnforcer', () => ({
   }),
 }));
 
+vi.mock('../../src/lib/ethereum', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/lib/ethereum')>();
+  return {
+    ...actual,
+    getMetaMaskProvider: () => h.getMetaMaskProvider(),
+  };
+});
+
 import { usePluginNetworkSession } from '../../src/context/plugin/usePluginNetworkSession';
 
 const WALLET = '0x' + 'a'.repeat(40);
@@ -63,6 +72,7 @@ describe('usePluginNetworkSession', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     h.metamaskCallbacks = null;
+    h.getMetaMaskProvider.mockReturnValue(null);
     vi.mocked(useAccount).mockReturnValue({
       address: WALLET,
       isConnected: true,
@@ -359,6 +369,90 @@ describe('usePluginNetworkSession', () => {
       aesKey: 'a'.repeat(64),
     });
     expect(core.setPrivateTokens).not.toHaveBeenCalled();
+  });
+
+  it('parses the injected hex chain id when MetaMask exposes chainId', async () => {
+    h.getMetaMaskProvider.mockReturnValue({ chainId: COTI_HEX });
+    const refreshPublicBalances = vi.fn().mockResolvedValue({ ok: true });
+    const core = makeCore({
+      wagmiSyncRef: { current: false },
+      disconnectingRef: { current: false },
+    });
+    vi.mocked(useAccount).mockReturnValue({
+      address: undefined,
+      isConnected: false,
+      chainId: undefined,
+      connector: undefined,
+    } as never);
+
+    renderHook(() => usePluginNetworkSession({
+      core: core as never,
+      updateAccountStateRef: {
+        current: { bindAccount: vi.fn().mockResolvedValue({ ok: true }), refreshPublicBalances },
+      } as never,
+    }));
+
+    await h.metamaskCallbacks?.onNetworkChanged?.();
+    expect(refreshPublicBalances).toHaveBeenCalledWith({
+      account: WALLET,
+      chainId: 7082400,
+    });
+  });
+
+  it('parses a decimal injected chain id', async () => {
+    h.getMetaMaskProvider.mockReturnValue({ chainId: '11155111' });
+    const refreshPublicBalances = vi.fn().mockResolvedValue({ ok: true });
+    const core = makeCore({
+      wagmiSyncRef: { current: false },
+      disconnectingRef: { current: false },
+    });
+    vi.mocked(useAccount).mockReturnValue({
+      address: undefined,
+      isConnected: false,
+      chainId: undefined,
+      connector: undefined,
+    } as never);
+
+    renderHook(() => usePluginNetworkSession({
+      core: core as never,
+      updateAccountStateRef: {
+        current: { bindAccount: vi.fn().mockResolvedValue({ ok: true }), refreshPublicBalances },
+      } as never,
+    }));
+
+    await h.metamaskCallbacks?.onNetworkChanged?.();
+    expect(refreshPublicBalances).toHaveBeenCalledWith({
+      account: WALLET,
+      chainId: 11155111,
+    });
+  });
+
+  it('ignores an unparsable injected chain id', async () => {
+    h.getMetaMaskProvider.mockReturnValue({ chainId: '0x' });
+    const refreshPublicBalances = vi.fn().mockResolvedValue({ ok: true });
+    const core = makeCore({
+      wagmiSyncRef: { current: false },
+      disconnectingRef: { current: false },
+    });
+    vi.mocked(useAccount).mockReturnValue({
+      address: undefined,
+      isConnected: false,
+      chainId: undefined,
+      connector: undefined,
+    } as never);
+
+    renderHook(() => usePluginNetworkSession({
+      core: core as never,
+      updateAccountStateRef: {
+        current: { bindAccount: vi.fn().mockResolvedValue({ ok: true }), refreshPublicBalances },
+      } as never,
+    }));
+
+    await h.metamaskCallbacks?.onNetworkChanged?.();
+    expect(refreshPublicBalances).toHaveBeenCalledWith({
+      account: WALLET,
+      chainId: undefined,
+    });
   });
 
   it('ignores injected MetaMask events while wagmi owns the session', async () => {

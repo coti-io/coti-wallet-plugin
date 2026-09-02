@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { CotiPluginError, CotiErrorCode } from '../../../src/errors';
 import { COTI_TESTNET_CHAIN_ID } from '../../../src/chains/coti';
+import { SEPOLIA_CHAIN_ID } from '../../../src/chains/sepolia';
 import { AVALANCHE_FUJI_CHAIN_ID } from '../../../src/chains/avalancheFuji';
 
 const rpc = vi.hoisted(() => ({
@@ -81,6 +82,26 @@ describe('tokenBalances catalog writes', () => {
     expect(raiseFujiRateLimited).toHaveBeenCalled();
   });
 
+  it('rethrows non-rate-limited Fuji ERC20 failures without the Fuji helper', async () => {
+    rpc.withRpcFallback
+      .mockResolvedValueOnce(10n ** 18n)
+      .mockRejectedValue(new Error('rpc down'));
+    const raiseFujiRateLimited = vi.fn(() => {
+      throw new Error('Fuji helper must not run');
+    });
+    await expect(writePublicBalances({
+      account: '0x' + 'a'.repeat(40),
+      currentChainId: AVALANCHE_FUJI_CHAIN_ID,
+      addresses: { MTT: '0x' + 'b'.repeat(40), USDC: '0x' + 'c'.repeat(40), WAVAX: '0x' + 'd'.repeat(40) },
+      readProvider: { getBalance: vi.fn() } as never,
+      useFujiRpcFallback: true,
+      isStale: () => false,
+      setPublicTokens: vi.fn(),
+      raiseFujiRateLimited,
+    })).rejects.toThrow('rpc down');
+    expect(raiseFujiRateLimited).not.toHaveBeenCalled();
+  });
+
   it('does not use the Fuji rate-limit helper on other chains', async () => {
     const raiseFujiRateLimited = vi.fn(() => {
       throw new Error('Fuji helper must not run off Fuji');
@@ -117,5 +138,28 @@ describe('tokenBalances catalog writes', () => {
     });
     expect(result).toEqual({ ok: false, reason: 'keys_unavailable' });
     expect(setPrivateTokens).not.toHaveBeenCalled();
+  });
+
+  it('skips encrypted private tokens when only a plain native private token is fetchable', async () => {
+    const fetchPrivateBalance = vi.fn().mockResolvedValue('1.00');
+    const setPrivateTokens = vi.fn();
+    const result = await writePrivateBalances({
+      account: '0x' + 'a'.repeat(40),
+      aesKey: null,
+      currentChainId: SEPOLIA_CHAIN_ID,
+      addresses: {
+        'p.MTT': '0x' + 'b'.repeat(40),
+        'p.ETH': '0x' + 'c'.repeat(40),
+        'p.USDC': '0x' + 'd'.repeat(40),
+      },
+      allowSnap: false,
+      isStale: () => false,
+      fetchPrivateBalance,
+      setPrivateTokens,
+    });
+    expect(result).toEqual({ ok: true });
+    expect(fetchPrivateBalance).toHaveBeenCalledTimes(1);
+    expect(fetchPrivateBalance.mock.calls[0][2]).toBe('0x' + 'c'.repeat(40));
+    expect(fetchPrivateBalance.mock.calls[0][6]).toBe(true);
   });
 });
