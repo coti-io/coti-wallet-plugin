@@ -12,6 +12,13 @@ export default defineConfig({
       reporter: ['text', 'lcov'],
       include: ['src/**/*.ts', 'src/**/*.tsx'],
       exclude: ['src/types/**', 'src/**/*.d.ts'],
+      // Floors from the 2026-09-02 suite (92.91 / 94.26 / 93.9 / 85.13).
+      thresholds: {
+        statements: 92.9,
+        lines: 94.2,
+        functions: 93.9,
+        branches: 85.1,
+      },
     },
   },
   resolve: {

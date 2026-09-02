@@ -26,7 +26,8 @@ jobs:
         run: npm run typecheck
 
       - name: Test
-        run: npm test -- --run
+        # Fails if coverage drops below the floors in vitest.config.ts.
+        run: npm run test:coverage
 
       - name: Build
         run: npm run build
