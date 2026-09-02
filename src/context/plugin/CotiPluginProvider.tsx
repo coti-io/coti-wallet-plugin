@@ -18,6 +18,7 @@ import {
   CotiUnlockContext,
   CotiWalletContext,
 } from './contexts';
+import { SessionAesKeyContext } from './sessionAesKeyContext';
 import {
   mergeCotiPluginSlices,
   type CotiPluginContextSlices,
@@ -96,7 +97,6 @@ const buildUnlockSlice = (
   connectToSnap: session.connectToSnap,
   requestSnapConnection: session.requestSnapConnection,
   checkSnapStatus: session.checkSnapStatus,
-  sessionAesKey: session.sessionAesKey,
   aesKeyChainId: session.aesKeyChainId,
   setAesKeyChainId: session.setAesKeyChainId,
   isPrivateUnlocked: session.isPrivateUnlocked,
@@ -128,29 +128,32 @@ const buildUnlockSlice = (
 
 const CotiPluginTree: React.FC<{
   slices: CotiPluginContextSlices;
+  sessionAesKey: string | null;
   privateUnlock?: PrivateUnlockProviderOptions;
   children: React.ReactNode;
-}> = ({ slices, privateUnlock, children }) => {
+}> = ({ slices, sessionAesKey, privateUnlock, children }) => {
   const legacyValue = useMemo(() => mergeCotiPluginSlices(slices), [slices]);
 
   return (
     <CotiWalletContext.Provider value={slices.wallet}>
       <CotiNetworkContext.Provider value={slices.network}>
-        <CotiUnlockContext.Provider value={slices.unlock}>
-          <CotiTokensContext.Provider value={slices.tokens}>
-            <CotiSwapContext.Provider value={slices.swap}>
-              <CotiPodContext.Provider value={slices.pod}>
-                <CotiModalsContext.Provider value={slices.modals}>
-                  <CotiPluginContext.Provider value={legacyValue}>
-                    <PrivateUnlockProvider options={privateUnlock}>
-                      {children}
-                    </PrivateUnlockProvider>
-                  </CotiPluginContext.Provider>
-                </CotiModalsContext.Provider>
-              </CotiPodContext.Provider>
-            </CotiSwapContext.Provider>
-          </CotiTokensContext.Provider>
-        </CotiUnlockContext.Provider>
+        <SessionAesKeyContext.Provider value={sessionAesKey}>
+          <CotiUnlockContext.Provider value={slices.unlock}>
+            <CotiTokensContext.Provider value={slices.tokens}>
+              <CotiSwapContext.Provider value={slices.swap}>
+                <CotiPodContext.Provider value={slices.pod}>
+                  <CotiModalsContext.Provider value={slices.modals}>
+                    <CotiPluginContext.Provider value={legacyValue}>
+                      <PrivateUnlockProvider options={privateUnlock}>
+                        {children}
+                      </PrivateUnlockProvider>
+                    </CotiPluginContext.Provider>
+                  </CotiModalsContext.Provider>
+                </CotiPodContext.Provider>
+              </CotiSwapContext.Provider>
+            </CotiTokensContext.Provider>
+          </CotiUnlockContext.Provider>
+        </SessionAesKeyContext.Provider>
       </CotiNetworkContext.Provider>
     </CotiWalletContext.Provider>
   );
@@ -180,7 +183,11 @@ const CotiPluginAssembled: React.FC<{
   }), [session, modals, swap, pod]);
 
   return (
-    <CotiPluginTree slices={slices} privateUnlock={privateUnlock}>
+    <CotiPluginTree
+      slices={slices}
+      sessionAesKey={session.sessionAesKey}
+      privateUnlock={privateUnlock}
+    >
       {children}
     </CotiPluginTree>
   );

@@ -71,6 +71,7 @@ unlock() → session key → Snap/backup restore → OnboardModal only if restor
 
 - [ ] Never log, persist, or transmit raw AES keys as ordinary app data
 - [ ] Session AES is wallet-bound; avoid cross-account leakage
+- [ ] Do not put `sessionAesKey` on public unlock/context types — hosts use `encryptPrivateValue` / `decryptPrivateValue`
 - [ ] Do not invent alternate unlock entry points outside `usePrivateUnlock` / `aesAccessStrategy`
 - [ ] Keep Snap vs local vs onboard routing in `aesAccessStrategy` — do not duplicate the table elsewhere
 
@@ -79,6 +80,7 @@ unlock() → session key → Snap/backup restore → OnboardModal only if restor
 | Area | Path |
 | --- | --- |
 | Access routing | `src/lib/aesAccessStrategy.ts` |
+| Internal session AES (not public) | `src/context/plugin/sessionAesKeyContext.ts` |
 | Unlock controller | `src/context/privateUnlock/` |
 | AES provider / steps | `src/hooks/useAesKeyProvider.ts` |
 | Modal UI | `src/components/OnboardModal.tsx` |
