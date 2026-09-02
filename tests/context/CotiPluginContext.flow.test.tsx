@@ -56,20 +56,20 @@ const h = vi.hoisted(() => ({
       h.balanceUpdater.lastAccount = account;
       h.balanceUpdater.params?.setWalletAddress(account);
       h.balanceUpdater.params?.setIsConnected(true);
-      return true;
+      return { ok: true as const };
     }),
     refreshPublicBalances: vi.fn(async ({ account }: { account: string }) => {
       h.balanceUpdater.lastAccount = account;
       h.balanceUpdater.params?.setWalletAddress(account);
       h.balanceUpdater.params?.setIsConnected(true);
-      return true;
+      return { ok: true as const };
     }),
     refreshPrivateBalances: vi.fn(async ({ account }: { account: string }) => {
       h.balanceUpdater.lastAccount = account;
       h.balanceUpdater.params?.setWalletAddress(account);
       h.balanceUpdater.params?.setIsConnected(true);
       await h.balanceUpdater.params?.getAESKeyFromSnap(account);
-      return true;
+      return { ok: true as const };
     }),
     params: null as null | Record<string, (...args: unknown[]) => unknown>,
     lastAccount: '',
@@ -329,18 +329,18 @@ describe('CotiPluginContext (flow coverage)', () => {
     h.balanceUpdater.bindAccount.mockImplementation(async (account: string) => {
       h.balanceUpdater.params?.setWalletAddress(account);
       h.balanceUpdater.params?.setIsConnected(true);
-      return true;
+      return { ok: true as const };
     });
     h.balanceUpdater.refreshPublicBalances.mockImplementation(async ({ account }: { account: string }) => {
       h.balanceUpdater.params?.setWalletAddress(account);
       h.balanceUpdater.params?.setIsConnected(true);
-      return true;
+      return { ok: true as const };
     });
     h.balanceUpdater.refreshPrivateBalances.mockImplementation(async ({ account }: { account: string }) => {
       h.balanceUpdater.params?.setWalletAddress(account);
       h.balanceUpdater.params?.setIsConnected(true);
       await h.balanceUpdater.params?.getAESKeyFromSnap(account);
-      return true;
+      return { ok: true as const };
     });
     h.balanceUpdater.params = null;
 
@@ -769,7 +769,7 @@ describe('CotiPluginContext (flow coverage)', () => {
     it('handleOnboard does not store session key when balance refresh fails softly', async () => {
       h.snap.handleManualOnboarding.mockResolvedValue('B'.repeat(32));
       await connectWagmi();
-      h.balanceUpdater.refreshPrivateBalances.mockResolvedValueOnce(false);
+      h.balanceUpdater.refreshPrivateBalances.mockResolvedValueOnce({ ok: false, reason: 'failed' });
 
       await expect(
         act(async () => {
@@ -783,7 +783,7 @@ describe('CotiPluginContext (flow coverage)', () => {
 
     it('encryptPrivateValue rejects when private balances are locked', async () => {
       await connectWagmi();
-      h.balanceUpdater.refreshPrivateBalances.mockResolvedValueOnce(false);
+      h.balanceUpdater.refreshPrivateBalances.mockResolvedValueOnce({ ok: false, reason: 'failed' });
       await act(async () => {
         h.balanceUpdater.params?.setSessionAesKey('a'.repeat(32), WALLET_A);
         await Promise.resolve();
@@ -799,7 +799,7 @@ describe('CotiPluginContext (flow coverage)', () => {
 
     it('decryptPrivateValue rejects when private balances are locked', async () => {
       await connectWagmi();
-      h.balanceUpdater.refreshPrivateBalances.mockResolvedValueOnce(false);
+      h.balanceUpdater.refreshPrivateBalances.mockResolvedValueOnce({ ok: false, reason: 'failed' });
       await act(async () => {
         h.balanceUpdater.params?.setSessionAesKey('a'.repeat(32), WALLET_A);
         await Promise.resolve();
@@ -881,7 +881,7 @@ describe('CotiPluginContext (flow coverage)', () => {
     it('saveManualAesKey reports retryable error when balance refresh fails softly', async () => {
       await connectWagmi(WALLET_A, 11155111);
       markAesKeyValidatedForUnlock(WALLET_A, 'c'.repeat(32));
-      h.balanceUpdater.refreshPrivateBalances.mockResolvedValueOnce(false);
+      h.balanceUpdater.refreshPrivateBalances.mockResolvedValueOnce({ ok: false, reason: 'failed' });
 
       await expect(
         act(async () => {
@@ -1094,7 +1094,7 @@ describe('CotiPluginContext (flow coverage)', () => {
 
     it('returns false without unlocking when refreshPrivateBalances fails softly', async () => {
       await connectWagmi();
-      h.balanceUpdater.refreshPrivateBalances.mockResolvedValue(false);
+      h.balanceUpdater.refreshPrivateBalances.mockResolvedValue({ ok: false, reason: 'failed' });
       await expect(latest!.refreshPrivateBalances()).resolves.toBe(false);
       expect(latest!.isPrivateUnlocked).toBe(false);
     });
@@ -1102,7 +1102,7 @@ describe('CotiPluginContext (flow coverage)', () => {
     it('does not unlock from a stale validated key after a soft failure', async () => {
       await connectWagmi();
       markAesKeyValidatedForUnlock(WALLET_A, 'a'.repeat(32));
-      h.balanceUpdater.refreshPrivateBalances.mockResolvedValue(false);
+      h.balanceUpdater.refreshPrivateBalances.mockResolvedValue({ ok: false, reason: 'failed' });
 
       await expect(latest!.refreshPrivateBalances()).resolves.toBe(false);
 
@@ -1113,7 +1113,7 @@ describe('CotiPluginContext (flow coverage)', () => {
     it('does not complete forced onboarding from a stale validated key after a soft failure', async () => {
       await connectWagmi();
       markAesKeyValidatedForUnlock(WALLET_A, 'b'.repeat(32));
-      h.balanceUpdater.refreshPrivateBalances.mockResolvedValue(false);
+      h.balanceUpdater.refreshPrivateBalances.mockResolvedValue({ ok: false, reason: 'failed' });
 
       await expect(
         latest!.refreshPrivateBalances({ forceContractOnboarding: true }),
@@ -1131,7 +1131,7 @@ describe('CotiPluginContext (flow coverage)', () => {
 
     it('does not retry forced contract onboarding after a soft failure', async () => {
       h.balanceUpdater.refreshPrivateBalances.mockClear();
-      h.balanceUpdater.refreshPrivateBalances.mockResolvedValue(false);
+      h.balanceUpdater.refreshPrivateBalances.mockResolvedValue({ ok: false, reason: 'failed' });
 
       await expect(
         latest!.refreshPrivateBalances({ forceContractOnboarding: true }),
@@ -1392,7 +1392,7 @@ describe('CotiPluginContext (flow coverage)', () => {
         message: 'ok',
         refreshPrivateBalances: true,
       });
-      h.balanceUpdater.refreshPrivateBalances.mockResolvedValue(false);
+      h.balanceUpdater.refreshPrivateBalances.mockResolvedValue({ ok: false, reason: 'failed' });
       await connectWagmi();
       vi.useFakeTimers();
       try {

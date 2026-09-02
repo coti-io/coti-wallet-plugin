@@ -91,13 +91,13 @@ export const usePluginUnlockSession = ({
 
     const chainOverride = wagmiSyncRef.current ? wagmiChainId : undefined;
     try {
-      const success = await syncPrivateBalances({
+      const result = await syncPrivateBalances({
         account: walletAddress,
         aesKey: key,
         chainId: chainOverride,
         checkSnap: true,
       });
-      if (!success) {
+      if (!result.ok) {
         throw new Error('Could not unlock private balances. Try again.');
       }
       setSessionAesKey(key, walletAddress);
@@ -186,10 +186,10 @@ export const usePluginUnlockSession = ({
     logger.log('Triggering public balance fetch...');
     try {
       const chainOverride = wagmiSyncRef.current ? wagmiChainId : undefined;
-      return await syncPublicBalances({
+      return (await syncPublicBalances({
         account: walletAddress,
         chainId: chainOverride,
-      });
+      })).ok;
     } catch (err: unknown) {
       logger.warn('Public balance fetch failed', err);
       return false;
@@ -319,16 +319,16 @@ export const usePluginUnlockSession = ({
         return false;
       }
 
-      let success = await syncPrivateBalances({
+      let result = await syncPrivateBalances({
         account: walletAddress,
         checkSnap,
         aesKey: keyForUnlock,
         chainId: chainOverride,
         options: unlockOptions,
       });
-      logger.log('Private balance fetch completed', { success });
+      logger.log('Private balance fetch completed', { success: result.ok });
 
-      if (!success) {
+      if (!result.ok) {
         if (aesKeyOptions?.forceContractOnboarding) {
           logger.log('Forced contract onboarding did not complete — skipping interactive retry');
           return false;
@@ -343,20 +343,20 @@ export const usePluginUnlockSession = ({
           keyForUnlock ?? getValidatedAesKeyForUnlock(walletAddress) ?? undefined;
         logger.log('First private balance fetch failed, retrying after 1.5s');
         await new Promise(resolve => setTimeout(resolve, 1500));
-        success = await syncPrivateBalances({
+        result = await syncPrivateBalances({
           account: walletAddress,
           aesKey: keyForUnlock,
           chainId: chainOverride,
           options: unlockOptions,
         });
-        logger.log('Retry private balance fetch completed', { success });
+        logger.log('Retry private balance fetch completed', { success: result.ok });
       }
 
-      if (success) {
+      if (result.ok) {
         setArePrivateBalancesHidden(false);
         setSnapError(null);
       }
-      return success;
+      return result.ok;
     } catch (err: unknown) {
       const errorInfo = err as { code?: number | string; name?: string; message?: string };
       logger.log('Unlock logic caught error', { code: errorInfo.code, name: errorInfo.name });

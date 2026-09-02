@@ -3,9 +3,9 @@ import { renderHook } from '@testing-library/react';
 
 // ─── Hoisted mock state ─────────────────────────────────────────────────────
 const h = vi.hoisted(() => ({
-  bindAccount: vi.fn().mockResolvedValue(true),
-  refreshPublicBalances: vi.fn().mockResolvedValue(true),
-  refreshPrivateBalances: vi.fn().mockResolvedValue(true),
+  bindAccount: vi.fn().mockResolvedValue({ ok: true }),
+  refreshPublicBalances: vi.fn().mockResolvedValue({ ok: true }),
+  refreshPrivateBalances: vi.fn().mockResolvedValue({ ok: true }),
   isChainUpdatesMuted: vi.fn().mockReturnValue(false),
   mapConnectorIdToWalletType: vi.fn(() => 'unknown' as const),
   wagmiAccount: {
@@ -174,9 +174,9 @@ function makeAccountSync(overrides: Partial<any> = {}) {
 describe('usePluginWagmiSync — chain-change guard with sessionAesKey', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    h.refreshPrivateBalances.mockResolvedValue(true);
-    h.refreshPublicBalances.mockResolvedValue(true);
-    h.bindAccount.mockResolvedValue(true);
+    h.refreshPrivateBalances.mockResolvedValue({ ok: true });
+    h.refreshPublicBalances.mockResolvedValue({ ok: true });
+    h.bindAccount.mockResolvedValue({ ok: true });
     h.isChainUpdatesMuted.mockReturnValue(false);
     h.wagmiAccount.address = '0xabc123';
     h.wagmiAccount.isConnected = true;
@@ -269,9 +269,9 @@ describe('usePluginWagmiSync — chain-change guard with sessionAesKey', () => {
 describe('usePluginWagmiSync — snap status on connect', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    h.refreshPrivateBalances.mockResolvedValue(true);
-    h.refreshPublicBalances.mockResolvedValue(true);
-    h.bindAccount.mockResolvedValue(true);
+    h.refreshPrivateBalances.mockResolvedValue({ ok: true });
+    h.refreshPublicBalances.mockResolvedValue({ ok: true });
+    h.bindAccount.mockResolvedValue({ ok: true });
     h.wagmiAccount.address = '0xabc123';
     h.wagmiAccount.isConnected = true;
     h.wagmiAccount.chainId = 11155111;
@@ -308,9 +308,9 @@ describe('usePluginWagmiSync — snap status on connect', () => {
 describe('usePluginWagmiSync — account switch', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    h.refreshPrivateBalances.mockResolvedValue(true);
-    h.refreshPublicBalances.mockResolvedValue(true);
-    h.bindAccount.mockResolvedValue(true);
+    h.refreshPrivateBalances.mockResolvedValue({ ok: true });
+    h.refreshPublicBalances.mockResolvedValue({ ok: true });
+    h.bindAccount.mockResolvedValue({ ok: true });
     h.wagmiAccount.address = '0xnew456';
     h.wagmiAccount.isConnected = true;
     h.wagmiAccount.chainId = 7082400;
@@ -358,9 +358,9 @@ describe('usePluginWagmiSync — account switch', () => {
 describe('usePluginWagmiSync — autoInitTokens false', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    h.refreshPrivateBalances.mockResolvedValue(true);
-    h.refreshPublicBalances.mockResolvedValue(true);
-    h.bindAccount.mockResolvedValue(true);
+    h.refreshPrivateBalances.mockResolvedValue({ ok: true });
+    h.refreshPublicBalances.mockResolvedValue({ ok: true });
+    h.bindAccount.mockResolvedValue({ ok: true });
     h.isChainUpdatesMuted.mockReturnValue(false);
     h.autoInitTokens = false;
     h.wagmiAccount.address = '0xabc123';

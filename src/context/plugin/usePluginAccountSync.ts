@@ -170,8 +170,8 @@ export const usePluginAccountSync = ({
         account: walletAddress,
         aesKey: sessionAesKey,
         chainId: chainOverride,
-      }).then((success) => {
-        if (success) {
+      }).then((result) => {
+        if (result.ok) {
           setArePrivateBalancesHidden(false);
         }
       });
