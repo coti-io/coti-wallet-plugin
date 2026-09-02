@@ -198,7 +198,7 @@ export function WagmiRainbowKitProvider({
 }: WagmiRainbowKitProviderProps) {
   const pluginConfig = getPluginConfig();
   const config = useMemo(
-    () => createWagmiConfig(walletConnectProjectId, {
+    () => getCachedWagmiConfig(walletConnectProjectId, {
       useEip6963MetaMask,
     }),
     [

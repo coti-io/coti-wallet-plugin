@@ -169,6 +169,28 @@ describe('WagmiRainbowKitProvider', () => {
     configureCotiPlugin({ sepoliaRpcUrl: undefined });
   });
 
+  it('reuses the cached wagmi config when WagmiRainbowKitProvider remounts', () => {
+    configureCotiPlugin({ sepoliaRpcUrl: 'https://provider-cache.example/rpc' });
+    vi.mocked(createConfig).mockClear();
+
+    const { unmount } = render(
+      <WagmiRainbowKitProvider walletConnectProjectId="provider-cache-test">
+        <div>first</div>
+      </WagmiRainbowKitProvider>,
+    );
+    expect(createConfig).toHaveBeenCalledTimes(1);
+
+    unmount();
+    render(
+      <WagmiRainbowKitProvider walletConnectProjectId="provider-cache-test">
+        <div>second</div>
+      </WagmiRainbowKitProvider>,
+    );
+    expect(createConfig).toHaveBeenCalledTimes(1);
+
+    configureCotiPlugin({ sepoliaRpcUrl: undefined });
+  });
+
   it('throws CotiPluginError when WalletConnect project ID is missing', () => {
     configureCotiPlugin({ walletConnectProjectId: undefined });
     vi.stubEnv('VITE_WALLETCONNECT_PROJECT_ID', '');
