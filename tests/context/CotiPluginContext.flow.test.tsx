@@ -652,15 +652,17 @@ describe('CotiPluginContext (flow coverage)', () => {
       });
     });
 
-    it('refreshes balances when wagmi chain changes', async () => {
+    it('refreshes public catalogs when wagmi chain changes without a session key', async () => {
       await connectWagmi(WALLET_A, 7082400);
       h.balanceUpdater.refreshPrivateBalances.mockClear();
+      h.balanceUpdater.refreshPublicBalances.mockClear();
       h.wagmi.chainId = 2632500;
       await bumpWagmi();
-      expect(h.balanceUpdater.refreshPrivateBalances).toHaveBeenCalledWith({
+      expect(h.balanceUpdater.refreshPublicBalances).toHaveBeenCalledWith({
         account: WALLET_A,
         chainId: 2632500,
       });
+      expect(h.balanceUpdater.refreshPrivateBalances).not.toHaveBeenCalled();
     });
 
     it('ignores wagmi chain change when chain updates are muted', async () => {
