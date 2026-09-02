@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as CotiSDK from '@coti-io/coti-sdk-typescript';
+import { CotiErrorCode } from '../../src/errors';
 import {
   decryptPrivateCtUint256,
   encryptPrivateCtUint256,
@@ -66,8 +67,14 @@ describe('privateValueCrypto', () => {
     vi.mocked(CotiSDK.decryptUint256).mockImplementationOnce(() => {
       throw new Error('bad key');
     });
-    expect(() => decryptPrivateCtUint256({ ciphertext, decimals: 18, aesKey: AES_KEY })).toThrow(
-      /AES key mismatch/i,
-    );
+    try {
+      decryptPrivateCtUint256({ ciphertext, decimals: 18, aesKey: AES_KEY });
+      throw new Error('expected decrypt to fail');
+    } catch (error) {
+      expect(error).toMatchObject({
+        code: CotiErrorCode.AES_KEY_MISMATCH,
+        message: expect.stringMatching(/AES key mismatch/i),
+      });
+    }
   });
 });

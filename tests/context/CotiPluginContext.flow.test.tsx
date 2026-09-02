@@ -965,10 +965,12 @@ describe('CotiPluginContext (flow coverage)', () => {
       await connectWagmi();
     });
 
-    it('throws SNAP_REQUIRED on SNAP_CONNECT_FAILED', async () => {
-      h.balanceUpdater.refreshPrivateBalances.mockRejectedValueOnce(new Error('SNAP_CONNECT_FAILED'));
+    it('rethrows SNAP_CONNECT_FAILED from catalog refresh', async () => {
+      h.balanceUpdater.refreshPrivateBalances.mockRejectedValueOnce(
+        new CotiPluginError(CotiErrorCode.SNAP_CONNECT_FAILED, 'snap down'),
+      );
       await expect(latest!.refreshPrivateBalances()).rejects.toMatchObject({
-        code: CotiErrorCode.SNAP_REQUIRED,
+        code: CotiErrorCode.SNAP_CONNECT_FAILED,
       });
     });
 
@@ -982,14 +984,18 @@ describe('CotiPluginContext (flow coverage)', () => {
     });
 
     it('rethrows SNAP_DIALOG_REJECTED', async () => {
-      h.balanceUpdater.refreshPrivateBalances.mockRejectedValueOnce(new Error('SNAP_DIALOG_REJECTED'));
+      h.balanceUpdater.refreshPrivateBalances.mockRejectedValueOnce(
+        new CotiPluginError(CotiErrorCode.SNAP_DIALOG_REJECTED, 'dismissed'),
+      );
       await expect(latest!.refreshPrivateBalances()).rejects.toMatchObject({
         code: CotiErrorCode.SNAP_DIALOG_REJECTED,
       });
     });
 
     it('throws ACCOUNT_NOT_ONBOARDED on ACCOUNT_NOT_ONBOARDED', async () => {
-      h.balanceUpdater.refreshPrivateBalances.mockRejectedValueOnce(new Error('ACCOUNT_NOT_ONBOARDED'));
+      h.balanceUpdater.refreshPrivateBalances.mockRejectedValueOnce(
+        new CotiPluginError(CotiErrorCode.ACCOUNT_NOT_ONBOARDED, 'not onboarded'),
+      );
       await act(async () => {
         await expect(latest!.refreshPrivateBalances()).rejects.toMatchObject({
           code: CotiErrorCode.ACCOUNT_NOT_ONBOARDED,
@@ -998,8 +1004,10 @@ describe('CotiPluginContext (flow coverage)', () => {
       expect(h.snap.clearSnapCache).toHaveBeenCalled();
     });
 
-    it('throws AES_KEY_MISMATCH on onboarding-related errors', async () => {
-      h.balanceUpdater.refreshPrivateBalances.mockRejectedValueOnce(new Error('AES key mismatch during onboarding'));
+    it('throws AES_KEY_MISMATCH on typed AES errors', async () => {
+      h.balanceUpdater.refreshPrivateBalances.mockRejectedValueOnce(
+        new CotiPluginError(CotiErrorCode.AES_KEY_MISMATCH, 'AES key mismatch during onboarding'),
+      );
       await expect(latest!.refreshPrivateBalances()).rejects.toMatchObject({
         code: CotiErrorCode.AES_KEY_MISMATCH,
       });
@@ -1035,7 +1043,9 @@ describe('CotiPluginContext (flow coverage)', () => {
       expect(latest!.isPrivateUnlocked).toBe(true);
       h.snap.clearSnapCache.mockClear();
 
-      h.balanceUpdater.refreshPrivateBalances.mockRejectedValueOnce(new Error('ACCOUNT_NOT_ONBOARDED'));
+      h.balanceUpdater.refreshPrivateBalances.mockRejectedValueOnce(
+        new CotiPluginError(CotiErrorCode.ACCOUNT_NOT_ONBOARDED, 'not onboarded'),
+      );
 
       await expect(
         latest!.refreshPrivateBalances({ preserveSessionOnError: true }),

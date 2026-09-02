@@ -3,7 +3,8 @@ import { useAccount } from 'wagmi';
 import { getPluginConfig, isAutoInitTokensEnabled } from '../../config/plugin';
 import { logger } from '../../lib/logger';
 import { resolveConnectedProvider } from '../../lib/ethereum';
-import { CotiErrorCode, CotiPluginError } from '../../errors';
+import { CotiErrorCode, CotiPluginError, hasCotiErrorCode, isCotiPluginError } from '../../errors';
+import { isUserRejection } from '../../lib/walletErrors';
 import { clearAesKeyValidatedForUnlock, getValidatedAesKeyForUnlock } from '../../crypto/aesKeyValidation';
 import {
   getInitialPrivateTokens,
@@ -403,68 +404,54 @@ export const usePluginUnlockSession = ({
       }
       return result;
     } catch (err: unknown) {
-      const errorInfo = err as { code?: number | string; name?: string; message?: string };
+      const errorInfo = err as { code?: number | string; name?: string };
       logger.log('Unlock logic caught error', { code: errorInfo.code, name: errorInfo.name });
 
+      const rethrowCoded = (code: CotiErrorCode, message: string): never => {
+        throw isCotiPluginError(err) ? err : new CotiPluginError(code, message);
+      };
+
       if (
-        err instanceof CotiPluginError
-        && (err.code === CotiErrorCode.SNAP_CONNECT_FAILED
-          || err.code === CotiErrorCode.SNAP_KEY_CHECK_FAILED)
+        hasCotiErrorCode(err, CotiErrorCode.SNAP_CONNECT_FAILED)
+        || hasCotiErrorCode(err, CotiErrorCode.SNAP_KEY_CHECK_FAILED)
       ) {
-        throw err;
+        rethrowCoded(
+          hasCotiErrorCode(err, CotiErrorCode.SNAP_KEY_CHECK_FAILED)
+            ? CotiErrorCode.SNAP_KEY_CHECK_FAILED
+            : CotiErrorCode.SNAP_CONNECT_FAILED,
+          'Snap connection failed — install or reconnect the COTI Snap.',
+        );
       }
 
-      if (errorInfo.message === 'SNAP_CONNECT_FAILED' || errorInfo.message?.includes('SNAP_CONNECT_FAILED')) {
-        throw new CotiPluginError(
-          CotiErrorCode.SNAP_REQUIRED,
-          'Snap connection failed — install or reconnect the COTI Snap.',
-          errorInfo.message,
+      if (hasCotiErrorCode(err, CotiErrorCode.SNAP_DIALOG_REJECTED)) {
+        rethrowCoded(CotiErrorCode.SNAP_DIALOG_REJECTED, 'User dismissed the Snap dialog.');
+      }
+
+      if (hasCotiErrorCode(err, CotiErrorCode.ACCOUNT_NOT_ONBOARDED)) {
+        if (lockSessionOnAesFailure) clearSessionAfterAesFailure();
+        rethrowCoded(
+          CotiErrorCode.ACCOUNT_NOT_ONBOARDED,
+          'Account has not been onboarded to the COTI network.',
         );
       }
 
       if (
-        errorInfo.code === 4001 ||
-        errorInfo.message?.includes('User rejected') ||
-        errorInfo.message?.includes('rejected the request')
+        hasCotiErrorCode(err, CotiErrorCode.AES_KEY_MISMATCH)
+        || hasCotiErrorCode(err, CotiErrorCode.ONBOARDING_INCOMPLETE)
       ) {
+        if (lockSessionOnAesFailure) clearSessionAfterAesFailure();
+        rethrowCoded(
+          hasCotiErrorCode(err, CotiErrorCode.ONBOARDING_INCOMPLETE)
+            ? CotiErrorCode.ONBOARDING_INCOMPLETE
+            : CotiErrorCode.AES_KEY_MISMATCH,
+          'AES key mismatch or onboarding error.',
+        );
+      }
+
+      if (isUserRejection(err) || hasCotiErrorCode(err, CotiErrorCode.USER_REJECTED)) {
         return accountStateFailed('user_rejected');
       }
 
-      if (
-        errorInfo.message === 'SNAP_DIALOG_REJECTED' ||
-        (err instanceof CotiPluginError && err.code === CotiErrorCode.SNAP_DIALOG_REJECTED)
-      ) {
-        if (err instanceof CotiPluginError) throw err;
-        throw new CotiPluginError(
-          CotiErrorCode.SNAP_DIALOG_REJECTED,
-          'User dismissed the Snap dialog.',
-        );
-      }
-
-      if (errorInfo.message?.includes('ACCOUNT_NOT_ONBOARDED')) {
-        if (lockSessionOnAesFailure) clearSessionAfterAesFailure();
-        throw new CotiPluginError(
-          CotiErrorCode.ACCOUNT_NOT_ONBOARDED,
-          'Account has not been onboarded to the COTI network.',
-          errorInfo.message,
-        );
-      }
-
-      if (
-        err instanceof CotiPluginError && err.code === CotiErrorCode.AES_KEY_MISMATCH
-      ) {
-        if (lockSessionOnAesFailure) clearSessionAfterAesFailure();
-        throw err;
-      }
-
-      if (errorInfo.message?.includes('AES key') || errorInfo.message?.includes('onboarding')) {
-        if (lockSessionOnAesFailure) clearSessionAfterAesFailure();
-        throw new CotiPluginError(
-          CotiErrorCode.AES_KEY_MISMATCH,
-          'AES key mismatch or onboarding error.',
-          errorInfo.message,
-        );
-      }
       return accountStateFailed('failed');
     }
   }, [

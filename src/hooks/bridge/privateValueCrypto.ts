@@ -4,6 +4,7 @@ import { decryptCtUint256 } from '../../crypto/decryption';
 import type { CtUint256 } from '../../types/ciphertext';
 import { isCtUint256 } from '../../types/ciphertext';
 import { normalizeAesKeyHex } from './executePrivateTokenTransfer';
+import { CotiErrorCode, CotiPluginError } from '../../errors';
 
 export function parsePrivateAmountToWei(amount: string, decimals: number): bigint {
   const trimmed = amount.trim();
@@ -102,7 +103,10 @@ export function decryptPrivateCtUint256(params: {
     decimals: params.decimals,
   });
   if (wei === null) {
-    throw new Error('AES key mismatch or invalid ciphertext.');
+    throw new CotiPluginError(
+      CotiErrorCode.AES_KEY_MISMATCH,
+      'AES key mismatch or invalid ciphertext.',
+    );
   }
   return formatPrivateAmountFromWei(wei, params.decimals);
 }

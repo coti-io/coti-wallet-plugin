@@ -177,18 +177,11 @@ export const writePrivateBalances = async ({
                 allowSnap ? snapDecryptOptions : undefined,
             );
             return { symbol: token.symbol, value, isMismatch: false };
-        } catch (e: any) {
-            const msg = e?.message || '';
+        } catch (e: unknown) {
             const isMismatch =
-                (e instanceof CotiPluginError && (
-                    e.code === CotiErrorCode.AES_KEY_MISMATCH
-                    || e.code === CotiErrorCode.ACCOUNT_NOT_ONBOARDED
-                ))
-                || msg.includes('AES key mismatch')
-                || msg.includes('Invalid encrypted payload')
-                || msg.includes('onboarding')
-                || msg.includes('ACCOUNT_NOT_ONBOARDED')
-                || msg.includes('implausible decrypted balance');
+                hasCotiErrorCode(e, CotiErrorCode.AES_KEY_MISMATCH)
+                || hasCotiErrorCode(e, CotiErrorCode.ACCOUNT_NOT_ONBOARDED)
+                || hasCotiErrorCode(e, CotiErrorCode.ONBOARDING_INCOMPLETE);
             if (isMismatch) {
                 logger.warn(`⚠️ Private token decrypt mismatch for ${tokenAddress}. Falling back to 0.`);
                 return { symbol: token.symbol, value: '0', isMismatch: true };
