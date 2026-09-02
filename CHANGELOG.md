@@ -32,6 +32,8 @@ Intended for the next npm release after `0.3.10`. Hosts on `0.3.10` should treat
 - MetaMask `-32002` overlapping `wallet_requestPermissions` / Snap prompts.
 - Connect no longer decrypts private catalogs without a session AES key (that wrote `0.00` and could overwrite unlock).
 - Private-balance RPC/decode failures no longer report as a zero balance.
+- Injected MetaMask account/chain switches reset or refetch private catalogs (same as the wagmi path).
+- Public ERC-20 429s off Avalanche Fuji no longer throw the Fuji-named rate-limit error.
 - Onboard modal no longer reopens after a successful backup restore.
 - Cached wagmi config is reused when `WagmiRainbowKitProvider` remounts.
 

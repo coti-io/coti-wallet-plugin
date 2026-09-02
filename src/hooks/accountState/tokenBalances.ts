@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { ethers } from 'ethers';
-import { CONTRACT_ADDRESSES, ERC20_ABI, getPublicTokensForChain, getPrivateTokensForChain } from '../../contracts/config';
-import { AVALANCHE_FUJI_CHAIN_ID } from '../../chains/avalancheFuji';
+import { ERC20_ABI, getPublicTokensForChain, getPrivateTokensForChain } from '../../contracts/config';
+import { getNetworkNameForChain } from '../../chains';
 import {
     isRateLimitedRpcError,
     withRpcFallback,
@@ -10,6 +10,7 @@ import { formatTokenBalanceDisplay } from '../../lib/utils';
 import {
     CotiPluginError,
     CotiErrorCode,
+    createRpcRateLimitedError,
     hasCotiErrorCode,
 } from '../../errors';
 import { logger } from '../../lib/logger';
@@ -70,20 +71,19 @@ export const writePublicBalances = async ({
                 : await new ethers.Contract(tokenAddress, ERC20_ABI, readProvider).balanceOf(account);
             publicBalances.push(ethers.formatUnits(bal, token.decimals));
         } catch (error) {
+            const isRateLimited =
+                hasCotiErrorCode(error, CotiErrorCode.RPC_RATE_LIMITED)
+                || isRateLimitedRpcError(error);
             if (useFujiRpcFallback) {
-                if (
-                    hasCotiErrorCode(error, CotiErrorCode.RPC_RATE_LIMITED)
-                    || isRateLimitedRpcError(error)
-                ) {
+                if (isRateLimited) {
                     raiseFujiRateLimited();
                 }
                 throw error;
             }
-            if (
-                hasCotiErrorCode(error, CotiErrorCode.RPC_RATE_LIMITED)
-                || isRateLimitedRpcError(error)
-            ) {
-                raiseFujiRateLimited();
+            if (isRateLimited) {
+                throw hasCotiErrorCode(error, CotiErrorCode.RPC_RATE_LIMITED)
+                    ? error
+                    : createRpcRateLimitedError(getNetworkNameForChain(currentChainId));
             }
             publicBalances.push('0');
         }
@@ -136,12 +136,8 @@ export const writePrivateBalances = async ({
     });
 
     if (!aesKey && !allowSnap && !hasPlainPrivateTokens) {
-        logger.log('ℹ️ Snap available but keys missing/rejected.');
+        logger.log('Private catalog refresh skipped: no AES key, Snap, or plain private tokens.');
         return accountStateFailed('keys_unavailable');
-    }
-
-    if (!(aesKey || allowSnap || hasPlainPrivateTokens)) {
-        return ACCOUNT_STATE_OK;
     }
 
     logger.log('🔄 Fetching private balances...');
