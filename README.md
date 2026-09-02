@@ -38,7 +38,7 @@ RainbowKit is optional. Install it only if you use the convenience wrapper:
 npm install @rainbow-me/rainbowkit
 ```
 
-This release is validated with `@rainbow-me/rainbowkit@2.2.0` and `wagmi@2.14.0`.
+Peer ranges are `wagmi@^2.0.0` and optional `@rainbow-me/rainbowkit@^2.0.0`. This release is validated with `@rainbow-me/rainbowkit@2.2.0` and `wagmi@2.14.0`.
 
 ## Quickstart
 
@@ -74,7 +74,8 @@ See the [integration guide](https://docs.coti.io/coti-documentation/build-on-cot
 ```bash
 npm run build      # dist/index.js (CJS) + dist/index.mjs (ESM) + dist/index.d.ts
 npm run typecheck  # TypeScript check
-npm run test       # Vitest suite
+npm run test       # Vitest suite (no coverage floors)
+npm run test:coverage  # same suite; fails if coverage drops below vitest.config.ts floors
 npm run lint       # ESLint
 ```
 

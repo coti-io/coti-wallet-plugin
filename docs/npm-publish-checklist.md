@@ -2,31 +2,37 @@
 
 Use this checklist for the final PR before publishing `@coti-io/coti-wallet-plugin`.
 
+Applies to the version in this repo’s `package.json` (currently **0.3.10**). Bump `package.json` and this line together before a new publish. Unreleased API on `HEAD` is listed in `CHANGELOG.md`.
+
 ## Package Decision
 
 - Publish package: `@coti-io/coti-wallet-plugin`
-- Version: `0.1.0`
+- Version: read from `package.json` (currently `0.3.10`)
 - Access: public scoped package (`publishConfig.access = "public"`)
 - License: Apache 2.0, matching the repository `LICENSE` (same as `@coti-io/coti-sdk-typescript`)
+
+## Peer ranges vs validated versions
+
+`package.json` peer ranges stay wide (`wagmi@^2.0.0`, optional `@rainbow-me/rainbowkit@^2.0.0`) so hosts are not pinned to a single patch. Smoke-test the **validated** versions from the README (`wagmi@2.14.0`, `@rainbow-me/rainbowkit@2.2.0`) before publish.
 
 ## Required Validation
 
 ```bash
 npm run clean
 npm run typecheck
-npm test -- --run
+npm run test:coverage
 npm run build
 npm pack --dry-run
 ```
 
-`prepublishOnly` runs the same clean, typecheck, test, and build gate before `npm publish`.
+`prepublishOnly` runs the same clean, typecheck, **coverage** (CI floors in `vitest.config.ts`), and build gate before `npm publish`.
 
 ## Tarball Smoke
 
-Before publishing, install the packed tarball into a clean app and import the public entrypoint. This release was smoke-tested with:
+Before publishing, install the packed tarball into a clean app and import the public entrypoint. Replace `<version>` with `package.json`’s version. This release was smoke-tested with:
 
 ```bash
-npm install ./coti-io-coti-wallet-plugin-0.1.0.tgz \
+npm install ./coti-io-coti-wallet-plugin-<version>.tgz \
   react@18.3.1 react-dom@18.3.1 ethers@6.16.0 viem@2.47.10 wagmi@2.14.0 \
   @tanstack/react-query@5.62.0 @rainbow-me/rainbowkit@2.2.0 \
   @metamask/providers@22.1.1 @coti-io/coti-sdk-typescript@1.0.8
