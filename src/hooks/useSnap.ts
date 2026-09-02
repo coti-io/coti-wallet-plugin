@@ -12,6 +12,7 @@ import {
     validateAesKeyRoundTrip,
 } from '../crypto/aesKeyValidation';
 import { guardedEthAccounts } from '../lib/metaMaskMobile';
+import { isRpcRequestAlreadyPending, retryWhilePending } from '../lib/walletErrors';
 import { useOptionalPluginRuntime } from '../context/plugin/pluginRuntimeContext';
 import type { CtUint256 } from '../types/ciphertext';
 
@@ -57,6 +58,8 @@ export interface SnapItUint256 {
  * - `resetError`: Function to clear the error state (if setSnapError is provided).
  */
 const getSnapId = () => getPluginConfig().snapId;
+
+let snapConnectInFlight: Promise<boolean> | null = null;
 
 function getErrorMessage(error: unknown): string {
     if (error && typeof error === 'object') {
@@ -270,6 +273,11 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
             return false;
         }
 
+        if (snapConnectInFlight) {
+            return snapConnectInFlight;
+        }
+
+        const run = (async (): Promise<boolean> => {
         const provider = await resolveProvider();
         if (!provider) {
             logger.log('❌ No MetaMask provider available for Snap install');
@@ -280,6 +288,12 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
         }
 
         try {
+            if (await isSnapInstalled()) {
+                logger.log('✅ COTI Snap already connected for this origin');
+                if (setSnapError) setSnapError(null);
+                return true;
+            }
+
             logger.log('🔌 Requesting permission to connect to COTI Snap...');
             await provider.request({
                 method: 'wallet_requestSnaps',
@@ -289,6 +303,16 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
             if (setSnapError) setSnapError(null);
             return true;
         } catch (error: any) {
+            if (isRpcRequestAlreadyPending(error)) {
+                logger.log('Snap permission already pending — waiting for the open MetaMask prompt');
+                const installed = await retryWhilePending(isSnapInstalled, Boolean);
+                if (installed) {
+                    if (setSnapError) setSnapError(null);
+                    return true;
+                }
+                logger.log('ℹ️ Pending Snap permission was not granted for this origin');
+                return false;
+            }
             // Non-MetaMask wallets don't support wallet_requestSnaps
             if (error?.code === -32601) {
                 logger.log('ℹ️ Wallet does not support wallet_requestSnaps (non-MetaMask wallet).');
@@ -305,10 +329,19 @@ export const useSnap = (setSnapError?: (error: string | null) => void) => {
                     setSnapError('Failed to connect to Snap');
                 }
             }
-            // Propagate error for context handling
             throw new CotiPluginError(CotiErrorCode.SNAP_CONNECT_FAILED, 'Failed to connect to COTI Snap');
         }
-    }, [setSnapError, resolveProvider]);
+        })();
+
+        snapConnectInFlight = run;
+        try {
+            return await run;
+        } finally {
+            if (snapConnectInFlight === run) {
+                snapConnectInFlight = null;
+            }
+        }
+    }, [setSnapError, resolveProvider, isSnapInstalled]);
 
 
     /**

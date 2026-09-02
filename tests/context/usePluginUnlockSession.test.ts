@@ -162,6 +162,32 @@ describe('usePluginUnlockSession', () => {
     expect(accountSync.refreshPrivateBalances).toHaveBeenCalledTimes(2);
   });
 
+  it('retries forced onboard catalogs after AES session succeeds with a stale catalog', async () => {
+    const accountSync = makeAccountSync({
+      refreshPrivateBalances: vi.fn()
+        .mockResolvedValueOnce({ ok: false, reason: 'stale' })
+        .mockResolvedValueOnce({ ok: true }),
+    });
+    const { result } = renderHook(() => usePluginUnlockSession({
+      core: makeCore({ sessionAesKey: null }) as never,
+      network: { wagmiChainId: 7082400 } as never,
+      accountSync: accountSync as never,
+    }));
+
+    await expect(result.current.refreshPrivateBalances({ forceContractOnboarding: true })).resolves.toEqual({
+      ok: true,
+    });
+    expect(accountSync.establishAesSession).toHaveBeenCalledTimes(2);
+    expect(accountSync.establishAesSession).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      options: expect.objectContaining({ forceContractOnboarding: true }),
+    }));
+    expect(accountSync.establishAesSession).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      aesKey: AES_KEY,
+      options: { validateOnUnlock: true },
+    }));
+    expect(accountSync.refreshPrivateBalances).toHaveBeenCalledTimes(2);
+  });
+
   it('returns the AES session failure from composeUnlockRefresh', async () => {
     const accountSync = makeAccountSync({
       establishAesSession: vi.fn().mockResolvedValue({ ok: false, reason: 'no_aes_key' }),

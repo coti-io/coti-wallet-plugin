@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { isSnapEnabled, isAutoInitTokensEnabled } from '../../config/plugin';
 import { useBalanceUpdater } from '../../hooks/useBalanceUpdater';
 import { isChainUpdatesMuted } from '../../lib/chainMute';
-import { logger } from '../../lib/logger';
 import { getMetaMaskProvider } from '../../lib/ethereum';
 import { validateMetaMaskAesKeyOnUnlock as validateMetaMaskAesKeyOnUnlockFn } from '../../crypto/aesKeyValidation';
 import { useWalletType } from '../../hooks/useWalletType';
@@ -37,19 +36,16 @@ export const usePluginAccountSync = ({
     setPrivateTokens,
     sessionAesKey,
     setSessionAesKey,
-    arePrivateBalancesHidden,
-    setArePrivateBalancesHidden,
     fetchPrivateBalance,
     getAesKeyFromProvider,
     getAESKeyFromSnap,
     isConnected,
     hasSnap,
     walletAddress,
-    wagmiSyncRef,
     checkSnapStatus,
   } = core;
 
-  const { checkNetwork, currentChainId, wagmiChainId } = network;
+  const { checkNetwork, currentChainId } = network;
   const { chainId: connectedChainId } = useAccount();
   const walletTypeInfo = useWalletType();
   const autoInitTokens = isAutoInitTokensEnabled(autoInitTokensProp);
@@ -152,44 +148,6 @@ export const usePluginAccountSync = ({
       setPrivateTokens(getInitialPrivateTokens(currentChainId));
     }
   }, [autoInitTokens, isConnected, currentChainId, setPublicTokens, setPrivateTokens]);
-
-  // Track the previous sessionAesKey value so we only auto-unlock when the key
-  // *arrives* for the first time (null → value), not on every render where a key
-  // is already present but balances happen to be hidden (e.g. after a manual lock).
-  const prevSessionAesKeyRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    const keyJustArrived = !prevSessionAesKeyRef.current && !!sessionAesKey;
-    prevSessionAesKeyRef.current = sessionAesKey;
-
-    if (keyJustArrived && sessionAesKey && walletAddress && arePrivateBalancesHidden) {
-      if (!autoInitTokens) return;
-      logger.log('Session AES Key arrived — refreshing public and private balances...');
-      const chainOverride = wagmiSyncRef.current ? wagmiChainId : undefined;
-      const catalogs = { account: walletAddress, chainId: chainOverride };
-      void accountState.refreshPublicBalances(catalogs).then((pub) => {
-        if (!pub.ok) return pub;
-        return accountState.refreshPrivateBalances({
-          ...catalogs,
-          aesKey: sessionAesKey,
-        });
-      }).then((result) => {
-        if (result.ok) {
-          setArePrivateBalancesHidden(false);
-        }
-      });
-    }
-  }, [
-    sessionAesKey,
-    walletAddress,
-    arePrivateBalancesHidden,
-    accountState.refreshPublicBalances,
-    accountState.refreshPrivateBalances,
-    setArePrivateBalancesHidden,
-    wagmiSyncRef,
-    wagmiChainId,
-    autoInitTokens,
-  ]);
 
   return { ...accountState, currentChainId };
 };

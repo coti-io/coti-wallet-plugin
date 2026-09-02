@@ -284,6 +284,13 @@ async function bumpWagmi() {
   });
 }
 
+async function unlockWithSessionKey(sessionKey: string, wallet = WALLET_A) {
+  await act(async () => {
+    h.balanceUpdater.params?.setSessionAesKey(sessionKey, wallet);
+    await latest!.refreshPrivateBalances();
+  });
+}
+
 function makePodRequest(overrides: Partial<PodPortalRequest> = {}): PodPortalRequest {
   return {
     id: 'pod-req-1',
@@ -829,19 +836,19 @@ describe('CotiPluginContext (flow coverage)', () => {
       ).rejects.toThrow('Private balances are locked. Unlock to decrypt values.');
     });
 
-    it('sessionAesKey effect refreshes account state and sets hasSnap', async () => {
+    it('does not auto-refresh catalogs when a session AES key is set', async () => {
       await connectWagmi();
       h.balanceUpdater.refreshPrivateBalances.mockClear();
+      h.balanceUpdater.refreshPublicBalances.mockClear();
       act(() => {
         latest!.lockPrivateBalances();
       });
       await act(async () => {
         h.balanceUpdater.params?.setSessionAesKey('d'.repeat(32), WALLET_A);
       });
-      await act(async () => {
-        await Promise.resolve();
-      });
-      expect(h.balanceUpdater.refreshPrivateBalances).toHaveBeenCalled();
+      expect(h.balanceUpdater.refreshPrivateBalances).not.toHaveBeenCalled();
+      expect(h.balanceUpdater.refreshPublicBalances).not.toHaveBeenCalled();
+      expect(latest!.isPrivateUnlocked).toBe(false);
     });
 
     it('warns and clears when setSessionAesKey is called without a wallet', async () => {
@@ -1018,9 +1025,7 @@ describe('CotiPluginContext (flow coverage)', () => {
 
     it('preserveSessionOnError keeps the session unlocked on AES/onboarding failures', async () => {
       const sessionKey = 'aa'.repeat(16);
-      await act(async () => {
-        h.balanceUpdater.params?.setSessionAesKey(sessionKey, WALLET_A);
-      });
+      await unlockWithSessionKey(sessionKey);
       expect(latest!.isPrivateUnlocked).toBe(true);
       expect(latest!.sessionAesKey).toBe(sessionKey);
       h.snap.clearSnapCache.mockClear();
@@ -1040,9 +1045,7 @@ describe('CotiPluginContext (flow coverage)', () => {
 
     it('preserveSessionOnError keeps the session unlocked on ACCOUNT_NOT_ONBOARDED', async () => {
       const sessionKey = 'bb'.repeat(16);
-      await act(async () => {
-        h.balanceUpdater.params?.setSessionAesKey(sessionKey, WALLET_A);
-      });
+      await unlockWithSessionKey(sessionKey);
       expect(latest!.isPrivateUnlocked).toBe(true);
       h.snap.clearSnapCache.mockClear();
 
@@ -1062,9 +1065,7 @@ describe('CotiPluginContext (flow coverage)', () => {
     it('clears session on AES_KEY_MISMATCH by default', async () => {
       const sessionKey = 'cc'.repeat(16);
       markAesKeyValidatedForUnlock(WALLET_A, sessionKey);
-      await act(async () => {
-        h.balanceUpdater.params?.setSessionAesKey(sessionKey, WALLET_A);
-      });
+      await unlockWithSessionKey(sessionKey);
       expect(latest!.isPrivateUnlocked).toBe(true);
       h.snap.clearSnapCache.mockClear();
 
@@ -1223,9 +1224,7 @@ describe('CotiPluginContext (flow coverage)', () => {
 
     it('keeps the session unlocked when background balance refresh hits AES errors', async () => {
       const sessionKey = 'dd'.repeat(16);
-      await act(async () => {
-        h.balanceUpdater.params?.setSessionAesKey(sessionKey, WALLET_A);
-      });
+      await unlockWithSessionKey(sessionKey);
       expect(latest!.isPrivateUnlocked).toBe(true);
       h.snap.clearSnapCache.mockClear();
 
@@ -1260,9 +1259,7 @@ describe('CotiPluginContext (flow coverage)', () => {
     it('awaits refresh and surfaces AES errors when waitForBalanceRefreshAfterTransfer is true', async () => {
       configureCotiPlugin({ waitForBalanceRefreshAfterTransfer: true });
       const sessionKey = 'ee'.repeat(16);
-      await act(async () => {
-        h.balanceUpdater.params?.setSessionAesKey(sessionKey, WALLET_A);
-      });
+      await unlockWithSessionKey(sessionKey);
       expect(latest!.isPrivateUnlocked).toBe(true);
       h.snap.clearSnapCache.mockClear();
 

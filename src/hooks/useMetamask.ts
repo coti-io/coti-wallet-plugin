@@ -6,6 +6,7 @@ import { CotiPluginError, CotiErrorCode } from '../errors';
 import { logger } from '../lib/logger';
 import { truncateAddress } from '../lib/format';
 import { isChainUpdatesMuted } from '../lib/chainMute';
+import { isRpcRequestAlreadyPending, isUserRejection, retryWhilePending } from '../lib/walletErrors';
 import { getMetaMaskMobileEthAccountsDelayMs } from '../lib/metaMaskMobile';
 import {
     getChainIdConstants,
@@ -44,6 +45,7 @@ export const useMetamask = ({
     const [networkName, setNetworkName] = useState('Unknown Network');
     const [chainId, setChainId] = useState<string | null>(null);
     const isInitialCheckDone = useRef(false);
+    const connectInFlightRef = useRef<Promise<string | null> | null>(null);
 
     /**
      * Checks the provided provider's network and updates the local network name state.
@@ -137,17 +139,37 @@ export const useMetamask = ({
             throw new CotiPluginError(CotiErrorCode.METAMASK_NOT_INSTALLED, 'MetaMask or compatible wallet not found');
         }
 
+        if (connectInFlightRef.current) {
+            const existingAccount = await connectInFlightRef.current;
+            if (!existingAccount) return false;
+            await onConnect(existingAccount);
+            return true;
+        }
+
+        const run = (async (): Promise<string | null> => {
         try {
-            // 1. Request Account Access
-            await eth.request({
-                method: 'wallet_requestPermissions',
-                params: [{ eth_accounts: {} }]
-            });
+            // `eth_requestAccounts` already requests eth_accounts permission.
+            // Calling `wallet_requestPermissions` first races MetaMask's coalescer
+            // and surfaces -32002 ("wallet_requestPermissions already pending").
+            let accounts = await eth.request({ method: 'eth_accounts' }) as string[];
 
-            // 2. Get Selected Accounts
-            const accounts = await eth.request({ method: 'eth_requestAccounts' }) as string[];
+            if (!accounts?.length) {
+                try {
+                    accounts = await eth.request({ method: 'eth_requestAccounts' }) as string[];
+                } catch (requestError) {
+                    if (isUserRejection(requestError)) return null;
+                    if (!isRpcRequestAlreadyPending(requestError)) {
+                        throw requestError;
+                    }
+                    logger.log('Account request already pending — waiting for the open MetaMask prompt');
+                    accounts = await retryWhilePending(
+                        async () => await eth.request({ method: 'eth_accounts' }) as string[],
+                        (next) => Boolean(next?.length),
+                    );
+                }
+            }
 
-            if (!accounts || accounts.length === 0) return false;
+            if (!accounts || accounts.length === 0) return null;
 
             // Check network, default to Mainnet if on wrong network
             const provider = new ethers.BrowserProvider(eth);
@@ -177,15 +199,25 @@ export const useMetamask = ({
                         } */
 
             // 4. Update State via callback
-            /* v8 ignore next 2 -- unreachable: empty accounts return above at line 176 */
+            /* v8 ignore next 2 -- unreachable: empty accounts return above */
             if (accounts.length > 0) {
                 await onConnect(accounts[0]);
-                return true;
+                return accounts[0];
             }
-            return false;
+            return null;
         } catch (error) {
             logger.error('Error connecting to MetaMask:', error);
-            return false;
+            return null;
+        }
+        })();
+
+        connectInFlightRef.current = run;
+        try {
+            return (await run) !== null;
+        } finally {
+            if (connectInFlightRef.current === run) {
+                connectInFlightRef.current = null;
+            }
         }
     };
 

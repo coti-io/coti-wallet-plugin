@@ -42,7 +42,9 @@ interface UseBalanceUpdaterProps {
 /**
  * Account bind, AES session, and public/private token catalog writes.
  * AES session restore uses its own generation counter so a catalog refresh
- * (wagmi connect, key-arrived effect) cannot discard an in-flight backup decrypt.
+ * (wagmi connect, chain change) cannot discard an in-flight backup decrypt.
+ * Catalog writes after AES belong to composeUnlockRefresh — do not start a
+ * second catalog generation when the session key first arrives.
  */
 export const useBalanceUpdater = ({
     setWalletAddress,

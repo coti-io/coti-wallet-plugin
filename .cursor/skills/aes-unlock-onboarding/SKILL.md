@@ -76,6 +76,14 @@ unlock() → session key → Snap/backup restore → OnboardModal only if restor
 - [ ] Do not invent alternate unlock entry points outside `usePrivateUnlock` / `aesAccessStrategy`
 - [ ] Keep Snap vs local vs onboard routing in `aesAccessStrategy` — do not duplicate the table elsewhere
 
+## MetaMask permission prompts
+
+MetaMask serializes account and Snap prompts as `wallet_requestPermissions`. A second request while one is open returns **-32002** ("already pending").
+
+- Connect with `eth_accounts` then, if empty, **only** `eth_requestAccounts` — do not also call `wallet_requestPermissions`
+- Coalesce concurrent `connectWallet` / `requestSnapConnection` calls
+- On `-32002`, wait/poll (`eth_accounts` / `wallet_getSnaps`); do not fire another permission request
+
 ## Key files
 
 | Area | Path |
