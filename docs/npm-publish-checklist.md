@@ -2,12 +2,12 @@
 
 Use this checklist for the final PR before publishing `@coti-io/coti-wallet-plugin`.
 
-Applies to the version in this repo’s `package.json` (currently **0.4.0**). Bump `package.json` and this line together before a new publish. Unreleased API on `HEAD` is listed in `CHANGELOG.md`.
+Applies to the version in this repo’s `package.json` (currently **0.4.1**). Bump `package.json` and this line together before a new publish. Unreleased API on `HEAD` is listed in `CHANGELOG.md`.
 
 ## Package Decision
 
 - Publish package: `@coti-io/coti-wallet-plugin`
-- Version: read from `package.json` (currently `0.4.0`)
+- Version: read from `package.json` (currently `0.4.1`)
 - Access: public scoped package (`publishConfig.access = "public"`)
 - License: Apache 2.0, matching the repository `LICENSE` (same as `@coti-io/coti-sdk-typescript`)
 

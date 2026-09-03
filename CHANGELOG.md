@@ -7,6 +7,21 @@ Version numbers follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-09-03
+
+### Added
+
+- `PLUGIN_VERSION` export. The package prints `[@coti-io/coti-wallet-plugin@x.y.z] loaded` once on import so hosts can confirm which build is on the page.
+
+### Fixed
+
+- Contract onboarding now closes the modal after a successful private-balance refresh. The session AES key is committed during catalog refresh, so the wait-effect previously missed it and stayed on Persisting Key.
+- The onboard success screen is kept only when a non-blocking warning remains (Snap persist or encrypted backup save).
+
+### Changed
+
+- Debug logs around onboard close and AES session vs catalog refresh (`configureCotiPlugin({ debug: true })`).
+
 ## [0.4.0] - 2026-09-02
 
 Breaking host API vs `0.3.10`. Hosts must upgrade to this version for the names and contracts below.
@@ -43,6 +58,7 @@ Breaking host API vs `0.3.10`. Hosts must upgrade to this version for the names 
 
 Published npm release. Includes testnet PoD v2.4 remount addresses and MTT faucet/portal pointer updates from the `0.3.9` → `0.3.10` window.
 
-[Unreleased]: https://github.com/coti-io/coti-wallet-plugin/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/coti-io/coti-wallet-plugin/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/coti-io/coti-wallet-plugin/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/coti-io/coti-wallet-plugin/compare/v0.3.10...v0.4.0
 [0.3.10]: https://github.com/coti-io/coti-wallet-plugin/releases/tag/v0.3.10

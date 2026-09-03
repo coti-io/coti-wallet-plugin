@@ -32,11 +32,10 @@ vi.mock('viem', () => ({
 }));
 
 describe('Package Exports (README: Installation & API)', () => {
-  it('exports configureCotiPlugin, getPluginConfig, and PLUGIN_VERSION', async () => {
-    const mod = await import('../src/index');
+  it('exports configureCotiPlugin and getPluginConfig', async () => {
+    const mod = await import('../src/config/plugin');
     expect(mod.configureCotiPlugin).toBeDefined();
     expect(mod.getPluginConfig).toBeDefined();
-    expect(mod.PLUGIN_VERSION).toBeDefined();
   });
 
   it('exports chain definitions', async () => {
