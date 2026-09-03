@@ -3,6 +3,8 @@
  * Import from `@coti-io/coti-wallet-plugin/rainbowkit`.
  * Hosts that already mount `WagmiProvider` should use `CotiPluginProvider` from the main entry.
  */
+import './version';
+
 export {
   WagmiRainbowKitProvider,
   getWagmiConfig,

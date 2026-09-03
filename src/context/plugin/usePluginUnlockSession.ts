@@ -127,17 +127,31 @@ export const usePluginUnlockSession = ({
       checkSnap,
       options,
     });
+    logger.log('[PrivateUnlock] AES session result', {
+      ok: aes.ok,
+      hasAesKey: aes.ok ? !!aes.aesKey : false,
+      reason: aes.ok ? undefined : aes.reason,
+      autoInitTokens,
+      restoreOnly: !!options?.restoreOnly,
+      forceContractOnboarding: !!options?.forceContractOnboarding,
+    });
     if (!aes.ok) return aes;
     if (!autoInitTokens) return { ok: true, restoredAesKey: aes.aesKey };
     if (!options?.restoreOnly) {
+      logger.log('[PrivateUnlock] refreshing public balances after AES session');
       const pub = await syncPublicBalances({ account, chainId });
       if (!pub.ok) return { ...pub, restoredAesKey: aes.aesKey };
     }
+    logger.log('[PrivateUnlock] refreshing private balances after AES session');
     const priv = await syncPrivateBalances({
       account,
       chainId,
       aesKey: aesKey ?? aes.aesKey,
       allowSnapDecrypt: allowSnapOperations(canUseSnapOperations, options),
+    });
+    logger.log('[PrivateUnlock] private catalog refresh finished', {
+      ok: priv.ok,
+      reason: priv.ok ? undefined : priv.reason,
     });
     if (!priv.ok) return { ...priv, restoredAesKey: aes.aesKey };
     return { ok: true, restoredAesKey: aes.aesKey };

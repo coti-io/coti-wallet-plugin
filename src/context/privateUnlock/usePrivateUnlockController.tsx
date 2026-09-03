@@ -103,6 +103,8 @@ export function usePrivateUnlockController(
   const unlockInProgressOwnerRef = useRef<number | null>(null);
   const isPrivateUnlockedRef = useRef(unlock.isPrivateUnlocked);
   isPrivateUnlockedRef.current = unlock.isPrivateUnlocked;
+  const sessionAesKeyRef = useRef(sessionAesKey);
+  sessionAesKeyRef.current = sessionAesKey;
 
   const connectedAddress = wallet.walletAddress || '';
   const isMetaMaskWallet = walletTypeInfo.walletType === 'metamask';
@@ -455,6 +457,11 @@ export function usePrivateUnlockController(
     }
 
     if (step === 'complete') {
+      logger.log('[PrivateUnlock] AES provider reported complete; waiting for balance refresh before closing modal', {
+        currentStep,
+        showOnboardModal,
+        hasSessionAesKey: !!sessionAesKeyRef.current,
+      });
       return;
     }
 
@@ -480,21 +487,46 @@ export function usePrivateUnlockController(
   }, [currentStep, showOnboardModal, releaseUnlockInProgress]);
 
   const showOnboardingComplete = useCallback((requestId: number) => {
-    if (!isActiveUnlockRequest(requestId)) return;
+    if (!isActiveUnlockRequest(requestId)) {
+      logger.log('[PrivateUnlock] skip onboard close — request superseded', { requestId });
+      return;
+    }
 
     pendingCompleteRequestIdRef.current = null;
-    setShowOnboardModal(true);
-    setCurrentStep('complete');
-    releaseUnlockInProgress(requestId);
-    setIsUnlocking(false);
-  }, [isActiveUnlockRequest, releaseUnlockInProgress]);
+    const successWarning =
+      unlock.onboardingWarnings.success ?? modalRuntimeWarnings.success;
+    if (successWarning) {
+      logger.log('[PrivateUnlock] onboard succeeded with warning — keeping success screen');
+      setShowOnboardModal(true);
+      setCurrentStep('complete');
+      releaseUnlockInProgress(requestId);
+      setIsUnlocking(false);
+      return;
+    }
+
+    logger.log('[PrivateUnlock] onboard succeeded — closing modal', { requestId });
+    void finishSuccessfulOnboarding();
+  }, [
+    finishSuccessfulOnboarding,
+    isActiveUnlockRequest,
+    modalRuntimeWarnings.success,
+    releaseUnlockInProgress,
+    unlock.onboardingWarnings.success,
+  ]);
 
   useEffect(() => {
     const requestId = pendingCompleteRequestIdRef.current;
-    if (requestId === null || !sessionAesKey) return;
+    if (requestId === null || !sessionAesKey) {
+      return;
+    }
 
+    logger.log('[PrivateUnlock] session AES available while waiting to close onboard', {
+      requestId,
+      currentStep,
+      showOnboardModal,
+    });
     showOnboardingComplete(requestId);
-  }, [showOnboardingComplete, sessionAesKey]);
+  }, [currentStep, sessionAesKey, showOnboardModal, showOnboardingComplete]);
 
   const beginOnboarding = useCallback(async () => {
     if (!connectedAddress) return;
@@ -519,6 +551,15 @@ export function usePrivateUnlockController(
         return;
       }
 
+      logger.log('[PrivateUnlock] starting contract onboarding refresh', {
+        requestId,
+        persistToSnap: useSnapStorageForOnboarding,
+        saveBackup: useSnapStorageForOnboarding ? false : saveBackup,
+        currentStep,
+        closureHasSessionAesKey: !!sessionAesKey,
+        refHasSessionAesKey: !!sessionAesKeyRef.current,
+      });
+
       const onboardResult = await unlock.refreshPrivateBalances({
         forceContractOnboarding: true,
         saveBackup: useSnapStorageForOnboarding ? false : saveBackup,
@@ -531,18 +572,29 @@ export function usePrivateUnlockController(
         },
       });
       if (!onboardResult.ok) {
+        logger.log('[PrivateUnlock] contract onboarding refresh did not succeed', {
+          requestId,
+          reason: 'reason' in onboardResult ? onboardResult.reason : undefined,
+          currentStep,
+          refHasSessionAesKey: !!sessionAesKeyRef.current,
+        });
         handleOnboardingIncomplete(requestId);
         return;
       }
 
       if (!isActiveUnlockRequest(requestId)) {
+        logger.log('[PrivateUnlock] onboard refresh succeeded after request was superseded', {
+          requestId,
+        });
         return;
       }
 
-      logger.debug('[PrivateUnlock] contract onboarding result', {
+      logger.log('[PrivateUnlock] contract onboarding result', {
         ok: onboardResult.ok,
+        requestId,
         currentStep,
-        hasSessionAesKey: !!sessionAesKey,
+        closureHasSessionAesKey: !!sessionAesKey,
+        refHasSessionAesKey: !!sessionAesKeyRef.current,
         hasOnboardingError: !!unlock.onboardingError,
         hasOnboardingWarning: hasOnboardModalWarnings(unlock.onboardingWarnings),
       });
@@ -561,10 +613,17 @@ export function usePrivateUnlockController(
         return;
       }
 
-      if (sessionAesKey) {
+      // Arm the wait-effect before checking the key. Session AES is often
+      // committed during catalog refresh, so the beginOnboarding closure still
+      // sees null while the ref/effect already have the key.
+      pendingCompleteRequestIdRef.current = requestId;
+      if (sessionAesKeyRef.current) {
+        logger.log('[PrivateUnlock] session AES already present after onboard — closing');
         showOnboardingComplete(requestId);
       } else {
-        pendingCompleteRequestIdRef.current = requestId;
+        logger.log('[PrivateUnlock] waiting for session AES before closing onboard', {
+          requestId,
+        });
         setShowOnboardModal(true);
         setCurrentStep('validating-key');
       }
@@ -589,9 +648,14 @@ export function usePrivateUnlockController(
   }, [canUseSnap, connectSnap, connectedAddress, currentStep, dismissOnboardModal, handleContractOnboardingProgress, handleOnboardingIncomplete, isActiveUnlockRequest, onOnboardingCancelled, saveBackup, sessionAesKey, showOnboardingComplete, unlock, usesSnapStorage]);
 
   const handleOnboardModalClose = useCallback(() => {
+    const pendingCompleteRequestId = pendingCompleteRequestIdRef.current;
+    logger.log('[PrivateUnlock] onboard modal close clicked', {
+      currentStep,
+      pendingCompleteRequestId,
+    });
     if (
       currentStep === 'complete'
-      || (currentStep === 'validating-key' && pendingCompleteRequestIdRef.current !== null)
+      || (currentStep === 'validating-key' && pendingCompleteRequestId !== null)
     ) {
       void finishSuccessfulOnboarding();
       return;

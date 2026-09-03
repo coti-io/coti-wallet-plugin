@@ -1,6 +1,12 @@
+import { readFileSync } from 'node:fs';
 import { defineConfig } from 'tsup';
 
+const { version } = JSON.parse(readFileSync('./package.json', 'utf8')) as { version: string };
+
 export default defineConfig({
+  define: {
+    __PLUGIN_VERSION__: JSON.stringify(version),
+  },
   entry: {
     index: 'src/index.ts',
     rainbowkit: 'src/rainbowkit.ts',

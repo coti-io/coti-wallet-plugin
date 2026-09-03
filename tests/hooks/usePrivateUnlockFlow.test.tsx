@@ -308,13 +308,6 @@ describe('usePrivateUnlockFlow', () => {
     });
 
     expect(staleAction).not.toHaveBeenCalled();
-    expect(onUnlocked).not.toHaveBeenCalled();
-
-    await act(async () => {
-      await result.current.onboardModal.props.onClose();
-    });
-
-    expect(staleAction).not.toHaveBeenCalled();
     expect(onUnlocked).toHaveBeenCalledTimes(1);
   });
 
@@ -626,12 +619,10 @@ describe('usePrivateUnlockFlow', () => {
       persistToSnap: false,
       onProgress: expect.any(Function),
     });
-    expect(result.current.onboardModal.props.runtimeWarnings).toEqual({
-      intro: 'Snap connection was skipped or rejected. Continuing without Snap storage.',
-    });
+    expect(result.current.showOnboardModal).toBe(false);
   });
 
-  it('keeps success screen open with AES key after contract onboarding until dismissed', async () => {
+  it('closes the onboard modal after contract onboarding succeeds', async () => {
     const onUnlocked = vi.fn();
     const pendingAction = vi.fn();
     mockRefreshPrivateBalances
@@ -651,19 +642,34 @@ describe('usePrivateUnlockFlow', () => {
       await result.current.onboardModal.props.onConfirm();
     });
 
-    expect(result.current.showOnboardModal).toBe(true);
-    expect(result.current.onboardModal.props.currentStep).toBe('complete');
+    expect(result.current.showOnboardModal).toBe(false);
     expect(result.current.onboardModal.props.aesKey).toBeUndefined();
-    expect(onUnlocked).not.toHaveBeenCalled();
-    expect(pendingAction).not.toHaveBeenCalled();
+    expect(onUnlocked).toHaveBeenCalledTimes(1);
+    expect(pendingAction).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes the onboard modal when session AES is committed during catalog refresh', async () => {
+    const onUnlocked = vi.fn();
+    const { result, rerender } = renderHook(() => usePrivateUnlockFlow({ onUnlocked }));
+
+    mockRefreshPrivateBalances
+      .mockResolvedValueOnce(false)
+      .mockImplementationOnce(async () => {
+        mockSessionAesKey = 'e'.repeat(32);
+        rerender();
+        return true;
+      });
 
     await act(async () => {
-      await result.current.onboardModal.props.onClose();
+      await result.current.openUnlockFlow();
+    });
+
+    await act(async () => {
+      await result.current.onboardModal.props.onConfirm();
     });
 
     expect(result.current.showOnboardModal).toBe(false);
     expect(onUnlocked).toHaveBeenCalledTimes(1);
-    expect(pendingAction).toHaveBeenCalledTimes(1);
   });
 
   it('runs pending action when closing during validating-key after unlock succeeded', async () => {
@@ -732,8 +738,7 @@ describe('usePrivateUnlockFlow', () => {
       await onboardPromise;
     });
 
-    expect(result.current.showOnboardModal).toBe(true);
-    expect(result.current.onboardModal.props.currentStep).toBe('complete');
+    expect(result.current.showOnboardModal).toBe(false);
     expect(result.current.walletSignPrompt.props.isOpen).toBe(false);
   });
 
@@ -875,7 +880,7 @@ describe('usePrivateUnlockFlow', () => {
     expect(result.current.onboardModal.props.currentStep).toBe('error');
   });
 
-  it('keeps success screen open after snap-backed contract onboarding succeeds', async () => {
+  it('closes the onboard modal after snap-backed contract onboarding succeeds', async () => {
     mockWalletType = 'metamask';
     mockIsMetaMaskWithSnap = true;
     mockRefreshPrivateBalances
@@ -894,14 +899,6 @@ describe('usePrivateUnlockFlow', () => {
 
     await act(async () => {
       await result.current.onboardModal.props.onConfirm();
-    });
-
-    expect(result.current.showOnboardModal).toBe(true);
-    expect(result.current.onboardModal.props.currentStep).toBe('complete');
-    expect(onUnlocked).not.toHaveBeenCalled();
-
-    await act(async () => {
-      await result.current.onboardModal.props.onClose();
     });
 
     expect(result.current.showOnboardModal).toBe(false);
@@ -958,13 +955,47 @@ describe('usePrivateUnlockFlow', () => {
         await vi.advanceTimersByTimeAsync(1);
         await onboardPromise;
       });
-      expect(result.current.onboardModal.props.currentStep).toBe('complete');
+      expect(result.current.showOnboardModal).toBe(false);
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it('does not pass stale provider errors while showing onboarding success', async () => {
+  it('keeps the success screen when contract onboarding succeeds with a warning', async () => {
+    const onUnlocked = vi.fn();
+    mockOnboardingWarnings = {
+      success: 'Onboarding succeeded, but the AES key could not be saved to MetaMask Snap.',
+    };
+    mockRefreshPrivateBalances
+      .mockResolvedValueOnce(false)
+      .mockImplementationOnce(async () => {
+        mockSessionAesKey = 'f'.repeat(32);
+        return true;
+      });
+
+    const { result } = renderHook(() => usePrivateUnlockFlow({ onUnlocked }));
+
+    await act(async () => {
+      await result.current.openUnlockFlow();
+    });
+
+    await act(async () => {
+      await result.current.onboardModal.props.onConfirm();
+    });
+
+    expect(result.current.showOnboardModal).toBe(true);
+    expect(result.current.onboardModal.props.currentStep).toBe('complete');
+    expect(onUnlocked).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await result.current.onboardModal.props.onClose();
+    });
+
+    expect(result.current.showOnboardModal).toBe(false);
+    expect(onUnlocked).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not pass stale provider errors after contract onboarding succeeds', async () => {
     mockWalletType = 'metamask';
     mockIsMetaMaskWithSnap = true;
     mockOnboardingError = 'stale provider error';
@@ -985,8 +1016,7 @@ describe('usePrivateUnlockFlow', () => {
       await result.current.onboardModal.props.onConfirm();
     });
 
-    expect(result.current.showOnboardModal).toBe(true);
-    expect(result.current.onboardModal.props.currentStep).toBe('complete');
+    expect(result.current.showOnboardModal).toBe(false);
     expect(result.current.onboardModal.props.error).toBeNull();
   });
 
@@ -1026,7 +1056,7 @@ describe('usePrivateUnlockFlow', () => {
     });
 
     expect(result.current.isUnlocking).toBe(false);
-    expect(result.current.onboardModal.props.currentStep).toBe('complete');
+    expect(result.current.showOnboardModal).toBe(false);
   });
 
   it('does not move contract onboarding progress backwards after execute starts', async () => {

@@ -1,3 +1,5 @@
+export { PLUGIN_VERSION } from './version';
+
 // Configuration
 export {
   configureCotiPlugin,
