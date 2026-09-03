@@ -494,7 +494,7 @@ export function usePrivateUnlockController(
 
     pendingCompleteRequestIdRef.current = null;
     const successWarning =
-      unlock.onboardingWarnings.success ?? modalRuntimeWarnings.success;
+      unlock.onboardingWarnings?.success ?? modalRuntimeWarnings.success;
     if (successWarning) {
       logger.log('[PrivateUnlock] onboard succeeded with warning — keeping success screen');
       setShowOnboardModal(true);
@@ -511,7 +511,7 @@ export function usePrivateUnlockController(
     isActiveUnlockRequest,
     modalRuntimeWarnings.success,
     releaseUnlockInProgress,
-    unlock.onboardingWarnings.success,
+    unlock.onboardingWarnings?.success,
   ]);
 
   useEffect(() => {
