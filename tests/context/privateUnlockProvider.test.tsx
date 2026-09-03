@@ -123,7 +123,7 @@ describe('PrivateUnlockProvider', () => {
     expect(onboardModalProps?.isOpen).toBe(false);
   });
 
-  it('shows AES key success screen after contract onboarding until Done', async () => {
+  it('closes the onboard modal after contract onboarding succeeds', async () => {
     const pendingAction = vi.fn();
     mockRefreshPrivateBalances
       .mockResolvedValueOnce(false)
@@ -144,15 +144,7 @@ describe('PrivateUnlockProvider', () => {
 
     rerender();
 
-    expect(onboardModalProps?.isOpen).toBe(true);
-    expect(onboardModalProps?.currentStep).toBe('complete');
-    expect(onboardModalProps?.currentStep).toBe('complete');
-    expect(pendingAction).not.toHaveBeenCalled();
-
-    await act(async () => {
-      onboardModalProps?.onClose?.();
-    });
-
+    expect(onboardModalProps?.isOpen).toBe(false);
     expect(pendingAction).toHaveBeenCalledTimes(1);
   });
 

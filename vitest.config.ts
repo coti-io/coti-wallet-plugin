@@ -1,7 +1,13 @@
+import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vitest/config';
 import path from 'path';
 
+const { version } = JSON.parse(readFileSync('./package.json', 'utf8')) as { version: string };
+
 export default defineConfig({
+  define: {
+    __PLUGIN_VERSION__: JSON.stringify(version),
+  },
   test: {
     globals: true,
     environment: 'jsdom',
