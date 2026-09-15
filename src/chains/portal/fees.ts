@@ -48,7 +48,7 @@ export const quotePodPortalTransactionFees = async (params: {
     "provider" in params.runner && params.runner.provider
       ? (params.runner.provider as ethers.Provider)
       : (params.runner as ethers.Provider);
-  const gasPrice = params.gasPrice ?? await resolvePodTxGasPrice(provider);
+  const gasPrice = params.gasPrice ?? await resolvePodTxGasPrice(provider, params.chainId);
   const nativeSymbol =
     getChainConfig(params.chainId)?.walletNetwork.nativeCurrency.symbol ?? "ETH";
 

@@ -10,8 +10,9 @@ import {
 import { PRIVACY_PORTAL_ABI } from "../../contracts/pod";
 import { getChainConfig, getRpcUrlForChain } from "../index";
 import { logger } from "../../lib/logger";
-import { getPodSdkConfig } from "./podSdkConfig";
-import { POD_DEFAULT_CALLBACK_DATA_SIZE, POD_INBOX_ADDRESS } from "../podInbox";
+import { getPodEncryptionNetwork, getPodInboxAddress, getPodSdkConfig } from "./podSdkConfig";
+import { POD_DEFAULT_CALLBACK_DATA_SIZE } from "../podInbox";
+import { AVALANCHE_C_CHAIN_ID } from "../avalanche";
 import type { TokenConfig } from "../types";
 
 export interface PodWithdrawPermit {
@@ -43,11 +44,17 @@ export const POD_GAS_PRICE_BUFFER_BPS = 1100n;
 
 /**
  * Floor for PoD tx gas price (wei). Matches InboxFeeManager `DEFAULT_GAS_PRICE`
- * (2 gwei). Fuji/Sepolia `eth_gasPrice` can crater to ~100 wei; quoting and
- * pinning below the inbox default under-budgets callback/remote legs and also
- * triggers Avalanche Coreth `eth_estimateGas` returning `(balance-value)/gasPrice`.
+ * (2 gwei) on testnet / COTI. Fuji/Sepolia `eth_gasPrice` can crater to ~100 wei;
+ * quoting and pinning below the inbox default under-budgets callback/remote legs
+ * and also triggers Avalanche Coreth `eth_estimateGas` returning `(balance-value)/gasPrice`.
  */
 export const POD_MIN_TX_GAS_PRICE_WEI = 2_000_000_000n;
+
+/** Avalanche C-Chain inbox `minGasPriceWei` from deployConfig.mainnet.yaml. */
+export const POD_AVALANCHE_C_MIN_TX_GAS_PRICE_WEI = 25_000_000_000n;
+
+export const resolvePodMinTxGasPriceWei = (chainId?: number): bigint =>
+  chainId === AVALANCHE_C_CHAIN_ID ? POD_AVALANCHE_C_MIN_TX_GAS_PRICE_WEI : POD_MIN_TX_GAS_PRICE_WEI;
 
 /** Buffer applied on top of `eth_estimateGas` for PoD portal / pToken sends. */
 export const POD_GAS_ESTIMATE_BUFFER_PERCENT = 130n;
@@ -64,7 +71,7 @@ export const getPodGasPrice = async (
 /**
  * Gas price for PoD inbox fee estimation and tx send.
  * Uses `eth_gasPrice` only (with a 10% buffer) so estimate and `tx.gasprice`
- * stay aligned per pod-sdk inbox rules, floored at {@link POD_MIN_TX_GAS_PRICE_WEI}.
+ * stay aligned per pod-sdk inbox rules, floored at {@link resolvePodMinTxGasPriceWei}.
  *
  * Avoids `provider.getFeeData()` — ethers maps that to
  * `eth_maxPriorityFeePerGas`, which MetaMask rejects (-32601) on the injected
@@ -72,10 +79,12 @@ export const getPodGasPrice = async (
  */
 export const resolvePodTxGasPrice = async (
   provider: ethers.BrowserProvider | ethers.JsonRpcProvider | ethers.Provider,
+  chainId?: number,
 ): Promise<bigint> => {
   const base = await getPodGasPrice(provider);
   const buffered = (base * POD_GAS_PRICE_BUFFER_BPS) / 1000n;
-  return buffered > POD_MIN_TX_GAS_PRICE_WEI ? buffered : POD_MIN_TX_GAS_PRICE_WEI;
+  const floor = resolvePodMinTxGasPriceWei(chainId);
+  return buffered > floor ? buffered : floor;
 };
 
 /**
@@ -250,10 +259,11 @@ export const buildPodMethodArgs = (params: {
 export const createPodContract = (
   portalAddress: string,
   runner: ethers.ContractRunner,
+  chainId: number,
 ) =>
   new PodContract(portalAddress, PRIVACY_PORTAL_ABI, runner, {
-    config: getPodSdkConfig(),
-    inboxAddress: POD_INBOX_ADDRESS,
+    config: getPodSdkConfig(chainId),
+    inboxAddress: getPodInboxAddress(chainId),
   });
 
 const fallbackExecutionGasLimit = (
@@ -354,7 +364,7 @@ export const estimatePodFee = async (params: {
   args: PodMethodArgument[];
   gasPrice: bigint;
 }): Promise<PodFeeEstimate> => {
-  const pod = createPodContract(params.portalAddress, params.runner);
+  const pod = createPodContract(params.portalAddress, params.runner, params.chainId);
   const feeCfg = resolvePodFeeEstimationConfig(params.chainId, params.direction, params.gasPrice);
   return pod.estimateFee(params.method, params.args, feeCfg);
 };
@@ -439,7 +449,7 @@ export const sendPodPortalMethod = async (params: {
   /** Precomputed PoD fee (from {@link estimatePodFee}) to avoid re-estimating. */
   fee?: PodFeeEstimate;
 }): Promise<ethers.ContractTransactionResponse> => {
-  const pod = createPodContract(params.portalAddress, params.runner);
+  const pod = createPodContract(params.portalAddress, params.runner, params.chainId);
   const fee = params.fee ?? await pod.estimateFee(
     params.method,
     params.args,
@@ -449,7 +459,7 @@ export const sendPodPortalMethod = async (params: {
   const cbIndex = params.args.findIndex(arg => arg.isCallBackFee);
   const encodedArgs = await encodePodMethodArguments(
     params.args.map(arg => ({ ...arg })),
-    getPodSdkConfig().encryptionNetwork ?? "testnet",
+    getPodEncryptionNetwork(params.chainId),
     false,
   );
   if (cbIndex !== -1) {

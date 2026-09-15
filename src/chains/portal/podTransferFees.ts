@@ -11,8 +11,8 @@ import {
 import { POD_PTOKEN_ABI } from "../../contracts/pod";
 import { getChainConfig, getRpcUrlForChain } from "../index";
 import { logger } from "../../lib/logger";
-import { getPodSdkConfig } from "./podSdkConfig";
-import { POD_DEFAULT_CALLBACK_DATA_SIZE, POD_INBOX_ADDRESS } from "../podInbox";
+import { getPodEncryptionNetwork, getPodInboxAddress, getPodSdkConfig } from "./podSdkConfig";
+import { POD_DEFAULT_CALLBACK_DATA_SIZE } from "../podInbox";
 import {
   buildPodPortalTxGasOverrides,
   bufferPodEstimatedGasLimit,
@@ -47,10 +47,11 @@ export type PodTransferFeeQuote = {
 export const createPodPTokenContract = (
   pTokenAddress: string,
   runner: ethers.ContractRunner,
+  chainId: number,
 ) =>
   new PodContract(pTokenAddress, POD_PTOKEN_ABI, runner, {
-    config: getPodSdkConfig(),
-    inboxAddress: POD_INBOX_ADDRESS,
+    config: getPodSdkConfig(chainId),
+    inboxAddress: getPodInboxAddress(chainId),
   });
 
 export const buildPodTransferMethodArgs = (params: {
@@ -91,7 +92,7 @@ export const estimatePodTransferFee = async (params: {
   args: PodMethodArgument[];
   gasPrice: bigint;
 }): Promise<PodFeeEstimate> => {
-  const pod = createPodPTokenContract(params.pTokenAddress, params.runner);
+  const pod = createPodPTokenContract(params.pTokenAddress, params.runner, params.chainId);
   const feeCfg = resolvePodTransferFeeEstimationConfig(params.chainId, params.gasPrice);
   return pod.estimateFee(POD_TRANSFER_METHOD, params.args, feeCfg);
 };
@@ -123,7 +124,7 @@ export const quotePodTransferFees = async (params: {
     "provider" in params.runner && params.runner.provider
       ? (params.runner.provider as ethers.Provider)
       : (params.runner as ethers.Provider);
-  const gasPrice = params.gasPrice ?? (await resolvePodTxGasPrice(provider));
+  const gasPrice = params.gasPrice ?? (await resolvePodTxGasPrice(provider, params.chainId));
   const args = buildPodTransferMethodArgs({
     recipient: params.recipient,
     amountWei: params.amountWei,
@@ -174,7 +175,7 @@ export const sendPodTransferMethod = async (params: {
   gasLimit?: bigint;
   fee?: PodFeeEstimate;
 }): Promise<ethers.ContractTransactionResponse> => {
-  const pod = createPodPTokenContract(params.pTokenAddress, params.runner);
+  const pod = createPodPTokenContract(params.pTokenAddress, params.runner, params.chainId);
   const fee =
     params.fee ??
     (await pod.estimateFee(
@@ -193,7 +194,7 @@ export const sendPodTransferMethod = async (params: {
 
   const encodedArgs = await encodePodMethodArguments(
     params.args.map(arg => ({ ...arg })),
-    getPodSdkConfig().encryptionNetwork ?? "testnet",
+    getPodEncryptionNetwork(params.chainId),
     true,
     encryptContext,
   );

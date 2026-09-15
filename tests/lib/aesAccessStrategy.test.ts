@@ -11,6 +11,7 @@ import {
 } from '../../src/lib/aesAccessStrategy';
 import { configureCotiPlugin } from '../../src/config/plugin';
 import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID, SEPOLIA_CHAIN_ID } from '../../src/config/chains';
+import { AVALANCHE_C_CHAIN_ID } from '../../src/chains/avalanche';
 
 const strategy = (overrides: Partial<AesAccessStrategy> = {}): AesAccessStrategy => ({
   mode: 'local' as const,
@@ -158,6 +159,10 @@ describe('resolveAesKeyChainId', () => {
 
   it('falls back to COTI testnet for PoD chains without explicit config', () => {
     expect(resolveAesKeyChainId(SEPOLIA_CHAIN_ID)).toBe(COTI_TESTNET_CHAIN_ID);
+  });
+
+  it('falls back to COTI mainnet when connected to Avalanche C-Chain', () => {
+    expect(resolveAesKeyChainId(AVALANCHE_C_CHAIN_ID)).toBe(COTI_MAINNET_CHAIN_ID);
   });
 
   it('throws for invalid per-call AES chain override', () => {

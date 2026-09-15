@@ -59,6 +59,9 @@ export const SEPOLIA_RPC_FALLBACK = sepoliaChain.rpcFallbackUrls?.[0] ?? sepolia
 export const AVALANCHE_FUJI_RPC = avalancheFujiChain.rpcUrl;
 export const AVALANCHE_FUJI_RPC_FALLBACK =
   avalancheFujiChain.rpcFallbackUrls?.[0] ?? avalancheFujiChain.rpcUrl;
+export const AVALANCHE_C_RPC = avalancheCChain.rpcUrl;
+export const AVALANCHE_C_RPC_FALLBACK =
+  avalancheCChain.rpcFallbackUrls?.[0] ?? avalancheCChain.rpcUrl;
 export const ETHEREUM_MAINNET_RPC = ethereumMainnetChain.rpcUrl;
 export { ETHEREUM_MAINNET_CHAIN_ID };
 

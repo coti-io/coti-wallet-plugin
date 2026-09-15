@@ -107,7 +107,7 @@ export async function executePodPrivateTokenTransfer(
     provider: browserProvider,
   });
 
-  const gasPrice = await resolvePodTxGasPrice(browserProvider);
+  const gasPrice = await resolvePodTxGasPrice(browserProvider, chainId);
   const args = buildPodTransferMethodArgs({ recipient, amountWei });
   const podFee = await estimatePodTransferFee({
     runner: signer,

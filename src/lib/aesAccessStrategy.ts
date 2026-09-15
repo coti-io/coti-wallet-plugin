@@ -5,7 +5,8 @@ import {
   type AesKeyChainId,
   type EncryptedAesBackup,
 } from '../config/plugin';
-import { COTI_TESTNET_CHAIN_ID } from '../config/chains';
+import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID } from '../config/chains';
+import { AVALANCHE_C_CHAIN_ID } from '../chains/avalanche';
 import { CotiPluginError, CotiErrorCode } from '../errors';
 import { logger } from './logger';
 import { isOnboardingServicesEnabled } from './onboardingServices';
@@ -79,6 +80,10 @@ export function resolveAesKeyChainId(
 
   if (isAesKeyChainId(currentChainId)) {
     return currentChainId;
+  }
+
+  if (currentChainId === AVALANCHE_C_CHAIN_ID) {
+    return COTI_MAINNET_CHAIN_ID;
   }
 
   return COTI_TESTNET_CHAIN_ID;

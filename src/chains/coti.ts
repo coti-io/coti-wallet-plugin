@@ -81,6 +81,8 @@ export const cotiMainnetChain: ChainConfig = {
   explorerBaseUrl: "https://mainnet.cotiscan.io",
   unlockStrategy: "snap",
   portalStrategy: "coti-bridge",
+  // PoD price oracle from pod-ecosystem-integration deployConfig.mainnet.yaml (COTI mainnet).
+  priceOracleAddress: "0x216ed3d3b2a1da9372caf6f2747d8f0aabe1de67",
   addresses: {
     PrivateCoti: "",
     PrivacyBridgeCotiNative: "",
