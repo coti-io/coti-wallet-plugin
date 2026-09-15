@@ -14,8 +14,6 @@ import {
 } from '@coti-io/coti-wallet-plugin';
 import { useExampleTheme } from './ExampleThemeContext';
 
-const COTI_TESTNET_CHAIN_ID = 7082400;
-
 const ONBOARDING_GRANT_ENABLED = import.meta.env.VITE_ONBOARDING_GRANT_ENABLED !== 'false';
 const GRANT_API_URL_TESTNET = import.meta.env.VITE_GRANT_API_URL_TESTNET?.replace(/\/$/, '');
 const GRANT_API_URL_MAINNET = import.meta.env.VITE_GRANT_API_URL_MAINNET?.replace(/\/$/, '');
@@ -58,7 +56,6 @@ configureCotiPlugin({
   ...(LOCAL_SNAP_ID ? { snapId: LOCAL_SNAP_ID } : {}),
   ...(LOCAL_SNAP_VERSION ? { snapVersion: LOCAL_SNAP_VERSION } : {}),
   snapEnabled: SNAP_ENABLED,
-  aesKeyChainId: COTI_TESTNET_CHAIN_ID,
   additionalSnapAesWriteOrigins: LOCAL_SNAP_AES_WRITE_ORIGINS,
   debug: true,
   onboardingGrantEnabled: ONBOARDING_GRANT_ENABLED,

@@ -2,7 +2,7 @@ import { ethers } from "ethers";
 import { getPluginConfig } from "../config/plugin";
 import { AVALANCHE_FUJI_CHAIN_ID } from "../chains/avalancheFuji";
 import { AVALANCHE_C_CHAIN_ID } from "../chains/avalanche";
-import { COTI_TESTNET_CHAIN_ID } from "../chains/coti";
+import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID } from "../chains/coti";
 import { getNetworkNameForChain } from "../chains";
 import { getRpcUrlsForChain } from "../chains/rpcUrls";
 import { SEPOLIA_CHAIN_ID } from "../chains/sepolia";
@@ -161,6 +161,8 @@ export const resolveRpcUrlsForChain = (chainId?: number | string | null): string
     override = plugin.sepoliaRpcUrl;
   } else if (numericId === COTI_TESTNET_CHAIN_ID && plugin.cotiTestnetRpcUrl) {
     override = plugin.cotiTestnetRpcUrl;
+  } else if (numericId === COTI_MAINNET_CHAIN_ID && plugin.cotiMainnetRpcUrl) {
+    override = plugin.cotiMainnetRpcUrl;
   }
   let urls = !override ? base : [...new Set([override, ...base])];
 

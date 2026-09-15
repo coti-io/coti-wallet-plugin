@@ -44,6 +44,7 @@ import {
   getPodGasPrice,
   POD_GAS_PRICE_BUFFER_BPS,
   POD_MIN_TX_GAS_PRICE_WEI,
+  POD_AVALANCHE_C_MIN_TX_GAS_PRICE_WEI,
   quotePortalFeeOnly,
   resolvePodFeeEstimationConfig,
   resolvePodPortalMethod,
@@ -52,6 +53,7 @@ import {
   sendPodPortalMethod,
 } from '../../../src/chains/portal/podPortalFees';
 import { POD_DEFAULT_CALLBACK_DATA_SIZE } from '../../../src/chains/podInbox';
+import { AVALANCHE_C_CHAIN_ID } from '../../../src/chains/avalanche';
 
 const PORTAL = '0x' + 'a'.repeat(40);
 const WALLET = '0x' + '1'.repeat(40);
@@ -116,6 +118,13 @@ describe('getPodGasPrice / resolvePodTxGasPrice', () => {
 
     const fujiLike = makeProvider({ gasPriceWei: 151n });
     await expect(resolvePodTxGasPrice(fujiLike as never)).resolves.toBe(POD_MIN_TX_GAS_PRICE_WEI);
+  });
+
+  it('floors Avalanche C-Chain gas prices at the inbox minGasPriceWei (25 gwei)', async () => {
+    const low = makeProvider({ gasPriceWei: 1n });
+    await expect(resolvePodTxGasPrice(low as never, AVALANCHE_C_CHAIN_ID)).resolves.toBe(
+      POD_AVALANCHE_C_MIN_TX_GAS_PRICE_WEI,
+    );
   });
 
   it('handles very high gas prices without flooring', async () => {

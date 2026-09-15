@@ -31,6 +31,16 @@ describe('Contract Configuration (README: Supported Networks & Tokens)', () => {
       expect(addresses['p.MTT']).toBeDefined();
     });
 
+    it('has Avalanche C-Chain portal and pToken addresses (43114)', () => {
+      const addresses = CONTRACT_ADDRESSES[43114];
+      expect(addresses).toBeDefined();
+      expect(addresses.PrivacyPortalUSDC).toBe('0xeAce463ea0B85E728D2d5404a0653Af50113356c');
+      expect(addresses['p.USDC']).toBe('0x13AE6A6429fA6F2dfD0DBE79C85B28DdC74111BE');
+      expect(addresses.PrivacyPortalAVAX).toBe('0x3b17A57Ecd4B74603A171024203f34E9FC473255');
+      expect(addresses['p.AVAX']).toBe('0xf632A73D5923BBC1F87BA727D7261436bA768c85');
+      expect(addresses.PrivacyPortalFactory).toBe('0xc25ac091b5a6377024f8cbd90c836eac185c3a57');
+    });
+
     it('testnet has all ERC20 bridge addresses', () => {
       const addresses = CONTRACT_ADDRESSES[7082400];
       expect(addresses.PrivacyBridgeWETH).toBeDefined();

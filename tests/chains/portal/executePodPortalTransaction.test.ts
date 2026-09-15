@@ -90,7 +90,13 @@ import {
   type PodWithdrawPermit,
 } from '../../../src/chains/portal/executePodPortalTransaction';
 import { PRIVACY_PORTAL_ABI, SEPOLIA_CHAIN_ID } from '../../../src/contracts/pod';
-import { POD_INBOX_ADDRESS } from '../../../src/chains/podInbox';
+import {
+  POD_INBOX_ADDRESS,
+  POD_MAINNET_INBOX_ADDRESS,
+  POD_TESTNET_INBOX_ADDRESS,
+} from '../../../src/chains/podInbox';
+import { POD_MAINNET_ENCRYPTION_SERVICE_URL } from '../../../src/chains/portal/podSdkConfig';
+import { AVALANCHE_C_CHAIN_ID, COTI_MAINNET_CHAIN_ID } from '../../../src/chains';
 import { configureCotiPlugin } from '../../../src/config/plugin';
 import { logger } from '../../../src/lib/logger';
 
@@ -189,25 +195,52 @@ beforeEach(() => {
 
 describe('getPodSdkConfig', () => {
   it('uses plugin-config RPC overrides when present', () => {
-    configureCotiPlugin({ sepoliaRpcUrl: 'https://sep.example', cotiTestnetRpcUrl: 'https://coti.example' });
+    configureCotiPlugin({
+      sepoliaRpcUrl: 'https://sep.example',
+      cotiTestnetRpcUrl: 'https://coti.example',
+      cotiMainnetRpcUrl: 'https://coti-main.example',
+    });
     const cfg = getPodSdkConfig();
     const sepolia = cfg.chains.find(c => c.chainId === SEPOLIA_CHAIN_ID);
     const coti = cfg.chains.find(c => c.chainId === 7082400);
     expect(sepolia?.rpcUrl).toBe('https://sep.example');
     expect(coti?.rpcUrl).toBe('https://coti.example');
-    configureCotiPlugin({ sepoliaRpcUrl: undefined, cotiTestnetRpcUrl: undefined });
+
+    const mainnet = getPodSdkConfig(COTI_MAINNET_CHAIN_ID);
+    expect(mainnet.chains.find(c => c.chainId === COTI_MAINNET_CHAIN_ID)?.rpcUrl).toBe(
+      'https://coti-main.example',
+    );
+    configureCotiPlugin({
+      sepoliaRpcUrl: undefined,
+      cotiTestnetRpcUrl: undefined,
+      cotiMainnetRpcUrl: undefined,
+    });
   });
 
-  it('reads inbox addresses from chain config', () => {
+  it('reads testnet inbox addresses by default', () => {
     const cfg = getPodSdkConfig();
+    expect(cfg.encryptionNetwork).toBe('testnet');
     expect(cfg.chains.every(c => c.inboxAddress.startsWith('0x'))).toBe(true);
     expect(cfg.chains.find(c => c.chainId === SEPOLIA_CHAIN_ID)?.inboxAddress).toBe(
-      POD_INBOX_ADDRESS,
+      POD_TESTNET_INBOX_ADDRESS,
     );
     expect(cfg.chains.find(c => c.chainId === 7082400)?.inboxAddress).toBe(
-      POD_INBOX_ADDRESS,
+      POD_TESTNET_INBOX_ADDRESS,
     );
-    expect(cfg.chains.every(c => c.inboxAddress === POD_INBOX_ADDRESS)).toBe(true);
+    expect(cfg.chains.every(c => c.inboxAddress === POD_TESTNET_INBOX_ADDRESS)).toBe(true);
+  });
+
+  it('reads mainnet inbox and encryption gateway for Avalanche C-Chain and COTI mainnet', () => {
+    const cfg = getPodSdkConfig(AVALANCHE_C_CHAIN_ID);
+    expect(cfg.encryptionNetwork).toBe(POD_MAINNET_ENCRYPTION_SERVICE_URL);
+    expect(cfg.trustedEncryptionServiceUrls).toEqual([POD_MAINNET_ENCRYPTION_SERVICE_URL]);
+    expect(cfg.chains.map(c => c.chainId).sort()).toEqual(
+      [AVALANCHE_C_CHAIN_ID, COTI_MAINNET_CHAIN_ID].sort(),
+    );
+    expect(cfg.chains.every(c => c.inboxAddress === POD_MAINNET_INBOX_ADDRESS)).toBe(true);
+    expect(getPodSdkConfig(COTI_MAINNET_CHAIN_ID).encryptionNetwork).toBe(
+      POD_MAINNET_ENCRYPTION_SERVICE_URL,
+    );
   });
 
   it('falls back to chain default RPC URLs when not configured', () => {
@@ -216,8 +249,11 @@ describe('getPodSdkConfig', () => {
     expect(typeof cfg.chains[0].rpcUrl).toBe('string');
   });
 
-  it('returns the shared inbox address and rejects unknown tracking chains', () => {
+  it('returns the family inbox address and rejects unknown tracking chains', () => {
+    expect(getPodInboxAddress(SEPOLIA_CHAIN_ID)).toBe(POD_TESTNET_INBOX_ADDRESS);
     expect(getPodInboxAddress(SEPOLIA_CHAIN_ID)).toBe(POD_INBOX_ADDRESS);
+    expect(getPodInboxAddress(AVALANCHE_C_CHAIN_ID)).toBe(POD_MAINNET_INBOX_ADDRESS);
+    expect(getPodInboxAddress(COTI_MAINNET_CHAIN_ID)).toBe(POD_MAINNET_INBOX_ADDRESS);
     expect(() => getPodInboxAddress(1)).toThrow(/PoD inbox is not registered/);
   });
 });

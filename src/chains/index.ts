@@ -4,7 +4,12 @@ import {
   COTI_MAINNET_CHAIN_ID,
   COTI_TESTNET_CHAIN_ID,
 } from "./coti";
-import { COTI_TESTNET_POD_INBOX, POD_INBOX_ADDRESS } from "./podInbox";
+import {
+  COTI_TESTNET_POD_INBOX,
+  POD_INBOX_ADDRESS,
+  POD_MAINNET_INBOX_ADDRESS,
+  POD_TESTNET_INBOX_ADDRESS,
+} from "./podInbox";
 import { sepoliaChain, SEPOLIA_CHAIN_ID } from "./sepolia";
 import { avalancheFujiChain, AVALANCHE_FUJI_CHAIN_ID } from "./avalancheFuji";
 import { avalancheCChain, AVALANCHE_C_CHAIN_ID } from "./avalanche";
@@ -23,6 +28,8 @@ export {
   COTI_TESTNET_CHAIN_ID,
   COTI_TESTNET_POD_INBOX,
   POD_INBOX_ADDRESS,
+  POD_MAINNET_INBOX_ADDRESS,
+  POD_TESTNET_INBOX_ADDRESS,
   SEPOLIA_CHAIN_ID,
   AVALANCHE_FUJI_CHAIN_ID,
   AVALANCHE_C_CHAIN_ID,
@@ -122,7 +129,10 @@ export {
   COTI_TESTNET_RPC,
   SEPOLIA_RPC,
   SEPOLIA_RPC_FALLBACK,
+  AVALANCHE_FUJI_RPC,
   AVALANCHE_FUJI_RPC_FALLBACK,
+  AVALANCHE_C_RPC,
+  AVALANCHE_C_RPC_FALLBACK,
   getRpcUrlForChainId,
 } from "./viemChains";
 export { getRpcUrlsForChain } from "./rpcUrls";

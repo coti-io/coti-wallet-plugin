@@ -9,7 +9,11 @@ import {
   type PodPortalRequest,
 } from "../../contracts/pod";
 import { loadPodRequests } from "../../pod/podPortalRequestsStorage";
-import { AVALANCHE_FUJI_CHAIN_ID } from "../index";
+import {
+  AVALANCHE_C_CHAIN_ID,
+  AVALANCHE_FUJI_CHAIN_ID,
+  COTI_MAINNET_CHAIN_ID,
+} from "../index";
 import type { PodSdkConfig } from "@coti-io/pod-sdk";
 
 const TERMINAL_POD_REQUEST_STATUSES = new Set<PodPortalRequest["status"]>([
@@ -84,7 +88,9 @@ export const formatBlockingPodLogSummary = (
 const chainIdToExplorerSlug = (chainId: number) => {
   if (chainId === SEPOLIA_CHAIN_ID) return "sepolia";
   if (chainId === COTI_TESTNET_CHAIN_ID) return "coti";
+  if (chainId === COTI_MAINNET_CHAIN_ID) return "coti-mainnet";
   if (chainId === AVALANCHE_FUJI_CHAIN_ID) return "fuji";
+  if (chainId === AVALANCHE_C_CHAIN_ID) return "avalanche";
   return String(chainId);
 };
 
@@ -187,7 +193,7 @@ const enrichWithPodTracking = async (
 
   try {
     const { getPodSdkConfig } = await import("./podSdkConfig");
-    const tracker = new PodRequest(getPodSdkConfig() as PodSdkConfig);
+    const tracker = new PodRequest(getPodSdkConfig(candidate.chainId) as PodSdkConfig);
     const tracking = await tracker.trackRequest(candidate.chainId, candidate.requestId);
     const stillInFlight = isPodRequestStillInFlight(candidate.kind, tracking);
     return {

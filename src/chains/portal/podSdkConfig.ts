@@ -1,24 +1,44 @@
 import type { PodSdkConfig } from "@coti-io/pod-sdk";
-import { COTI_TESTNET_CHAIN_ID, SEPOLIA_CHAIN_ID } from "../../contracts/pod";
 import { getPluginConfig, type CotiPluginConfig } from "../../config/plugin";
-import { AVALANCHE_FUJI_CHAIN_ID, getRpcUrlForChain } from "../index";
-import { POD_INBOX_ADDRESS } from "../podInbox";
+import { AVALANCHE_C_CHAIN_ID } from "../avalanche";
+import { AVALANCHE_FUJI_CHAIN_ID } from "../avalancheFuji";
+import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID } from "../coti";
+import { getRpcUrlForChain } from "../index";
+import {
+  getPodInboxAddress,
+  isPodMainnetChain,
+} from "../podInbox";
+import { SEPOLIA_CHAIN_ID } from "../sepolia";
 
-/** Source/target chains registered for PoD portal cross-chain tracking. */
-const POD_TRACKING_CHAIN_ORDER = [
+export {
+  getPodInboxAddress,
+  isPodMainnetChain,
+  isPodTrackingChain,
+} from "../podInbox";
+
+/** Live mainnet encryption-service gateway (nginx `/es` on gw.pod.mainnet.coti.io). */
+export const POD_MAINNET_ENCRYPTION_SERVICE_URL =
+  "https://gw.pod.mainnet.coti.io/es";
+
+/** Source/target chains for testnet PoD tracking (shared testnet inbox). */
+const POD_TESTNET_TRACKING_CHAIN_ORDER = [
   SEPOLIA_CHAIN_ID,
   AVALANCHE_FUJI_CHAIN_ID,
   COTI_TESTNET_CHAIN_ID,
 ] as const;
 
-const POD_TRACKING_CHAIN_IDS = new Set<number>(POD_TRACKING_CHAIN_ORDER);
+/** Source/target chains for mainnet PoD tracking (shared mainnet inbox). */
+const POD_MAINNET_TRACKING_CHAIN_ORDER = [
+  AVALANCHE_C_CHAIN_ID,
+  COTI_MAINNET_CHAIN_ID,
+] as const;
 
-/** Shared PoD inbox on every registered tracking chain. */
-export const getPodInboxAddress = (chainId: number): string => {
-  if (!POD_TRACKING_CHAIN_IDS.has(chainId)) {
-    throw new Error(`PoD inbox is not registered for chain ${chainId}`);
+/** Encryption service target for `encodePodMethodArguments` / `PodContract`. */
+export const getPodEncryptionNetwork = (chainId?: number): string => {
+  if (chainId != null && isPodMainnetChain(chainId)) {
+    return POD_MAINNET_ENCRYPTION_SERVICE_URL;
   }
-  return POD_INBOX_ADDRESS;
+  return "testnet";
 };
 
 const resolvePodChainRpcUrl = (chainId: number, pluginConfig: CotiPluginConfig): string => {
@@ -28,17 +48,29 @@ const resolvePodChainRpcUrl = (chainId: number, pluginConfig: CotiPluginConfig):
   if (chainId === COTI_TESTNET_CHAIN_ID && pluginConfig.cotiTestnetRpcUrl) {
     return pluginConfig.cotiTestnetRpcUrl;
   }
+  if (chainId === COTI_MAINNET_CHAIN_ID && pluginConfig.cotiMainnetRpcUrl) {
+    return pluginConfig.cotiMainnetRpcUrl;
+  }
   return getRpcUrlForChain(chainId);
 };
 
-export const getPodSdkConfig = (): PodSdkConfig => {
+/**
+ * SDK config for fee estimate, encrypt, and `PodRequest` tracking.
+ *
+ * `chainId` selects the testnet or mainnet family. Omitted / unknown PoD chains
+ * keep the historical testnet config (Sepolia, Fuji, COTI testnet).
+ */
+export const getPodSdkConfig = (chainId?: number): PodSdkConfig => {
   const pluginConfig = getPluginConfig();
+  const mainnet = chainId != null && isPodMainnetChain(chainId);
+  const order = mainnet ? POD_MAINNET_TRACKING_CHAIN_ORDER : POD_TESTNET_TRACKING_CHAIN_ORDER;
   return {
-    encryptionNetwork: "testnet",
-    chains: POD_TRACKING_CHAIN_ORDER.map(chainId => ({
-      chainId,
-      inboxAddress: POD_INBOX_ADDRESS,
-      rpcUrl: resolvePodChainRpcUrl(chainId, pluginConfig),
+    encryptionNetwork: getPodEncryptionNetwork(chainId),
+    trustedEncryptionServiceUrls: mainnet ? [POD_MAINNET_ENCRYPTION_SERVICE_URL] : undefined,
+    chains: order.map(id => ({
+      chainId: id,
+      inboxAddress: getPodInboxAddress(id),
+      rpcUrl: resolvePodChainRpcUrl(id, pluginConfig),
     })),
   };
 };

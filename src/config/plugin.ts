@@ -91,6 +91,8 @@ export interface CotiPluginConfig {
   sepoliaRpcUrl?: string;
   /** COTI testnet RPC URL for PoD SDK tracking. */
   cotiTestnetRpcUrl?: string;
+  /** COTI mainnet RPC URL for PoD SDK tracking. */
+  cotiMainnetRpcUrl?: string;
   /** WalletConnect Cloud project ID for RainbowKit / WalletConnect wallets. */
   walletConnectProjectId?: string;
   /**

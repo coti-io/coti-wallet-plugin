@@ -87,7 +87,7 @@ export async function resolvePodRequestStatus(request: PodPortalRequest) {
     };
   }
 
-  const sdkConfig = getPodSdkConfig();
+  const sdkConfig = getPodSdkConfig(chainId);
   let tracking: RequestTrackingResponse;
   try {
     const tracker = new PodRequest(sdkConfig);

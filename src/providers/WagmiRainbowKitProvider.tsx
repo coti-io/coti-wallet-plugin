@@ -10,12 +10,15 @@ import {
   cotiTestnet,
   sepolia,
   avalancheFuji,
+  avalanche,
   COTI_MAINNET_RPC,
   COTI_TESTNET_RPC,
   SEPOLIA_RPC,
   SEPOLIA_RPC_FALLBACK,
   AVALANCHE_FUJI_RPC,
   AVALANCHE_FUJI_RPC_FALLBACK,
+  AVALANCHE_C_RPC,
+  AVALANCHE_C_RPC_FALLBACK,
 } from '../config/chains';
 import { getPluginConfig } from '../config/plugin';
 import { resolveWalletConnectProjectId } from '../config/walletConnect';
@@ -115,17 +118,21 @@ function createWagmiConfig(
   const sepoliaTransport = pluginConfig.sepoliaRpcUrl
     ? http(pluginConfig.sepoliaRpcUrl)
     : fallback([http(SEPOLIA_RPC), http(SEPOLIA_RPC_FALLBACK)]);
+  const cotiMainnetTransport = pluginConfig.cotiMainnetRpcUrl
+    ? http(pluginConfig.cotiMainnetRpcUrl)
+    : http(COTI_MAINNET_RPC);
 
   return createConfig({
-    chains: [sepolia, cotiTestnet, cotiMainnet, avalancheFuji],
+    chains: [sepolia, cotiTestnet, cotiMainnet, avalancheFuji, avalanche],
     connectors,
     multiInjectedProviderDiscovery,
     ssr: false,
     transports: {
       [sepolia.id]: sepoliaTransport,
-      [cotiMainnet.id]: http(COTI_MAINNET_RPC),
+      [cotiMainnet.id]: cotiMainnetTransport,
       [cotiTestnet.id]: http(COTI_TESTNET_RPC),
       [avalancheFuji.id]: fallback([http(AVALANCHE_FUJI_RPC), http(AVALANCHE_FUJI_RPC_FALLBACK)]),
+      [avalanche.id]: fallback([http(AVALANCHE_C_RPC), http(AVALANCHE_C_RPC_FALLBACK)]),
     },
   });
 }
@@ -139,10 +146,11 @@ function getWagmiConfigCacheKey(
   const pluginConfig = getPluginConfig();
   const projectId = resolveWalletConnectProjectId(walletConnectProjectId);
   const sepoliaRpc = pluginConfig.sepoliaRpcUrl ?? `${SEPOLIA_RPC}|${SEPOLIA_RPC_FALLBACK}`;
+  const cotiMainnetRpc = pluginConfig.cotiMainnetRpcUrl ?? COTI_MAINNET_RPC;
   const mobile = isMobileBrowser();
   const eip6963 = options.useEip6963MetaMask ? '1' : '0';
   const mipd = options.multiInjectedProviderDiscovery === false ? '0' : '1';
-  return `${projectId}|${sepoliaRpc}|${mobile ? 'mobile' : 'desktop'}|${eip6963}|${mipd}`;
+  return `${projectId}|${sepoliaRpc}|${cotiMainnetRpc}|${mobile ? 'mobile' : 'desktop'}|${eip6963}|${mipd}`;
 }
 
 let cachedWagmiConfig: { key: string; config: Config } | undefined;
@@ -210,6 +218,7 @@ export function WagmiRainbowKitProvider({
       walletConnectProjectId,
       useEip6963MetaMask,
       pluginConfig.sepoliaRpcUrl,
+      pluginConfig.cotiMainnetRpcUrl,
       pluginConfig.walletConnectProjectId,
     ],
   );

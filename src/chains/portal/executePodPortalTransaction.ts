@@ -553,7 +553,7 @@ export async function executePodPortalTransaction(params: {
   const amountWei = ethers.parseUnits(txAmount, decimals);
   const pToken = new ethers.Contract(pTokenAddress, POD_PTOKEN_ABI, signer);
   const portalIface = new ethers.Interface(PRIVACY_PORTAL_ABI);
-  const gasPrice = await resolvePodTxGasPrice(provider);
+  const gasPrice = await resolvePodTxGasPrice(provider, chainId);
 
   if (txDirection === "to-private") {
     await assertPodPTokenReady(pToken, wallet, "deposit", {

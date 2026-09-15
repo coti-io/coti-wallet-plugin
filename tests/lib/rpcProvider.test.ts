@@ -45,7 +45,7 @@ describe('isTransientRpcError', () => {
 
 describe('resolveRpcUrlsForChain', () => {
   beforeEach(() => {
-    configureCotiPlugin({ sepoliaRpcUrl: undefined, cotiTestnetRpcUrl: undefined });
+    configureCotiPlugin({ sepoliaRpcUrl: undefined, cotiTestnetRpcUrl: undefined, cotiMainnetRpcUrl: undefined });
   });
 
   it('returns primary and fallback URLs for Sepolia', () => {
