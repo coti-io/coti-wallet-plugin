@@ -134,14 +134,25 @@ describe('useBalanceUpdater branch coverage', () => {
   });
 
   it('returns "0" for a private token whose on-chain address is empty (lines 130-131)', async () => {
-    const props = makeProps({ sessionAesKey: 'a'.repeat(32) });
-    const { result } = renderHook(() => useBalanceUpdater(props));
+    const { CONTRACT_ADDRESSES } = await import('../../src/contracts/config');
+    const original = CONTRACT_ADDRESSES[COTI_MAINNET];
+    // Keep coverage of the empty-address skip even after mainnet private
+    // tokens ship with real addresses.
+    (CONTRACT_ADDRESSES as Record<number, Record<string, string>>)[COTI_MAINNET] = Object.fromEntries(
+      Object.keys(original).map(key => [key, '']),
+    );
 
-    // Mainnet config has empty-string private token addresses.
-    const ok = await result.current.refreshPrivateBalances({ account: ACCOUNT, chainId: COTI_MAINNET });
-    expect(ok.ok).toBe(true);
-    expect(props.setPrivateTokens).toHaveBeenCalledTimes(1);
-    expect(props.fetchPrivateBalance).not.toHaveBeenCalled();
+    try {
+      const props = makeProps({ sessionAesKey: 'a'.repeat(32) });
+      const { result } = renderHook(() => useBalanceUpdater(props));
+
+      const ok = await result.current.refreshPrivateBalances({ account: ACCOUNT, chainId: COTI_MAINNET });
+      expect(ok.ok).toBe(true);
+      expect(props.setPrivateTokens).toHaveBeenCalledTimes(1);
+      expect(props.fetchPrivateBalance).not.toHaveBeenCalled();
+    } finally {
+      (CONTRACT_ADDRESSES as Record<number, Record<string, string>>)[COTI_MAINNET] = original;
+    }
   });
 
   it('uses the "" message fallback for a non-mismatch error with no message (line 137)', async () => {
