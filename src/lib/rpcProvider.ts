@@ -1,6 +1,7 @@
 import { ethers } from "ethers";
 import { getPluginConfig } from "../config/plugin";
 import { AVALANCHE_FUJI_CHAIN_ID } from "../chains/avalancheFuji";
+import { AVALANCHE_C_CHAIN_ID } from "../chains/avalanche";
 import { COTI_TESTNET_CHAIN_ID } from "../chains/coti";
 import { getNetworkNameForChain } from "../chains";
 import { getRpcUrlsForChain } from "../chains/rpcUrls";
@@ -170,12 +171,12 @@ export const resolveRpcUrlsForChain = (chainId?: number | string | null): string
 };
 
 /**
- * Builds a JsonRpcProvider. On Fuji, fail fast on HTTP 429 so callers can move
- * to the next RPC URL instead of ethers retrying QuikNode up to 12 times while
- * balances stay stuck at the initial "0".
+ * Builds a JsonRpcProvider. On Avalanche L1s, fail fast on HTTP 429 so callers
+ * can move to the next RPC URL instead of ethers retrying QuikNode up to 12
+ * times while balances stay stuck at the initial "0".
  */
 export const createJsonRpcProvider = (url: string, chainId: number) => {
-  if (chainId === AVALANCHE_FUJI_CHAIN_ID) {
+  if (chainId === AVALANCHE_FUJI_CHAIN_ID || chainId === AVALANCHE_C_CHAIN_ID) {
     const request = new ethers.FetchRequest(url);
     request.setThrottleParams({ maxAttempts: 2 });
     request.retryFunc = async (_req, response) => response.statusCode !== 429;
