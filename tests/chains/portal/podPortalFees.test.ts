@@ -167,8 +167,8 @@ describe('resolvePodFeeEstimationConfig', () => {
   });
 
   it('throws for chains without PoD fee estimation config', () => {
-    expect(() => resolvePodFeeEstimationConfig(1, 'to-private', 1n)).toThrow(
-      'PoD fee estimation is not configured for chain 1',
+    expect(() => resolvePodFeeEstimationConfig(99999, 'to-private', 1n)).toThrow(
+      'PoD fee estimation is not configured for chain 99999',
     );
   });
 });

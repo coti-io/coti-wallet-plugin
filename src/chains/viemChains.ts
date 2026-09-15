@@ -17,8 +17,9 @@ const REGISTRY_RPC_BY_CHAIN_ID: Record<number, string> = {
 
 /** Explorer display name derived from registry URL (avoids duplicating viem metadata). */
 const explorerNameFromUrl = (url: string): string => {
-  if (url.includes("etherscan") || url.includes("snowscan")) return "Explorer";
+  if (url.includes("etherscan")) return "Etherscan";
   if (url.includes("cotiscan")) return "CotiScan";
+  if (url.includes("snowscan")) return "SnowScan";
   return "Explorer";
 };
 

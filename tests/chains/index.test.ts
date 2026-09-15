@@ -23,6 +23,8 @@ import {
   COTI_TESTNET_CHAIN_ID,
   SEPOLIA_CHAIN_ID,
   AVALANCHE_FUJI_CHAIN_ID,
+  AVALANCHE_C_CHAIN_ID,
+  ETHEREUM_MAINNET_CHAIN_ID,
   cotiMainnet,
   cotiTestnet,
   sepolia,
@@ -70,7 +72,14 @@ describe('chains/index', () => {
   describe('getSupportedChainIds / isSupportedChain', () => {
     it('lists every chain registered in CHAIN_CONFIGS', () => {
       expect(getSupportedChainIds().sort()).toEqual(
-        [COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID, SEPOLIA_CHAIN_ID, AVALANCHE_FUJI_CHAIN_ID].sort(),
+        [
+          COTI_MAINNET_CHAIN_ID,
+          COTI_TESTNET_CHAIN_ID,
+          SEPOLIA_CHAIN_ID,
+          AVALANCHE_FUJI_CHAIN_ID,
+          AVALANCHE_C_CHAIN_ID,
+          ETHEREUM_MAINNET_CHAIN_ID,
+        ].sort(),
       );
     });
 

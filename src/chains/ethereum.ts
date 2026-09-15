@@ -25,7 +25,7 @@ const PRICE_ORACLE = "";
 export const ethereumMainnetChain: ChainConfig = {
   id: ETHEREUM_MAINNET_CHAIN_ID,
   hexId: "0x1",
-  name: "Ethereum",
+  name: "Ethereum Mainnet",
   rpcUrl: ETHEREUM_MAINNET_RPC_URL,
   rpcFallbackUrls: [ETHEREUM_MAINNET_RPC_FALLBACK_URL],
   explorerBaseUrl: "https://etherscan.io",

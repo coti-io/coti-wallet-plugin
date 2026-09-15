@@ -61,7 +61,7 @@ describe('simulatePodPortalFee', () => {
   });
 
   it('returns unsupported-chain and unknown-token placeholders', async () => {
-    await expect(simulatePodPortalFee(1, 'ETH', '1', '0', '0', '0')).resolves.toEqual({
+    await expect(simulatePodPortalFee(99999, 'ETH', '1', '0', '0', '0')).resolves.toEqual({
       fee: '—',
       explanation: 'Unsupported chain',
     });

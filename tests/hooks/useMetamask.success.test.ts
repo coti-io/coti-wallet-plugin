@@ -49,7 +49,8 @@ describe('useMetamask (success & lifecycle paths)', () => {
       [2632500n, 'COTI Mainnet', '2632500'],
       [7082400n, 'COTI Testnet', '7082400'],
       [11155111n, 'Sepolia', '11155111'],
-      [1n, 'Wrong Network', '1'],
+      [1n, 'Ethereum Mainnet', '1'],
+      [99999n, 'Wrong Network', '99999'],
     ])('maps chainId %s to "%s"', async (chainId, expectedName, expectedId) => {
       h.getNetwork.mockResolvedValue({ chainId });
       const { result } = renderHook(() => useMetamask());
