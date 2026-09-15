@@ -22,7 +22,15 @@ export type {
 } from './config/plugin';
 
 // Errors
-export { CotiPluginError, CotiErrorCode, isCotiPluginError, hasCotiErrorCode, createRpcRateLimitedError, reportPluginError, PLUGIN_ERROR_EVENT } from './errors';
+export {
+  CotiPluginError,
+  CotiErrorCode,
+  isCotiPluginError,
+  hasCotiErrorCode,
+  createRpcRateLimitedError,
+  reportPluginError,
+  PLUGIN_ERROR_EVENT,
+} from './errors';
 
 // Chain definitions (viem + chain ids). Default RPC URL constants stay internal.
 export {
@@ -46,6 +54,7 @@ export {
 // Chain registry (multi-chain portal strategies)
 export {
   DEFAULT_CHAIN_ID,
+  getChainConfig,
   getContractAddresses,
   getTokensForChain,
   getExplorerBaseUrlForChain,
@@ -56,7 +65,14 @@ export {
   getChainIdConstants,
   resolveIndexPageUi,
 } from './chains';
-export type { ChainConfig as PortalChainConfig, ResolvedIndexPageUi, UnlockStrategy, PortalStrategy, WalletNetworkConfig, ChainIndexPageUi } from './chains/types';
+export type {
+  ChainConfig as PortalChainConfig,
+  ResolvedIndexPageUi,
+  UnlockStrategy,
+  PortalStrategy,
+  WalletNetworkConfig,
+  ChainIndexPageUi,
+} from './chains/types';
 
 // PoD portal
 export {
@@ -83,7 +99,13 @@ export {
 } from './chains/portal/executePodPrivateTokenTransfer';
 
 // Contracts (ABIs stay internal)
-export { CONTRACT_ADDRESSES, SUPPORTED_TOKENS, MINIMUM_PORTAL_IN_AMOUNTS, getPublicTokensForChain, getPrivateTokensForChain } from './contracts/config';
+export {
+  CONTRACT_ADDRESSES,
+  SUPPORTED_TOKENS,
+  MINIMUM_PORTAL_IN_AMOUNTS,
+  getPublicTokensForChain,
+  getPrivateTokensForChain,
+} from './contracts/config';
 export type { TokenConfig } from './contracts/config';
 export { LIMITS } from './contracts/limits';
 
@@ -136,10 +158,7 @@ export type {
   AccountStateResult,
   AccountStateFailureReason,
 } from './context/plugin';
-export {
-  PrivateUnlockProvider,
-  usePrivateUnlock,
-} from './context/privateUnlock';
+export { PrivateUnlockProvider, usePrivateUnlock } from './context/privateUnlock';
 export type {
   PrivateUnlockControllerValue,
   PrivateUnlockProviderOptions,
@@ -178,10 +197,7 @@ export {
   AES_BACKUP_WALLET_NOT_SUPPORTED,
   AES_BACKUP_SIGNING_WARNING,
 } from './crypto/aesKeyBackupVault';
-export type {
-  AesBackupSigner,
-  AesBackupVaultContext,
-} from './crypto/aesKeyBackupVault';
+export type { AesBackupSigner, AesBackupVaultContext } from './crypto/aesKeyBackupVault';
 
 export {
   AES_BACKUP_STORAGE_AUTH_DOMAIN_NAME,
@@ -199,14 +215,25 @@ export type {
   AesBackupStorageAuthSigner,
 } from './crypto/aesBackupStorageAuth';
 
-export type {
-  PersistEncryptedAesBackupResult,
-  AesBackupPersistFailureCode,
-} from './lib/persistEncryptedAesBackup';
+export type { PersistEncryptedAesBackupResult, AesBackupPersistFailureCode } from './lib/persistEncryptedAesBackup';
 
 // Utilities
-export { isMultipleWalletsError, isUnsupportedRpcMethodError, MULTIPLE_WALLETS_ERROR_SUBSTRING } from './utils/walletErrors';
-export { formatTokenBalanceDisplay, truncateDecimalValue, formatBalanceWithNotation, addThousandsSeparators, expandExponentialNumber, formatPlainDecimal, formatAmountLimitDisplay, isDustAmount, DUST_AMOUNT_THRESHOLD } from './lib/utils';
+export {
+  isMultipleWalletsError,
+  isUnsupportedRpcMethodError,
+  MULTIPLE_WALLETS_ERROR_SUBSTRING,
+} from './utils/walletErrors';
+export {
+  formatTokenBalanceDisplay,
+  truncateDecimalValue,
+  formatBalanceWithNotation,
+  addThousandsSeparators,
+  expandExponentialNumber,
+  formatPlainDecimal,
+  formatAmountLimitDisplay,
+  isDustAmount,
+  DUST_AMOUNT_THRESHOLD,
+} from './lib/utils';
 export { isTransientRpcError, isRateLimitedRpcError } from './lib/rpcProvider';
 export {
   getEthereumProvider,
@@ -220,4 +247,4 @@ export type { EIP1193Provider, ConnectorProviderSource } from './lib/ethereum';
 
 // NOTE: logger, muteChainUpdates, ABIs, default RPC URL constants, PoD localStorage
 // helpers, getSepoliaGasPrice, useBalanceUpdater, useMetamask, OnboardModal,
-// CHAIN_CONFIGS, and bridge fee helpers are intentionally not exported.
+// CHAIN_CONFIGS (use getChainConfig), and bridge fee helpers are intentionally not exported.
