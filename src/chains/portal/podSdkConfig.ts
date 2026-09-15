@@ -75,5 +75,21 @@ export const getPodSdkConfig = (chainId?: number): PodSdkConfig => {
   };
 };
 
+/**
+ * Allowlist + network for `encodePodMethodArguments`.
+ * `PodContract` already reads this from {@link getPodSdkConfig}; standalone
+ * encode calls must pass it or custom mainnet ES URLs are rejected.
+ */
+export const getPodEncodeEncryptionOptions = (chainId?: number) => {
+  const config = getPodSdkConfig(chainId);
+  return {
+    encryptionNetwork: config.encryptionNetwork ?? getPodEncryptionNetwork(chainId),
+    security: {
+      trustedEncryptionServiceUrls: config.trustedEncryptionServiceUrls,
+      allowUnlistedEncryptionUrl: config.allowUnlistedEncryptionUrl,
+    },
+  };
+};
+
 /** @deprecated Use getPodSdkConfig() for fresh RPC URLs from plugin config. */
 export const podSdkConfig: PodSdkConfig = getPodSdkConfig();

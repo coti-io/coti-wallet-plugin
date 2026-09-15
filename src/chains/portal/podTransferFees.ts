@@ -11,7 +11,7 @@ import {
 import { POD_PTOKEN_ABI } from "../../contracts/pod";
 import { getChainConfig, getRpcUrlForChain } from "../index";
 import { logger } from "../../lib/logger";
-import { getPodEncryptionNetwork, getPodInboxAddress, getPodSdkConfig } from "./podSdkConfig";
+import { getPodEncodeEncryptionOptions, getPodInboxAddress, getPodSdkConfig } from "./podSdkConfig";
 import { POD_DEFAULT_CALLBACK_DATA_SIZE } from "../podInbox";
 import {
   buildPodPortalTxGasOverrides,
@@ -192,11 +192,13 @@ export const sendPodTransferMethod = async (params: {
     userAddress,
   };
 
+  const { encryptionNetwork, security } = getPodEncodeEncryptionOptions(params.chainId);
   const encodedArgs = await encodePodMethodArguments(
     params.args.map(arg => ({ ...arg })),
-    getPodEncryptionNetwork(params.chainId),
+    encryptionNetwork,
     true,
     encryptContext,
+    security,
   );
 
   const cbIndex = encodedArgs.findIndex(arg => arg.isCallBackFee);

@@ -10,7 +10,7 @@ import {
 import { PRIVACY_PORTAL_ABI } from "../../contracts/pod";
 import { getChainConfig, getRpcUrlForChain } from "../index";
 import { logger } from "../../lib/logger";
-import { getPodEncryptionNetwork, getPodInboxAddress, getPodSdkConfig } from "./podSdkConfig";
+import { getPodEncodeEncryptionOptions, getPodInboxAddress, getPodSdkConfig } from "./podSdkConfig";
 import { POD_DEFAULT_CALLBACK_DATA_SIZE } from "../podInbox";
 import { AVALANCHE_C_CHAIN_ID } from "../avalanche";
 import type { TokenConfig } from "../types";
@@ -457,10 +457,13 @@ export const sendPodPortalMethod = async (params: {
   );
 
   const cbIndex = params.args.findIndex(arg => arg.isCallBackFee);
+  const { encryptionNetwork, security } = getPodEncodeEncryptionOptions(params.chainId);
   const encodedArgs = await encodePodMethodArguments(
     params.args.map(arg => ({ ...arg })),
-    getPodEncryptionNetwork(params.chainId),
+    encryptionNetwork,
     false,
+    undefined,
+    security,
   );
   if (cbIndex !== -1) {
     encodedArgs[cbIndex].value = fee.callBackFee;
