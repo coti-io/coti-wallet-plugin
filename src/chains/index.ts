@@ -7,6 +7,8 @@ import {
 import { COTI_TESTNET_POD_INBOX, POD_INBOX_ADDRESS } from "./podInbox";
 import { sepoliaChain, SEPOLIA_CHAIN_ID } from "./sepolia";
 import { avalancheFujiChain, AVALANCHE_FUJI_CHAIN_ID } from "./avalancheFuji";
+import { avalancheCChain, AVALANCHE_C_CHAIN_ID } from "./avalanche";
+import { ethereumMainnetChain, ETHEREUM_MAINNET_CHAIN_ID } from "./ethereum";
 import type {
   ChainConfig,
   ResolvedIndexPageUi,
@@ -23,11 +25,15 @@ export {
   POD_INBOX_ADDRESS,
   SEPOLIA_CHAIN_ID,
   AVALANCHE_FUJI_CHAIN_ID,
+  AVALANCHE_C_CHAIN_ID,
+  ETHEREUM_MAINNET_CHAIN_ID,
 };
 
 export const CHAIN_CONFIGS: Record<number, ChainConfig> = {
   [sepoliaChain.id]: sepoliaChain,
   [avalancheFujiChain.id]: avalancheFujiChain,
+  [ethereumMainnetChain.id]: ethereumMainnetChain,
+  [avalancheCChain.id]: avalancheCChain,
   [cotiTestnetChain.id]: cotiTestnetChain,
   [cotiMainnetChain.id]: cotiMainnetChain,
 };
@@ -108,8 +114,9 @@ export {
   cotiMainnet,
   cotiTestnet,
   sepolia,
+  avalancheFuji,
+  avalanche,
   ethereumMainnet,
-  ETHEREUM_MAINNET_CHAIN_ID,
   ETHEREUM_MAINNET_RPC,
   COTI_MAINNET_RPC,
   COTI_TESTNET_RPC,
