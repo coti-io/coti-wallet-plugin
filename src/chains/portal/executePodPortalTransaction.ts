@@ -1,5 +1,5 @@
 import { ethers } from "ethers";
-import { PRIVACY_PORTAL_ABI, POD_PTOKEN_ABI, SEPOLIA_CHAIN_ID, type PodPortalRequest } from "../../contracts/pod";
+import { PRIVACY_PORTAL_ABI, POD_PTOKEN_ABI, type PodPortalRequest } from "../../contracts/pod";
 import type { SwapProgressStage } from "../../hooks/usePluginBridge";
 import { logger } from "../../lib/logger";
 import { waitForTransactionResilient } from "../../lib/rpcProvider";
@@ -35,6 +35,30 @@ export {
 export { quotePodPortalTransactionFees } from "./fees";
 export type { PodPortalFeeQuote } from "./fees";
 // assertPodPTokenReady is exported above as a named function declaration.
+
+const readConnectedChainId = async (provider?: ethers.Provider | null): Promise<number | undefined> => {
+  if (!provider || typeof provider.getNetwork !== "function") return undefined;
+  try {
+    const id = Number((await provider.getNetwork()).chainId);
+    return Number.isFinite(id) && id > 0 ? id : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+/** Inbox family, encryption network, and gas floor follow the connected chain — never a Sepolia default. */
+const resolvePodExecutionChainId = async (params: {
+  chainId?: number;
+  provider: ethers.Provider;
+  signer: ethers.JsonRpcSigner;
+}): Promise<number> => {
+  if (params.chainId != null) return params.chainId;
+  const fromProvider = await readConnectedChainId(params.provider);
+  if (fromProvider != null) return fromProvider;
+  const fromSigner = await readConnectedChainId(params.signer.provider ?? null);
+  if (fromSigner != null) return fromSigner;
+  throw new Error("PoD portal transaction requires chainId (could not read the connected network)");
+};
 
 const getErrorMessage = (error: unknown) =>
   error && typeof error === "object" && "message" in error && typeof error.message === "string"
@@ -539,7 +563,6 @@ export async function executePodPortalTransaction(params: {
     pTokenAddress,
     tokenSymbol,
     decimals,
-    chainId = SEPOLIA_CHAIN_ID,
     isNativeDeposit = false,
     withdrawPermit,
     onProgress,
@@ -549,6 +572,11 @@ export async function executePodPortalTransaction(params: {
     throw new Error("PoD portal is not configured for this token");
   }
 
+  const chainId = await resolvePodExecutionChainId({
+    chainId: params.chainId,
+    provider,
+    signer,
+  });
   const wallet = await signer.getAddress();
   const amountWei = ethers.parseUnits(txAmount, decimals);
   const pToken = new ethers.Contract(pTokenAddress, POD_PTOKEN_ABI, signer);

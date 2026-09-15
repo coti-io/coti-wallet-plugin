@@ -148,8 +148,9 @@ const makeSigner = () => ({
   },
 });
 
-const makeProvider = () => ({
+const makeProvider = (chainId = 11155111n) => ({
   send: vi.fn(async () => '0x' + (1_000_000_000).toString(16)),
+  getNetwork: vi.fn(async () => ({ chainId })),
   waitForTransaction: (...a: unknown[]) => h.waitForTransaction(...a),
 });
 
@@ -317,8 +318,38 @@ describe('executePodPortalTransaction - deposit (to-private)', () => {
     expect(result.request.status).toBe('source-mined');
     expect(result.request.requestId).toBe('0x' + '7'.repeat(64));
     expect(result.request.message).toContain('mint request submitted');
+    expect(result.request.chainId).toBe(SEPOLIA_CHAIN_ID);
     expect(onProgress).toHaveBeenCalledWith('transfer-start', expect.any(String));
-    expect(h.sendPodPortalMethod).toHaveBeenCalled();
+    expect(h.sendPodPortalMethod).toHaveBeenCalledWith(
+      expect.objectContaining({ chainId: SEPOLIA_CHAIN_ID }),
+    );
+  });
+
+  it('binds inbox family to the connected network when chainId is omitted', async () => {
+    h.sendPodPortalMethod.mockResolvedValue({ hash: '0xdeposit' });
+    h.waitForTransaction.mockResolvedValue({ status: 1, blockNumber: 42, logs: [depositLog()] });
+
+    const result = await executePodPortalTransaction({
+      ...baseParams(),
+      provider: makeProvider(43114n) as never,
+      txDirection: 'to-private',
+    });
+
+    expect(result.request.chainId).toBe(AVALANCHE_C_CHAIN_ID);
+    expect(h.sendPodPortalMethod).toHaveBeenCalledWith(
+      expect.objectContaining({ chainId: AVALANCHE_C_CHAIN_ID }),
+    );
+  });
+
+  it('throws when chainId is omitted and the connected network cannot be read', async () => {
+    await expect(
+      executePodPortalTransaction({
+        ...baseParams(),
+        signer: { getAddress: vi.fn(async () => WALLET), provider: {} } as never,
+        provider: { send: vi.fn(), waitForTransaction: h.waitForTransaction } as never,
+        txDirection: 'to-private',
+      }),
+    ).rejects.toThrow(/requires chainId/);
   });
 
   it('reports request id not found when the deposit log is absent', async () => {
