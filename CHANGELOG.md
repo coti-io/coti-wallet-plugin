@@ -7,6 +7,12 @@ Version numbers follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-09-15
+
+### Added
+
+- Avalanche C-Chain and Ethereum mainnet in the chain registry so PoD portals can resolve RPCs and contracts on those L1s instead of falling back to COTI testnet.
+
 ## [0.4.1] - 2026-09-03
 
 ### Added
@@ -58,7 +64,8 @@ Breaking host API vs `0.3.10`. Hosts must upgrade to this version for the names 
 
 Published npm release. Includes testnet PoD v2.4 remount addresses and MTT faucet/portal pointer updates from the `0.3.9` → `0.3.10` window.
 
-[Unreleased]: https://github.com/coti-io/coti-wallet-plugin/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/coti-io/coti-wallet-plugin/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/coti-io/coti-wallet-plugin/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/coti-io/coti-wallet-plugin/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/coti-io/coti-wallet-plugin/compare/v0.3.10...v0.4.0
 [0.3.10]: https://github.com/coti-io/coti-wallet-plugin/releases/tag/v0.3.10
