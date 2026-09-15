@@ -1,19 +1,13 @@
 import { ethers } from "ethers";
 import { PodRequest } from "@coti-io/pod-sdk";
 import {
-  COTI_TESTNET_CHAIN_ID,
-  SEPOLIA_CHAIN_ID,
   buildPodExplorerRequestUrl,
+  chainIdToPodExplorerSlug,
   POD_PTOKEN_ABI,
   PRIVACY_PORTAL_ABI,
   type PodPortalRequest,
 } from "../../contracts/pod";
 import { loadPodRequests } from "../../pod/podPortalRequestsStorage";
-import {
-  AVALANCHE_C_CHAIN_ID,
-  AVALANCHE_FUJI_CHAIN_ID,
-  COTI_MAINNET_CHAIN_ID,
-} from "../index";
 import type { PodSdkConfig } from "@coti-io/pod-sdk";
 
 const TERMINAL_POD_REQUEST_STATUSES = new Set<PodPortalRequest["status"]>([
@@ -85,22 +79,13 @@ export const formatBlockingPodLogSummary = (
   return parts.join(" | ");
 };
 
-const chainIdToExplorerSlug = (chainId: number) => {
-  if (chainId === SEPOLIA_CHAIN_ID) return "sepolia";
-  if (chainId === COTI_TESTNET_CHAIN_ID) return "coti";
-  if (chainId === COTI_MAINNET_CHAIN_ID) return "coti-mainnet";
-  if (chainId === AVALANCHE_FUJI_CHAIN_ID) return "fuji";
-  if (chainId === AVALANCHE_C_CHAIN_ID) return "avalanche";
-  return String(chainId);
-};
-
 const withExplorerUrl = (candidate: BlockingPodRequestCandidate): BlockingPodRequestCandidate => {
   if (!candidate.requestId || !candidate.chainId) return candidate;
   return {
     ...candidate,
     explorerUrl: buildPodExplorerRequestUrl(
       candidate.requestId,
-      chainIdToExplorerSlug(candidate.chainId),
+      chainIdToPodExplorerSlug(candidate.chainId),
     ),
   };
 };
