@@ -7,6 +7,8 @@ Version numbers follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-09-15
+
 ### Added
 
 - `getChainConfig(chainId)` on the package barrel so hosts can read portal strategy, oracle, fee-estimation limits, and addresses without vendoring the chain registry. `CHAIN_CONFIGS` stays internal.
@@ -82,7 +84,8 @@ Breaking host API vs `0.3.10`. Hosts must upgrade to this version for the names 
 
 Published npm release. Includes testnet PoD v2.4 remount addresses and MTT faucet/portal pointer updates from the `0.3.9` → `0.3.10` window.
 
-[Unreleased]: https://github.com/coti-io/coti-wallet-plugin/compare/v0.4.3...HEAD
+[Unreleased]: https://github.com/coti-io/coti-wallet-plugin/compare/v0.4.4...HEAD
+[0.4.4]: https://github.com/coti-io/coti-wallet-plugin/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/coti-io/coti-wallet-plugin/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/coti-io/coti-wallet-plugin/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/coti-io/coti-wallet-plugin/compare/v0.4.0...v0.4.1
