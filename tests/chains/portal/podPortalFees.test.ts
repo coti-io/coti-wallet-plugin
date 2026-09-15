@@ -35,6 +35,8 @@ vi.mock('@coti-io/pod-sdk', () => ({
   encodePodMethodArguments: vi.fn(async (args: unknown[]) => args),
 }));
 
+import { encodePodMethodArguments } from '@coti-io/pod-sdk';
+
 import {
   buildPodMethodArgs,
   buildPodPortalTxGasOverrides,
@@ -54,6 +56,7 @@ import {
 } from '../../../src/chains/portal/podPortalFees';
 import { POD_DEFAULT_CALLBACK_DATA_SIZE } from '../../../src/chains/podInbox';
 import { AVALANCHE_C_CHAIN_ID } from '../../../src/chains/avalanche';
+import { POD_MAINNET_ENCRYPTION_SERVICE_URL } from '../../../src/chains/portal/podSdkConfig';
 
 const PORTAL = '0x' + 'a'.repeat(40);
 const WALLET = '0x' + '1'.repeat(40);
@@ -544,6 +547,37 @@ describe('sendPodPortalMethod', () => {
     const overrides = call[call.length - 1] as Record<string, unknown>;
     expect(call[3]).toBe(500n); // mintCallbackFee from the estimate
     expect(overrides.value).toBe(1000n + 100n + 2100n);
+  });
+
+  it('allowlists the mainnet encryption gateway when encoding Avalanche C-Chain deposits', async () => {
+    const args = buildPodMethodArgs({
+      direction: 'to-private',
+      wallet: WALLET,
+      amountWei: 1000n,
+      portalFee: 100n,
+      isNativeDeposit: true,
+    });
+    await sendPodPortalMethod({
+      runner: makeSigner() as never,
+      portalAddress: PORTAL,
+      chainId: AVALANCHE_C_CHAIN_ID,
+      direction: 'to-private',
+      method: 'depositNative',
+      args,
+      gasPrice: 25_000_000_000n,
+      portalFee: 100n,
+      amountWei: 1000n,
+      isNativeDeposit: true,
+    });
+    expect(encodePodMethodArguments).toHaveBeenCalledWith(
+      expect.any(Array),
+      POD_MAINNET_ENCRYPTION_SERVICE_URL,
+      false,
+      undefined,
+      expect.objectContaining({
+        trustedEncryptionServiceUrls: [POD_MAINNET_ENCRYPTION_SERVICE_URL],
+      }),
+    );
   });
 
   it('reuses a precomputed PoD fee without re-estimating', async () => {

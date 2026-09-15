@@ -195,6 +195,9 @@ describe('sendPodTransferMethod', () => {
         functionSelector: '0xabcdef01',
         userAddress: WALLET,
       }),
+      expect.objectContaining({
+        trustedEncryptionServiceUrls: undefined,
+      }),
     );
 
     const sendArgs = h.sendFn.mock.calls[0];
