@@ -130,7 +130,7 @@ describe('Package Exports (README: Installation & API)', () => {
   });
 
   it('does not publish internals on the package barrel', async () => {
-    const mod = await import('../src/index') as Record<string, unknown>;
+    const mod = (await import('../src/index')) as Record<string, unknown>;
     const withheld = [
       'useBalanceUpdater',
       'muteChainUpdates',
@@ -168,7 +168,6 @@ describe('Package Exports (README: Installation & API)', () => {
       'onboardModalDefaultStyles',
       'ONBOARD_MODAL_STYLE_KEYS',
       'CHAIN_CONFIGS',
-      'getChainConfig',
       'requireChainConfig',
       'getRpcUrlForChain',
       'getRpcUrlsForChain',
@@ -205,8 +204,16 @@ describe('Package Exports (README: Installation & API)', () => {
     expect(mod.useCotiSwap).toBeDefined();
   });
 
+  it('exports getChainConfig for host registry lookups', async () => {
+    const mod = await import('../src/index');
+    expect(mod.getChainConfig).toBeDefined();
+    expect(mod.getChainConfig(43114)?.id).toBe(43114);
+    expect(mod.getChainConfig(43114)?.priceOracleAddress).toBe('0xDF887895A9aD1F44D80d8924832A5eE302CcC7bC');
+    expect(mod.getChainConfig(43114)?.podFeeEstimation?.deposit).toBeDefined();
+  });
+
   it('exports RainbowKit helpers from the rainbowkit entry', async () => {
-    const mod = await import('../src/rainbowkit') as Record<string, unknown>;
+    const mod = (await import('../src/rainbowkit')) as Record<string, unknown>;
     expect(mod.WagmiRainbowKitProvider).toBeDefined();
     expect(mod.getWagmiConfig).toBeDefined();
     expect(mod.wagmiConfig).toBeDefined();
