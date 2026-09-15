@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   configureCotiPlugin,
   DEFAULT_GRANT_API_URL_TESTNET,
+  DEFAULT_GRANT_API_URL_MAINNET,
   DEFAULT_ONBOARDING_GRANT_MIN_BALANCE_WEI,
   getPluginConfig,
   getSnapRequestParams,
@@ -29,7 +30,7 @@ describe('Plugin Configuration (README: Basic Setup)', () => {
       autoInitTokens: true,
       onboardingGrantEnabled: true,
       grantApiUrlTestnet: DEFAULT_GRANT_API_URL_TESTNET,
-      grantApiUrlMainnet: undefined,
+      grantApiUrlMainnet: DEFAULT_GRANT_API_URL_MAINNET,
       onboardingGrantMinBalanceWei: DEFAULT_ONBOARDING_GRANT_MIN_BALANCE_WEI,
       onboardingServices: { mode: 'disabled' },
     });
@@ -45,16 +46,30 @@ describe('Plugin Configuration (README: Basic Setup)', () => {
     expect(config.pluginFeatures).toEqual([]);
     expect(resolvePluginFeatures()).toEqual([]);
     expect(config.grantApiUrlTestnet).toBe(DEFAULT_GRANT_API_URL_TESTNET);
+    expect(config.grantApiUrlMainnet).toBe(DEFAULT_GRANT_API_URL_MAINNET);
     expect(config.onboardingGrantMinBalanceWei).toBe(DEFAULT_ONBOARDING_GRANT_MIN_BALANCE_WEI);
   });
 
   it('resolves a grant callback when enabled and no custom callback is set', () => {
     expect(isOnboardingGrantEnabled()).toBe(true);
     expect(resolveGrantNativeCoti(COTI_TESTNET_CHAIN_ID)).toEqual(expect.any(Function));
+    expect(resolveGrantNativeCoti(COTI_MAINNET_CHAIN_ID)).toEqual(expect.any(Function));
   });
 
-  it('does not resolve built-in grant for mainnet without a grant URL', () => {
-    expect(resolveGrantNativeCoti(COTI_MAINNET_CHAIN_ID)).toBeUndefined();
+  it('posts native COTI grants to the mainnet gas-grant URL', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ status: 'submitted' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const grant = resolveGrantNativeCoti(COTI_MAINNET_CHAIN_ID);
+    await expect(
+      grant!({ address: '0xabc', chainId: COTI_MAINNET_CHAIN_ID }),
+    ).resolves.toEqual({ status: 'submitted' });
+    expect(fetchMock).toHaveBeenCalledWith(DEFAULT_GRANT_API_URL_MAINNET, expect.objectContaining({
+      method: 'POST',
+    }));
   });
 
   it('disables grant resolution when onboardingGrantEnabled is false', () => {

@@ -5,6 +5,10 @@ import { COTI_MAINNET_CHAIN_ID, COTI_TESTNET_CHAIN_ID } from '../chains';
 export const DEFAULT_GRANT_API_URL_TESTNET =
   'https://testnet-apps-1-gw.coti.io/cms-coti-2bb8/api/v1/gas-grant';
 
+/** Default COTI Mainnet gas-grant endpoint. */
+export const DEFAULT_GRANT_API_URL_MAINNET =
+  'https://gw.pod.mainnet.coti.io/cms-coti-fe01/api/v1/gas-grant';
+
 /** Default onboarding min-balance in wei (0.2 COTI). Hardcoded so module init does not depend on ethers. */
 export const DEFAULT_ONBOARDING_GRANT_MIN_BALANCE_WEI = '200000000000000000';
 
@@ -145,7 +149,7 @@ export interface CotiPluginConfig {
   onboardingGrantEnabled?: boolean;
   /** COTI Testnet gas-grant endpoint. Default: official COTI Testnet grant API. */
   grantApiUrlTestnet?: string;
-  /** COTI Mainnet gas-grant endpoint. No default — grant is skipped on mainnet until set. */
+  /** COTI Mainnet gas-grant endpoint. Default: official COTI Mainnet grant API. */
   grantApiUrlMainnet?: string;
   /** Native COTI threshold required before contract onboarding. Defaults to 0.2 COTI. */
   onboardingGrantMinBalanceWei?: BigNumberish;
@@ -182,6 +186,7 @@ let _config: CotiPluginConfig = {
   onboardingServices: { mode: 'disabled' },
   onboardingGrantEnabled: true,
   grantApiUrlTestnet: DEFAULT_GRANT_API_URL_TESTNET,
+  grantApiUrlMainnet: DEFAULT_GRANT_API_URL_MAINNET,
   onboardingGrantMinBalanceWei: DEFAULT_ONBOARDING_GRANT_MIN_BALANCE_WEI,
   onboardingGrantPollIntervalMs: 2000,
   onboardingGrantTimeoutMs: 60000,
@@ -200,7 +205,7 @@ function resolveGrantApiUrl(chainId: number): string | undefined {
     return config.grantApiUrlTestnet?.replace(/\/$/, '') || DEFAULT_GRANT_API_URL_TESTNET;
   }
   if (chainId === COTI_MAINNET_CHAIN_ID) {
-    return config.grantApiUrlMainnet?.replace(/\/$/, '') || undefined;
+    return config.grantApiUrlMainnet?.replace(/\/$/, '') || DEFAULT_GRANT_API_URL_MAINNET;
   }
   return undefined;
 }
@@ -229,7 +234,6 @@ async function requestGrantNativeCoti(
 
 /**
  * Custom grantNativeCoti when set; otherwise built-in grant when enabled and a URL exists for chainId.
- * Pass chainId so mainnet (no default URL) does not open the grant UI for an instant skip.
  */
 export function resolveGrantNativeCoti(chainId?: number):
   | ((request: OnboardingServiceRequest) => Promise<GrantResult>)

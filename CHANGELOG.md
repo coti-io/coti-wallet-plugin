@@ -10,6 +10,7 @@ Version numbers follow [SemVer](https://semver.org/).
 ### Added
 
 - `getChainConfig(chainId)` on the package barrel so hosts can read portal strategy, oracle, fee-estimation limits, and addresses without vendoring the chain registry. `CHAIN_CONFIGS` stays internal.
+- Built-in COTI Mainnet gas-grant URL (`grantApiUrlMainnet` / `DEFAULT_GRANT_API_URL_MAINNET`), matching the testnet grant path so onboarding no longer skips native COTI grants on mainnet.
 
 ## [0.4.3] - 2026-09-15
 
