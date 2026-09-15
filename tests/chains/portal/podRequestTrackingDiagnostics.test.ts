@@ -168,5 +168,33 @@ describe('logPodTrackingDiagnostics', () => {
         nextExpected: 'target-mined (minedOnTarget=true on COTI inbox)',
       }),
     );
+
+    log.mockClear();
+    logPodTrackingDiagnostics({
+      request: { ...request, chainId: 43114, requestId: '0x' + 'e'.repeat(64) },
+      tracking: baseTracking(),
+      sdkConfig,
+      resolution: 'pod-pending',
+    });
+    expect(log).toHaveBeenCalledWith(
+      '[PoD][trackRequest] status resolution',
+      expect.objectContaining({
+        explorerUrl: expect.stringContaining('/request/avalanche/'),
+      }),
+    );
+
+    log.mockClear();
+    logPodTrackingDiagnostics({
+      request: { ...request, chainId: 2632500, requestId: '0x' + 'f'.repeat(64) },
+      tracking: baseTracking(),
+      sdkConfig,
+      resolution: 'pod-pending',
+    });
+    expect(log).toHaveBeenCalledWith(
+      '[PoD][trackRequest] status resolution',
+      expect.objectContaining({
+        explorerUrl: expect.stringContaining('/request/coti-mainnet/'),
+      }),
+    );
   });
 });

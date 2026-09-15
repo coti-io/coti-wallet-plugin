@@ -1,11 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildPodExplorerRequestUrl,
+  chainIdToPodExplorerSlug,
   DEFAULT_POD_EXPLORER_BASE_URL,
   DEFAULT_POD_BALANCE_STATE,
   SEPOLIA_CHAIN_ID,
   COTI_TESTNET_CHAIN_ID,
 } from '../../src/contracts/pod';
+import { AVALANCHE_C_CHAIN_ID } from '../../src/chains/avalanche';
+import { AVALANCHE_FUJI_CHAIN_ID } from '../../src/chains/avalancheFuji';
+import { COTI_MAINNET_CHAIN_ID } from '../../src/chains/coti';
 
 describe('contracts/pod', () => {
   describe('buildPodExplorerRequestUrl', () => {
@@ -37,6 +41,21 @@ describe('contracts/pod', () => {
       expect(buildPodExplorerRequestUrl('plainid', 'sepolia', 'https://x.io')).toBe(
         'https://x.io/#/request/sepolia/plainid',
       );
+    });
+  });
+
+  describe('chainIdToPodExplorerSlug', () => {
+    it('maps testnet and mainnet PoD chains to explorer slugs', () => {
+      expect(chainIdToPodExplorerSlug(SEPOLIA_CHAIN_ID)).toBe('sepolia');
+      expect(chainIdToPodExplorerSlug(COTI_TESTNET_CHAIN_ID)).toBe('coti');
+      expect(chainIdToPodExplorerSlug(COTI_MAINNET_CHAIN_ID)).toBe('coti-mainnet');
+      expect(chainIdToPodExplorerSlug(AVALANCHE_FUJI_CHAIN_ID)).toBe('fuji');
+      expect(chainIdToPodExplorerSlug(AVALANCHE_C_CHAIN_ID)).toBe('avalanche');
+    });
+
+    it('accepts bigint chain ids and falls back to the numeric id', () => {
+      expect(chainIdToPodExplorerSlug(43114n)).toBe('avalanche');
+      expect(chainIdToPodExplorerSlug(99)).toBe('99');
     });
   });
 

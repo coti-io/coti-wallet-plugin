@@ -1,6 +1,20 @@
+import { AVALANCHE_C_CHAIN_ID } from "../chains/avalanche";
+import { AVALANCHE_FUJI_CHAIN_ID } from "../chains/avalancheFuji";
+import { COTI_MAINNET_CHAIN_ID } from "../chains/coti";
+
 export const SEPOLIA_CHAIN_ID = 11155111;
 export const COTI_TESTNET_CHAIN_ID = 7082400;
 export const DEFAULT_POD_EXPLORER_BASE_URL = "https://coti-pod-explorer.netlify.app";
+
+export const chainIdToPodExplorerSlug = (chainId: number | bigint | string) => {
+  const id = Number(chainId);
+  if (id === SEPOLIA_CHAIN_ID) return "sepolia";
+  if (id === COTI_TESTNET_CHAIN_ID) return "coti";
+  if (id === COTI_MAINNET_CHAIN_ID) return "coti-mainnet";
+  if (id === AVALANCHE_FUJI_CHAIN_ID) return "fuji";
+  if (id === AVALANCHE_C_CHAIN_ID) return "avalanche";
+  return String(id);
+};
 
 export const buildPodExplorerRequestUrl = (
   requestId: string,

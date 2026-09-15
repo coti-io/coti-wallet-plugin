@@ -1,6 +1,10 @@
 import type { RequestTrackingResponse } from "@coti-io/pod-sdk";
 import type { PodSdkConfig } from "@coti-io/pod-sdk";
-import { buildPodExplorerRequestUrl, type PodPortalRequest } from "../../contracts/pod";
+import {
+  buildPodExplorerRequestUrl,
+  chainIdToPodExplorerSlug,
+  type PodPortalRequest,
+} from "../../contracts/pod";
 import { logger } from "../../lib/logger";
 
 export type PodStatusResolution =
@@ -27,14 +31,6 @@ export type SerializedTracking = {
     errorMessage: string;
   } | null;
   response: SerializedTracking | null;
-};
-
-const chainIdToExplorerSlug = (chainId: number | bigint | string) => {
-  const id = Number(chainId);
-  if (id === 11155111) return "sepolia";
-  if (id === 7082400) return "coti";
-  if (id === 43113) return "fuji";
-  return String(id);
 };
 
 export const serializeTrackingResponse = (
@@ -122,7 +118,7 @@ export const logPodTrackingDiagnostics = (params: {
   const pendingReason =
     resolution === "pod-pending" ? explainPodPendingReason(tracking, request.kind) : undefined;
   const explorerUrl = request.requestId
-    ? buildPodExplorerRequestUrl(request.requestId, chainIdToExplorerSlug(request.chainId))
+    ? buildPodExplorerRequestUrl(request.requestId, chainIdToPodExplorerSlug(request.chainId))
     : undefined;
 
   const configSignature = sdkConfig.chains
