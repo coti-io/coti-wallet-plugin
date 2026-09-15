@@ -224,33 +224,44 @@ describe('resolveAesAccessStrategy', () => {
   });
 
   it('probes Snap key and encrypted backup in parallel when Snap is installed', async () => {
-    const fetchEncryptedAesBackup = vi.fn().mockImplementation(async () => {
-      await new Promise(resolve => setTimeout(resolve, 20));
-      return null;
-    });
-    const hasAesKeyInSnap = vi.fn().mockImplementation(async () => {
-      await new Promise(resolve => setTimeout(resolve, 20));
-      return false;
-    });
-    configureCotiPlugin({
-      onboardingServices: { mode: 'custom', fetchEncryptedAesBackup },
-    });
+    vi.useFakeTimers();
+    try {
+      const fetchEncryptedAesBackup = vi.fn().mockImplementation(async () => {
+        await new Promise(resolve => setTimeout(resolve, 20));
+        return null;
+      });
+      const hasAesKeyInSnap = vi.fn().mockImplementation(async () => {
+        await new Promise(resolve => setTimeout(resolve, 20));
+        return false;
+      });
+      configureCotiPlugin({
+        onboardingServices: { mode: 'custom', fetchEncryptedAesBackup },
+      });
 
-    const startedAt = Date.now();
-    const strategy = await resolveAesAccessStrategy({
-      address: '0xabc',
-      chainId: COTI_TESTNET_CHAIN_ID,
-      snapInstalled: true,
-      hasAesKeyInSnap,
-      confirmSnapInstalled: vi.fn().mockResolvedValue(true),
-      snapKeyProbeRetries: 0,
-    });
-    const elapsed = Date.now() - startedAt;
+      let resolved = false;
+      const pending = resolveAesAccessStrategy({
+        address: '0xabc',
+        chainId: COTI_TESTNET_CHAIN_ID,
+        snapInstalled: true,
+        hasAesKeyInSnap,
+        confirmSnapInstalled: vi.fn().mockResolvedValue(true),
+        snapKeyProbeRetries: 0,
+      }).then(strategy => {
+        resolved = true;
+        return strategy;
+      });
 
-    expect(strategy.mode).toBe('onboard');
-    expect(fetchEncryptedAesBackup).toHaveBeenCalledTimes(1);
-    expect(hasAesKeyInSnap).toHaveBeenCalledTimes(1);
-    expect(elapsed).toBeLessThan(35);
+      await vi.advanceTimersByTimeAsync(19);
+      expect(resolved).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      const strategy = await pending;
+
+      expect(strategy.mode).toBe('onboard');
+      expect(fetchEncryptedAesBackup).toHaveBeenCalledTimes(1);
+      expect(hasAesKeyInSnap).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
