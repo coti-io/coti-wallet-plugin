@@ -7,6 +7,19 @@ Version numbers follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-09-15
+
+### Added
+
+- PoD mainnet inbox family alongside testnet: fee estimate, encrypt, AES onboard, request tracking, Avalanche gas floor, and RainbowKit now target the connected network instead of testnet-only.
+
+### Fixed
+
+- Avalanche C-Chain price oracle now uses `PoDPriceOracle` from mainnet deploy config instead of the Chainlink live adapter.
+- `executePodPortalTransaction` no longer defaults omitted `chainId` to Sepolia, which bound Avalanche mainnet deposits to the testnet inbox.
+- Portal encode calls pass the mainnet encryption gateway allowlist so Avalanche deposits are not rejected as an untrusted encryption service URL.
+- Avalanche and COTI mainnet PoD explorer URLs use network slugs instead of numeric chain ids.
+
 ## [0.4.2] - 2026-09-15
 
 ### Added
@@ -64,7 +77,8 @@ Breaking host API vs `0.3.10`. Hosts must upgrade to this version for the names 
 
 Published npm release. Includes testnet PoD v2.4 remount addresses and MTT faucet/portal pointer updates from the `0.3.9` → `0.3.10` window.
 
-[Unreleased]: https://github.com/coti-io/coti-wallet-plugin/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/coti-io/coti-wallet-plugin/compare/v0.4.3...HEAD
+[0.4.3]: https://github.com/coti-io/coti-wallet-plugin/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/coti-io/coti-wallet-plugin/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/coti-io/coti-wallet-plugin/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/coti-io/coti-wallet-plugin/compare/v0.3.10...v0.4.0
