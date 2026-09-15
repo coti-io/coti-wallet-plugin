@@ -46,8 +46,8 @@ describe('Chain Definitions (README: Supported Networks)', () => {
       expect(COTI_TESTNET_RPC).toBe('https://testnet.coti.io/rpc');
     });
 
-    it('Ethereum Mainnet RPC is https://eth.llamarpc.com', () => {
-      expect(ETHEREUM_MAINNET_RPC).toBe('https://eth.llamarpc.com');
+    it('Ethereum Mainnet RPC is https://ethereum-rpc.publicnode.com', () => {
+      expect(ETHEREUM_MAINNET_RPC).toBe('https://ethereum-rpc.publicnode.com');
     });
   });
 
@@ -96,7 +96,7 @@ describe('Chain Definitions (README: Supported Networks)', () => {
     });
 
     it('returns Ethereum Mainnet RPC for chain ID 1', () => {
-      expect(getRpcUrlForChainId(1)).toBe('https://eth.llamarpc.com');
+      expect(getRpcUrlForChainId(1)).toBe('https://ethereum-rpc.publicnode.com');
     });
 
     it('defaults to testnet RPC for unknown chain IDs', () => {
