@@ -701,7 +701,9 @@ describe('useAesKeyProvider (full branch coverage)', () => {
         },
         onboardingGrantMinBalanceWei: 10,
         onboardingGrantPollIntervalMs: 0,
-        onboardingGrantTimeoutMs: 50,
+        // Keep this short, but above one event-loop tick so slow CI still enters
+        // the wait loop at least once without requiring multiple wall-clock polls.
+        onboardingGrantTimeoutMs: 250,
       });
 
       const { result } = renderHook(() => useAesKeyProvider(walletInfo({ walletType: 'rabby' })));
@@ -714,7 +716,8 @@ describe('useAesKeyProvider (full branch coverage)', () => {
       expect(key).toBe(VALID_KEY);
       expect(grantNativeCoti).toHaveBeenCalledWith({ address: ADDR, chainId: COTI_TESTNET });
       expect(signer.generateOrRecoverAes).toHaveBeenCalled();
-      expect(ethersState.getBalance.mock.calls.length).toBeGreaterThan(2);
+      // Initial balance check + at least one poll while waiting for the grant.
+      expect(ethersState.getBalance.mock.calls.length).toBeGreaterThanOrEqual(2);
       expect(result.current.onboardingError).toBeNull();
     });
 

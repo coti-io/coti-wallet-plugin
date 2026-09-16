@@ -246,5 +246,5 @@ export {
 export type { EIP1193Provider, ConnectorProviderSource } from './lib/ethereum';
 
 // NOTE: logger, muteChainUpdates, ABIs, default RPC URL constants, PoD localStorage
-// helpers, getSepoliaGasPrice, useBalanceUpdater, useMetamask, OnboardModal,
+// helpers, useBalanceUpdater, useMetamask, OnboardModal,
 // CHAIN_CONFIGS (use getChainConfig), and bridge fee helpers are intentionally not exported.
