@@ -4,7 +4,7 @@ import { COTI_MAINNET_CHAIN_ID } from "../chains/coti";
 
 export const SEPOLIA_CHAIN_ID = 11155111;
 export const COTI_TESTNET_CHAIN_ID = 7082400;
-export const DEFAULT_POD_EXPLORER_BASE_URL = "https://coti-pod-explorer.netlify.app";
+export const DEFAULT_POD_EXPLORER_BASE_URL = "https://explorer.pod.coti.io";
 
 export const chainIdToPodExplorerSlug = (chainId: number | bigint | string) => {
   const id = Number(chainId);

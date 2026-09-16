@@ -80,6 +80,7 @@ export {
   COTI_TESTNET_CHAIN_ID as POD_COTI_TESTNET_CHAIN_ID,
   DEFAULT_POD_EXPLORER_BASE_URL,
   buildPodExplorerRequestUrl,
+  chainIdToPodExplorerSlug,
   DEFAULT_POD_BALANCE_STATE,
 } from './contracts/pod';
 export type { PodPortalRequest, PodPortalRequestStatus, PodBalanceState, PodBalanceTrustState } from './contracts/pod';

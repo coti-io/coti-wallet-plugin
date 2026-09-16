@@ -1,5 +1,11 @@
 import { ethers } from "ethers";
-import { PRIVACY_PORTAL_ABI, POD_PTOKEN_ABI, type PodPortalRequest } from "../../contracts/pod";
+import {
+  PRIVACY_PORTAL_ABI,
+  POD_PTOKEN_ABI,
+  buildPodExplorerRequestUrl,
+  chainIdToPodExplorerSlug,
+  type PodPortalRequest,
+} from "../../contracts/pod";
 import type { SwapProgressStage } from "../../hooks/usePluginBridge";
 import { logger } from "../../lib/logger";
 import { waitForTransactionResilient } from "../../lib/rpcProvider";
@@ -340,6 +346,28 @@ const resolveBlockingRequestId = (
   ?? diagnostics.blockingRequest?.requestId
   ?? summarizeInFlightLocalPodRequests(account).find(entry => entry.requestId)?.requestId;
 
+const resolveBlockingExplorerUrl = (
+  requestId: string | undefined,
+  diagnostics: BlockingPodRequestDiagnostics,
+  chainId?: number,
+): string | undefined => {
+  if (diagnostics.blockingRequest?.explorerUrl) {
+    return diagnostics.blockingRequest.explorerUrl;
+  }
+  if (!requestId || chainId == null) return undefined;
+  return buildPodExplorerRequestUrl(requestId, chainIdToPodExplorerSlug(chainId));
+};
+
+const throwPodPTokenBlockedError = (
+  message: string,
+  extras: { requestId?: string; explorerUrl?: string },
+): never => {
+  throw Object.assign(new Error(message), {
+    podRequestId: extras.requestId,
+    explorerUrl: extras.explorerUrl,
+  });
+};
+
 const readPodPTokenPendingState = async (
   pToken: ethers.Contract,
   account: string,
@@ -454,20 +482,28 @@ export const assertPodPTokenReady = async (
   if (probe.callbackErrored) {
     const diagnostics = await logPodPTokenReadinessBlocked(pToken, account, pTokenAddress, action, probe, "callback-errored", debugContext);
     const blockingRequestId = resolveBlockingRequestId(account, probe, diagnostics);
-    throw new Error(
+    throwPodPTokenBlockedError(
       blockingRequestId
         ? `This pToken balance is untrusted because PoD callback failed for request ${blockingRequestId}. Replay the callback before using this token.`
         : "This pToken balance is untrusted because a previous PoD callback failed. Replay the callback before using this token.",
+      {
+        requestId: blockingRequestId,
+        explorerUrl: resolveBlockingExplorerUrl(blockingRequestId, diagnostics, debugContext?.chainId),
+      },
     );
   }
 
   if (probe.pending) {
     const diagnostics = await logPodPTokenReadinessBlocked(pToken, account, pTokenAddress, action, probe, "pending", debugContext);
     const blockingRequestId = resolveBlockingRequestId(account, probe, diagnostics);
-    throw new Error(
+    throwPodPTokenBlockedError(
       blockingRequestId
         ? `A PoD request is already pending for this wallet (request ${blockingRequestId}). Wait for it to complete before starting another ${action}.`
         : `A PoD request is already pending for this wallet. Wait for it to complete before starting another ${action}.`,
+      {
+        requestId: blockingRequestId,
+        explorerUrl: resolveBlockingExplorerUrl(blockingRequestId, diagnostics, debugContext?.chainId),
+      },
     );
   }
 };
