@@ -44,6 +44,11 @@ vi.mock('ethers', async (importOriginal) => {
     requestWithdrawWithPermit = (...a: unknown[]) => h.requestWithdrawWithPermit(...a);
     estimateDepositFees = (...a: unknown[]) => h.estimateDepositFees(...a);
     estimateWithdrawFees = (...a: unknown[]) => h.estimateWithdrawFees(...a);
+    getFeeConfig = async () => ({
+      fixedFee: 10_000_000_000_000n,
+      percentageBps: 500n,
+      maxFee: 100_000_000_000_000_000n,
+    });
     estimateGas = (...a: unknown[]) => h.estimateGas(...a);
   }
   return { ...actual, ethers: { ...actual.ethers, Contract: MockContract } };

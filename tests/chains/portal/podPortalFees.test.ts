@@ -15,6 +15,11 @@ vi.mock('ethers', async (importOriginal) => {
     constructor(_address: string, _abi: unknown, _runner: unknown) {}
     estimateDepositFees = (...a: unknown[]) => h.estimateDepositFees(...a);
     estimateWithdrawFees = (...a: unknown[]) => h.estimateWithdrawFees(...a);
+    getFeeConfig = async () => ({
+      fixedFee: 10_000_000_000_000n,
+      percentageBps: 500n,
+      maxFee: 100_000_000_000_000_000n,
+    });
     deposit = { estimateGas: (...a: unknown[]) => h.estimateGas(...a) };
     depositNative = { estimateGas: (...a: unknown[]) => h.estimateGas(...a) };
     requestWithdrawWithPermit = { estimateGas: (...a: unknown[]) => h.estimateGas(...a) };
@@ -53,6 +58,8 @@ import {
   resolvePodTxGasPrice,
   estimatePodExecutionGasWei,
   sendPodPortalMethod,
+  applyPortalFeeOracleBuffer,
+  POD_PORTAL_FEE_ORACLE_BUFFER_BPS,
 } from '../../../src/chains/portal/podPortalFees';
 import { POD_DEFAULT_CALLBACK_DATA_SIZE } from '../../../src/chains/podInbox';
 import { AVALANCHE_C_CHAIN_ID } from '../../../src/chains/avalanche';
@@ -185,10 +192,23 @@ describe('resolvePodFeeEstimationConfig', () => {
   });
 });
 
+describe('applyPortalFeeOracleBuffer', () => {
+  it('adds 2% headroom', () => {
+    expect(applyPortalFeeOracleBuffer(100n, 0n)).toBe(102n);
+    expect(applyPortalFeeOracleBuffer(17_216_538_433_802n, 0n)).toBe(
+      (17_216_538_433_802n * POD_PORTAL_FEE_ORACLE_BUFFER_BPS) / 1000n,
+    );
+  });
+
+  it('caps at maxFee', () => {
+    expect(applyPortalFeeOracleBuffer(100n, 101n)).toBe(101n);
+  });
+});
+
 describe('quotePortalFeeOnly', () => {
   it('reads deposit portal fee only', async () => {
     const quote = await quotePortalFeeOnly(makeSigner() as never, PORTAL, 1000n, 'to-private');
-    expect(quote.portalFee).toBe(100n);
+    expect(quote.portalFee).toBe((100n * POD_PORTAL_FEE_ORACLE_BUFFER_BPS) / 1000n);
     expect(quote.usedDynamicPricing).toBe(true);
   });
 
@@ -196,6 +216,15 @@ describe('quotePortalFeeOnly', () => {
     const quote = await quotePortalFeeOnly(makeSigner() as never, PORTAL, 1000n, 'to-public');
     expect(quote.portalFee).toBe(200n);
     expect(quote.usedDynamicPricing).toBe(false);
+  });
+
+  it('buffers dynamic withdraw portal fees and caps at maxFee', async () => {
+    h.estimateWithdrawFees.mockResolvedValueOnce([17_216_538_433_802n, true, 3000n, 600n]);
+    const quote = await quotePortalFeeOnly(makeSigner() as never, PORTAL, 250_000n, 'to-public');
+    expect(quote.usedDynamicPricing).toBe(true);
+    expect(quote.portalFee).toBe(
+      applyPortalFeeOracleBuffer(17_216_538_433_802n, 100_000_000_000_000_000n),
+    );
   });
 
   it('uses an explicit gasPrice snapshot when provided', async () => {

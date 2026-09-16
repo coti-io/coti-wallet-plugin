@@ -701,31 +701,34 @@ export async function executePodPortalTransaction(params: {
   }
 
   const method = resolvePodPortalMethod("to-public", false);
-  const portalQuote = await quotePortalFeeOnly(signer, portalAddress, amountWei, "to-public", gasPrice);
-  const podArgs = buildPodMethodArgs({
-    direction: "to-public",
-    wallet,
-    amountWei,
-    portalFee: portalQuote.portalFee,
-    withdrawPermit,
-  });
-  const podFee = await estimatePodFee({
-    runner: signer,
-    portalAddress,
-    chainId,
-    direction: "to-public",
-    method,
-    args: podArgs,
-    gasPrice,
-  });
+  const quoteWithdrawFees = async () => {
+    const nextQuote = await quotePortalFeeOnly(signer, portalAddress, amountWei, "to-public", gasPrice);
+    const nextArgs = buildPodMethodArgs({
+      direction: "to-public",
+      wallet,
+      amountWei,
+      portalFee: nextQuote.portalFee,
+      withdrawPermit,
+    });
+    const nextPodFee = await estimatePodFee({
+      runner: signer,
+      portalAddress,
+      chainId,
+      direction: "to-public",
+      method,
+      args: nextArgs,
+      gasPrice,
+    });
+    return { portalQuote: nextQuote, podArgs: nextArgs, podFee: nextPodFee };
+  };
 
-  const withdrawGasFallback = 3_000_000n;
-  let gasLimit: bigint | undefined;
-  try {
+  let { portalQuote, podArgs, podFee } = await quoteWithdrawFees();
+
+  const estimateWithdrawGas = async () => {
     const portal = new ethers.Contract(portalAddress, PRIVACY_PORTAL_ABI, signer);
     // transferFee must equal msg.value - portalFee, i.e. the full PoD fee.
     // Omit gasPrice — see bufferPodEstimatedGasLimit.
-    const estimated = await portal.requestWithdrawWithPermit.estimateGas(
+    return portal.requestWithdrawWithPermit.estimateGas(
       wallet,
       amountWei,
       portalQuote.portalFee,
@@ -737,14 +740,31 @@ export async function executePodPortalTransaction(params: {
       withdrawPermit.s,
       { value: portalQuote.portalFee + podFee.totalFee },
     );
+  };
+
+  const withdrawGasFallback = 3_000_000n;
+  let gasLimit: bigint | undefined;
+  try {
+    const estimated = await estimateWithdrawGas();
     const block = await (provider ?? signer.provider)?.getBlock("latest");
     gasLimit = bufferPodEstimatedGasLimit(estimated, withdrawGasFallback, block?.gasLimit);
   } catch (estErr: unknown) {
     logger.warn(
-      "⚠️ PoD withdraw gas estimation reverted — broadcasting with fallback gas limit so the revert is inspectable on-chain",
+      "⚠️ PoD withdraw gas estimation reverted — refreshing portal fee and retrying",
       (estErr as Error)?.message,
     );
-    gasLimit = withdrawGasFallback;
+    ({ portalQuote, podArgs, podFee } = await quoteWithdrawFees());
+    try {
+      const estimated = await estimateWithdrawGas();
+      const block = await (provider ?? signer.provider)?.getBlock("latest");
+      gasLimit = bufferPodEstimatedGasLimit(estimated, withdrawGasFallback, block?.gasLimit);
+    } catch (estErr2: unknown) {
+      logger.warn(
+        "⚠️ PoD withdraw gas estimation reverted again — broadcasting with fallback gas limit so the revert is inspectable on-chain",
+        (estErr2 as Error)?.message,
+      );
+      gasLimit = withdrawGasFallback;
+    }
   }
 
   const tx = await sendPodPortalMethod({

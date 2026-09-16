@@ -13,6 +13,11 @@ vi.mock('ethers', async (importOriginal) => {
     constructor(_address: string, _abi: unknown, _runner: unknown) {}
     estimateDepositFees = (...a: unknown[]) => h.estimateDepositFees(...a);
     estimateWithdrawFees = (...a: unknown[]) => h.estimateWithdrawFees(...a);
+    getFeeConfig = async () => ({
+      fixedFee: 10_000_000_000_000n,
+      percentageBps: 500n,
+      maxFee: 100_000_000_000_000_000n,
+    });
     deposit = { estimateGas: (...a: unknown[]) => h.estimateGas(...a) };
     depositNative = { estimateGas: (...a: unknown[]) => h.estimateGas(...a) };
     requestWithdrawWithPermit = { estimateGas: (...a: unknown[]) => h.estimateGas(...a) };
@@ -76,12 +81,12 @@ describe('quotePodPortalTransactionFees', () => {
       direction: 'to-private',
     });
 
-    expect(quote.portalFeeWei).toBe(100n);
+    expect(quote.portalFeeWei).toBe(102n);
     expect(quote.podInboxFeeWei).toBe(2100n);
     expect(quote.podCallbackFeeWei).toBe(500n);
     expect(quote.gasPrice).toBe(2_200_000_000n); // 10% buffer on 2 gwei
     expect(quote.l1ExecutionGasWei).toBe(520_000n * 2_200_000_000n); // 400k × 130% buffer
-    expect(quote.display.portalFee).toBe('0.0000000000000001');
+    expect(quote.display.portalFee).toBe('0.000000000000000102');
     expect(quote.display.podInboxFee).toBe('0.0000000000000021');
     expect(quote.display.portalFeeSymbol).toBe('ETH');
     expect(h.estimateFee).toHaveBeenCalledTimes(1);
