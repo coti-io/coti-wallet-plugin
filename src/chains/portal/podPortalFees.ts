@@ -43,6 +43,15 @@ const resolveFeeRunnerProvider = (runner: ethers.ContractRunner): ethers.Provide
 export const POD_GAS_PRICE_BUFFER_BPS = 1100n;
 
 /**
+ * Extra native wei on dynamic portal fees (`percentageBps > 0` + live oracle).
+ * Floor is `max(fixedFee, amountUsd * bps / nativeUsd)` at inclusion time, so a
+ * quote taken a few seconds earlier (permit signature, wallet confirm) reverts
+ * `InsufficientPortalFee` when AVAX/ETH ticks down. 2% covers typical Chainlink
+ * heartbeats without approaching `maxFee`.
+ */
+export const POD_PORTAL_FEE_ORACLE_BUFFER_BPS = 1020n;
+
+/**
  * Floor for PoD tx gas price (wei). Matches InboxFeeManager `DEFAULT_GAS_PRICE`
  * (2 gwei) on testnet / COTI. Fuji/Sepolia `eth_gasPrice` can crater to ~100 wei;
  * quoting and pinning below the inbox default under-budgets callback/remote legs
@@ -112,6 +121,41 @@ export const bufferPodEstimatedGasLimit = (
 /** @deprecated Use {@link resolvePodTxGasPrice}. */
 export const getSepoliaGasPrice = resolvePodTxGasPrice;
 
+/** Apply oracle slippage headroom, capped at the portal `maxFee`. */
+export const applyPortalFeeOracleBuffer = (fee: bigint, maxFee: bigint): bigint => {
+  const buffered = (fee * POD_PORTAL_FEE_ORACLE_BUFFER_BPS) / 1000n;
+  if (maxFee > 0n && buffered > maxFee) {
+    return maxFee;
+  }
+  return buffered;
+};
+
+const readPortalMaxFee = async (
+  portal: ethers.Contract,
+  isDeposit: boolean,
+): Promise<bigint> => {
+  try {
+    const cfg = await portal.getFeeConfig(isDeposit);
+    const maxFee = cfg?.maxFee ?? cfg?.[2];
+    return maxFee == null ? 0n : BigInt(maxFee.toString());
+  } catch {
+    return 0n;
+  }
+};
+
+const withDynamicPortalFeeBuffer = async (
+  portal: ethers.Contract,
+  portalFee: bigint,
+  usedDynamicPricing: boolean,
+  isDeposit: boolean,
+): Promise<bigint> => {
+  if (!usedDynamicPricing || portalFee === 0n) {
+    return portalFee;
+  }
+  const maxFee = await readPortalMaxFee(portal, isDeposit);
+  return applyPortalFeeOracleBuffer(portalFee, maxFee);
+};
+
 export const quotePortalFeeOnly = async (
   runner: ethers.ContractRunner,
   portalAddress: string,
@@ -122,31 +166,25 @@ export const quotePortalFeeOnly = async (
   const provider = resolveFeeRunnerProvider(runner);
   const resolvedGasPrice = gasPrice ?? await resolvePodTxGasPrice(provider);
   const portal = new ethers.Contract(portalAddress, PRIVACY_PORTAL_ABI, runner);
+  const isDeposit = direction === "to-private";
 
-  if (direction === "to-private") {
-    const [portalFee, usedDynamicPricing] = await portal.estimateDepositFees(amount);
-    const quote = {
-      portalFee: BigInt(portalFee.toString()),
-      usedDynamicPricing: Boolean(usedDynamicPricing),
-      gasPrice: resolvedGasPrice,
-    };
-    logger.debug("[podPortalFees] quotePortalFeeOnly deposit", {
-      portalAddress,
-      amount: amount.toString(),
-      portalFee: quote.portalFee.toString(),
-      usedDynamicPricing: quote.usedDynamicPricing,
-      gasPrice: quote.gasPrice.toString(),
-    });
-    return quote;
-  }
-
-  const [portalFee, usedDynamicPricing] = await portal.estimateWithdrawFees(amount);
+  const [rawFee, usedDynamicRaw] = isDeposit
+    ? await portal.estimateDepositFees(amount)
+    : await portal.estimateWithdrawFees(amount);
+  const usedDynamicPricing = Boolean(usedDynamicRaw);
+  const portalFee = await withDynamicPortalFeeBuffer(
+    portal,
+    BigInt(rawFee.toString()),
+    usedDynamicPricing,
+    isDeposit,
+  );
   const quote = {
-    portalFee: BigInt(portalFee.toString()),
-    usedDynamicPricing: Boolean(usedDynamicPricing),
+    portalFee,
+    usedDynamicPricing,
     gasPrice: resolvedGasPrice,
   };
-  logger.debug("[podPortalFees] quotePortalFeeOnly withdraw", {
+  logger.debug("[podPortalFees] quotePortalFeeOnly", {
+    direction,
     portalAddress,
     amount: amount.toString(),
     portalFee: quote.portalFee.toString(),

@@ -81,6 +81,7 @@ export const PRIVACY_PORTAL_ABI = [
   "function nativeWrappedUnderlying() view returns (bool)",
   "function estimateDepositFees(uint256 amount) view returns (uint256 portalFee,bool usedDynamicPricing,uint256 mintTotalFee,uint256 mintCallbackFee)",
   "function estimateWithdrawFees(uint256 amount) view returns (uint256 portalFee,bool usedDynamicPricing,uint256 transferTotalFee,uint256 transferCallbackFee)",
+  "function getFeeConfig(bool isDeposit) view returns (uint256 fixedFee, uint256 percentageBps, uint256 maxFee)",
   "function requestWithdrawWithPermit(address recipient,uint256 amount,uint256 portalFee,uint256 transferFee,uint256 transferCallbackFee,uint256 permitDeadline,uint8 v,bytes32 r,bytes32 s) payable returns (bytes32,bytes32)",
   "event DepositRequested(address indexed user,address indexed recipient,uint256 amount,bytes32 indexed mintRequestId)",
   "event WithdrawalRequested(bytes32 indexed withdrawalId,address indexed user,address indexed recipient,uint256 amount,bytes32 transferRequestId)",
