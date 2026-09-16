@@ -24,7 +24,6 @@ export type { PodWithdrawPermit } from "./podPortalFees";
 export { getPodInboxAddress, getPodSdkConfig, podSdkConfig } from "./podSdkConfig";
 export {
   getPodGasPrice,
-  getSepoliaGasPrice,
   resolvePodTxGasPrice,
   quotePortalFeeOnly,
   formatPortalFeeDisplay,
@@ -137,7 +136,7 @@ const splitSignature = (signature: string) => {
   return { v: parsed.v, r: parsed.r, s: parsed.s };
 };
 
-/** Sepolia ERC-20 pTokens (e.g. p.MTT): flat 2-limb ciphertext + pending flag. */
+/** PoD ERC-20 pTokens (e.g. p.MTT): flat 2-limb ciphertext + pending flag. */
 const POD_PTOKEN_FLAT_STATUS_ABI = [
   "function balanceOfWithStatus(address account) view returns (tuple(uint256 ciphertextHigh, uint256 ciphertextLow),bool)",
 ] as const;
@@ -786,7 +785,7 @@ export async function executePodPortalTransaction(params: {
     primary: provider ?? signer.provider ?? undefined,
   });
   if (!receipt || receipt.status !== 1) {
-    const failed = new Error("Sepolia withdraw transaction failed") as Error & { txHash?: string };
+    const failed = new Error("PoD withdraw transaction failed") as Error & { txHash?: string };
     failed.txHash = tx.hash;
     throw failed;
   }

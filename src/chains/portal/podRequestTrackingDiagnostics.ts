@@ -67,12 +67,16 @@ export const explainPodPendingReason = (
   }
 
   if (!tracking.minedOnTarget) {
-    const target = tracking.targetChainId != null ? tracking.targetChainId.toString() : "unknown";
+    const source =
+      tracking.sourceChainId != null ? tracking.sourceChainId.toString() : "unknown";
+    const target =
+      tracking.targetChainId != null ? tracking.targetChainId.toString() : "unknown";
     return (
-      `Sepolia deposit is confirmed and the request exists in the source PoD inbox, but the ` +
-      `relayer has not mined it on the target chain yet (targetChainId=${target}, ` +
-      `incomingRequests still empty). This step is handled by off-chain PoD infrastructure — ` +
-      `the UI cannot advance until the COTI inbox ingests the message.`
+      `Source deposit is confirmed (sourceChainId=${source}) and the request exists in the ` +
+      `source PoD inbox, but the relayer has not mined it on the target chain yet ` +
+      `(targetChainId=${target}, incomingRequests still empty). This step is handled by ` +
+      `off-chain PoD infrastructure — the UI cannot advance until the COTI inbox ingests ` +
+      `the message.`
     );
   }
 
@@ -85,9 +89,11 @@ export const explainPodPendingReason = (
 
   if (tracking.response && !tracking.response.minedOnTarget) {
     if (kind === "deposit") {
+      const source =
+        tracking.sourceChainId != null ? tracking.sourceChainId.toString() : "unknown";
       return (
-        `Callback was generated on COTI but has not been mined back on Sepolia yet ` +
-        `(mint callback pending on source chain).`
+        `Callback was generated on COTI but has not been mined back on the source chain yet ` +
+        `(sourceChainId=${source}, mint callback pending).`
       );
     }
     return "Callback was generated but has not completed on the source chain yet.";
@@ -152,7 +158,7 @@ export const logPodTrackingDiagnostics = (params: {
         : resolution === "target-mined"
           ? "callback-generated (tracking.response populated)"
           : resolution === "callback-generated"
-            ? "succeeded (tracking.response.minedOnTarget=true on Sepolia)"
+            ? "succeeded (tracking.response.minedOnTarget=true on source chain)"
             : undefined,
   });
 };

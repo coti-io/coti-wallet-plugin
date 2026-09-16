@@ -83,7 +83,7 @@ describe('explainPodPendingReason', () => {
     expect(reason).toContain('callback response has not been generated');
   });
 
-  it('explains a deposit callback that is still pending on Sepolia', () => {
+  it('explains a deposit callback that is still pending on the source chain', () => {
     const reason = explainPodPendingReason(
       baseTracking({
         minedOnTarget: true,
@@ -91,7 +91,8 @@ describe('explainPodPendingReason', () => {
       }),
       'deposit',
     );
-    expect(reason).toContain('mint callback pending on source chain');
+    expect(reason).toContain('mint callback pending');
+    expect(reason).toContain('source chain');
   });
 
   it('explains a non-deposit callback that has not completed on the source chain', () => {

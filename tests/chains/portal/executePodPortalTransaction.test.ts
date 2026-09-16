@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 /**
- * Full-flow tests for the Sepolia PoD portal executor.
+ * Full-flow tests for the PoD portal executor.
  *
  * `ethers` is mocked via `importOriginal` so that pure helpers (Interface,
  * parseUnits, Signature, ZeroHash) stay real while `Contract` is swapped for a
@@ -88,7 +88,7 @@ import { ethers } from 'ethers';
 import {
   executePodPortalTransaction,
   signPodWithdrawPermit,
-  getSepoliaGasPrice,
+  resolvePodTxGasPrice,
   quotePortalFeeOnly,
   getPodSdkConfig,
   getPodInboxAddress,
@@ -264,10 +264,10 @@ describe('getPodSdkConfig', () => {
   });
 });
 
-describe('getSepoliaGasPrice', () => {
+describe('resolvePodTxGasPrice', () => {
   it('reads eth_gasPrice and applies the 10% pod-sdk buffer, floored at 2 gwei', async () => {
     const provider = makeProvider();
-    const price = await getSepoliaGasPrice(provider as never);
+    const price = await resolvePodTxGasPrice(provider as never);
     expect(price).toBe(2_000_000_000n); // 1 gwei × 1.1 < floor → 2 gwei
     expect(provider.send).toHaveBeenCalledWith('eth_gasPrice', []);
   });
@@ -595,7 +595,7 @@ describe('executePodPortalTransaction - withdraw (to-public)', () => {
         txDirection: 'to-public',
         withdrawPermit: validPermit(),
       }),
-    ).rejects.toThrow('Sepolia withdraw transaction failed');
+    ).rejects.toThrow('PoD withdraw transaction failed');
   });
 });
 

@@ -118,9 +118,6 @@ export const bufferPodEstimatedGasLimit = (
   return buffered;
 };
 
-/** @deprecated Use {@link resolvePodTxGasPrice}. */
-export const getSepoliaGasPrice = resolvePodTxGasPrice;
-
 /** Apply oracle slippage headroom, capped at the portal `maxFee`. */
 export const applyPortalFeeOracleBuffer = (fee: bigint, maxFee: bigint): bigint => {
   const buffered = (fee * POD_PORTAL_FEE_ORACLE_BUFFER_BPS) / 1000n;
