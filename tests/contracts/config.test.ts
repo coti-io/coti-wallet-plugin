@@ -36,6 +36,12 @@ describe('Contract Configuration (README: Supported Networks & Tokens)', () => {
       expect(addresses).toBeDefined();
       expect(addresses.PrivacyPortalUSDC).toBe('0xeAce463ea0B85E728D2d5404a0653Af50113356c');
       expect(addresses['p.USDC']).toBe('0x13AE6A6429fA6F2dfD0DBE79C85B28DdC74111BE');
+      expect(addresses.PrivacyPortalUSDT).toBe('0x9BBf65fE20B871568cE1d34D278460F0c96F624c');
+      expect(addresses['p.USDT']).toBe('0xa492A5c5D3bC11f24138A029E0b6083fC4eaab3b');
+      expect(addresses.PrivacyPortalWBTC).toBe('0x15d5b023baB985154Aca592C37C761787b9F0403');
+      expect(addresses['p.WBTC']).toBe('0x052777CCCa2577dafbB653db3640504025FcDfEC');
+      expect(addresses.PrivacyPortalWETH).toBe('0x9C64D0d2DAe8C4aEa5662d4D154f59FDd683ceFC');
+      expect(addresses['p.WETH']).toBe('0x2720dFE9766d00CEDE64946A65bFA99F68991E72');
       expect(addresses.PrivacyPortalAVAX).toBe('0x3b17A57Ecd4B74603A171024203f34E9FC473255');
       expect(addresses['p.AVAX']).toBe('0xf632A73D5923BBC1F87BA727D7261436bA768c85');
       expect(addresses.PrivacyPortalFactory).toBe('0xc25ac091b5a6377024f8cbd90c836eac185c3a57');
