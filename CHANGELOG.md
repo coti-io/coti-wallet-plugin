@@ -7,6 +7,12 @@ Version numbers follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.6] - 2026-09-16
+
+### Added
+
+- Avalanche C-Chain USDT, WBTC, and WETH Privacy Portal pairs (`p.USDT`, `p.WBTC`, `p.WETH`) alongside the existing USDC and AVAX catalogs.
+
 ## [0.4.5] - 2026-09-15
 
 ### Added
@@ -90,7 +96,8 @@ Breaking host API vs `0.3.10`. Hosts must upgrade to this version for the names 
 
 Published npm release. Includes testnet PoD v2.4 remount addresses and MTT faucet/portal pointer updates from the `0.3.9` → `0.3.10` window.
 
-[Unreleased]: https://github.com/coti-io/coti-wallet-plugin/compare/v0.4.5...HEAD
+[Unreleased]: https://github.com/coti-io/coti-wallet-plugin/compare/v0.4.6...HEAD
+[0.4.6]: https://github.com/coti-io/coti-wallet-plugin/compare/v0.4.5...v0.4.6
 [0.4.5]: https://github.com/coti-io/coti-wallet-plugin/compare/v0.4.4...v0.4.5
 [0.4.4]: https://github.com/coti-io/coti-wallet-plugin/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/coti-io/coti-wallet-plugin/compare/v0.4.2...v0.4.3
